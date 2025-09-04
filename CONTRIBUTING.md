@@ -313,7 +313,7 @@ git config --global alias.prdev '!f(){
   gh pr view --web
 }; f'
 
-# dev -> main 릴리즈 전 실행(dev와 main의 sync를 맞춤)
+# main → dev 동기화 PR (템플릿 강제 주입 + 자동머지 시도 + 웹 열기)
 git config --global alias.syncmain '!f(){
   set -e
   git fetch origin
@@ -322,29 +322,39 @@ git config --global alias.syncmain '!f(){
   read L R <<EOF
   $(git rev-list --left-right --count origin/main...origin/dev)
 EOF
-
   if [ "$L" -eq 0 ]; then
     echo "✅ main→dev 동기화 필요 없음 (main_only=0)"
     exit 0
   fi
-
   echo "ℹ️ main_only=$L, dev_only=$R → main→dev 동기화 PR 진행"
 
-  # 이미 열린 PR이 있으면 그걸 사용
+  # 본문 템플릿 준비: origin/dev 우선, 없으면 origin/main에서 가져오기
+  TMP=$(mktemp)
+  if git show origin/dev:.github/pull_request_template.md > "$TMP" 2>/dev/null; then
+    :
+  elif git show origin/main:.github/pull_request_template.md > "$TMP" 2>/dev/null; then
+    :
+  else
+    echo "Sync main → dev" > "$TMP"
+  fi
+
+  # 이미 열린 PR 있으면 그걸 사용
   NUM=$(gh pr list --base dev --head main --state open --json number --jq ".[0].number" 2>/dev/null || true)
-  if [ -z "$NUM" ]; then
-    gh pr create -B dev -H main \
-      --title "Sync main → dev" \
-      --body "자동 생성: release 전 main → dev 동기화 PR 입니다."
+  if [ -n "$NUM" ]; then
+    echo "ℹ️ 기존 PR #$NUM 이 열려 있어요."
+  else
+    gh pr create -B dev -H main -F "$TMP" --title "Sync main → dev"
     NUM=$(gh pr list --base dev --head main --state open --json number --jq ".[0].number")
   fi
 
-  # Auto-merge 시도(리포에서 Auto-merge 허용되어 있어야 함)
+  # Auto-merge (레포에서 Allow auto-merge가 켜져 있어야 동작, 승인/체크 충족 시 자동 병합)
   gh pr merge "$NUM" --auto --merge || true
 
-  # 웹으로 열기
   gh pr view "$NUM" --web
+  rm -f "$TMP"
 }; f'
+
+
 
 
 # dev → main 릴리즈 PR (템플릿 강제 주입)
