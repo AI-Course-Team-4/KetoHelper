@@ -1,0 +1,29 @@
+name: Sync main → dev
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  open-sync-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create or open PR main → dev and enable auto-merge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          # PR 유무 확인
+          NUM=$(gh pr list --base dev --head main --state open --json number --jq '.[0].number' || true)
+          if [ -z "$NUM" ]; then
+            gh pr create -B dev -H main \
+              --title "Sync main → dev" \
+              --body "Auto PR to keep dev up to date with main."
+            NUM=$(gh pr list --base dev --head main --state open --json number --jq '.[0].number')
+          fi
+          # 승인/체크 끝나면 자동 머지
+          gh pr merge "$NUM" --auto --merge || true
