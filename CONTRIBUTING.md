@@ -287,19 +287,14 @@ git release
 # feature/* → (origin/dev merge, 템플릿 적용) → dev 대상 PR 생성
 git config --global alias.prdev '!f(){ set -e; BR=$(git rev-parse --abbrev-ref HEAD); [ "$BR" = dev -o "$BR" = main ] && { echo "현재 브랜치가 $BR 입니다. feature 브랜치에서 실행하세요."; exit 1; }; git fetch origin; if ! git merge origin/dev; then echo "⚠️ 충돌 발생: 해결 후 ① git add -A ② git commit ③ git push -u origin $BR ④ gh pr create -B dev -H $BR -T .github/pull_request_template.md -w"; exit 1; fi; git push -u origin "$BR"; gh pr create -B dev -H "$BR" -T .github/pull_request_template.md -w; }; f'
 
-# dev → main PR 생성 (단일 템플릿 파일 주입 + 생성 후 브라우저 오픈)
+# dev → main PR (본문 템플릿 강제 주입 + 웹 열기)
 git config --global alias.dev2main '!f(){
   set -e
   git fetch origin
   if ! git merge-base --is-ancestor origin/main origin/dev; then
-    echo "dev가 main 최신을 포함하지 않음. 먼저 dev를 업데이트(PR로)하세요."
-    exit 1
+    echo "dev가 main 최신을 포함하지 않음. 먼저 dev를 업데이트(PR로)하세요."; exit 1
   fi
-  # 단일 템플릿 파일을 PR 본문으로 사용
-  gh pr create -B main -H dev -F .github/pull_request_template.md >/dev/null || {
-    echo "이미 dev→main PR이 열려 있을 수 있습니다. 기존 PR을 엽니다."
-  }
-  gh pr view --web
+  gh pr create -B main -H dev -F .github/pull_request_template.md --web
 }; f'
 
 # dev → main 릴리즈 PR (템플릿 강제 주입)
