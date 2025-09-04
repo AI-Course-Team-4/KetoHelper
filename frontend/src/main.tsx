@@ -22,10 +22,6 @@ const queryClient = new QueryClient({
   },
 })
 
-// 런타임에 주입된 Google Client ID 확인용 (임시 로그)
-console.log('VITE_GOOGLE_CLIENT_ID: ', import.meta.env.VITE_GOOGLE_CLIENT_ID)
-console.log('VITE_NAVER_CLIENT_ID:', import.meta.env.VITE_NAVER_CLIENT_ID)
-
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <GoogleOAuthProvider

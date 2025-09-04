@@ -76,6 +76,7 @@ const Sidebar = () => {
   const hasSubscription = user?.subscription?.isActive || false
   const menuItems = getMenuItems(hasSubscription)
   const bottomMenuItems = getBottomMenuItems(isAuthenticated)
+  const displayName = user?.name || user?.id || '';
 
   const handleLogout = async () => {
     try {
@@ -156,12 +157,12 @@ const Sidebar = () => {
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
             <Avatar
               src={user.profileImage}
-              alt={user.name}
+              alt={displayName}
               sx={{ mr: 2, width: 40, height: 40 }}
             />
             <Box>
               <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                {user.name}
+                {displayName}
               </Typography>
               {hasSubscription && (
                 <Chip

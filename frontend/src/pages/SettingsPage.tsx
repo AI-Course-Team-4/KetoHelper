@@ -10,13 +10,8 @@ import {
   Switch,
   FormControlLabel,
   Chip,
-  Grid,
   Divider,
   Alert,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
 } from '@mui/material'
 import { Save, Delete, Add } from '@mui/icons-material'
 import { useAuthStore } from '@store/authStore'
@@ -44,12 +39,13 @@ function TabPanel(props: TabPanelProps) {
 }
 
 const SettingsPage = () => {
-  const { user, isAuthenticated } = useAuthStore()
+  const { isAuthenticated } = useAuthStore()
   const [activeTab, setActiveTab] = useState(0)
   const [allergies, setAllergies] = useState(['견과류', '갑각류'])
   const [dislikes, setDislikes] = useState(['버섯', '올리브'])
   const [newAllergy, setNewAllergy] = useState('')
   const [newDislike, setNewDislike] = useState('')
+  
 
   if (!isAuthenticated) {
     return (
@@ -99,66 +95,15 @@ const SettingsPage = () => {
       <Paper sx={{ width: '100%' }}>
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tabs value={activeTab} onChange={handleTabChange}>
-            <Tab label="프로필" />
+            {/* <Tab label="프로필" /> */}
             <Tab label="식품 선호도" />
             <Tab label="알림 설정" />
             <Tab label="계정 관리" />
           </Tabs>
         </Box>
 
-        {/* 프로필 탭 */}
-        <TabPanel value={activeTab} index={0}>
-          <Typography variant="h6" sx={{ mb: 3 }}>
-            프로필 정보
-          </Typography>
-          
-          <Grid container spacing={3}>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="이름"
-                defaultValue={user?.name || ''}
-                variant="outlined"
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="이메일"
-                defaultValue={user?.email || ''}
-                variant="outlined"
-                disabled
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <FormControl fullWidth>
-                <InputLabel>키토 경험 레벨</InputLabel>
-                <Select defaultValue="beginner">
-                  <MenuItem value="beginner">초보자</MenuItem>
-                  <MenuItem value="intermediate">중급자</MenuItem>
-                  <MenuItem value="advanced">고급자</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="목표 체중 (kg)"
-                type="number"
-                variant="outlined"
-              />
-            </Grid>
-          </Grid>
-
-          <Box sx={{ mt: 3 }}>
-            <Button variant="contained" startIcon={<Save />}>
-              프로필 저장
-            </Button>
-          </Box>
-        </TabPanel>
-
         {/* 식품 선호도 탭 */}
-        <TabPanel value={activeTab} index={1}>
+        <TabPanel value={activeTab} index={0}>
           <Typography variant="h6" sx={{ mb: 3 }}>
             식품 선호도
           </Typography>
@@ -239,7 +184,7 @@ const SettingsPage = () => {
         </TabPanel>
 
         {/* 알림 설정 탭 */}
-        <TabPanel value={activeTab} index={2}>
+        <TabPanel value={activeTab} index={1}>
           <Typography variant="h6" sx={{ mb: 3 }}>
             알림 설정
           </Typography>
@@ -271,7 +216,7 @@ const SettingsPage = () => {
         </TabPanel>
 
         {/* 계정 관리 탭 */}
-        <TabPanel value={activeTab} index={3}>
+        <TabPanel value={activeTab} index={2}>
           <Typography variant="h6" sx={{ mb: 3 }}>
             계정 관리
           </Typography>
@@ -302,9 +247,9 @@ const SettingsPage = () => {
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 계정을 삭제하면 모든 데이터가 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
               </Typography>
-              <Button 
-                variant="outlined" 
-                color="error" 
+              <Button
+                variant="outlined"
+                color="error"
                 startIcon={<Delete />}
               >
                 계정 삭제
