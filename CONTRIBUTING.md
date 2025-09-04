@@ -277,17 +277,25 @@ git prdev
 ### 2) 릴리즈: dev → main 승격
 
 ```bash
-git switch dev
-git pull --ff-only origin dev
-git dev2main
-git prmerge
+#dev 브랜치에서 실행
+git release
 ```
 
 ## 한 번만 설정하는 alias (gh CLI 필요)
 
 ```bash
 # feature/* → (origin/dev merge, 템플릿 적용) → dev 대상 PR 생성
-git config --global alias.prdev '!f(){ set -e; BR=$(git rev-parse --abbrev-ref HEAD); [ "$BR" = dev -o "$BR" = main ] && { echo "현재 브랜치가 $BR 입니다. feature 브랜치에서 실행하세요."; exit 1; }; git fetch origin; if ! git merge origin/dev; then echo "⚠️ 충돌 발생: 해결 후 ① git add -A ② git commit ③ git push -u origin $BR ④ gh pr create -B dev -H $BR -T .github/pull_request_template.md -w"; exit 1; fi; git push -u origin "$BR"; gh pr create -B dev -H "$BR" -T .github/pull_request_template.md -w; }; f'
+git config --global alias.prdev '!f(){
+  set -e
+  BR=$(git rev-parse --abbrev-ref HEAD)
+  [ "$BR" = dev -o "$BR" = main ] && { echo "현재 브랜치가 $BR 입니다. feature 브랜치에서 실행하세요."; exit 1; }
+  git fetch origin
+  if ! git merge origin/dev; then
+    echo "⚠️ 충돌 발생: 해결 후 ① git add -A ② git commit ③ git push -u origin $BR"; exit 1
+  fi
+  git push -u origin "$BR"
+  gh pr create -B dev -H "$BR" -F .github/pull_request_template.md --web
+}; f'
 
 # dev → main PR (본문 템플릿 강제 주입 + 웹 열기)
 git config --global alias.dev2main '!f(){
@@ -297,6 +305,29 @@ git config --global alias.dev2main '!f(){
     echo "dev가 main 최신을 포함하지 않음. 먼저 dev를 업데이트(PR로)하세요."; exit 1
   fi
   gh pr create -B main -H dev -F .github/pull_request_template.md --web
+}; f'
+
+# dev → main 릴리즈 PR (템플릿 강제 주입)
+git config --global alias.release '!f(){
+  set -e
+  git fetch origin
+  # main에만 있는 커밋이 있으면 먼저 main→dev 병합 필요
+  if ! git merge-base --is-ancestor origin/main origin/dev; then
+    echo "❌ main에만 있는 커밋이 있어요. 먼저 main→dev 병합 PR을 머지하세요."
+    exit 1
+  fi
+  # 이미 열린 dev→main PR이 있으면 그걸 연다
+  NUM=$(gh pr list --base main --head dev --state open --json number --jq ".[0].number" 2>/dev/null || true)
+  if [ -n "$NUM" ]; then
+    echo "ℹ️ 기존 PR #$NUM 이 열려 있어요. 웹으로 엽니다."
+    gh pr view "$NUM" --web
+    exit 0
+  fi
+  # 템플릿 강제 주입(-F)으로 새 PR 생성
+  gh pr create -B main -H dev \
+    -F .github/pull_request_template.md \
+    --title "Release: dev → main" \
+    --web
 }; f'
 
 
