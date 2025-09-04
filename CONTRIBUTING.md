@@ -240,8 +240,19 @@ Happy coding! 🥑✨
 # Git PR 운영 규칙 (실행 가이드)
 
 > 목적: `dev`/`main`은 PR로만 변경. 개인 브랜치에서 자유 작업.
+> 편의성: git 명령어가 어려운 팀원들을 위해 alias로 명령어 하나로 협업 가능하도록 작업.
 
 ## 팀 공통 운영 흐름
+
+### 0) Windows에서 gh 설치
+
+- PowerShell(관리자) 열고 실행
+
+winget install --id GitHub.cli -e
+
+- 설치 후 새 터미널에서 확인/로그인
+gh --version
+gh auth login
 
 ### 1) 각자 작업 → dev로 PR
 
@@ -250,6 +261,18 @@ git switch -c feature/<owner>-<topic>
 git add -A && git commit -m "feat: ..."
 git prdev
 ```
+### 패턴(권장): type/<owner>-<topic> — 단 한 번만 슬래시 사용
+
+### 허용 type: feature, fix, chore, docs, refactor, test, hotfix, release
+
+### 예시
+- feature/sh-main-page
+
+- fix/yk-login-500
+
+- chore/ci-cd-cache-tune
+
+- 금지: 중첩 슬래시(예: feature/sh/setting). Git의 참조 구조상 **feature/sh**가 존재하면 **feature/sh/setting**을 만들 수 없습니다.
 
 ### 2) 릴리즈: dev → main 승격
 
