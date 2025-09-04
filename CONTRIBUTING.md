@@ -389,3 +389,29 @@ gh auth status
 - 브랜치 이름 충돌 → 슬래시는 한 번만 (`feature/sh-setting`).
 - 충돌 발생 → 수정 후 `git add -A` → `git commit` → `git push` → 필요 시 `gh pr create -B dev -H <현재브랜치> -w`.
 - 기본 브랜치 확인: GitHub Settings → Branches → Default branch = `dev`.
+
+
+# git 협업 - 한 눈에 보는 치트시트
+- 팀원은 feature/___ 브랜치 생성 후 작업 끝나면 git prdev 작성, 승인 완료 후 merge 클릭
+
+- pm은 git syncmain 하여 main과 dev 싱크 맞추고 git release 실행, 
+  승인 완료 후 merge 클릭, 마지막으로 다시 git syncmain
+
+- 기능 작업 제출: feature/ → git prdev → (승인2) 웹에서 Merge
+
+- 릴리즈 직전: git syncmain (필요 없으면 “✅ 없음” 출력)
+
+- 릴리즈 PR: git release → (승인2) 웹에서 Merge
+
+- 릴리즈 후(권장): git syncmain 한 번 더
+
+-----------------------------------------
+# git 협업 - 위처럼 진행하면 아래와 같은 이점 존재
+
+--충돌은 feature 단계에서 조기 발견
+
+--보호 규칙(리뷰 2명, 직접 push 금지) 준수
+
+--템플릿은 항상 본문에 주입되어 빈 폼 스트레스 제거
+
+--릴리즈 때 분기 가드로 안전하게 진행
