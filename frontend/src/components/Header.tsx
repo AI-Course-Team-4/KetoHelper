@@ -74,6 +74,8 @@ const Header = () => {
     handleProfileMenuClose()
   }
 
+  const displayName = user?.name || user?.id || '';
+
   return (
     <AppBar position="sticky" elevation={1}>
       <Toolbar>
@@ -214,7 +216,7 @@ const Header = () => {
               >
                 <MenuItem onClick={handleProfileMenuClose}>
                   <Box sx={{ minWidth: 200 }}>
-                    <Typography variant="subtitle2">{user.name}</Typography>
+                    <Typography variant="subtitle2">{displayName}</Typography>
                     <Typography variant="body2" color="text.secondary">
                       {user.email}
                     </Typography>

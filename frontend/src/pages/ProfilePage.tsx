@@ -34,6 +34,8 @@ const ProfilePage = () => {
   const [isEditing, setIsEditing] = useState(false)
   const [profileImage, setProfileImage] = useState(user?.profileImage || '')
   const [name, setName] = useState(user?.name || '')
+  const [id] = useState(user?.id || '')
+  const isGuest = !!user?.id?.startsWith('guest-')
   const [dietSetupOpen, setDietSetupOpen] = useState(false)
   const [dietSetup, setDietSetup] = useState<InitialDietSetup>({
     currentWeight: user?.dietPlan?.currentWeight || 70,
@@ -42,6 +44,7 @@ const ProfilePage = () => {
     timeframe: 12,
     activityLevel: 'moderate',
   })
+  const displayName = name || id || '';
 
   if (!isAuthenticated) {
     return (
@@ -92,7 +95,7 @@ const ProfilePage = () => {
       medium: 0.5,
       high: 0.75,
     }[dietSetup.intensity]
-    
+
     // 주당 감량 목표 (kg)
     const weeklyGoal = intensityMultiplier
     const estimatedWeeks = Math.ceil(weightDiff / weeklyGoal)
@@ -128,15 +131,15 @@ const ProfilePage = () => {
                   기본 정보
                 </Typography>
                 {!isEditing ? (
-                  <IconButton onClick={() => setIsEditing(true)}>
+                  <IconButton onClick={() => { if (!isGuest) setIsEditing(true) }} disabled={isGuest}>
                     <Edit />
                   </IconButton>
                 ) : (
                   <Box>
-                    <IconButton onClick={handleSaveProfile} color="primary">
+                    <IconButton onClick={handleSaveProfile} color="primary" disabled={isGuest}>
                       <Save />
                     </IconButton>
-                    <IconButton onClick={handleCancelEdit}>
+                    <IconButton onClick={handleCancelEdit} disabled={isGuest}>
                       <Cancel />
                     </IconButton>
                   </Box>
@@ -157,7 +160,7 @@ const ProfilePage = () => {
                   >
                     {name?.charAt(0)}
                   </Avatar>
-                  {isEditing && (
+                  {isEditing && !isGuest && (
                     <IconButton
                       sx={{
                         position: 'absolute',
@@ -192,9 +195,9 @@ const ProfilePage = () => {
                   <TextField
                     fullWidth
                     label="이름"
-                    value={name}
+                    value={displayName}
                     onChange={(e) => setName(e.target.value)}
-                    disabled={!isEditing}
+                    disabled={!isEditing || isGuest}
                     variant={isEditing ? 'outlined' : 'filled'}
                   />
                 </Grid>
@@ -209,7 +212,7 @@ const ProfilePage = () => {
                   />
                 </Grid>
                 <Grid item xs={12}>
-                  <FormControl fullWidth disabled={!isEditing}>
+                  <FormControl fullWidth disabled={!isEditing || isGuest}>
                     <InputLabel>키토 경험 레벨</InputLabel>
                     <Select
                       value={user?.preferences?.experienceLevel || 'beginner'}

@@ -104,7 +104,7 @@ const LoginPage = () => {
         // Clean URL to avoid re-processing if user refreshes/back
         try {
           window.history.replaceState({}, document.title, '/')
-        } catch {}
+        } catch { }
         navigate('/')
       } catch (e: any) {
         console.error('네이버 로그인 실패:', e)
@@ -224,6 +224,32 @@ const LoginPage = () => {
     } finally {
       setIsKakaoLoading(false)
     }
+  }
+
+  const handleGuestLogin = () => {
+    const guestUser = {
+      id: 'guest-' + Math.random().toString(36).substring(2, 15),
+      email: 'guest 계정을 이용 중입니다.',
+      profileImage: undefined,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      preferences: {
+        allergies: [],
+        dislikes: [],
+        dietaryRestrictions: [],
+        experienceLevel: 'beginner' as const,
+        goals: { targetCalories: 2000, macroRatio: { carbs: 5, protein: 25, fat: 70 } },
+      },
+      settings: {
+        notifications: { mealReminders: true, recommendations: true, weeklyReport: false },
+        units: 'metric' as const,
+      },
+      subscription: { isActive: false, plan: 'free' as const, autoRenewal: false },
+    }
+
+    setUser(guestUser as any)
+    toast.success(`환영합니다, ${guestUser.id}님!`)
+    navigate('/')
   }
 
   return (
@@ -392,8 +418,7 @@ const LoginPage = () => {
           fullWidth
           variant="outlined"
           size="large"
-          component={Link}
-          to="/"
+          onClick={handleGuestLogin}
           sx={{ mb: 2, borderRadius: 0.5, maxWidth: 320 }}
         >
           게스트로 둘러보기
