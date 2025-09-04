@@ -279,6 +279,8 @@ git prdev
 ```bash
 #dev 브랜치에서 실행
 git release
+#dev 브랜치에서 실행
+git release
 ```
 
 ## 한 번만 설정하는 alias (gh CLI 필요)
@@ -289,6 +291,17 @@ git release
 
 
 # feature/* → (origin/dev merge, 템플릿 적용) → dev 대상 PR 생성
+git config --global alias.prdev '!f(){
+  set -e
+  BR=$(git rev-parse --abbrev-ref HEAD)
+  [ "$BR" = dev -o "$BR" = main ] && { echo "현재 브랜치가 $BR 입니다. feature 브랜치에서 실행하세요."; exit 1; }
+  git fetch origin
+  if ! git merge origin/dev; then
+    echo "⚠️ 충돌 발생: 해결 후 ① git add -A ② git commit ③ git push -u origin $BR"; exit 1
+  fi
+  git push -u origin "$BR"
+  gh pr create -B dev -H "$BR" -F .github/pull_request_template.md --web
+}; f'
 git config --global alias.prdev '!f(){
   set -e
   BR=$(git rev-parse --abbrev-ref HEAD)
