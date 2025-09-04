@@ -279,8 +279,6 @@ git prdev
 ```bash
 #dev 브랜치에서 실행
 git release
-#dev 브랜치에서 실행
-git release
 ```
 
 ## 한 번만 설정하는 alias (gh CLI 필요)
