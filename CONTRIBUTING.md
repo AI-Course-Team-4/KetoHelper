@@ -313,6 +313,39 @@ git config --global alias.prdev '!f(){
   gh pr view --web
 }; f'
 
+# dev -> main 릴리즈 전 실행(dev와 main의 sync를 맞춤)
+git config --global alias.syncmain '!f(){
+  set -e
+  git fetch origin
+
+  # 분기 상황 파악 (main_only, dev_only)
+  read L R <<EOF
+  $(git rev-list --left-right --count origin/main...origin/dev)
+EOF
+
+  if [ "$L" -eq 0 ]; then
+    echo "✅ main→dev 동기화 필요 없음 (main_only=0)"
+    exit 0
+  fi
+
+  echo "ℹ️ main_only=$L, dev_only=$R → main→dev 동기화 PR 진행"
+
+  # 이미 열린 PR이 있으면 그걸 사용
+  NUM=$(gh pr list --base dev --head main --state open --json number --jq ".[0].number" 2>/dev/null || true)
+  if [ -z "$NUM" ]; then
+    gh pr create -B dev -H main \
+      --title "Sync main → dev" \
+      --body "자동 생성: release 전 main → dev 동기화 PR 입니다."
+    NUM=$(gh pr list --base dev --head main --state open --json number --jq ".[0].number")
+  fi
+
+  # Auto-merge 시도(리포에서 Auto-merge 허용되어 있어야 함)
+  gh pr merge "$NUM" --auto --merge || true
+
+  # 웹으로 열기
+  gh pr view "$NUM" --web
+}; f'
+
 
 # dev → main 릴리즈 PR (템플릿 강제 주입)
 git config --global alias.release '!f(){
@@ -356,3 +389,29 @@ gh auth status
 - 브랜치 이름 충돌 → 슬래시는 한 번만 (`feature/sh-setting`).
 - 충돌 발생 → 수정 후 `git add -A` → `git commit` → `git push` → 필요 시 `gh pr create -B dev -H <현재브랜치> -w`.
 - 기본 브랜치 확인: GitHub Settings → Branches → Default branch = `dev`.
+
+
+# git 협업 - 한 눈에 보는 치트시트
+- 팀원은 feature/___ 브랜치 생성 후 작업 끝나면 git prdev 작성, 승인 완료 후 merge 클릭
+
+- pm은 git syncmain 하여 main과 dev 싱크 맞추고 git release 실행, 
+  승인 완료 후 merge 클릭, 마지막으로 다시 git syncmain
+
+- 기능 작업 제출: feature/ → git prdev → (승인2) 웹에서 Merge
+
+- 릴리즈 직전: git syncmain (필요 없으면 “✅ 없음” 출력)
+
+- 릴리즈 PR: git release → (승인2) 웹에서 Merge
+
+- 릴리즈 후(권장): git syncmain 한 번 더
+
+-----------------------------------------
+# git 협업 - 위처럼 진행하면 아래와 같은 이점 존재
+
+--충돌은 feature 단계에서 조기 발견
+
+--보호 규칙(리뷰 2명, 직접 push 금지) 준수
+
+--템플릿은 항상 본문에 주입되어 빈 폼 스트레스 제거
+
+--릴리즈 때 분기 가드로 안전하게 진행
