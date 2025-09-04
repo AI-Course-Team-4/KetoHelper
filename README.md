@@ -34,7 +34,7 @@
 - **LangChain** - RAG 시스템 구현
 - **LangGraph** - AI 워크플로우 관리
 - **OpenAI GPT** - 언어 모델
-- **Pinecone** - 벡터 데이터베이스
+- **MongoDB Atlas Vector Search** - 벡터 데이터베이스
 
 ## 📁 프로젝트 구조
 
@@ -59,11 +59,9 @@ mainProject-Team4/
 │   │   ├── services/       # 비즈니스 로직
 │   │   ├── ai/             # AI 관련 모듈
 │   │   └── main.py         # FastAPI 앱 엔트리포인트
-│   ├── requirements.txt
-│   └── Dockerfile
+│   └── requirements.txt
 ├── docs/                   # 프로젝트 문서
-├── scripts/                # 배포 및 유틸리티 스크립트
-└── docker-compose.yml      # 개발 환경 설정
+└── scripts/                # 배포 및 유틸리티 스크립트
 ```
 
 ## 🚀 빠른 시작
@@ -182,7 +180,8 @@ vercel --prod
 ### 백엔드 (Railway/AWS EC2)
 ```bash
 cd backend
-docker build -t ketohelper-backend .
+pip install -r requirements.txt
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 # 배포 명령어는 플랫폼별로 상이
 ```
 

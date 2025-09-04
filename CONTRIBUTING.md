@@ -26,7 +26,6 @@ cp env.example .env
 
 ### 개발 서버 실행
 
-#### 방법 1: 개별 실행
 ```bash
 # 백엔드
 cd backend
@@ -38,20 +37,19 @@ cd frontend
 npm run dev
 ```
 
-#### 방법 2: Docker 사용
-```bash
-docker-compose up -d
-```
-
 ## 🔧 개발 가이드라인
 
-### 브랜치 전략
+### 브랜치 전략 & 네이밍 규칙
 
-- `main`: 프로덕션 브랜치
-- `develop`: 개발 브랜치
-- `feature/{기능명}`: 새로운 기능 개발
-- `bugfix/{버그명}`: 버그 수정
-- `hotfix/{수정명}`: 긴급 수정
+* **기본 브랜치**
+  * `dev` : 통합 개발 브랜치 (기능 합류, 테스트)
+  * `main` : 배포/릴리즈 브랜치 (안정)
+
+* **작업 브랜치(기능/수정 등)**
+  * **패턴(권장)**: `type/<owner>-<topic>` — 슬래시는 1회만 사용
+  * **허용 type**: `feature`, `fix`, `chore`, `docs`, `refactor`, `test`, `hotfix`, `release`
+  * **예시**: `feature/sh-main-page`, `fix/yk-login-500`, `chore/ci-cd-cache-tune`
+  * **금지**: 중첩 슬래시(예: `feature/sh/setting`)
 
 ### 커밋 컨벤션
 
@@ -236,3 +234,60 @@ pytest
 **질문이 있으시면 언제든지 이슈를 생성하거나 토론을 시작해주세요!**
 
 Happy coding! 🥑✨
+
+---
+
+# Git PR 운영 규칙 (실행 가이드)
+
+> 목적: `dev`/`main`은 PR로만 변경. 개인 브랜치에서 자유 작업.
+
+## 팀 공통 운영 흐름
+
+### 1) 각자 작업 → dev로 PR
+
+```bash
+git switch -c feature/<owner>-<topic>
+git add -A && git commit -m "feat: ..."
+git prdev
+```
+
+### 2) 릴리즈: dev → main 승격
+
+```bash
+git switch dev
+git pull --ff-only origin dev
+git dev2main
+git prmerge
+```
+
+## 한 번만 설정하는 alias (gh CLI 필요)
+
+```bash
+# feature/* → (origin/dev merge, 템플릿 적용) → dev 대상 PR 생성
+git config --global alias.prdev '!f(){ set -e; BR=$(git rev-parse --abbrev-ref HEAD); [ "$BR" = dev -o "$BR" = main ] && { echo "현재 브랜치가 $BR 입니다. feature 브랜치에서 실행하세요."; exit 1; }; git fetch origin; if ! git merge origin/dev; then echo "⚠️ 충돌 발생: 해결 후 ① git add -A ② git commit ③ git push -u origin $BR ④ gh pr create -B dev -H $BR -T .github/pull_request_template.md -w"; exit 1; fi; git push -u origin "$BR"; gh pr create -B dev -H "$BR" -T .github/pull_request_template.md -w; }; f'
+
+
+# dev → main PR 생성 (push 안 함, 템플릿 적용)
+git config --global alias.dev2main '!f(){ set -e; git fetch origin; if ! git merge-base --is-ancestor origin/main origin/dev; then echo "dev가 main 최신을 포함하지 않음. 먼저 dev를 업데이트(PR로)하세요."; fi; gh pr create -B main -H dev -T .github/pull_request_template.md -w; }; f'
+
+# 열린 PR 머지 (feature/*이면 브랜치 삭제)
+git config --global alias.prmerge '!f(){ set -e; BR=$(git rev-parse --abbrev-ref HEAD); NUM=$(gh pr view --json number --jq .number 2>/dev/null || true); [ -z "$NUM" ] && { echo "오픈 PR이 없습니다."; exit 1; }; if [ "$BR" = "dev" ] || [ "$BR" = "main" ]; then gh pr merge "$NUM" --merge; else gh pr merge "$NUM" --merge --delete-branch; fi; }; f'
+```
+
+### gh(깃허브 CLI) 설치/체크 (Windows)
+
+```powershell
+winget install --id GitHub.cli -e
+```
+
+```bash
+gh auth login
+gh auth status
+```
+
+## 자주 발생하는 이슈 & 해결
+
+- GH013: dev/main 직접 push 거절 → 정상, 반드시 PR 사용 (`git prdev`, `git dev2main`).
+- 브랜치 이름 충돌 → 슬래시는 한 번만 (`feature/sh-setting`).
+- 충돌 발생 → 수정 후 `git add -A` → `git commit` → `git push` → 필요 시 `gh pr create -B dev -H <현재브랜치> -w`.
+- 기본 브랜치 확인: GitHub Settings → Branches → Default branch = `dev`.
