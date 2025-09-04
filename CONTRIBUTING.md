@@ -288,18 +288,31 @@ git release
 # release : dev → main 릴리즈 PR 생성(템플릿 강제 주입)
 
 
-# feature/* → (origin/dev merge, 템플릿 적용) → dev 대상 PR 생성
+# prdev (템플릿 강제 주입 → 생성 후 웹 열기)
 git config --global alias.prdev '!f(){
   set -e
   BR=$(git rev-parse --abbrev-ref HEAD)
   [ "$BR" = dev -o "$BR" = main ] && { echo "현재 브랜치가 $BR 입니다. feature 브랜치에서 실행하세요."; exit 1; }
+
   git fetch origin
   if ! git merge origin/dev; then
-    echo "⚠️ 충돌 발생: 해결 후 ① git add -A ② git commit ③ git push -u origin $BR"; exit 1
+    echo "⚠️ 충돌 발생: 해결 후 ① add ② commit ③ push"; exit 1
   fi
   git push -u origin "$BR"
-  gh pr create -B dev -H "$BR" -F .github/pull_request_template.md --web
+
+  # 템플릿 파일이 현재 브랜치에 없으면 dev에서 가져와 보장
+  [ -f .github/pull_request_template.md ] || \
+    git show origin/dev:.github/pull_request_template.md > .github/pull_request_template.md
+
+  # 이미 열린 PR 있으면 그걸 웹으로
+  NUM=$(gh pr list --base dev --head "$BR" --state open --json number --jq ".[0].number" 2>/dev/null || true)
+  if [ -n "$NUM" ]; then gh pr view "$NUM" --web; exit 0; fi
+
+  # ★ 여기서 CLI가 본문을 파일로 '주입'해서 생성
+  gh pr create -B dev -H "$BR" -F .github/pull_request_template.md --title "$BR"
+  gh pr view --web
 }; f'
+
 
 # dev → main 릴리즈 PR (템플릿 강제 주입)
 git config --global alias.release '!f(){
