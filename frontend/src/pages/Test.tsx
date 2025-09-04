@@ -1,6 +1,6 @@
 const Test = () => {
   return (
-    <div>테스트입니다.</div>
+    <div>테스트입니다요.</div>
   )
 }
 
