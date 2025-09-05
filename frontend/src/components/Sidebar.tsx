@@ -54,8 +54,8 @@ const getMenuItems = (hasSubscription: boolean) => [
 
 const getBottomMenuItems = (isAuthenticated: boolean) => [
   ...(isAuthenticated ? [
-    { text: '프로필 설정', icon: <Person />, path: '/profile' },
-    { text: '선호도 설정', icon: <FavoriteBorder />, path: '/preferences' },
+    // { text: '프로필 설정', icon: <Person />, path: '/profile' },
+    // { text: '선호도 설정', icon: <FavoriteBorder />, path: '/preferences' },
     { text: '구독', icon: <Payment />, path: '/subscription' },
     { text: '설정', icon: <Settings />, path: '/settings' },
   ] : [
@@ -81,7 +81,7 @@ const Sidebar = () => {
   const handleLogout = async () => {
     try {
       // 데모 모드에서는 API 호출 없이 바로 로그아웃
-      if (user?.id?.startsWith('demo-') || user?.id?.startsWith('guest-')) {
+      if (user?.id?.startsWith('demo-')) {
         logout()
         navigate('/')
         toast.success('로그아웃되었습니다.')

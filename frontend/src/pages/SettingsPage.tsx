@@ -5,16 +5,17 @@ import {
   Paper,
   Tabs,
   Tab,
-  TextField,
   Button,
   Switch,
   FormControlLabel,
-  Chip,
   Divider,
   Alert,
 } from '@mui/material'
-import { Save, Delete, Add } from '@mui/icons-material'
+import { Save, Delete } from '@mui/icons-material'
 import { useAuthStore } from '@store/authStore'
+import ProfilePage from './ProfilePage'
+import PreferencesPage from './PreferencesPage'
+
 
 interface TabPanelProps {
   children?: React.ReactNode
@@ -22,8 +23,10 @@ interface TabPanelProps {
   value: number
 }
 
+
 function TabPanel(props: TabPanelProps) {
   const { children, value, index, ...other } = props
+
 
   return (
     <div
@@ -38,14 +41,10 @@ function TabPanel(props: TabPanelProps) {
   )
 }
 
+
 const SettingsPage = () => {
   const { isAuthenticated } = useAuthStore()
   const [activeTab, setActiveTab] = useState(0)
-  const [allergies, setAllergies] = useState(['견과류', '갑각류'])
-  const [dislikes, setDislikes] = useState(['버섯', '올리브'])
-  const [newAllergy, setNewAllergy] = useState('')
-  const [newDislike, setNewDislike] = useState('')
-  
 
   if (!isAuthenticated) {
     return (
@@ -60,31 +59,11 @@ const SettingsPage = () => {
     )
   }
 
+
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue)
   }
 
-  const addAllergy = () => {
-    if (newAllergy && !allergies.includes(newAllergy)) {
-      setAllergies([...allergies, newAllergy])
-      setNewAllergy('')
-    }
-  }
-
-  const removeAllergy = (allergy: string) => {
-    setAllergies(allergies.filter(item => item !== allergy))
-  }
-
-  const addDislike = () => {
-    if (newDislike && !dislikes.includes(newDislike)) {
-      setDislikes([...dislikes, newDislike])
-      setNewDislike('')
-    }
-  }
-
-  const removeDislike = (dislike: string) => {
-    setDislikes(dislikes.filter(item => item !== dislike))
-  }
 
   return (
     <Box>
@@ -92,102 +71,42 @@ const SettingsPage = () => {
         ⚙️ 설정
       </Typography>
 
+
       <Paper sx={{ width: '100%' }}>
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tabs value={activeTab} onChange={handleTabChange}>
-            {/* <Tab label="프로필" /> */}
+            <Tab label="프로필" />
             <Tab label="식품 선호도" />
             <Tab label="알림 설정" />
             <Tab label="계정 관리" />
           </Tabs>
         </Box>
 
-        {/* 식품 선호도 탭 */}
+
+        {/* 프로필 탭 */}
         <TabPanel value={activeTab} index={0}>
           <Typography variant="h6" sx={{ mb: 3 }}>
-            식품 선호도
+            프로필 설정
           </Typography>
-
-          {/* 알레르기 */}
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
-              알레르기 정보
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-              {allergies.map((allergy) => (
-                <Chip
-                  key={allergy}
-                  label={allergy}
-                  onDelete={() => removeAllergy(allergy)}
-                  color="error"
-                  variant="outlined"
-                />
-              ))}
-            </Box>
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <TextField
-                size="small"
-                placeholder="알레르기 추가"
-                value={newAllergy}
-                onChange={(e) => setNewAllergy(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && addAllergy()}
-              />
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<Add />}
-                onClick={addAllergy}
-              >
-                추가
-              </Button>
-            </Box>
-          </Box>
-
-          {/* 비선호 음식 */}
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
-              비선호 음식
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-              {dislikes.map((dislike) => (
-                <Chip
-                  key={dislike}
-                  label={dislike}
-                  onDelete={() => removeDislike(dislike)}
-                  color="warning"
-                  variant="outlined"
-                />
-              ))}
-            </Box>
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <TextField
-                size="small"
-                placeholder="비선호 음식 추가"
-                value={newDislike}
-                onChange={(e) => setNewDislike(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && addDislike()}
-              />
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<Add />}
-                onClick={addDislike}
-              >
-                추가
-              </Button>
-            </Box>
-          </Box>
-
-          <Button variant="contained" startIcon={<Save />}>
-            선호도 저장
-          </Button>
+          <ProfilePage />
         </TabPanel>
 
-        {/* 알림 설정 탭 */}
+
+        {/* 식품 선호도 탭 */}
         <TabPanel value={activeTab} index={1}>
+          <Typography variant="h6" sx={{ mb: 3 }}>
+            식품 선호도 설정
+          </Typography>
+          <PreferencesPage />
+        </TabPanel>
+
+
+        {/* 알림 설정 탭 */}
+        <TabPanel value={activeTab} index={2}>
           <Typography variant="h6" sx={{ mb: 3 }}>
             알림 설정
           </Typography>
+
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <FormControlLabel
@@ -208,6 +127,7 @@ const SettingsPage = () => {
             />
           </Box>
 
+
           <Box sx={{ mt: 3 }}>
             <Button variant="contained" startIcon={<Save />}>
               알림 설정 저장
@@ -215,15 +135,18 @@ const SettingsPage = () => {
           </Box>
         </TabPanel>
 
+
         {/* 계정 관리 탭 */}
-        <TabPanel value={activeTab} index={2}>
+        <TabPanel value={activeTab} index={3}>
           <Typography variant="h6" sx={{ mb: 3 }}>
             계정 관리
           </Typography>
 
+
           <Alert severity="info" sx={{ mb: 3 }}>
             계정 관련 중요한 설정들을 관리할 수 있습니다.
           </Alert>
+
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             <Box>
@@ -238,7 +161,9 @@ const SettingsPage = () => {
               </Button>
             </Box>
 
+
             <Divider />
+
 
             <Box>
               <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 600, color: 'error.main' }}>
@@ -262,4 +187,8 @@ const SettingsPage = () => {
   )
 }
 
+
 export default SettingsPage
+
+
+

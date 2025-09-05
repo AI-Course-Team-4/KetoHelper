@@ -35,7 +35,6 @@ const ProfilePage = () => {
   const [profileImage, setProfileImage] = useState(user?.profileImage || '')
   const [name, setName] = useState(user?.name || '')
   const [id] = useState(user?.id || '')
-  const isGuest = !!user?.id?.startsWith('guest-')
   const [dietSetupOpen, setDietSetupOpen] = useState(false)
   const [dietSetup, setDietSetup] = useState<InitialDietSetup>({
     currentWeight: user?.dietPlan?.currentWeight || 70,
@@ -117,9 +116,9 @@ const ProfilePage = () => {
 
   return (
     <Box>
-      <Typography variant="h3" sx={{ fontWeight: 700, mb: 4 }}>
+      {/* <Typography variant="h3" sx={{ fontWeight: 700, mb: 4 }}>
         👤 프로필 설정
-      </Typography>
+      </Typography> */}
 
       <Grid container spacing={4}>
         {/* 기본 프로필 정보 */}
@@ -131,15 +130,15 @@ const ProfilePage = () => {
                   기본 정보
                 </Typography>
                 {!isEditing ? (
-                  <IconButton onClick={() => { if (!isGuest) setIsEditing(true) }} disabled={isGuest}>
+                  <IconButton onClick={() => { setIsEditing(true) }}>
                     <Edit />
                   </IconButton>
                 ) : (
                   <Box>
-                    <IconButton onClick={handleSaveProfile} color="primary" disabled={isGuest}>
+                    <IconButton onClick={handleSaveProfile} color="primary">
                       <Save />
                     </IconButton>
-                    <IconButton onClick={handleCancelEdit} disabled={isGuest}>
+                    <IconButton onClick={handleCancelEdit}>
                       <Cancel />
                     </IconButton>
                   </Box>
@@ -160,7 +159,7 @@ const ProfilePage = () => {
                   >
                     {name?.charAt(0)}
                   </Avatar>
-                  {isEditing && !isGuest && (
+                  {isEditing && (
                     <IconButton
                       sx={{
                         position: 'absolute',
@@ -197,7 +196,7 @@ const ProfilePage = () => {
                     label="이름"
                     value={displayName}
                     onChange={(e) => setName(e.target.value)}
-                    disabled={!isEditing || isGuest}
+                    disabled={!isEditing}
                     variant={isEditing ? 'outlined' : 'filled'}
                   />
                 </Grid>
@@ -212,7 +211,7 @@ const ProfilePage = () => {
                   />
                 </Grid>
                 <Grid item xs={12}>
-                  <FormControl fullWidth disabled={!isEditing || isGuest}>
+                  <FormControl fullWidth disabled={!isEditing}>
                     <InputLabel>키토 경험 레벨</InputLabel>
                     <Select
                       value={user?.preferences?.experienceLevel || 'beginner'}

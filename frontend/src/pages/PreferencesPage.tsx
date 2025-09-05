@@ -116,9 +116,9 @@ const PreferencesPage = () => {
 
   return (
     <Box>
-      <Typography variant="h3" sx={{ fontWeight: 700, mb: 2 }}>
+      {/* <Typography variant="h3" sx={{ fontWeight: 700, mb: 2 }}>
         ❤️ 선호도 설정
-      </Typography>
+      </Typography> */}
       <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
         개인 선호도를 설정하면 더욱 정확한 맞춤형 추천을 받을 수 있습니다.
       </Typography>
@@ -305,7 +305,7 @@ const PreferencesPage = () => {
         </Grid>
 
         {/* 매운맛 선호도 */}
-        <Grid item xs={12} md={6}>
+        {/* <Grid item xs={12} md={6}>
           <Card>
             <CardContent sx={{ p: 4 }}>
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
@@ -332,10 +332,10 @@ const PreferencesPage = () => {
               </Typography>
             </CardContent>
           </Card>
-        </Grid>
+        </Grid> */}
 
         {/* 식단 제한사항 */}
-        <Grid item xs={12}>
+        <Grid item xs={12} md={6}>
           <Card>
             <CardContent sx={{ p: 4 }}>
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
