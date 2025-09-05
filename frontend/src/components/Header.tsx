@@ -47,13 +47,11 @@ const Header = () => {
   const handleLogout = async () => {
     try {
       // 데모 모드에서는 API 호출 없이 바로 로그아웃
-      if (user?.id?.startsWith('demo-') || user?.id?.startsWith('guest-')) {
-        // 데모 사용자인 경우 API 호출 건너뛰기
+      if (user?.id?.startsWith('demo-')) {
         logout()
         navigate('/')
         toast.success('로그아웃되었습니다.')
       } else {
-        // 실제 사용자인 경우 API 호출
         await authService.logout()
         logout()
         navigate('/')

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Box, Paper, Typography, Button, Divider, CircularProgress, Alert } from '@mui/material'
+import { Box, Paper, Typography, Button, CircularProgress, Alert } from '@mui/material'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@store/authStore'
 import { authService } from '@services/authService'
@@ -226,32 +226,6 @@ const LoginPage = () => {
     }
   }
 
-  const handleGuestLogin = () => {
-    const guestUser = {
-      id: 'guest-' + Math.random().toString(36).substring(2, 15),
-      email: 'guest 계정을 이용 중입니다.',
-      profileImage: undefined,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      preferences: {
-        allergies: [],
-        dislikes: [],
-        dietaryRestrictions: [],
-        experienceLevel: 'beginner' as const,
-        goals: { targetCalories: 2000, macroRatio: { carbs: 5, protein: 25, fat: 70 } },
-      },
-      settings: {
-        notifications: { mealReminders: true, recommendations: true, weeklyReport: false },
-        units: 'metric' as const,
-      },
-      subscription: { isActive: false, plan: 'free' as const, autoRenewal: false },
-    }
-
-    setUser(guestUser as any)
-    toast.success(`환영합니다, ${guestUser.id}님!`)
-    navigate('/')
-  }
-
   return (
     <Box
       sx={{
@@ -407,22 +381,7 @@ const LoginPage = () => {
           </Box>
         )}
 
-        <Divider sx={{ my: 3 }}>
-          <Typography variant="body2" color="text.secondary">
-            또는
-          </Typography>
-        </Divider>
-
-        {/* 게스트로 계속하기 */}
-        <Button
-          fullWidth
-          variant="outlined"
-          size="large"
-          onClick={handleGuestLogin}
-          sx={{ mb: 2, borderRadius: 0.5, maxWidth: 320 }}
-        >
-          게스트로 둘러보기
-        </Button>
+        
 
         {/* 개인정보 처리방침 */}
         <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>

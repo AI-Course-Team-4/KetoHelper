@@ -40,7 +40,7 @@ const HomePage = () => {
           color: 'white',
           py: 8,
           px: 3,
-          borderRadius: 3,
+          borderRadius: 1,
           mb: 6,
           textAlign: 'center',
         }}
@@ -200,7 +200,7 @@ const HomePage = () => {
         sx={{
           backgroundColor: 'background.paper',
           p: 4,
-          borderRadius: 3,
+          borderRadius: 1,
           border: '1px solid',
           borderColor: 'divider',
         }}
@@ -225,7 +225,7 @@ const HomePage = () => {
               sx={{
                 backgroundColor: 'primary.light',
                 p: 3,
-                borderRadius: 2,
+                borderRadius: 1,
                 color: 'primary.contrastText',
               }}
             >
