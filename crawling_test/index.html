@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>강남역 음식점 메뉴 크롤링</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        input[type="text"]:focus {
+            border-color: #4CAF50;
+            outline: none;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            border-left: 4px solid #4CAF50;
+            display: none;
+        }
+        .loading {
+            text-align: center;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>강남역 음식점 메뉴 크롤링</h1>
+        <form id="restaurantForm">
+            <div class="form-group">
+                <label for="restaurantName">음식점 이름:</label>
+                <input type="text" id="restaurantName" name="restaurantName" 
+                       placeholder="예: 강남역 맛집" required>
+            </div>
+            <button type="submit" id="submitBtn">메뉴 정보 수집하기</button>
+        </form>
+        
+        <div id="result">
+            <h3>결과:</h3>
+            <div id="resultContent"></div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('restaurantForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const restaurantName = document.getElementById('restaurantName').value.trim();
+            const submitBtn = document.getElementById('submitBtn');
+            const result = document.getElementById('result');
+            const resultContent = document.getElementById('resultContent');
+            
+            if (!restaurantName) {
+                alert('음식점 이름을 입력해주세요.');
+                return;
+            }
+            
+            // 로딩 상태
+            submitBtn.disabled = true;
+            submitBtn.textContent = '크롤링 중...';
+            result.style.display = 'block';
+            resultContent.innerHTML = '<div class="loading">식신 사이트에서 메뉴 정보를 수집하고 있습니다...</div>';
+            
+            try {
+                const response = await fetch('/crawl', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ restaurantName: restaurantName })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    const restaurantData = data.data;
+                    let menuList = '';
+                    restaurantData.menu.forEach(item => {
+                        const priceText = item.price ? ` - ${item.price.toLocaleString()}원` : '';
+                        menuList += `<li>${item.name}${priceText}</li>`;
+                    });
+                    
+                    resultContent.innerHTML = `
+                        <p><strong>성공!</strong></p>
+                        <p><strong>식당명:</strong> ${restaurantData.restaurant_name}</p>
+                        <p><strong>도로명 주소:</strong> ${restaurantData.address.road_address}</p>
+                        <p><strong>지번 주소:</strong> ${restaurantData.address.jibun_address}</p>
+                        <p><strong>메뉴 목록:</strong></p>
+                        <ul>${menuList}</ul>
+                        <p><strong>수집된 메뉴 개수:</strong> ${data.menuCount}개</p>
+                        <p style="color: green;">데이터베이스에 저장되었습니다.</p>
+                        
+                        <div style="margin-top: 20px; padding: 10px; background-color: #f0f0f0; border-radius: 5px;">
+                            <h4>JSON 데이터:</h4>
+                            <pre style="background-color: #fff; padding: 10px; border-radius: 3px; overflow-x: auto;">${JSON.stringify(restaurantData, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    resultContent.innerHTML = `<p style="color: red;">오류: ${data.error}</p>`;
+                }
+            } catch (error) {
+                resultContent.innerHTML = `<p style="color: red;">서버 연결 오류: ${error.message}</p>`;
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '메뉴 정보 수집하기';
+            }
+        });
+    </script>
+</body>
+</html>
