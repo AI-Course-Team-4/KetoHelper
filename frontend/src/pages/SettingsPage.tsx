@@ -77,7 +77,7 @@ const SettingsPage = () => {
           <Tabs value={activeTab} onChange={handleTabChange}>
             <Tab label="프로필" />
             <Tab label="식품 선호도" />
-            <Tab label="알림 설정" />
+            {/* <Tab label="알림 설정" /> */}
             <Tab label="계정 관리" />
           </Tabs>
         </Box>
@@ -102,7 +102,7 @@ const SettingsPage = () => {
 
 
         {/* 알림 설정 탭 */}
-        <TabPanel value={activeTab} index={2}>
+        {/* <TabPanel value={activeTab} index={2}>
           <Typography variant="h6" sx={{ mb: 3 }}>
             알림 설정
           </Typography>
@@ -133,23 +133,23 @@ const SettingsPage = () => {
               알림 설정 저장
             </Button>
           </Box>
-        </TabPanel>
+        </TabPanel> */}
 
 
         {/* 계정 관리 탭 */}
-        <TabPanel value={activeTab} index={3}>
+        <TabPanel value={activeTab} index={2}>
           <Typography variant="h6" sx={{ mb: 3 }}>
             계정 관리
           </Typography>
 
 
-          <Alert severity="info" sx={{ mb: 3 }}>
+          {/* <Alert severity="info" sx={{ mb: 3 }}>
             계정 관련 중요한 설정들을 관리할 수 있습니다.
-          </Alert>
+          </Alert> */}
 
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <Box>
+            {/* <Box>
               <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 600 }}>
                 데이터 내보내기
               </Typography>
@@ -162,7 +162,7 @@ const SettingsPage = () => {
             </Box>
 
 
-            <Divider />
+            <Divider /> */}
 
 
             <Box>
