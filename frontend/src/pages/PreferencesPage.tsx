@@ -8,10 +8,6 @@ import {
   Button,
   Grid,
   Chip,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Autocomplete,
   Alert,
   Divider,
@@ -36,7 +32,6 @@ const PreferencesPage = () => {
   const [dietaryRestrictions] = useState<string[]>(user?.preferences?.dietaryRestrictions || [])
   const [newAllergy, setNewAllergy] = useState('')
   const [newDislike, setNewDislike] = useState('')
-  const [spicyLevel, setSpicyLevel] = useState(2) // 0-5 단계
   const [preferredCuisines, setPreferredCuisines] = useState<string[]>(['한식', '양식'])
   const [veganFriendly, setVeganFriendly] = useState(false)
   const [glutenFree, setGlutenFree] = useState(false)
@@ -100,7 +95,6 @@ const PreferencesPage = () => {
       allergies,
       dislikes,
       dietaryRestrictions,
-      spicyLevel,
       preferredCuisines,
       veganFriendly,
       glutenFree,
@@ -109,17 +103,12 @@ const PreferencesPage = () => {
     // 성공 메시지 표시
   }
 
-  const getSpicyLevelText = (level: number) => {
-    const levels = ['전혀 안매움', '약간 매움', '보통 매움', '매움', '아주 매움', '극도로 매움']
-    return levels[level]
-  }
-
   return (
     <Box>
       {/* <Typography variant="h3" sx={{ fontWeight: 700, mb: 2 }}>
         ❤️ 선호도 설정
       </Typography> */}
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
+      <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
         개인 선호도를 설정하면 더욱 정확한 맞춤형 추천을 받을 수 있습니다.
       </Typography>
 
