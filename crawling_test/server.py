@@ -195,7 +195,7 @@ def crawl_restaurant():
         if not crawled_data:
             return jsonify({'error': '해당 음식점을 찾을 수 없습니다. 다른 이름으로 시도해보세요.'}), 404
         
-        # Supabase에 저장 및 임베딩 생성
+        # Supabase에 저장 (임베딩 생성은 별도 배치 처리)
         save_result = save_to_supabase(crawled_data)
         
         return jsonify({
@@ -203,7 +203,7 @@ def crawl_restaurant():
             'data': crawled_data,
             'restaurant_id': save_result['restaurant_id'],
             'menuCount': save_result['menu_count'],
-            'embeddingSuccess': save_result['embedding_success']
+            'message': '크롤링 완료! 임베딩은 별도 배치로 처리됩니다.'
         })
         
     except Exception as e:
@@ -275,6 +275,159 @@ def health_check():
             'error': str(e)
         }), 500
 
+# 임베딩 관리 API 엔드포인트들
+@app.route('/embeddings/status')
+def get_embedding_status():
+    """임베딩 상태 조회"""
+    try:
+        if not db_adapter:
+            return jsonify({'error': '서비스가 초기화되지 않았습니다'}), 503
+        
+        stats = db_adapter.get_statistics()
+        
+        total_menus = stats.get('menus_count', 0)
+        with_embedding = stats.get('menus_with_embedding', 0)
+        without_embedding = total_menus - with_embedding
+        coverage_percentage = (with_embedding / total_menus * 100) if total_menus > 0 else 0
+        
+        return jsonify({
+            'total_menus': total_menus,
+            'with_embedding': with_embedding,
+            'without_embedding': without_embedding,
+            'coverage_percentage': round(coverage_percentage, 1),
+            'last_updated': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"임베딩 상태 조회 실패: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/embeddings/pending')
+def get_pending_embeddings():
+    """임베딩이 필요한 메뉴 목록 조회"""
+    try:
+        if not db_adapter:
+            return jsonify({'error': '서비스가 초기화되지 않았습니다'}), 503
+        
+        limit = request.args.get('limit', 10, type=int)
+        restaurant_id = request.args.get('restaurant_id')
+        
+        # 임베딩이 없는 메뉴 조회
+        query = db_adapter.client.table('menus').select(
+            'id, name, restaurant_id, created_at, restaurants(name, address)'
+        ).is_('embedding', 'null')
+        
+        if restaurant_id:
+            query = query.eq('restaurant_id', restaurant_id)
+        
+        query = query.limit(limit).order('created_at', desc=True)
+        result = query.execute()
+        
+        pending_menus = []
+        for menu in result.data or []:
+            restaurant_info = menu.get('restaurants', {})
+            pending_menus.append({
+                'menu_id': menu['id'],
+                'menu_name': menu['name'],
+                'restaurant_id': menu['restaurant_id'],
+                'restaurant_name': restaurant_info.get('name', ''),
+                'restaurant_address': restaurant_info.get('address', ''),
+                'created_at': menu['created_at']
+            })
+        
+        return jsonify({
+            'pending_menus': pending_menus,
+            'count': len(pending_menus),
+            'limit': limit
+        })
+        
+    except Exception as e:
+        logger.error(f"대기 중인 임베딩 조회 실패: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/embeddings/process', methods=['POST'])
+def process_embeddings():
+    """배치 임베딩 처리 실행"""
+    try:
+        if not embedding_service:
+            return jsonify({'error': '임베딩 서비스가 초기화되지 않았습니다'}), 503
+        
+        data = request.get_json() or {}
+        limit = data.get('limit')
+        restaurant_id = data.get('restaurant_id')
+        
+        logger.info(f"배치 임베딩 처리 시작 - limit: {limit}, restaurant_id: {restaurant_id}")
+        
+        # 임베딩이 없는 메뉴들 처리
+        if restaurant_id:
+            # 특정 식당만 처리
+            query = db_adapter.client.table('menus').select(
+                'id'
+            ).eq('restaurant_id', restaurant_id).is_('embedding', 'null')
+            
+            if limit:
+                query = query.limit(limit)
+            
+            result = query.execute()
+            menu_ids = [menu['id'] for menu in result.data or []]
+            
+            if menu_ids:
+                embedding_result = embedding_service.process_new_menus(menu_ids)
+            else:
+                embedding_result = {'processed': 0, 'success': 0, 'failed': 0}
+        else:
+            # 모든 대기 중인 메뉴 처리
+            embedding_result = embedding_service.process_menus_without_embedding()
+        
+        logger.info(f"배치 임베딩 처리 완료: {embedding_result}")
+        
+        return jsonify({
+            'success': True,
+            'result': embedding_result,
+            'message': f"처리 완료: 성공 {embedding_result.get('success', 0)}개, 실패 {embedding_result.get('failed', 0)}개"
+        })
+        
+    except Exception as e:
+        logger.error(f"배치 임베딩 처리 실패: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/embeddings/restaurant/<restaurant_id>/process', methods=['POST'])
+def process_restaurant_embeddings(restaurant_id):
+    """특정 식당의 임베딩 처리"""
+    try:
+        if not embedding_service:
+            return jsonify({'error': '임베딩 서비스가 초기화되지 않았습니다'}), 503
+        
+        logger.info(f"식당별 임베딩 처리 시작: {restaurant_id}")
+        
+        # 해당 식당의 임베딩이 없는 메뉴 ID 조회
+        result = db_adapter.client.table('menus').select('id').eq(
+            'restaurant_id', restaurant_id
+        ).is_('embedding', 'null').execute()
+        
+        menu_ids = [menu['id'] for menu in result.data or []]
+        
+        if not menu_ids:
+            return jsonify({
+                'success': True,
+                'message': '해당 식당의 모든 메뉴가 이미 임베딩을 가지고 있습니다.',
+                'result': {'processed': 0, 'success': 0, 'failed': 0}
+            })
+        
+        # 임베딩 처리
+        embedding_result = embedding_service.process_new_menus(menu_ids)
+        
+        return jsonify({
+            'success': True,
+            'restaurant_id': restaurant_id,
+            'result': embedding_result,
+            'message': f"식당 임베딩 처리 완료: 성공 {embedding_result.get('success', 0)}개"
+        })
+        
+    except Exception as e:
+        logger.error(f"식당별 임베딩 처리 실패: {e}")
+        return jsonify({'error': str(e)}), 500
+
 # Supabase 저장 함수 (정규화된 3개 테이블 구조)
 def save_to_supabase(data):
     """크롤링 데이터를 Supabase에 저장하고 임베딩 생성"""
@@ -304,16 +457,12 @@ def save_to_supabase(data):
         }
         db_adapter.insert_crawling_log(log_data)
         
-        # 6. 임베딩 생성 (백그라운드)
-        embedding_result = embedding_service.process_new_menus(menu_ids)
-        
         logger.info(f"데이터 저장 완료: 식당 {restaurant_id}, 메뉴 {len(menu_ids)}개")
-        logger.info(f"임베딩 생성: 성공 {embedding_result.get('success', 0)}개")
+        logger.info("임베딩은 별도 배치 프로세스에서 처리됩니다")
         
         return {
             'restaurant_id': restaurant_id,
-            'menu_count': len(menu_ids),
-            'embedding_success': embedding_result.get('success', 0)
+            'menu_count': len(menu_ids)
         }
         
     except Exception as e:
