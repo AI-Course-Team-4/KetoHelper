@@ -379,10 +379,6 @@ git config --global alias.release '!f(){
     --title "Release: dev → main" \
     --web
 }; f'
-
-
-# 열린 PR 머지 (feature/*이면 브랜치 삭제)
-git config --global alias.prmerge '!f(){ set -e; BR=$(git rev-parse --abbrev-ref HEAD); NUM=$(gh pr view --json number --jq .number 2>/dev/null || true); [ -z "$NUM" ] && { echo "오픈 PR이 없습니다."; exit 1; }; if [ "$BR" = "dev" ] || [ "$BR" = "main" ]; then gh pr merge "$NUM" --merge; else gh pr merge "$NUM" --merge --delete-branch; fi; }; f'
 ```
 
 
