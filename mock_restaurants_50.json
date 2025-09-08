@@ -1,0 +1,3609 @@
+[
+  {
+    "restaurant_name": "청양불향관",
+    "menus": [
+      {
+        "menu_name": "마라탕",
+        "key_ingredients": [
+          "소고기육수",
+          "화자오",
+          "청경채"
+        ],
+        "short_description": "얼얼하고 칼칼한 국물."
+      },
+      {
+        "menu_name": "우육면",
+        "key_ingredients": [
+          "소사골",
+          "면",
+          "청경채"
+        ],
+        "short_description": "진한 사골 국물."
+      },
+      {
+        "menu_name": "사천식 가지볶음",
+        "key_ingredients": [
+          "가지",
+          "다진돼지고기",
+          "두반장"
+        ],
+        "short_description": "알싸한 매콤 볶음."
+      },
+      {
+        "menu_name": "고추잡채",
+        "key_ingredients": [
+          "피망",
+          "돼지고기",
+          "춘권피"
+        ],
+        "short_description": "아삭한 식감의 볶음."
+      },
+      {
+        "menu_name": "꿔바로우",
+        "key_ingredients": [
+          "등심",
+          "감자전분",
+          "사과식초"
+        ],
+        "short_description": "겉바속촉 새콤달콤."
+      },
+      {
+        "menu_name": "마라샹궈",
+        "key_ingredients": [
+          "돼지고기",
+          "건두부",
+          "꽃椒"
+        ],
+        "short_description": "향신료 풍미 가득."
+      },
+      {
+        "menu_name": "고추잡채",
+        "key_ingredients": [
+          "피망",
+          "돼지고기",
+          "춘권피"
+        ],
+        "short_description": "아삭한 식감의 볶음."
+      },
+      {
+        "menu_name": "고추잡채",
+        "key_ingredients": [
+          "피망",
+          "돼지고기",
+          "춘권피"
+        ],
+        "short_description": "아삭한 식감의 볶음."
+      },
+      {
+        "menu_name": "우육면",
+        "key_ingredients": [
+          "소사골",
+          "면",
+          "청경채"
+        ],
+        "short_description": "진한 사골 국물."
+      },
+      {
+        "menu_name": "마라탕",
+        "key_ingredients": [
+          "소고기육수",
+          "화자오",
+          "청경채"
+        ],
+        "short_description": "얼얼하고 칼칼한 국물."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "미도리 샐러드&바",
+    "menus": [
+      {
+        "menu_name": "연어 포케",
+        "key_ingredients": [
+          "연어",
+          "아보카도",
+          "간장소스"
+        ],
+        "short_description": "신선한 한그릇."
+      },
+      {
+        "menu_name": "훈제오리 샐러드",
+        "key_ingredients": [
+          "훈제오리",
+          "양상추",
+          "발사믹"
+        ],
+        "short_description": "담백한 훈제향."
+      },
+      {
+        "menu_name": "퀴노아 볼",
+        "key_ingredients": [
+          "퀴노아",
+          "병아리콩",
+          "방울토마토"
+        ],
+        "short_description": "포만감 있는 그레인."
+      },
+      {
+        "menu_name": "쉬림프 아보카도 샐러드",
+        "key_ingredients": [
+          "새우",
+          "아보카도",
+          "루콜라"
+        ],
+        "short_description": "상큼고소 조합."
+      },
+      {
+        "menu_name": "두부 콥 샐러드",
+        "key_ingredients": [
+          "두부",
+          "달걀",
+          "올리브"
+        ],
+        "short_description": "담백한 단백질 샐러드."
+      },
+      {
+        "menu_name": "치킨 시저 샐러드",
+        "key_ingredients": [
+          "로메인",
+          "그릴드치킨",
+          "파마산"
+        ],
+        "short_description": "고소한 클래식."
+      },
+      {
+        "menu_name": "쉬림프 아보카도 샐러드",
+        "key_ingredients": [
+          "새우",
+          "아보카도",
+          "루콜라"
+        ],
+        "short_description": "상큼고소 조합."
+      },
+      {
+        "menu_name": "퀴노아 볼",
+        "key_ingredients": [
+          "퀴노아",
+          "병아리콩",
+          "방울토마토"
+        ],
+        "short_description": "포만감 있는 그레인."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "도울 베이커리 카페",
+    "menus": [
+      {
+        "menu_name": "솔티드 카라멜 브라우니",
+        "key_ingredients": [
+          "코코아",
+          "카라멜",
+          "소금"
+        ],
+        "short_description": "단짠 밸런스."
+      },
+      {
+        "menu_name": "딸기 쇼트케이크",
+        "key_ingredients": [
+          "딸기",
+          "생크림",
+          "스폰지"
+        ],
+        "short_description": "산뜻한 조화."
+      },
+      {
+        "menu_name": "초코 크루아상",
+        "key_ingredients": [
+          "버터",
+          "다크초콜릿",
+          "밀가루"
+        ],
+        "short_description": "겹겹이 바삭 달콤."
+      },
+      {
+        "menu_name": "바질 치아바타",
+        "key_ingredients": [
+          "치아바타",
+          "바질페스토",
+          "모차렐라"
+        ],
+        "short_description": "향긋한 샌드."
+      },
+      {
+        "menu_name": "흑당 버블라떼",
+        "key_ingredients": [
+          "흑당시럽",
+          "우유",
+          "타피오카펄"
+        ],
+        "short_description": "진한 단맛 음료."
+      },
+      {
+        "menu_name": "바스크 치즈케이크",
+        "key_ingredients": [
+          "크림치즈",
+          "계란",
+          "생크림"
+        ],
+        "short_description": "꾸덕한 치즈 풍미."
+      },
+      {
+        "menu_name": "솔티드 카라멜 브라우니",
+        "key_ingredients": [
+          "코코아",
+          "카라멜",
+          "소금"
+        ],
+        "short_description": "단짠 밸런스."
+      },
+      {
+        "menu_name": "바스크 치즈케이크",
+        "key_ingredients": [
+          "크림치즈",
+          "계란",
+          "생크림"
+        ],
+        "short_description": "꾸덕한 치즈 풍미."
+      },
+      {
+        "menu_name": "흑당 버블라떼",
+        "key_ingredients": [
+          "흑당시럽",
+          "우유",
+          "타피오카펄"
+        ],
+        "short_description": "진한 단맛 음료."
+      },
+      {
+        "menu_name": "초코 크루아상",
+        "key_ingredients": [
+          "버터",
+          "다크초콜릿",
+          "밀가루"
+        ],
+        "short_description": "겹겹이 바삭 달콤."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "강남정육식당",
+    "menus": [
+      {
+        "menu_name": "목살 스테이크",
+        "key_ingredients": [
+          "목살",
+          "올리브유",
+          "허브"
+        ],
+        "short_description": "담백한 식감."
+      },
+      {
+        "menu_name": "삼겹살 구이",
+        "key_ingredients": [
+          "삼겹살",
+          "소금",
+          "쌈채소"
+        ],
+        "short_description": "기본에 충실한 구이."
+      },
+      {
+        "menu_name": "양갈비 구이",
+        "key_ingredients": [
+          "양갈비",
+          "로즈마리",
+          "마늘"
+        ],
+        "short_description": "허브 향 가득."
+      },
+      {
+        "menu_name": "소갈비살",
+        "key_ingredients": [
+          "갈비살",
+          "후추",
+          "버터"
+        ],
+        "short_description": "육즙 가득 풍미."
+      },
+      {
+        "menu_name": "차돌박이 숙주볶음",
+        "key_ingredients": [
+          "차돌박이",
+          "숙주",
+          "간장"
+        ],
+        "short_description": "고소한 불향."
+      },
+      {
+        "menu_name": "가브리살 구이",
+        "key_ingredients": [
+          "가브리살",
+          "소금",
+          "후추"
+        ],
+        "short_description": "쫄깃한 식감."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "선릉숯불갈비",
+    "menus": [
+      {
+        "menu_name": "순대국",
+        "key_ingredients": [
+          "순대",
+          "돼지사골",
+          "부추"
+        ],
+        "short_description": "구수한 한 끼."
+      },
+      {
+        "menu_name": "칼국수",
+        "key_ingredients": [
+          "밀가루면",
+          "멸치육수",
+          "호박"
+        ],
+        "short_description": "담백한 국물."
+      },
+      {
+        "menu_name": "물냉면",
+        "key_ingredients": [
+          "메밀면",
+          "동치미육수",
+          "오이"
+        ],
+        "short_description": "시원한 육수 맛."
+      },
+      {
+        "menu_name": "김치찌개",
+        "key_ingredients": [
+          "김치",
+          "돼지고기",
+          "두부"
+        ],
+        "short_description": "칼칼한 집밥 맛."
+      },
+      {
+        "menu_name": "비빔냉면",
+        "key_ingredients": [
+          "메밀면",
+          "고추장",
+          "배"
+        ],
+        "short_description": "새콤달콤 매콤."
+      },
+      {
+        "menu_name": "감자탕",
+        "key_ingredients": [
+          "돼지등뼈",
+          "감자",
+          "들깨가루"
+        ],
+        "short_description": "진한 국물 요리."
+      },
+      {
+        "menu_name": "김치찌개",
+        "key_ingredients": [
+          "김치",
+          "돼지고기",
+          "두부"
+        ],
+        "short_description": "칼칼한 집밥 맛."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "역삼곱창명가",
+    "menus": [
+      {
+        "menu_name": "연어 스테이크",
+        "key_ingredients": [
+          "연어",
+          "레몬",
+          "버터"
+        ],
+        "short_description": "겉바속촉 구이."
+      },
+      {
+        "menu_name": "새우 소금구이",
+        "key_ingredients": [
+          "대하",
+          "소금",
+          "라임"
+        ],
+        "short_description": "담백한 감칠맛."
+      },
+      {
+        "menu_name": "고등어 구이",
+        "key_ingredients": [
+          "고등어",
+          "소금",
+          "무"
+        ],
+        "short_description": "담백한 생선구이."
+      },
+      {
+        "menu_name": "가리비 버터구이",
+        "key_ingredients": [
+          "가리비",
+          "버터",
+          "파슬리"
+        ],
+        "short_description": "고소한 풍미."
+      },
+      {
+        "menu_name": "문어 초회",
+        "key_ingredients": [
+          "문어",
+          "초장",
+          "오이"
+        ],
+        "short_description": "새콤달콤 해산물."
+      },
+      {
+        "menu_name": "전복버터구이",
+        "key_ingredients": [
+          "전복",
+          "버터",
+          "마늘"
+        ],
+        "short_description": "쫄깃한 식감."
+      },
+      {
+        "menu_name": "새우 소금구이",
+        "key_ingredients": [
+          "대하",
+          "소금",
+          "라임"
+        ],
+        "short_description": "담백한 감칠맛."
+      },
+      {
+        "menu_name": "연어 스테이크",
+        "key_ingredients": [
+          "연어",
+          "레몬",
+          "버터"
+        ],
+        "short_description": "겉바속촉 구이."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "마포마라공방",
+    "menus": [
+      {
+        "menu_name": "돈카츠 정식",
+        "key_ingredients": [
+          "등심",
+          "빵가루",
+          "돈카츠소스"
+        ],
+        "short_description": "바삭한 식감."
+      },
+      {
+        "menu_name": "연어 사시미",
+        "key_ingredients": [
+          "연어",
+          "와사비",
+          "간장"
+        ],
+        "short_description": "신선한 회 한접시."
+      },
+      {
+        "menu_name": "특선 초밥",
+        "key_ingredients": [
+          "스시라이스",
+          "모둠회",
+          "간장"
+        ],
+        "short_description": "다채로운 구성."
+      },
+      {
+        "menu_name": "우동",
+        "key_ingredients": [
+          "우동면",
+          "가쓰오부시육수",
+          "파"
+        ],
+        "short_description": "따끈한 국물."
+      },
+      {
+        "menu_name": "규동",
+        "key_ingredients": [
+          "소고기",
+          "양파",
+          "간장소스"
+        ],
+        "short_description": "달콤짭짤 덮밥."
+      },
+      {
+        "menu_name": "사케동",
+        "key_ingredients": [
+          "연어",
+          "밥",
+          "간장소스"
+        ],
+        "short_description": "부드러운 한그릇."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "한남돈카츠연구소",
+    "menus": [
+      {
+        "menu_name": "클램 차우더",
+        "key_ingredients": [
+          "바지락",
+          "감자",
+          "크림"
+        ],
+        "short_description": "크리미한 수프."
+      },
+      {
+        "menu_name": "루꼴라 피자",
+        "key_ingredients": [
+          "피자도우",
+          "루꼴라",
+          "프로슈토"
+        ],
+        "short_description": "상큼고소 조합."
+      },
+      {
+        "menu_name": "치킨 그릴 플레이트",
+        "key_ingredients": [
+          "닭다리살",
+          "허브",
+          "올리브유"
+        ],
+        "short_description": "담백한 구이."
+      },
+      {
+        "menu_name": "봉골레 파스타",
+        "key_ingredients": [
+          "스파게티",
+          "바지락",
+          "올리브유"
+        ],
+        "short_description": "담백한 해물 파스타."
+      },
+      {
+        "menu_name": "바질 페스토 파스타",
+        "key_ingredients": [
+          "스파게티",
+          "바질",
+          "파르미지아노"
+        ],
+        "short_description": "향긋한 풍미."
+      },
+      {
+        "menu_name": "리브아이 스테이크",
+        "key_ingredients": [
+          "소고기",
+          "버터",
+          "허브"
+        ],
+        "short_description": "진한 육향의 메인."
+      },
+      {
+        "menu_name": "바질 페스토 파스타",
+        "key_ingredients": [
+          "스파게티",
+          "바질",
+          "파르미지아노"
+        ],
+        "short_description": "향긋한 풍미."
+      },
+      {
+        "menu_name": "바질 페스토 파스타",
+        "key_ingredients": [
+          "스파게티",
+          "바질",
+          "파르미지아노"
+        ],
+        "short_description": "향긋한 풍미."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "을지로냉면옥",
+    "menus": [
+      {
+        "menu_name": "플랫화이트",
+        "key_ingredients": [
+          "에스프레소",
+          "우유",
+          "마이크로폼"
+        ],
+        "short_description": "부드러운 라떼."
+      },
+      {
+        "menu_name": "쭈꾸미 볶음",
+        "key_ingredients": [
+          "쭈꾸미",
+          "고추장",
+          "양배추"
+        ],
+        "short_description": "매콤달콤 볶음."
+      },
+      {
+        "menu_name": "치즈 떡볶이",
+        "key_ingredients": [
+          "떡",
+          "고추장",
+          "모차렐라"
+        ],
+        "short_description": "쫀득한 매력."
+      },
+      {
+        "menu_name": "수제 버거",
+        "key_ingredients": [
+          "번",
+          "패티",
+          "치즈"
+        ],
+        "short_description": "든든한 한 끼."
+      },
+      {
+        "menu_name": "아메리카노",
+        "key_ingredients": [
+          "에스프레소",
+          "물",
+          "얼음"
+        ],
+        "short_description": "깔끔한 커피."
+      },
+      {
+        "menu_name": "수제 레모네이드",
+        "key_ingredients": [
+          "레몬",
+          "설탕",
+          "탄산수"
+        ],
+        "short_description": "상큼한 음료."
+      },
+      {
+        "menu_name": "수제 버거",
+        "key_ingredients": [
+          "번",
+          "패티",
+          "치즈"
+        ],
+        "short_description": "든든한 한 끼."
+      },
+      {
+        "menu_name": "치즈 떡볶이",
+        "key_ingredients": [
+          "떡",
+          "고추장",
+          "모차렐라"
+        ],
+        "short_description": "쫀득한 매력."
+      },
+      {
+        "menu_name": "플랫화이트",
+        "key_ingredients": [
+          "에스프레소",
+          "우유",
+          "마이크로폼"
+        ],
+        "short_description": "부드러운 라떼."
+      },
+      {
+        "menu_name": "아메리카노",
+        "key_ingredients": [
+          "에스프레소",
+          "물",
+          "얼음"
+        ],
+        "short_description": "깔끔한 커피."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "명동칼국수",
+    "menus": [
+      {
+        "menu_name": "우육면",
+        "key_ingredients": [
+          "소사골",
+          "면",
+          "청경채"
+        ],
+        "short_description": "진한 사골 국물."
+      },
+      {
+        "menu_name": "사천식 가지볶음",
+        "key_ingredients": [
+          "가지",
+          "다진돼지고기",
+          "두반장"
+        ],
+        "short_description": "알싸한 매콤 볶음."
+      },
+      {
+        "menu_name": "마라탕",
+        "key_ingredients": [
+          "소고기육수",
+          "화자오",
+          "청경채"
+        ],
+        "short_description": "얼얼하고 칼칼한 국물."
+      },
+      {
+        "menu_name": "꿔바로우",
+        "key_ingredients": [
+          "등심",
+          "감자전분",
+          "사과식초"
+        ],
+        "short_description": "겉바속촉 새콤달콤."
+      },
+      {
+        "menu_name": "고추잡채",
+        "key_ingredients": [
+          "피망",
+          "돼지고기",
+          "춘권피"
+        ],
+        "short_description": "아삭한 식감의 볶음."
+      },
+      {
+        "menu_name": "마라샹궈",
+        "key_ingredients": [
+          "돼지고기",
+          "건두부",
+          "꽃椒"
+        ],
+        "short_description": "향신료 풍미 가득."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "홍대쭈꾸미집",
+    "menus": [
+      {
+        "menu_name": "두부 콥 샐러드",
+        "key_ingredients": [
+          "두부",
+          "달걀",
+          "올리브"
+        ],
+        "short_description": "담백한 단백질 샐러드."
+      },
+      {
+        "menu_name": "연어 포케",
+        "key_ingredients": [
+          "연어",
+          "아보카도",
+          "간장소스"
+        ],
+        "short_description": "신선한 한그릇."
+      },
+      {
+        "menu_name": "치킨 시저 샐러드",
+        "key_ingredients": [
+          "로메인",
+          "그릴드치킨",
+          "파마산"
+        ],
+        "short_description": "고소한 클래식."
+      },
+      {
+        "menu_name": "훈제오리 샐러드",
+        "key_ingredients": [
+          "훈제오리",
+          "양상추",
+          "발사믹"
+        ],
+        "short_description": "담백한 훈제향."
+      },
+      {
+        "menu_name": "쉬림프 아보카도 샐러드",
+        "key_ingredients": [
+          "새우",
+          "아보카도",
+          "루콜라"
+        ],
+        "short_description": "상큼고소 조합."
+      },
+      {
+        "menu_name": "퀴노아 볼",
+        "key_ingredients": [
+          "퀴노아",
+          "병아리콩",
+          "방울토마토"
+        ],
+        "short_description": "포만감 있는 그레인."
+      },
+      {
+        "menu_name": "쉬림프 아보카도 샐러드",
+        "key_ingredients": [
+          "새우",
+          "아보카도",
+          "루콜라"
+        ],
+        "short_description": "상큼고소 조합."
+      },
+      {
+        "menu_name": "두부 콥 샐러드",
+        "key_ingredients": [
+          "두부",
+          "달걀",
+          "올리브"
+        ],
+        "short_description": "담백한 단백질 샐러드."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "서초연어하우스",
+    "menus": [
+      {
+        "menu_name": "딸기 쇼트케이크",
+        "key_ingredients": [
+          "딸기",
+          "생크림",
+          "스폰지"
+        ],
+        "short_description": "산뜻한 조화."
+      },
+      {
+        "menu_name": "초코 크루아상",
+        "key_ingredients": [
+          "버터",
+          "다크초콜릿",
+          "밀가루"
+        ],
+        "short_description": "겹겹이 바삭 달콤."
+      },
+      {
+        "menu_name": "흑당 버블라떼",
+        "key_ingredients": [
+          "흑당시럽",
+          "우유",
+          "타피오카펄"
+        ],
+        "short_description": "진한 단맛 음료."
+      },
+      {
+        "menu_name": "바스크 치즈케이크",
+        "key_ingredients": [
+          "크림치즈",
+          "계란",
+          "생크림"
+        ],
+        "short_description": "꾸덕한 치즈 풍미."
+      },
+      {
+        "menu_name": "바질 치아바타",
+        "key_ingredients": [
+          "치아바타",
+          "바질페스토",
+          "모차렐라"
+        ],
+        "short_description": "향긋한 샌드."
+      },
+      {
+        "menu_name": "솔티드 카라멜 브라우니",
+        "key_ingredients": [
+          "코코아",
+          "카라멜",
+          "소금"
+        ],
+        "short_description": "단짠 밸런스."
+      },
+      {
+        "menu_name": "솔티드 카라멜 브라우니",
+        "key_ingredients": [
+          "코코아",
+          "카라멜",
+          "소금"
+        ],
+        "short_description": "단짠 밸런스."
+      },
+      {
+        "menu_name": "흑당 버블라떼",
+        "key_ingredients": [
+          "흑당시럽",
+          "우유",
+          "타피오카펄"
+        ],
+        "short_description": "진한 단맛 음료."
+      },
+      {
+        "menu_name": "딸기 쇼트케이크",
+        "key_ingredients": [
+          "딸기",
+          "생크림",
+          "스폰지"
+        ],
+        "short_description": "산뜻한 조화."
+      },
+      {
+        "menu_name": "흑당 버블라떼",
+        "key_ingredients": [
+          "흑당시럽",
+          "우유",
+          "타피오카펄"
+        ],
+        "short_description": "진한 단맛 음료."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "신사초밥공방",
+    "menus": [
+      {
+        "menu_name": "양갈비 구이",
+        "key_ingredients": [
+          "양갈비",
+          "로즈마리",
+          "마늘"
+        ],
+        "short_description": "허브 향 가득."
+      },
+      {
+        "menu_name": "차돌박이 숙주볶음",
+        "key_ingredients": [
+          "차돌박이",
+          "숙주",
+          "간장"
+        ],
+        "short_description": "고소한 불향."
+      },
+      {
+        "menu_name": "삼겹살 구이",
+        "key_ingredients": [
+          "삼겹살",
+          "소금",
+          "쌈채소"
+        ],
+        "short_description": "기본에 충실한 구이."
+      },
+      {
+        "menu_name": "가브리살 구이",
+        "key_ingredients": [
+          "가브리살",
+          "소금",
+          "후추"
+        ],
+        "short_description": "쫄깃한 식감."
+      },
+      {
+        "menu_name": "목살 스테이크",
+        "key_ingredients": [
+          "목살",
+          "올리브유",
+          "허브"
+        ],
+        "short_description": "담백한 식감."
+      },
+      {
+        "menu_name": "소갈비살",
+        "key_ingredients": [
+          "갈비살",
+          "후추",
+          "버터"
+        ],
+        "short_description": "육즙 가득 풍미."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "학동모듬전",
+    "menus": [
+      {
+        "menu_name": "비빔냉면",
+        "key_ingredients": [
+          "메밀면",
+          "고추장",
+          "배"
+        ],
+        "short_description": "새콤달콤 매콤."
+      },
+      {
+        "menu_name": "감자탕",
+        "key_ingredients": [
+          "돼지등뼈",
+          "감자",
+          "들깨가루"
+        ],
+        "short_description": "진한 국물 요리."
+      },
+      {
+        "menu_name": "물냉면",
+        "key_ingredients": [
+          "메밀면",
+          "동치미육수",
+          "오이"
+        ],
+        "short_description": "시원한 육수 맛."
+      },
+      {
+        "menu_name": "김치찌개",
+        "key_ingredients": [
+          "김치",
+          "돼지고기",
+          "두부"
+        ],
+        "short_description": "칼칼한 집밥 맛."
+      },
+      {
+        "menu_name": "칼국수",
+        "key_ingredients": [
+          "밀가루면",
+          "멸치육수",
+          "호박"
+        ],
+        "short_description": "담백한 국물."
+      },
+      {
+        "menu_name": "순대국",
+        "key_ingredients": [
+          "순대",
+          "돼지사골",
+          "부추"
+        ],
+        "short_description": "구수한 한 끼."
+      },
+      {
+        "menu_name": "감자탕",
+        "key_ingredients": [
+          "돼지등뼈",
+          "감자",
+          "들깨가루"
+        ],
+        "short_description": "진한 국물 요리."
+      },
+      {
+        "menu_name": "김치찌개",
+        "key_ingredients": [
+          "김치",
+          "돼지고기",
+          "두부"
+        ],
+        "short_description": "칼칼한 집밥 맛."
+      },
+      {
+        "menu_name": "김치찌개",
+        "key_ingredients": [
+          "김치",
+          "돼지고기",
+          "두부"
+        ],
+        "short_description": "칼칼한 집밥 맛."
+      },
+      {
+        "menu_name": "물냉면",
+        "key_ingredients": [
+          "메밀면",
+          "동치미육수",
+          "오이"
+        ],
+        "short_description": "시원한 육수 맛."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "잠실샐러드랩",
+    "menus": [
+      {
+        "menu_name": "연어 스테이크",
+        "key_ingredients": [
+          "연어",
+          "레몬",
+          "버터"
+        ],
+        "short_description": "겉바속촉 구이."
+      },
+      {
+        "menu_name": "새우 소금구이",
+        "key_ingredients": [
+          "대하",
+          "소금",
+          "라임"
+        ],
+        "short_description": "담백한 감칠맛."
+      },
+      {
+        "menu_name": "고등어 구이",
+        "key_ingredients": [
+          "고등어",
+          "소금",
+          "무"
+        ],
+        "short_description": "담백한 생선구이."
+      },
+      {
+        "menu_name": "가리비 버터구이",
+        "key_ingredients": [
+          "가리비",
+          "버터",
+          "파슬리"
+        ],
+        "short_description": "고소한 풍미."
+      },
+      {
+        "menu_name": "문어 초회",
+        "key_ingredients": [
+          "문어",
+          "초장",
+          "오이"
+        ],
+        "short_description": "새콤달콤 해산물."
+      },
+      {
+        "menu_name": "전복버터구이",
+        "key_ingredients": [
+          "전복",
+          "버터",
+          "마늘"
+        ],
+        "short_description": "쫄깃한 식감."
+      },
+      {
+        "menu_name": "문어 초회",
+        "key_ingredients": [
+          "문어",
+          "초장",
+          "오이"
+        ],
+        "short_description": "새콤달콤 해산물."
+      },
+      {
+        "menu_name": "연어 스테이크",
+        "key_ingredients": [
+          "연어",
+          "레몬",
+          "버터"
+        ],
+        "short_description": "겉바속촉 구이."
+      },
+      {
+        "menu_name": "연어 스테이크",
+        "key_ingredients": [
+          "연어",
+          "레몬",
+          "버터"
+        ],
+        "short_description": "겉바속촉 구이."
+      },
+      {
+        "menu_name": "새우 소금구이",
+        "key_ingredients": [
+          "대하",
+          "소금",
+          "라임"
+        ],
+        "short_description": "담백한 감칠맛."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "압구정포케바",
+    "menus": [
+      {
+        "menu_name": "돈카츠 정식",
+        "key_ingredients": [
+          "등심",
+          "빵가루",
+          "돈카츠소스"
+        ],
+        "short_description": "바삭한 식감."
+      },
+      {
+        "menu_name": "우동",
+        "key_ingredients": [
+          "우동면",
+          "가쓰오부시육수",
+          "파"
+        ],
+        "short_description": "따끈한 국물."
+      },
+      {
+        "menu_name": "특선 초밥",
+        "key_ingredients": [
+          "스시라이스",
+          "모둠회",
+          "간장"
+        ],
+        "short_description": "다채로운 구성."
+      },
+      {
+        "menu_name": "사케동",
+        "key_ingredients": [
+          "연어",
+          "밥",
+          "간장소스"
+        ],
+        "short_description": "부드러운 한그릇."
+      },
+      {
+        "menu_name": "연어 사시미",
+        "key_ingredients": [
+          "연어",
+          "와사비",
+          "간장"
+        ],
+        "short_description": "신선한 회 한접시."
+      },
+      {
+        "menu_name": "규동",
+        "key_ingredients": [
+          "소고기",
+          "양파",
+          "간장소스"
+        ],
+        "short_description": "달콤짭짤 덮밥."
+      },
+      {
+        "menu_name": "사케동",
+        "key_ingredients": [
+          "연어",
+          "밥",
+          "간장소스"
+        ],
+        "short_description": "부드러운 한그릇."
+      },
+      {
+        "menu_name": "규동",
+        "key_ingredients": [
+          "소고기",
+          "양파",
+          "간장소스"
+        ],
+        "short_description": "달콤짭짤 덮밥."
+      },
+      {
+        "menu_name": "특선 초밥",
+        "key_ingredients": [
+          "스시라이스",
+          "모둠회",
+          "간장"
+        ],
+        "short_description": "다채로운 구성."
+      },
+      {
+        "menu_name": "돈카츠 정식",
+        "key_ingredients": [
+          "등심",
+          "빵가루",
+          "돈카츠소스"
+        ],
+        "short_description": "바삭한 식감."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "제주흑돼지촌",
+    "menus": [
+      {
+        "menu_name": "바질 페스토 파스타",
+        "key_ingredients": [
+          "스파게티",
+          "바질",
+          "파르미지아노"
+        ],
+        "short_description": "향긋한 풍미."
+      },
+      {
+        "menu_name": "클램 차우더",
+        "key_ingredients": [
+          "바지락",
+          "감자",
+          "크림"
+        ],
+        "short_description": "크리미한 수프."
+      },
+      {
+        "menu_name": "리브아이 스테이크",
+        "key_ingredients": [
+          "소고기",
+          "버터",
+          "허브"
+        ],
+        "short_description": "진한 육향의 메인."
+      },
+      {
+        "menu_name": "루꼴라 피자",
+        "key_ingredients": [
+          "피자도우",
+          "루꼴라",
+          "프로슈토"
+        ],
+        "short_description": "상큼고소 조합."
+      },
+      {
+        "menu_name": "치킨 그릴 플레이트",
+        "key_ingredients": [
+          "닭다리살",
+          "허브",
+          "올리브유"
+        ],
+        "short_description": "담백한 구이."
+      },
+      {
+        "menu_name": "봉골레 파스타",
+        "key_ingredients": [
+          "스파게티",
+          "바지락",
+          "올리브유"
+        ],
+        "short_description": "담백한 해물 파스타."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "부산아구찜센터",
+    "menus": [
+      {
+        "menu_name": "쭈꾸미 볶음",
+        "key_ingredients": [
+          "쭈꾸미",
+          "고추장",
+          "양배추"
+        ],
+        "short_description": "매콤달콤 볶음."
+      },
+      {
+        "menu_name": "수제 버거",
+        "key_ingredients": [
+          "번",
+          "패티",
+          "치즈"
+        ],
+        "short_description": "든든한 한 끼."
+      },
+      {
+        "menu_name": "아메리카노",
+        "key_ingredients": [
+          "에스프레소",
+          "물",
+          "얼음"
+        ],
+        "short_description": "깔끔한 커피."
+      },
+      {
+        "menu_name": "플랫화이트",
+        "key_ingredients": [
+          "에스프레소",
+          "우유",
+          "마이크로폼"
+        ],
+        "short_description": "부드러운 라떼."
+      },
+      {
+        "menu_name": "수제 레모네이드",
+        "key_ingredients": [
+          "레몬",
+          "설탕",
+          "탄산수"
+        ],
+        "short_description": "상큼한 음료."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "전주비빔밥마을",
+    "menus": [
+      {
+        "menu_name": "고추잡채",
+        "key_ingredients": [
+          "피망",
+          "돼지고기",
+          "춘권피"
+        ],
+        "short_description": "아삭한 식감의 볶음."
+      },
+      {
+        "menu_name": "마라탕",
+        "key_ingredients": [
+          "소고기육수",
+          "화자오",
+          "청경채"
+        ],
+        "short_description": "얼얼하고 칼칼한 국물."
+      },
+      {
+        "menu_name": "우육면",
+        "key_ingredients": [
+          "소사골",
+          "면",
+          "청경채"
+        ],
+        "short_description": "진한 사골 국물."
+      },
+      {
+        "menu_name": "사천식 가지볶음",
+        "key_ingredients": [
+          "가지",
+          "다진돼지고기",
+          "두반장"
+        ],
+        "short_description": "알싸한 매콤 볶음."
+      },
+      {
+        "menu_name": "마라샹궈",
+        "key_ingredients": [
+          "돼지고기",
+          "건두부",
+          "꽃椒"
+        ],
+        "short_description": "향신료 풍미 가득."
+      },
+      {
+        "menu_name": "꿔바로우",
+        "key_ingredients": [
+          "등심",
+          "감자전분",
+          "사과식초"
+        ],
+        "short_description": "겉바속촉 새콤달콤."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "춘천닭갈비거리",
+    "menus": [
+      {
+        "menu_name": "치킨 시저 샐러드",
+        "key_ingredients": [
+          "로메인",
+          "그릴드치킨",
+          "파마산"
+        ],
+        "short_description": "고소한 클래식."
+      },
+      {
+        "menu_name": "훈제오리 샐러드",
+        "key_ingredients": [
+          "훈제오리",
+          "양상추",
+          "발사믹"
+        ],
+        "short_description": "담백한 훈제향."
+      },
+      {
+        "menu_name": "쉬림프 아보카도 샐러드",
+        "key_ingredients": [
+          "새우",
+          "아보카도",
+          "루콜라"
+        ],
+        "short_description": "상큼고소 조합."
+      },
+      {
+        "menu_name": "두부 콥 샐러드",
+        "key_ingredients": [
+          "두부",
+          "달걀",
+          "올리브"
+        ],
+        "short_description": "담백한 단백질 샐러드."
+      },
+      {
+        "menu_name": "연어 포케",
+        "key_ingredients": [
+          "연어",
+          "아보카도",
+          "간장소스"
+        ],
+        "short_description": "신선한 한그릇."
+      },
+      {
+        "menu_name": "퀴노아 볼",
+        "key_ingredients": [
+          "퀴노아",
+          "병아리콩",
+          "방울토마토"
+        ],
+        "short_description": "포만감 있는 그레인."
+      },
+      {
+        "menu_name": "쉬림프 아보카도 샐러드",
+        "key_ingredients": [
+          "새우",
+          "아보카도",
+          "루콜라"
+        ],
+        "short_description": "상큼고소 조합."
+      },
+      {
+        "menu_name": "쉬림프 아보카도 샐러드",
+        "key_ingredients": [
+          "새우",
+          "아보카도",
+          "루콜라"
+        ],
+        "short_description": "상큼고소 조합."
+      },
+      {
+        "menu_name": "훈제오리 샐러드",
+        "key_ingredients": [
+          "훈제오리",
+          "양상추",
+          "발사믹"
+        ],
+        "short_description": "담백한 훈제향."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "광장시장육회골목",
+    "menus": [
+      {
+        "menu_name": "바질 치아바타",
+        "key_ingredients": [
+          "치아바타",
+          "바질페스토",
+          "모차렐라"
+        ],
+        "short_description": "향긋한 샌드."
+      },
+      {
+        "menu_name": "초코 크루아상",
+        "key_ingredients": [
+          "버터",
+          "다크초콜릿",
+          "밀가루"
+        ],
+        "short_description": "겹겹이 바삭 달콤."
+      },
+      {
+        "menu_name": "흑당 버블라떼",
+        "key_ingredients": [
+          "흑당시럽",
+          "우유",
+          "타피오카펄"
+        ],
+        "short_description": "진한 단맛 음료."
+      },
+      {
+        "menu_name": "솔티드 카라멜 브라우니",
+        "key_ingredients": [
+          "코코아",
+          "카라멜",
+          "소금"
+        ],
+        "short_description": "단짠 밸런스."
+      },
+      {
+        "menu_name": "딸기 쇼트케이크",
+        "key_ingredients": [
+          "딸기",
+          "생크림",
+          "스폰지"
+        ],
+        "short_description": "산뜻한 조화."
+      },
+      {
+        "menu_name": "바스크 치즈케이크",
+        "key_ingredients": [
+          "크림치즈",
+          "계란",
+          "생크림"
+        ],
+        "short_description": "꾸덕한 치즈 풍미."
+      },
+      {
+        "menu_name": "바질 치아바타",
+        "key_ingredients": [
+          "치아바타",
+          "바질페스토",
+          "모차렐라"
+        ],
+        "short_description": "향긋한 샌드."
+      },
+      {
+        "menu_name": "흑당 버블라떼",
+        "key_ingredients": [
+          "흑당시럽",
+          "우유",
+          "타피오카펄"
+        ],
+        "short_description": "진한 단맛 음료."
+      },
+      {
+        "menu_name": "초코 크루아상",
+        "key_ingredients": [
+          "버터",
+          "다크초콜릿",
+          "밀가루"
+        ],
+        "short_description": "겹겹이 바삭 달콤."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "수유감자탕",
+    "menus": [
+      {
+        "menu_name": "목살 스테이크",
+        "key_ingredients": [
+          "목살",
+          "올리브유",
+          "허브"
+        ],
+        "short_description": "담백한 식감."
+      },
+      {
+        "menu_name": "삼겹살 구이",
+        "key_ingredients": [
+          "삼겹살",
+          "소금",
+          "쌈채소"
+        ],
+        "short_description": "기본에 충실한 구이."
+      },
+      {
+        "menu_name": "소갈비살",
+        "key_ingredients": [
+          "갈비살",
+          "후추",
+          "버터"
+        ],
+        "short_description": "육즙 가득 풍미."
+      },
+      {
+        "menu_name": "가브리살 구이",
+        "key_ingredients": [
+          "가브리살",
+          "소금",
+          "후추"
+        ],
+        "short_description": "쫄깃한 식감."
+      },
+      {
+        "menu_name": "양갈비 구이",
+        "key_ingredients": [
+          "양갈비",
+          "로즈마리",
+          "마늘"
+        ],
+        "short_description": "허브 향 가득."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "건대볶음밥클럽",
+    "menus": [
+      {
+        "menu_name": "물냉면",
+        "key_ingredients": [
+          "메밀면",
+          "동치미육수",
+          "오이"
+        ],
+        "short_description": "시원한 육수 맛."
+      },
+      {
+        "menu_name": "김치찌개",
+        "key_ingredients": [
+          "김치",
+          "돼지고기",
+          "두부"
+        ],
+        "short_description": "칼칼한 집밥 맛."
+      },
+      {
+        "menu_name": "비빔냉면",
+        "key_ingredients": [
+          "메밀면",
+          "고추장",
+          "배"
+        ],
+        "short_description": "새콤달콤 매콤."
+      },
+      {
+        "menu_name": "순대국",
+        "key_ingredients": [
+          "순대",
+          "돼지사골",
+          "부추"
+        ],
+        "short_description": "구수한 한 끼."
+      },
+      {
+        "menu_name": "칼국수",
+        "key_ingredients": [
+          "밀가루면",
+          "멸치육수",
+          "호박"
+        ],
+        "short_description": "담백한 국물."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "이태원메제",
+    "menus": [
+      {
+        "menu_name": "연어 스테이크",
+        "key_ingredients": [
+          "연어",
+          "레몬",
+          "버터"
+        ],
+        "short_description": "겉바속촉 구이."
+      },
+      {
+        "menu_name": "새우 소금구이",
+        "key_ingredients": [
+          "대하",
+          "소금",
+          "라임"
+        ],
+        "short_description": "담백한 감칠맛."
+      },
+      {
+        "menu_name": "문어 초회",
+        "key_ingredients": [
+          "문어",
+          "초장",
+          "오이"
+        ],
+        "short_description": "새콤달콤 해산물."
+      },
+      {
+        "menu_name": "가리비 버터구이",
+        "key_ingredients": [
+          "가리비",
+          "버터",
+          "파슬리"
+        ],
+        "short_description": "고소한 풍미."
+      },
+      {
+        "menu_name": "고등어 구이",
+        "key_ingredients": [
+          "고등어",
+          "소금",
+          "무"
+        ],
+        "short_description": "담백한 생선구이."
+      },
+      {
+        "menu_name": "전복버터구이",
+        "key_ingredients": [
+          "전복",
+          "버터",
+          "마늘"
+        ],
+        "short_description": "쫄깃한 식감."
+      },
+      {
+        "menu_name": "가리비 버터구이",
+        "key_ingredients": [
+          "가리비",
+          "버터",
+          "파슬리"
+        ],
+        "short_description": "고소한 풍미."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "성수스테이크룸",
+    "menus": [
+      {
+        "menu_name": "우동",
+        "key_ingredients": [
+          "우동면",
+          "가쓰오부시육수",
+          "파"
+        ],
+        "short_description": "따끈한 국물."
+      },
+      {
+        "menu_name": "사케동",
+        "key_ingredients": [
+          "연어",
+          "밥",
+          "간장소스"
+        ],
+        "short_description": "부드러운 한그릇."
+      },
+      {
+        "menu_name": "규동",
+        "key_ingredients": [
+          "소고기",
+          "양파",
+          "간장소스"
+        ],
+        "short_description": "달콤짭짤 덮밥."
+      },
+      {
+        "menu_name": "연어 사시미",
+        "key_ingredients": [
+          "연어",
+          "와사비",
+          "간장"
+        ],
+        "short_description": "신선한 회 한접시."
+      },
+      {
+        "menu_name": "특선 초밥",
+        "key_ingredients": [
+          "스시라이스",
+          "모둠회",
+          "간장"
+        ],
+        "short_description": "다채로운 구성."
+      },
+      {
+        "menu_name": "돈카츠 정식",
+        "key_ingredients": [
+          "등심",
+          "빵가루",
+          "돈카츠소스"
+        ],
+        "short_description": "바삭한 식감."
+      },
+      {
+        "menu_name": "특선 초밥",
+        "key_ingredients": [
+          "스시라이스",
+          "모둠회",
+          "간장"
+        ],
+        "short_description": "다채로운 구성."
+      },
+      {
+        "menu_name": "연어 사시미",
+        "key_ingredients": [
+          "연어",
+          "와사비",
+          "간장"
+        ],
+        "short_description": "신선한 회 한접시."
+      },
+      {
+        "menu_name": "돈카츠 정식",
+        "key_ingredients": [
+          "등심",
+          "빵가루",
+          "돈카츠소스"
+        ],
+        "short_description": "바삭한 식감."
+      },
+      {
+        "menu_name": "돈카츠 정식",
+        "key_ingredients": [
+          "등심",
+          "빵가루",
+          "돈카츠소스"
+        ],
+        "short_description": "바삭한 식감."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "해운대밀면",
+    "menus": [
+      {
+        "menu_name": "클램 차우더",
+        "key_ingredients": [
+          "바지락",
+          "감자",
+          "크림"
+        ],
+        "short_description": "크리미한 수프."
+      },
+      {
+        "menu_name": "리브아이 스테이크",
+        "key_ingredients": [
+          "소고기",
+          "버터",
+          "허브"
+        ],
+        "short_description": "진한 육향의 메인."
+      },
+      {
+        "menu_name": "바질 페스토 파스타",
+        "key_ingredients": [
+          "스파게티",
+          "바질",
+          "파르미지아노"
+        ],
+        "short_description": "향긋한 풍미."
+      },
+      {
+        "menu_name": "봉골레 파스타",
+        "key_ingredients": [
+          "스파게티",
+          "바지락",
+          "올리브유"
+        ],
+        "short_description": "담백한 해물 파스타."
+      },
+      {
+        "menu_name": "치킨 그릴 플레이트",
+        "key_ingredients": [
+          "닭다리살",
+          "허브",
+          "올리브유"
+        ],
+        "short_description": "담백한 구이."
+      },
+      {
+        "menu_name": "루꼴라 피자",
+        "key_ingredients": [
+          "피자도우",
+          "루꼴라",
+          "프로슈토"
+        ],
+        "short_description": "상큼고소 조합."
+      },
+      {
+        "menu_name": "바질 페스토 파스타",
+        "key_ingredients": [
+          "스파게티",
+          "바질",
+          "파르미지아노"
+        ],
+        "short_description": "향긋한 풍미."
+      },
+      {
+        "menu_name": "리브아이 스테이크",
+        "key_ingredients": [
+          "소고기",
+          "버터",
+          "허브"
+        ],
+        "short_description": "진한 육향의 메인."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "부암동카레집",
+    "menus": [
+      {
+        "menu_name": "치즈 떡볶이",
+        "key_ingredients": [
+          "떡",
+          "고추장",
+          "모차렐라"
+        ],
+        "short_description": "쫀득한 매력."
+      },
+      {
+        "menu_name": "아메리카노",
+        "key_ingredients": [
+          "에스프레소",
+          "물",
+          "얼음"
+        ],
+        "short_description": "깔끔한 커피."
+      },
+      {
+        "menu_name": "수제 레모네이드",
+        "key_ingredients": [
+          "레몬",
+          "설탕",
+          "탄산수"
+        ],
+        "short_description": "상큼한 음료."
+      },
+      {
+        "menu_name": "쭈꾸미 볶음",
+        "key_ingredients": [
+          "쭈꾸미",
+          "고추장",
+          "양배추"
+        ],
+        "short_description": "매콤달콤 볶음."
+      },
+      {
+        "menu_name": "플랫화이트",
+        "key_ingredients": [
+          "에스프레소",
+          "우유",
+          "마이크로폼"
+        ],
+        "short_description": "부드러운 라떼."
+      },
+      {
+        "menu_name": "수제 버거",
+        "key_ingredients": [
+          "번",
+          "패티",
+          "치즈"
+        ],
+        "short_description": "든든한 한 끼."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "선릉버거월드",
+    "menus": [
+      {
+        "menu_name": "꿔바로우",
+        "key_ingredients": [
+          "등심",
+          "감자전분",
+          "사과식초"
+        ],
+        "short_description": "겉바속촉 새콤달콤."
+      },
+      {
+        "menu_name": "마라샹궈",
+        "key_ingredients": [
+          "돼지고기",
+          "건두부",
+          "꽃椒"
+        ],
+        "short_description": "향신료 풍미 가득."
+      },
+      {
+        "menu_name": "마라탕",
+        "key_ingredients": [
+          "소고기육수",
+          "화자오",
+          "청경채"
+        ],
+        "short_description": "얼얼하고 칼칼한 국물."
+      },
+      {
+        "menu_name": "고추잡채",
+        "key_ingredients": [
+          "피망",
+          "돼지고기",
+          "춘권피"
+        ],
+        "short_description": "아삭한 식감의 볶음."
+      },
+      {
+        "menu_name": "우육면",
+        "key_ingredients": [
+          "소사골",
+          "면",
+          "청경채"
+        ],
+        "short_description": "진한 사골 국물."
+      },
+      {
+        "menu_name": "사천식 가지볶음",
+        "key_ingredients": [
+          "가지",
+          "다진돼지고기",
+          "두반장"
+        ],
+        "short_description": "알싸한 매콤 볶음."
+      },
+      {
+        "menu_name": "꿔바로우",
+        "key_ingredients": [
+          "등심",
+          "감자전분",
+          "사과식초"
+        ],
+        "short_description": "겉바속촉 새콤달콤."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "서래마을브런치",
+    "menus": [
+      {
+        "menu_name": "연어 포케",
+        "key_ingredients": [
+          "연어",
+          "아보카도",
+          "간장소스"
+        ],
+        "short_description": "신선한 한그릇."
+      },
+      {
+        "menu_name": "훈제오리 샐러드",
+        "key_ingredients": [
+          "훈제오리",
+          "양상추",
+          "발사믹"
+        ],
+        "short_description": "담백한 훈제향."
+      },
+      {
+        "menu_name": "치킨 시저 샐러드",
+        "key_ingredients": [
+          "로메인",
+          "그릴드치킨",
+          "파마산"
+        ],
+        "short_description": "고소한 클래식."
+      },
+      {
+        "menu_name": "퀴노아 볼",
+        "key_ingredients": [
+          "퀴노아",
+          "병아리콩",
+          "방울토마토"
+        ],
+        "short_description": "포만감 있는 그레인."
+      },
+      {
+        "menu_name": "쉬림프 아보카도 샐러드",
+        "key_ingredients": [
+          "새우",
+          "아보카도",
+          "루콜라"
+        ],
+        "short_description": "상큼고소 조합."
+      },
+      {
+        "menu_name": "두부 콥 샐러드",
+        "key_ingredients": [
+          "두부",
+          "달걀",
+          "올리브"
+        ],
+        "short_description": "담백한 단백질 샐러드."
+      },
+      {
+        "menu_name": "두부 콥 샐러드",
+        "key_ingredients": [
+          "두부",
+          "달걀",
+          "올리브"
+        ],
+        "short_description": "담백한 단백질 샐러드."
+      },
+      {
+        "menu_name": "훈제오리 샐러드",
+        "key_ingredients": [
+          "훈제오리",
+          "양상추",
+          "발사믹"
+        ],
+        "short_description": "담백한 훈제향."
+      },
+      {
+        "menu_name": "훈제오리 샐러드",
+        "key_ingredients": [
+          "훈제오리",
+          "양상추",
+          "발사믹"
+        ],
+        "short_description": "담백한 훈제향."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "종로족발본가",
+    "menus": [
+      {
+        "menu_name": "딸기 쇼트케이크",
+        "key_ingredients": [
+          "딸기",
+          "생크림",
+          "스폰지"
+        ],
+        "short_description": "산뜻한 조화."
+      },
+      {
+        "menu_name": "바스크 치즈케이크",
+        "key_ingredients": [
+          "크림치즈",
+          "계란",
+          "생크림"
+        ],
+        "short_description": "꾸덕한 치즈 풍미."
+      },
+      {
+        "menu_name": "바질 치아바타",
+        "key_ingredients": [
+          "치아바타",
+          "바질페스토",
+          "모차렐라"
+        ],
+        "short_description": "향긋한 샌드."
+      },
+      {
+        "menu_name": "초코 크루아상",
+        "key_ingredients": [
+          "버터",
+          "다크초콜릿",
+          "밀가루"
+        ],
+        "short_description": "겹겹이 바삭 달콤."
+      },
+      {
+        "menu_name": "흑당 버블라떼",
+        "key_ingredients": [
+          "흑당시럽",
+          "우유",
+          "타피오카펄"
+        ],
+        "short_description": "진한 단맛 음료."
+      },
+      {
+        "menu_name": "솔티드 카라멜 브라우니",
+        "key_ingredients": [
+          "코코아",
+          "카라멜",
+          "소금"
+        ],
+        "short_description": "단짠 밸런스."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "문래동로스터리",
+    "menus": [
+      {
+        "menu_name": "가브리살 구이",
+        "key_ingredients": [
+          "가브리살",
+          "소금",
+          "후추"
+        ],
+        "short_description": "쫄깃한 식감."
+      },
+      {
+        "menu_name": "양갈비 구이",
+        "key_ingredients": [
+          "양갈비",
+          "로즈마리",
+          "마늘"
+        ],
+        "short_description": "허브 향 가득."
+      },
+      {
+        "menu_name": "차돌박이 숙주볶음",
+        "key_ingredients": [
+          "차돌박이",
+          "숙주",
+          "간장"
+        ],
+        "short_description": "고소한 불향."
+      },
+      {
+        "menu_name": "삼겹살 구이",
+        "key_ingredients": [
+          "삼겹살",
+          "소금",
+          "쌈채소"
+        ],
+        "short_description": "기본에 충실한 구이."
+      },
+      {
+        "menu_name": "목살 스테이크",
+        "key_ingredients": [
+          "목살",
+          "올리브유",
+          "허브"
+        ],
+        "short_description": "담백한 식감."
+      },
+      {
+        "menu_name": "소갈비살",
+        "key_ingredients": [
+          "갈비살",
+          "후추",
+          "버터"
+        ],
+        "short_description": "육즙 가득 풍미."
+      },
+      {
+        "menu_name": "소갈비살",
+        "key_ingredients": [
+          "갈비살",
+          "후추",
+          "버터"
+        ],
+        "short_description": "육즙 가득 풍미."
+      },
+      {
+        "menu_name": "삼겹살 구이",
+        "key_ingredients": [
+          "삼겹살",
+          "소금",
+          "쌈채소"
+        ],
+        "short_description": "기본에 충실한 구이."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "용리단길타코",
+    "menus": [
+      {
+        "menu_name": "순대국",
+        "key_ingredients": [
+          "순대",
+          "돼지사골",
+          "부추"
+        ],
+        "short_description": "구수한 한 끼."
+      },
+      {
+        "menu_name": "물냉면",
+        "key_ingredients": [
+          "메밀면",
+          "동치미육수",
+          "오이"
+        ],
+        "short_description": "시원한 육수 맛."
+      },
+      {
+        "menu_name": "칼국수",
+        "key_ingredients": [
+          "밀가루면",
+          "멸치육수",
+          "호박"
+        ],
+        "short_description": "담백한 국물."
+      },
+      {
+        "menu_name": "김치찌개",
+        "key_ingredients": [
+          "김치",
+          "돼지고기",
+          "두부"
+        ],
+        "short_description": "칼칼한 집밥 맛."
+      },
+      {
+        "menu_name": "감자탕",
+        "key_ingredients": [
+          "돼지등뼈",
+          "감자",
+          "들깨가루"
+        ],
+        "short_description": "진한 국물 요리."
+      },
+      {
+        "menu_name": "비빔냉면",
+        "key_ingredients": [
+          "메밀면",
+          "고추장",
+          "배"
+        ],
+        "short_description": "새콤달콤 매콤."
+      },
+      {
+        "menu_name": "감자탕",
+        "key_ingredients": [
+          "돼지등뼈",
+          "감자",
+          "들깨가루"
+        ],
+        "short_description": "진한 국물 요리."
+      },
+      {
+        "menu_name": "김치찌개",
+        "key_ingredients": [
+          "김치",
+          "돼지고기",
+          "두부"
+        ],
+        "short_description": "칼칼한 집밥 맛."
+      },
+      {
+        "menu_name": "물냉면",
+        "key_ingredients": [
+          "메밀면",
+          "동치미육수",
+          "오이"
+        ],
+        "short_description": "시원한 육수 맛."
+      },
+      {
+        "menu_name": "김치찌개",
+        "key_ingredients": [
+          "김치",
+          "돼지고기",
+          "두부"
+        ],
+        "short_description": "칼칼한 집밥 맛."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "서촌손칼국수",
+    "menus": [
+      {
+        "menu_name": "문어 초회",
+        "key_ingredients": [
+          "문어",
+          "초장",
+          "오이"
+        ],
+        "short_description": "새콤달콤 해산물."
+      },
+      {
+        "menu_name": "연어 스테이크",
+        "key_ingredients": [
+          "연어",
+          "레몬",
+          "버터"
+        ],
+        "short_description": "겉바속촉 구이."
+      },
+      {
+        "menu_name": "새우 소금구이",
+        "key_ingredients": [
+          "대하",
+          "소금",
+          "라임"
+        ],
+        "short_description": "담백한 감칠맛."
+      },
+      {
+        "menu_name": "고등어 구이",
+        "key_ingredients": [
+          "고등어",
+          "소금",
+          "무"
+        ],
+        "short_description": "담백한 생선구이."
+      },
+      {
+        "menu_name": "가리비 버터구이",
+        "key_ingredients": [
+          "가리비",
+          "버터",
+          "파슬리"
+        ],
+        "short_description": "고소한 풍미."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "연남파스타바",
+    "menus": [
+      {
+        "menu_name": "연어 사시미",
+        "key_ingredients": [
+          "연어",
+          "와사비",
+          "간장"
+        ],
+        "short_description": "신선한 회 한접시."
+      },
+      {
+        "menu_name": "우동",
+        "key_ingredients": [
+          "우동면",
+          "가쓰오부시육수",
+          "파"
+        ],
+        "short_description": "따끈한 국물."
+      },
+      {
+        "menu_name": "특선 초밥",
+        "key_ingredients": [
+          "스시라이스",
+          "모둠회",
+          "간장"
+        ],
+        "short_description": "다채로운 구성."
+      },
+      {
+        "menu_name": "돈카츠 정식",
+        "key_ingredients": [
+          "등심",
+          "빵가루",
+          "돈카츠소스"
+        ],
+        "short_description": "바삭한 식감."
+      },
+      {
+        "menu_name": "사케동",
+        "key_ingredients": [
+          "연어",
+          "밥",
+          "간장소스"
+        ],
+        "short_description": "부드러운 한그릇."
+      },
+      {
+        "menu_name": "규동",
+        "key_ingredients": [
+          "소고기",
+          "양파",
+          "간장소스"
+        ],
+        "short_description": "달콤짭짤 덮밥."
+      },
+      {
+        "menu_name": "돈카츠 정식",
+        "key_ingredients": [
+          "등심",
+          "빵가루",
+          "돈카츠소스"
+        ],
+        "short_description": "바삭한 식감."
+      },
+      {
+        "menu_name": "규동",
+        "key_ingredients": [
+          "소고기",
+          "양파",
+          "간장소스"
+        ],
+        "short_description": "달콤짭짤 덮밥."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "양재샤브&샐러드",
+    "menus": [
+      {
+        "menu_name": "루꼴라 피자",
+        "key_ingredients": [
+          "피자도우",
+          "루꼴라",
+          "프로슈토"
+        ],
+        "short_description": "상큼고소 조합."
+      },
+      {
+        "menu_name": "클램 차우더",
+        "key_ingredients": [
+          "바지락",
+          "감자",
+          "크림"
+        ],
+        "short_description": "크리미한 수프."
+      },
+      {
+        "menu_name": "치킨 그릴 플레이트",
+        "key_ingredients": [
+          "닭다리살",
+          "허브",
+          "올리브유"
+        ],
+        "short_description": "담백한 구이."
+      },
+      {
+        "menu_name": "바질 페스토 파스타",
+        "key_ingredients": [
+          "스파게티",
+          "바질",
+          "파르미지아노"
+        ],
+        "short_description": "향긋한 풍미."
+      },
+      {
+        "menu_name": "봉골레 파스타",
+        "key_ingredients": [
+          "스파게티",
+          "바지락",
+          "올리브유"
+        ],
+        "short_description": "담백한 해물 파스타."
+      },
+      {
+        "menu_name": "리브아이 스테이크",
+        "key_ingredients": [
+          "소고기",
+          "버터",
+          "허브"
+        ],
+        "short_description": "진한 육향의 메인."
+      },
+      {
+        "menu_name": "치킨 그릴 플레이트",
+        "key_ingredients": [
+          "닭다리살",
+          "허브",
+          "올리브유"
+        ],
+        "short_description": "담백한 구이."
+      },
+      {
+        "menu_name": "리브아이 스테이크",
+        "key_ingredients": [
+          "소고기",
+          "버터",
+          "허브"
+        ],
+        "short_description": "진한 육향의 메인."
+      },
+      {
+        "menu_name": "봉골레 파스타",
+        "key_ingredients": [
+          "스파게티",
+          "바지락",
+          "올리브유"
+        ],
+        "short_description": "담백한 해물 파스타."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "사당순대국",
+    "menus": [
+      {
+        "menu_name": "수제 버거",
+        "key_ingredients": [
+          "번",
+          "패티",
+          "치즈"
+        ],
+        "short_description": "든든한 한 끼."
+      },
+      {
+        "menu_name": "쭈꾸미 볶음",
+        "key_ingredients": [
+          "쭈꾸미",
+          "고추장",
+          "양배추"
+        ],
+        "short_description": "매콤달콤 볶음."
+      },
+      {
+        "menu_name": "아메리카노",
+        "key_ingredients": [
+          "에스프레소",
+          "물",
+          "얼음"
+        ],
+        "short_description": "깔끔한 커피."
+      },
+      {
+        "menu_name": "치즈 떡볶이",
+        "key_ingredients": [
+          "떡",
+          "고추장",
+          "모차렐라"
+        ],
+        "short_description": "쫀득한 매력."
+      },
+      {
+        "menu_name": "수제 레모네이드",
+        "key_ingredients": [
+          "레몬",
+          "설탕",
+          "탄산수"
+        ],
+        "short_description": "상큼한 음료."
+      },
+      {
+        "menu_name": "플랫화이트",
+        "key_ingredients": [
+          "에스프레소",
+          "우유",
+          "마이크로폼"
+        ],
+        "short_description": "부드러운 라떼."
+      },
+      {
+        "menu_name": "수제 레모네이드",
+        "key_ingredients": [
+          "레몬",
+          "설탕",
+          "탄산수"
+        ],
+        "short_description": "상큼한 음료."
+      },
+      {
+        "menu_name": "수제 레모네이드",
+        "key_ingredients": [
+          "레몬",
+          "설탕",
+          "탄산수"
+        ],
+        "short_description": "상큼한 음료."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "청담라멘연구소",
+    "menus": [
+      {
+        "menu_name": "사천식 가지볶음",
+        "key_ingredients": [
+          "가지",
+          "다진돼지고기",
+          "두반장"
+        ],
+        "short_description": "알싸한 매콤 볶음."
+      },
+      {
+        "menu_name": "마라탕",
+        "key_ingredients": [
+          "소고기육수",
+          "화자오",
+          "청경채"
+        ],
+        "short_description": "얼얼하고 칼칼한 국물."
+      },
+      {
+        "menu_name": "마라샹궈",
+        "key_ingredients": [
+          "돼지고기",
+          "건두부",
+          "꽃椒"
+        ],
+        "short_description": "향신료 풍미 가득."
+      },
+      {
+        "menu_name": "꿔바로우",
+        "key_ingredients": [
+          "등심",
+          "감자전분",
+          "사과식초"
+        ],
+        "short_description": "겉바속촉 새콤달콤."
+      },
+      {
+        "menu_name": "우육면",
+        "key_ingredients": [
+          "소사골",
+          "면",
+          "청경채"
+        ],
+        "short_description": "진한 사골 국물."
+      },
+      {
+        "menu_name": "고추잡채",
+        "key_ingredients": [
+          "피망",
+          "돼지고기",
+          "춘권피"
+        ],
+        "short_description": "아삭한 식감의 볶음."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "망원동피자샵",
+    "menus": [
+      {
+        "menu_name": "퀴노아 볼",
+        "key_ingredients": [
+          "퀴노아",
+          "병아리콩",
+          "방울토마토"
+        ],
+        "short_description": "포만감 있는 그레인."
+      },
+      {
+        "menu_name": "두부 콥 샐러드",
+        "key_ingredients": [
+          "두부",
+          "달걀",
+          "올리브"
+        ],
+        "short_description": "담백한 단백질 샐러드."
+      },
+      {
+        "menu_name": "연어 포케",
+        "key_ingredients": [
+          "연어",
+          "아보카도",
+          "간장소스"
+        ],
+        "short_description": "신선한 한그릇."
+      },
+      {
+        "menu_name": "훈제오리 샐러드",
+        "key_ingredients": [
+          "훈제오리",
+          "양상추",
+          "발사믹"
+        ],
+        "short_description": "담백한 훈제향."
+      },
+      {
+        "menu_name": "치킨 시저 샐러드",
+        "key_ingredients": [
+          "로메인",
+          "그릴드치킨",
+          "파마산"
+        ],
+        "short_description": "고소한 클래식."
+      },
+      {
+        "menu_name": "쉬림프 아보카도 샐러드",
+        "key_ingredients": [
+          "새우",
+          "아보카도",
+          "루콜라"
+        ],
+        "short_description": "상큼고소 조합."
+      },
+      {
+        "menu_name": "훈제오리 샐러드",
+        "key_ingredients": [
+          "훈제오리",
+          "양상추",
+          "발사믹"
+        ],
+        "short_description": "담백한 훈제향."
+      },
+      {
+        "menu_name": "연어 포케",
+        "key_ingredients": [
+          "연어",
+          "아보카도",
+          "간장소스"
+        ],
+        "short_description": "신선한 한그릇."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "한강치킨포차",
+    "menus": [
+      {
+        "menu_name": "바스크 치즈케이크",
+        "key_ingredients": [
+          "크림치즈",
+          "계란",
+          "생크림"
+        ],
+        "short_description": "꾸덕한 치즈 풍미."
+      },
+      {
+        "menu_name": "솔티드 카라멜 브라우니",
+        "key_ingredients": [
+          "코코아",
+          "카라멜",
+          "소금"
+        ],
+        "short_description": "단짠 밸런스."
+      },
+      {
+        "menu_name": "초코 크루아상",
+        "key_ingredients": [
+          "버터",
+          "다크초콜릿",
+          "밀가루"
+        ],
+        "short_description": "겹겹이 바삭 달콤."
+      },
+      {
+        "menu_name": "딸기 쇼트케이크",
+        "key_ingredients": [
+          "딸기",
+          "생크림",
+          "스폰지"
+        ],
+        "short_description": "산뜻한 조화."
+      },
+      {
+        "menu_name": "흑당 버블라떼",
+        "key_ingredients": [
+          "흑당시럽",
+          "우유",
+          "타피오카펄"
+        ],
+        "short_description": "진한 단맛 음료."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "왕십리왕만두",
+    "menus": [
+      {
+        "menu_name": "소갈비살",
+        "key_ingredients": [
+          "갈비살",
+          "후추",
+          "버터"
+        ],
+        "short_description": "육즙 가득 풍미."
+      },
+      {
+        "menu_name": "목살 스테이크",
+        "key_ingredients": [
+          "목살",
+          "올리브유",
+          "허브"
+        ],
+        "short_description": "담백한 식감."
+      },
+      {
+        "menu_name": "가브리살 구이",
+        "key_ingredients": [
+          "가브리살",
+          "소금",
+          "후추"
+        ],
+        "short_description": "쫄깃한 식감."
+      },
+      {
+        "menu_name": "양갈비 구이",
+        "key_ingredients": [
+          "양갈비",
+          "로즈마리",
+          "마늘"
+        ],
+        "short_description": "허브 향 가득."
+      },
+      {
+        "menu_name": "차돌박이 숙주볶음",
+        "key_ingredients": [
+          "차돌박이",
+          "숙주",
+          "간장"
+        ],
+        "short_description": "고소한 불향."
+      },
+      {
+        "menu_name": "삼겹살 구이",
+        "key_ingredients": [
+          "삼겹살",
+          "소금",
+          "쌈채소"
+        ],
+        "short_description": "기본에 충실한 구이."
+      },
+      {
+        "menu_name": "소갈비살",
+        "key_ingredients": [
+          "갈비살",
+          "후추",
+          "버터"
+        ],
+        "short_description": "육즙 가득 풍미."
+      },
+      {
+        "menu_name": "가브리살 구이",
+        "key_ingredients": [
+          "가브리살",
+          "소금",
+          "후추"
+        ],
+        "short_description": "쫄깃한 식감."
+      },
+      {
+        "menu_name": "삼겹살 구이",
+        "key_ingredients": [
+          "삼겹살",
+          "소금",
+          "쌈채소"
+        ],
+        "short_description": "기본에 충실한 구이."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "서대문보쌈",
+    "menus": [
+      {
+        "menu_name": "감자탕",
+        "key_ingredients": [
+          "돼지등뼈",
+          "감자",
+          "들깨가루"
+        ],
+        "short_description": "진한 국물 요리."
+      },
+      {
+        "menu_name": "칼국수",
+        "key_ingredients": [
+          "밀가루면",
+          "멸치육수",
+          "호박"
+        ],
+        "short_description": "담백한 국물."
+      },
+      {
+        "menu_name": "물냉면",
+        "key_ingredients": [
+          "메밀면",
+          "동치미육수",
+          "오이"
+        ],
+        "short_description": "시원한 육수 맛."
+      },
+      {
+        "menu_name": "김치찌개",
+        "key_ingredients": [
+          "김치",
+          "돼지고기",
+          "두부"
+        ],
+        "short_description": "칼칼한 집밥 맛."
+      },
+      {
+        "menu_name": "비빔냉면",
+        "key_ingredients": [
+          "메밀면",
+          "고추장",
+          "배"
+        ],
+        "short_description": "새콤달콤 매콤."
+      },
+      {
+        "menu_name": "순대국",
+        "key_ingredients": [
+          "순대",
+          "돼지사골",
+          "부추"
+        ],
+        "short_description": "구수한 한 끼."
+      },
+      {
+        "menu_name": "감자탕",
+        "key_ingredients": [
+          "돼지등뼈",
+          "감자",
+          "들깨가루"
+        ],
+        "short_description": "진한 국물 요리."
+      },
+      {
+        "menu_name": "비빔냉면",
+        "key_ingredients": [
+          "메밀면",
+          "고추장",
+          "배"
+        ],
+        "short_description": "새콤달콤 매콤."
+      },
+      {
+        "menu_name": "순대국",
+        "key_ingredients": [
+          "순대",
+          "돼지사골",
+          "부추"
+        ],
+        "short_description": "구수한 한 끼."
+      },
+      {
+        "menu_name": "감자탕",
+        "key_ingredients": [
+          "돼지등뼈",
+          "감자",
+          "들깨가루"
+        ],
+        "short_description": "진한 국물 요리."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "마곡김밥연구소",
+    "menus": [
+      {
+        "menu_name": "새우 소금구이",
+        "key_ingredients": [
+          "대하",
+          "소금",
+          "라임"
+        ],
+        "short_description": "담백한 감칠맛."
+      },
+      {
+        "menu_name": "연어 스테이크",
+        "key_ingredients": [
+          "연어",
+          "레몬",
+          "버터"
+        ],
+        "short_description": "겉바속촉 구이."
+      },
+      {
+        "menu_name": "전복버터구이",
+        "key_ingredients": [
+          "전복",
+          "버터",
+          "마늘"
+        ],
+        "short_description": "쫄깃한 식감."
+      },
+      {
+        "menu_name": "가리비 버터구이",
+        "key_ingredients": [
+          "가리비",
+          "버터",
+          "파슬리"
+        ],
+        "short_description": "고소한 풍미."
+      },
+      {
+        "menu_name": "고등어 구이",
+        "key_ingredients": [
+          "고등어",
+          "소금",
+          "무"
+        ],
+        "short_description": "담백한 생선구이."
+      },
+      {
+        "menu_name": "문어 초회",
+        "key_ingredients": [
+          "문어",
+          "초장",
+          "오이"
+        ],
+        "short_description": "새콤달콤 해산물."
+      },
+      {
+        "menu_name": "전복버터구이",
+        "key_ingredients": [
+          "전복",
+          "버터",
+          "마늘"
+        ],
+        "short_description": "쫄깃한 식감."
+      },
+      {
+        "menu_name": "가리비 버터구이",
+        "key_ingredients": [
+          "가리비",
+          "버터",
+          "파슬리"
+        ],
+        "short_description": "고소한 풍미."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "상수해장국",
+    "menus": [
+      {
+        "menu_name": "규동",
+        "key_ingredients": [
+          "소고기",
+          "양파",
+          "간장소스"
+        ],
+        "short_description": "달콤짭짤 덮밥."
+      },
+      {
+        "menu_name": "특선 초밥",
+        "key_ingredients": [
+          "스시라이스",
+          "모둠회",
+          "간장"
+        ],
+        "short_description": "다채로운 구성."
+      },
+      {
+        "menu_name": "연어 사시미",
+        "key_ingredients": [
+          "연어",
+          "와사비",
+          "간장"
+        ],
+        "short_description": "신선한 회 한접시."
+      },
+      {
+        "menu_name": "우동",
+        "key_ingredients": [
+          "우동면",
+          "가쓰오부시육수",
+          "파"
+        ],
+        "short_description": "따끈한 국물."
+      },
+      {
+        "menu_name": "돈카츠 정식",
+        "key_ingredients": [
+          "등심",
+          "빵가루",
+          "돈카츠소스"
+        ],
+        "short_description": "바삭한 식감."
+      },
+      {
+        "menu_name": "사케동",
+        "key_ingredients": [
+          "연어",
+          "밥",
+          "간장소스"
+        ],
+        "short_description": "부드러운 한그릇."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "신촌김치찌개",
+    "menus": [
+      {
+        "menu_name": "치킨 그릴 플레이트",
+        "key_ingredients": [
+          "닭다리살",
+          "허브",
+          "올리브유"
+        ],
+        "short_description": "담백한 구이."
+      },
+      {
+        "menu_name": "클램 차우더",
+        "key_ingredients": [
+          "바지락",
+          "감자",
+          "크림"
+        ],
+        "short_description": "크리미한 수프."
+      },
+      {
+        "menu_name": "리브아이 스테이크",
+        "key_ingredients": [
+          "소고기",
+          "버터",
+          "허브"
+        ],
+        "short_description": "진한 육향의 메인."
+      },
+      {
+        "menu_name": "바질 페스토 파스타",
+        "key_ingredients": [
+          "스파게티",
+          "바질",
+          "파르미지아노"
+        ],
+        "short_description": "향긋한 풍미."
+      },
+      {
+        "menu_name": "루꼴라 피자",
+        "key_ingredients": [
+          "피자도우",
+          "루꼴라",
+          "프로슈토"
+        ],
+        "short_description": "상큼고소 조합."
+      },
+      {
+        "menu_name": "봉골레 파스타",
+        "key_ingredients": [
+          "스파게티",
+          "바지락",
+          "올리브유"
+        ],
+        "short_description": "담백한 해물 파스타."
+      },
+      {
+        "menu_name": "클램 차우더",
+        "key_ingredients": [
+          "바지락",
+          "감자",
+          "크림"
+        ],
+        "short_description": "크리미한 수프."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "방배해물탕",
+    "menus": [
+      {
+        "menu_name": "치즈 떡볶이",
+        "key_ingredients": [
+          "떡",
+          "고추장",
+          "모차렐라"
+        ],
+        "short_description": "쫀득한 매력."
+      },
+      {
+        "menu_name": "플랫화이트",
+        "key_ingredients": [
+          "에스프레소",
+          "우유",
+          "마이크로폼"
+        ],
+        "short_description": "부드러운 라떼."
+      },
+      {
+        "menu_name": "수제 레모네이드",
+        "key_ingredients": [
+          "레몬",
+          "설탕",
+          "탄산수"
+        ],
+        "short_description": "상큼한 음료."
+      },
+      {
+        "menu_name": "쭈꾸미 볶음",
+        "key_ingredients": [
+          "쭈꾸미",
+          "고추장",
+          "양배추"
+        ],
+        "short_description": "매콤달콤 볶음."
+      },
+      {
+        "menu_name": "수제 버거",
+        "key_ingredients": [
+          "번",
+          "패티",
+          "치즈"
+        ],
+        "short_description": "든든한 한 끼."
+      },
+      {
+        "menu_name": "아메리카노",
+        "key_ingredients": [
+          "에스프레소",
+          "물",
+          "얼음"
+        ],
+        "short_description": "깔끔한 커피."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "대치동쌀국수",
+    "menus": [
+      {
+        "menu_name": "우육면",
+        "key_ingredients": [
+          "소사골",
+          "면",
+          "청경채"
+        ],
+        "short_description": "진한 사골 국물."
+      },
+      {
+        "menu_name": "마라샹궈",
+        "key_ingredients": [
+          "돼지고기",
+          "건두부",
+          "꽃椒"
+        ],
+        "short_description": "향신료 풍미 가득."
+      },
+      {
+        "menu_name": "사천식 가지볶음",
+        "key_ingredients": [
+          "가지",
+          "다진돼지고기",
+          "두반장"
+        ],
+        "short_description": "알싸한 매콤 볶음."
+      },
+      {
+        "menu_name": "마라탕",
+        "key_ingredients": [
+          "소고기육수",
+          "화자오",
+          "청경채"
+        ],
+        "short_description": "얼얼하고 칼칼한 국물."
+      },
+      {
+        "menu_name": "꿔바로우",
+        "key_ingredients": [
+          "등심",
+          "감자전분",
+          "사과식초"
+        ],
+        "short_description": "겉바속촉 새콤달콤."
+      },
+      {
+        "menu_name": "고추잡채",
+        "key_ingredients": [
+          "피망",
+          "돼지고기",
+          "춘권피"
+        ],
+        "short_description": "아삭한 식감의 볶음."
+      },
+      {
+        "menu_name": "우육면",
+        "key_ingredients": [
+          "소사골",
+          "면",
+          "청경채"
+        ],
+        "short_description": "진한 사골 국물."
+      },
+      {
+        "menu_name": "우육면",
+        "key_ingredients": [
+          "소사골",
+          "면",
+          "청경채"
+        ],
+        "short_description": "진한 사골 국물."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "수원왕갈비면옥",
+    "menus": [
+      {
+        "menu_name": "치킨 시저 샐러드",
+        "key_ingredients": [
+          "로메인",
+          "그릴드치킨",
+          "파마산"
+        ],
+        "short_description": "고소한 클래식."
+      },
+      {
+        "menu_name": "쉬림프 아보카도 샐러드",
+        "key_ingredients": [
+          "새우",
+          "아보카도",
+          "루콜라"
+        ],
+        "short_description": "상큼고소 조합."
+      },
+      {
+        "menu_name": "두부 콥 샐러드",
+        "key_ingredients": [
+          "두부",
+          "달걀",
+          "올리브"
+        ],
+        "short_description": "담백한 단백질 샐러드."
+      },
+      {
+        "menu_name": "훈제오리 샐러드",
+        "key_ingredients": [
+          "훈제오리",
+          "양상추",
+          "발사믹"
+        ],
+        "short_description": "담백한 훈제향."
+      },
+      {
+        "menu_name": "연어 포케",
+        "key_ingredients": [
+          "연어",
+          "아보카도",
+          "간장소스"
+        ],
+        "short_description": "신선한 한그릇."
+      },
+      {
+        "menu_name": "퀴노아 볼",
+        "key_ingredients": [
+          "퀴노아",
+          "병아리콩",
+          "방울토마토"
+        ],
+        "short_description": "포만감 있는 그레인."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "분당샤오롱바오",
+    "menus": [
+      {
+        "menu_name": "바질 치아바타",
+        "key_ingredients": [
+          "치아바타",
+          "바질페스토",
+          "모차렐라"
+        ],
+        "short_description": "향긋한 샌드."
+      },
+      {
+        "menu_name": "초코 크루아상",
+        "key_ingredients": [
+          "버터",
+          "다크초콜릿",
+          "밀가루"
+        ],
+        "short_description": "겹겹이 바삭 달콤."
+      },
+      {
+        "menu_name": "딸기 쇼트케이크",
+        "key_ingredients": [
+          "딸기",
+          "생크림",
+          "스폰지"
+        ],
+        "short_description": "산뜻한 조화."
+      },
+      {
+        "menu_name": "솔티드 카라멜 브라우니",
+        "key_ingredients": [
+          "코코아",
+          "카라멜",
+          "소금"
+        ],
+        "short_description": "단짠 밸런스."
+      },
+      {
+        "menu_name": "흑당 버블라떼",
+        "key_ingredients": [
+          "흑당시럽",
+          "우유",
+          "타피오카펄"
+        ],
+        "short_description": "진한 단맛 음료."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "판교바질리코",
+    "menus": [
+      {
+        "menu_name": "목살 스테이크",
+        "key_ingredients": [
+          "목살",
+          "올리브유",
+          "허브"
+        ],
+        "short_description": "담백한 식감."
+      },
+      {
+        "menu_name": "가브리살 구이",
+        "key_ingredients": [
+          "가브리살",
+          "소금",
+          "후추"
+        ],
+        "short_description": "쫄깃한 식감."
+      },
+      {
+        "menu_name": "차돌박이 숙주볶음",
+        "key_ingredients": [
+          "차돌박이",
+          "숙주",
+          "간장"
+        ],
+        "short_description": "고소한 불향."
+      },
+      {
+        "menu_name": "양갈비 구이",
+        "key_ingredients": [
+          "양갈비",
+          "로즈마리",
+          "마늘"
+        ],
+        "short_description": "허브 향 가득."
+      },
+      {
+        "menu_name": "소갈비살",
+        "key_ingredients": [
+          "갈비살",
+          "후추",
+          "버터"
+        ],
+        "short_description": "육즙 가득 풍미."
+      }
+    ]
+  },
+  {
+    "restaurant_name": "광교브루어리푸드",
+    "menus": [
+      {
+        "menu_name": "물냉면",
+        "key_ingredients": [
+          "메밀면",
+          "동치미육수",
+          "오이"
+        ],
+        "short_description": "시원한 육수 맛."
+      },
+      {
+        "menu_name": "칼국수",
+        "key_ingredients": [
+          "밀가루면",
+          "멸치육수",
+          "호박"
+        ],
+        "short_description": "담백한 국물."
+      },
+      {
+        "menu_name": "비빔냉면",
+        "key_ingredients": [
+          "메밀면",
+          "고추장",
+          "배"
+        ],
+        "short_description": "새콤달콤 매콤."
+      },
+      {
+        "menu_name": "순대국",
+        "key_ingredients": [
+          "순대",
+          "돼지사골",
+          "부추"
+        ],
+        "short_description": "구수한 한 끼."
+      },
+      {
+        "menu_name": "감자탕",
+        "key_ingredients": [
+          "돼지등뼈",
+          "감자",
+          "들깨가루"
+        ],
+        "short_description": "진한 국물 요리."
+      }
+    ]
+  }
+]

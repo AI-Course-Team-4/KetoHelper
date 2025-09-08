@@ -1,0 +1,29 @@
+{
+  "timestamp": "2025-09-08T13:35:44.205728",
+  "phase_1_summary": {
+    "total_restaurants": 50,
+    "total_menu_items": 373,
+    "data_processing": {
+      "success": true,
+      "processed_items": 373
+    }
+  },
+  "embedding_generation": {
+    "total_items": 5,
+    "successful_embeddings": 5,
+    "success_rate": 100.0
+  },
+  "database_storage": {
+    "success": true,
+    "total_items": 5,
+    "successful_inserts": 5,
+    "failed_inserts": 0,
+    "success_rate": 100.0,
+    "errors": []
+  },
+  "next_steps": [
+    "팀원들은 이제 벡터 검색, 키워드 검색, 하이브리드 검색 기능을 구현할 수 있습니다.",
+    "setup_database.sql에 정의된 함수들을 활용하세요.",
+    "데이터베이스에 저장된 임베딩을 사용하여 검색 성능을 테스트하세요."
+  ]
+}

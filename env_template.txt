@@ -1,0 +1,23 @@
+# 환경변수 설정 파일
+# 이 파일을 .env로 복사하고 실제 값으로 채워주세요
+
+# OpenAI API 키
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Supabase 설정
+SUPABASE_URL=your_supabase_url_here
+SUPABASE_KEY=your_supabase_anon_key_here
+
+# 데이터베이스 설정 (선택사항)
+DATABASE_URL=postgresql://user:password@host:port/database
+
+# 로깅 레벨 (DEBUG, INFO, WARNING, ERROR)
+LOG_LEVEL=INFO
+
+# 벡터 임베딩 설정
+EMBEDDING_MODEL=text-embedding-3-small
+EMBEDDING_DIMENSION=1536
+
+# 배치 처리 설정
+BATCH_SIZE=50
+MAX_RETRIES=3
