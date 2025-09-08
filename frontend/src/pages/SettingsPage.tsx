@@ -76,7 +76,7 @@ const SettingsPage = () => {
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tabs value={activeTab} onChange={handleTabChange}>
             <Tab label="프로필" />
-            <Tab label="식품 선호도" />
+            <Tab label="선호도 설정" />
             {/* <Tab label="알림 설정" /> */}
             <Tab label="계정 관리" />
           </Tabs>
