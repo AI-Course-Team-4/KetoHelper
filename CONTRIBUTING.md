@@ -297,20 +297,6 @@ git config --global alias.prdev '!f(){
   gh pr create -B dev -H "$BR" -F .github/pull_request_template.md --web
 }; f'
 
-
-# feature/* → (origin/dev merge, 템플릿 적용) → dev 대상 PR 생성
-git config --global alias.prdev '!f(){
-  set -e
-  BR=$(git rev-parse --abbrev-ref HEAD)
-  [ "$BR" = dev -o "$BR" = main ] && { echo "현재 브랜치가 $BR 입니다. feature 브랜치에서 실행하세요."; exit 1; }
-  git fetch origin
-  if ! git merge origin/dev; then
-    echo "⚠️ 충돌 발생: 해결 후 ① git add -A ② git commit ③ git push -u origin $BR"; exit 1
-  fi
-  git push -u origin "$BR"
-  gh pr create -B dev -H "$BR" -F .github/pull_request_template.md --web
-}; f'
-
 # dev → main 릴리즈 PR (템플릿 강제 주입)
 git config --global alias.release '!f(){
   set -e
@@ -353,7 +339,7 @@ gh auth status
 
 ## 자주 발생하는 이슈 & 해결
 
-- GH013: dev/main 직접 push 거절 → 정상, 반드시 PR 사용 (`git prdev`, `git dev2main`).
+- GH013: dev/main 직접 push 거절 → 정상, 반드시 PR 사용 (`git prdev`, `git release`).
 - 브랜치 이름 충돌 → 슬래시는 한 번만 (`feature/sh-setting`).
 - 충돌 발생 → 수정 후 `git add -A` → `git commit` → `git push` → 필요 시 `gh pr create -B dev -H <현재브랜치> -w`.
 - 기본 브랜치 확인: GitHub Settings → Branches → Default branch = `dev`.
