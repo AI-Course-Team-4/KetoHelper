@@ -34,6 +34,7 @@ const ProfilePage = () => {
   const [isEditing, setIsEditing] = useState(false)
   const [profileImage, setProfileImage] = useState(user?.profileImage || '')
   const [name, setName] = useState(user?.name || '')
+  const [id] = useState(user?.id || '')
   const [dietSetupOpen, setDietSetupOpen] = useState(false)
   const [dietSetup, setDietSetup] = useState<InitialDietSetup>({
     currentWeight: user?.dietPlan?.currentWeight || 70,
@@ -42,6 +43,7 @@ const ProfilePage = () => {
     timeframe: 12,
     activityLevel: 'moderate',
   })
+  const displayName = name || id || '';
 
   if (!isAuthenticated) {
     return (
@@ -92,7 +94,7 @@ const ProfilePage = () => {
       medium: 0.5,
       high: 0.75,
     }[dietSetup.intensity]
-    
+
     // 주당 감량 목표 (kg)
     const weeklyGoal = intensityMultiplier
     const estimatedWeeks = Math.ceil(weightDiff / weeklyGoal)
@@ -114,9 +116,9 @@ const ProfilePage = () => {
 
   return (
     <Box>
-      <Typography variant="h3" sx={{ fontWeight: 700, mb: 4 }}>
+      {/* <Typography variant="h3" sx={{ fontWeight: 700, mb: 4 }}>
         👤 프로필 설정
-      </Typography>
+      </Typography> */}
 
       <Grid container spacing={4}>
         {/* 기본 프로필 정보 */}
@@ -128,7 +130,7 @@ const ProfilePage = () => {
                   기본 정보
                 </Typography>
                 {!isEditing ? (
-                  <IconButton onClick={() => setIsEditing(true)}>
+                  <IconButton onClick={() => { setIsEditing(true) }}>
                     <Edit />
                   </IconButton>
                 ) : (
@@ -192,7 +194,7 @@ const ProfilePage = () => {
                   <TextField
                     fullWidth
                     label="이름"
-                    value={name}
+                    value={displayName}
                     onChange={(e) => setName(e.target.value)}
                     disabled={!isEditing}
                     variant={isEditing ? 'outlined' : 'filled'}
