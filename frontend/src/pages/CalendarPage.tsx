@@ -8,6 +8,8 @@ import {
   Button,
   Chip,
   IconButton,
+  Select,
+  MenuItem,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -34,6 +36,8 @@ const CalendarPage = () => {
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [mealDetailOpen, setMealDetailOpen] = useState(false)
   const [selectedMeal, setSelectedMeal] = useState<Recipe | null>(null)
+  const [monthPickerOpen, setMonthPickerOpen] = useState(false)
+  const [tempYear, setTempYear] = useState<number>(new Date().getFullYear())
 
   // 구독 확인
   const hasSubscription = user?.subscription?.isActive || false
@@ -356,6 +360,11 @@ const CalendarPage = () => {
     setCurrentDate(newDate)
   }
 
+  const handleSelectMonth = (monthIndex: number) => {
+    setCurrentDate(new Date(tempYear, monthIndex, 1))
+    setMonthPickerOpen(false)
+  }
+
   const handleMealClick = (meal: Recipe) => {
     setSelectedMeal(meal)
     setMealDetailOpen(true)
@@ -391,7 +400,14 @@ const CalendarPage = () => {
         <IconButton onClick={() => navigateMonth('prev')}>
           <ChevronLeft />
         </IconButton>
-        <Typography variant="h5" sx={{ mx: 4, fontWeight: 600 }}>
+        <Typography
+          variant="h5"
+          sx={{ mx: 4, fontWeight: 600, cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+          onClick={() => {
+            setTempYear(currentDate.getFullYear())
+            setMonthPickerOpen(true)
+          }}
+        >
           {monthName}
         </Typography>
         <IconButton onClick={() => navigateMonth('next')}>
@@ -427,7 +443,7 @@ const CalendarPage = () => {
             <Grid item xs={12/7} key={dateString}>
               <Card
                 sx={{
-                  height: 120,
+                  height: 160,
                   cursor: 'pointer',
                   border: isToday ? 2 : 1,
                   borderColor: isToday ? 'primary.main' : 'divider',
@@ -445,21 +461,36 @@ const CalendarPage = () => {
                   
                   {mealPlan && (
                     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                      <Box>
-                        {/* 식사 완료 표시 */}
-                        <Box sx={{ display: 'flex', gap: 0.5, mb: 1 }}>
-                          {mealPlan.completed.breakfast && <CheckCircle color="success" sx={{ fontSize: 16 }} />}
-                          {mealPlan.completed.lunch && <CheckCircle color="success" sx={{ fontSize: 16 }} />}
-                          {mealPlan.completed.dinner && <CheckCircle color="success" sx={{ fontSize: 16 }} />}
-                        </Box>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 1 }}>
+                        {(['breakfast', 'lunch', 'dinner'] as const).map((mt) => {
+                          const meal = mealPlan.meals[mt]
+                          if (!meal) return null
+                          const mealTypeMap = { breakfast: '아침', lunch: '점심', dinner: '저녁' } as const
+                          const isCompleted = mealPlan.completed[mt]
+                          return (
+                            <Box key={mt} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <Typography variant="caption" sx={{ mr: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                <strong>{mealTypeMap[mt]}:</strong> {meal.title}
+                              </Typography>
+                              {isCompleted ? (
+                                <CheckCircle color="success" sx={{ fontSize: 16 }} />
+                              ) : (
+                                <CheckCircleOutline sx={{ fontSize: 16, color: 'text.disabled' }} />
+                              )}
+                            </Box>
+                          )
+                        })}
                       </Box>
-                      
-                      <Chip
-                        label={`${completedMeals}/${totalMeals}`}
-                        size="small"
-                        color={completedMeals === totalMeals ? 'success' : completedMeals > 0 ? 'warning' : 'default'}
-                        sx={{ fontSize: '0.7rem', height: 20 }}
-                      />
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                          실행 현황: {completedMeals}/{totalMeals}
+                        </Typography>
+                        <LinearProgress
+                          variant="determinate"
+                          value={(completedMeals / totalMeals) * 100}
+                          sx={{ height: 6, borderRadius: 1 }}
+                        />
+                      </Box>
                     </Box>
                   )}
                 </CardContent>
@@ -634,6 +665,41 @@ const CalendarPage = () => {
             </>
           )
         })()}
+      </Dialog>
+
+      {/* 월/년도 빠른 이동 다이얼로그 */}
+      <Dialog open={monthPickerOpen} onClose={() => setMonthPickerOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>날짜 이동</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            <Typography sx={{ mr: 2 }}>년도</Typography>
+            <Select
+              size="small"
+              value={tempYear}
+              onChange={(e) => setTempYear(Number(e.target.value))}
+            >
+              {Array.from({ length: 21 }, (_, i) => currentDate.getFullYear() - 10 + i).map((year) => (
+                <MenuItem key={year} value={year}>{year}년</MenuItem>
+              ))}
+            </Select>
+          </Box>
+          <Grid container spacing={1}>
+            {Array.from({ length: 12 }, (_, idx) => idx).map((idx) => (
+              <Grid item xs={3} key={idx}>
+                <Button
+                  fullWidth
+                  variant={currentDate.getMonth() === idx && currentDate.getFullYear() === tempYear ? 'contained' : 'outlined'}
+                  onClick={() => handleSelectMonth(idx)}
+                >
+                  {idx + 1}월
+                </Button>
+              </Grid>
+            ))}
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setMonthPickerOpen(false)}>닫기</Button>
+        </DialogActions>
       </Dialog>
 
       {/* 식사 상세 다이얼로그 */}
