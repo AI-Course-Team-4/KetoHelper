@@ -22,10 +22,8 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`
     }
     
-    // 요청 로깅 (dev 모드에서만)
-    if ((import.meta as any).env.VITE_DEV_MODE === 'true') {
-      console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`)
-    }
+    // 요청 로깅
+    console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`)
     
     return config
   },
@@ -38,18 +36,8 @@ api.interceptors.request.use(
 // 응답 인터셉터
 api.interceptors.response.use(
   (response: AxiosResponse<ApiResponse<any>>) => {
-    // 응답 로깅 (dev 모드에서만)
-    if ((import.meta as any).env.VITE_DEV_MODE === 'true') {
-      const url = response.config?.url || ''
-      const raw = (response as any)?.data
-      const data = (raw as any)?.data ?? raw
-      console.log('data', data)
-      if (url.endsWith('/auth/google')) {
-        console.log('[API] Google login user:', data?.user ?? null)
-      } else {
-        console.log(`[API] Response ${response.status}:`, raw)
-      }
-    }
+    // 응답 로깅
+    console.log(`[API] Response ${response.status}:`, response.data)
     return response
   },
   (error) => {
@@ -78,27 +66,27 @@ api.interceptors.response.use(
 export const apiHelper = {
   get: async <T>(url: string, config?: AxiosRequestConfig): Promise<T> => {
     const response = await api.get<ApiResponse<T>>(url, config)
-    return (response as any).data?.data
+    return response.data.data
   },
 
   post: async <T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
     const response = await api.post<ApiResponse<T>>(url, data, config)
-    return (response as any).data?.data
+    return response.data.data
   },
 
   put: async <T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
     const response = await api.put<ApiResponse<T>>(url, data, config)
-    return (response as any).data?.data
+    return response.data.data
   },
 
   patch: async <T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
     const response = await api.patch<ApiResponse<T>>(url, data, config)
-    return (response as any).data?.data
+    return response.data.data
   },
 
   delete: async <T>(url: string, config?: AxiosRequestConfig): Promise<T> => {
     const response = await api.delete<ApiResponse<T>>(url, config)
-    return (response as any).data?.data
+    return response.data.data
   },
 }
 
@@ -113,7 +101,7 @@ export const uploadFile = async (file: File, endpoint: string): Promise<string> 
     },
   })
   
-  return (response as any).data?.data?.url
+  return response.data.data.url
 }
 
 export default api

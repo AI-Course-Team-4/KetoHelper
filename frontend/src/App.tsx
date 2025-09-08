@@ -30,7 +30,6 @@ function App() {
           <Route path="test" element={<Test />} />
         </Route>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/auth/naver/callback" element={<LoginPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </Box>
