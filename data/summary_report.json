@@ -1,22 +1,22 @@
 {
-  "timestamp": "2025-09-08T13:35:44.205728",
+  "timestamp": "2025-09-08T14:59:02.367097",
   "phase_1_summary": {
     "total_restaurants": 50,
-    "total_menu_items": 373,
+    "total_menu_items": 376,
     "data_processing": {
       "success": true,
-      "processed_items": 373
+      "processed_items": 376
     }
   },
   "embedding_generation": {
-    "total_items": 5,
-    "successful_embeddings": 5,
+    "total_items": 376,
+    "successful_embeddings": 376,
     "success_rate": 100.0
   },
   "database_storage": {
     "success": true,
-    "total_items": 5,
-    "successful_inserts": 5,
+    "total_items": 376,
+    "successful_inserts": 376,
     "failed_inserts": 0,
     "success_rate": 100.0,
     "errors": []
