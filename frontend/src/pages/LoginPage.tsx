@@ -330,7 +330,7 @@ const LoginPage = () => {
         </Box>
 
         {/* Naver Auth 버튼 */}
-        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'center' }}>
+        {/* <Box sx={{ mb: 2, display: 'flex', justifyContent: 'center' }}>
           <Button
             fullWidth
             variant="contained"
@@ -372,7 +372,8 @@ const LoginPage = () => {
           >
             네이버로 로그인
           </Button>
-        </Box>
+        </Box> */}
+        {/* 버그 때문에 잠시 주석 처리 */}
 
         {/* 구글 로딩 표시 */}
         {isGoogleLoading && (
