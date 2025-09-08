@@ -40,7 +40,7 @@
 - **RAG 시스템**: LangChain
 - **워크플로우**: LangGraph
 - **AI Agent**: 커스텀 Agent 구현
-- **벡터 데이터베이스**: Pinecone
+- **벡터 데이터베이스**: MongoDB Atlas Vector Search
 - **LLM**: OpenAI GPT-4
 
 ### 배포 & 인프라
@@ -161,22 +161,22 @@
 
 ### RAG (Retrieval-Augmented Generation) 시스템
 ```
-사용자 질문 → 벡터 검색 → 관련 문서 검색 → LLM 답변 생성 → 개인화 필터링 → 최종 응답
+사용자 질문 → MongoDB Vector Search → 관련 문서 검색 → LLM 답변 생성 → 개인화 필터링 → 최종 응답
 ```
 
 #### 데이터 소스
-- **키토 레시피 데이터베이스**: 10,000+ 검증된 키토 레시피
-- **식당 메뉴 데이터**: 주요 프랜차이즈 메뉴 정보
-- **영양학 지식베이스**: 키토제닉 다이어트 가이드라인
+- **키토 레시피 데이터베이스**: 10,000+ 검증된 키토 레시피 (MongoDB에 벡터 임베딩 저장)
+- **식당 메뉴 데이터**: 주요 프랜차이즈 메뉴 정보 (MongoDB에 벡터 임베딩 저장)
+- **영양학 지식베이스**: 키토제닉 다이어트 가이드라인 (MongoDB에 벡터 임베딩 저장)
 
 ### LangGraph 워크플로우
 ```mermaid
 graph TD
     A[사용자 입력] --> B[의도 분석]
     B --> C{쿼리 타입}
-    C -->|식단 추천| D[레시피 검색]
-    C -->|식당 추천| E[위치 기반 검색]
-    C -->|영양 질문| F[지식베이스 검색]
+    C -->|식단 추천| D[MongoDB Vector Search - 레시피]
+    C -->|식당 추천| E[MongoDB Vector Search - 식당]
+    C -->|영양 질문| F[MongoDB Vector Search - 지식베이스]
     D --> G[개인화 필터링]
     E --> G
     F --> G
@@ -273,7 +273,7 @@ graph TD
   reviewCount: Number,
   isKetoFriendly: Boolean,
   createdAt: Date,
-  embedding: [Number] // for vector search
+  embedding: [Number] // MongoDB Atlas Vector Search용 벡터 임베딩
 }
 ```
 
