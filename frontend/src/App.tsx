@@ -12,7 +12,6 @@ import PreferencesPage from '@pages/PreferencesPage'
 import CalendarPage from '@pages/CalendarPage'
 import SubscriptionPage from '@pages/SubscriptionPage'
 import NotFoundPage from '@pages/NotFoundPage'
-import Test from '@pages/Test'
 
 function App() {
   return (
@@ -27,9 +26,9 @@ function App() {
           <Route path="preferences" element={<PreferencesPage />} />
           <Route path="subscription" element={<SubscriptionPage />} />
           <Route path="settings" element={<SettingsPage />} />
-          <Route path="test" element={<Test />} />
         </Route>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/auth/naver/callback" element={<LoginPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </Box>

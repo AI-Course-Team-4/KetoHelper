@@ -54,8 +54,8 @@ const getMenuItems = (hasSubscription: boolean) => [
 
 const getBottomMenuItems = (isAuthenticated: boolean) => [
   ...(isAuthenticated ? [
-    { text: '프로필 설정', icon: <Person />, path: '/profile' },
-    { text: '선호도 설정', icon: <FavoriteBorder />, path: '/preferences' },
+    // { text: '프로필 설정', icon: <Person />, path: '/profile' },
+    // { text: '선호도 설정', icon: <FavoriteBorder />, path: '/preferences' },
     { text: '구독', icon: <Payment />, path: '/subscription' },
     { text: '설정', icon: <Settings />, path: '/settings' },
   ] : [
@@ -76,11 +76,12 @@ const Sidebar = () => {
   const hasSubscription = user?.subscription?.isActive || false
   const menuItems = getMenuItems(hasSubscription)
   const bottomMenuItems = getBottomMenuItems(isAuthenticated)
+  const displayName = user?.name || user?.id || '';
 
   const handleLogout = async () => {
     try {
       // 데모 모드에서는 API 호출 없이 바로 로그아웃
-      if (user?.id?.startsWith('demo-') || user?.id?.startsWith('guest-')) {
+      if (user?.id?.startsWith('demo-')) {
         logout()
         navigate('/')
         toast.success('로그아웃되었습니다.')
@@ -156,12 +157,12 @@ const Sidebar = () => {
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
             <Avatar
               src={user.profileImage}
-              alt={user.name}
+              alt={displayName}
               sx={{ mr: 2, width: 40, height: 40 }}
             />
             <Box>
               <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                {user.name}
+                {displayName}
               </Typography>
               {hasSubscription && (
                 <Chip
