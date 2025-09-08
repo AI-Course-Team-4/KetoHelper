@@ -6,11 +6,16 @@ declare global {
   }
 }
 
-interface GoogleUser {
+export interface GoogleUser {
   id: string;
   name: string;
   email: string;
   picture: string;
+}
+
+export interface GoogleSignInResult {
+  user: GoogleUser;
+  idToken: string;
 }
 
 class GoogleAuthService {
@@ -44,8 +49,8 @@ class GoogleAuthService {
     });
   }
 
-  // Google 로그인
-  async signIn(): Promise<GoogleUser> {
+  // Google 로그인 (ID 토큰 + 사용자 정보 반환)
+  async signIn(): Promise<GoogleSignInResult> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -61,15 +66,16 @@ class GoogleAuthService {
           client_id: this.clientId,
           callback: (response: any) => {
             try {
+              const idToken: string = response.credential;
               // JWT 토큰 디코딩
-              const payload = this.parseJwt(response.credential);
+              const payload = this.parseJwt(idToken);
               const user: GoogleUser = {
                 id: payload.sub,
                 name: payload.name,
                 email: payload.email,
                 picture: payload.picture,
               };
-              resolve(user);
+              resolve({ user, idToken });
             } catch (error) {
               reject(error);
             }
@@ -80,14 +86,14 @@ class GoogleAuthService {
         window.google.accounts.id.prompt();
         
         // 또는 버튼 클릭 시 팝업 로그인
-        window.google.accounts.id.renderButton(
-          document.getElementById('google-signin-button'),
-          {
+        const btn = document.getElementById('google-signin-button');
+        if (btn) {
+          window.google.accounts.id.renderButton(btn, {
             theme: 'outline',
             size: 'large',
             width: '100%',
-          }
-        );
+          });
+        }
       } catch (error) {
         reject(error);
       }

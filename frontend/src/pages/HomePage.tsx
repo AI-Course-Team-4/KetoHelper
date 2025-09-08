@@ -5,6 +5,7 @@ import { useAuthStore } from '@store/authStore'
 
 const HomePage = () => {
   const { isAuthenticated, user } = useAuthStore()
+  const displayName = user?.name || user?.id || ''
 
   const quickAccessCards = [
     {
@@ -39,7 +40,7 @@ const HomePage = () => {
           color: 'white',
           py: 8,
           px: 3,
-          borderRadius: 3,
+          borderRadius: 1,
           mb: 6,
           textAlign: 'center',
         }}
@@ -103,7 +104,7 @@ const HomePage = () => {
       {isAuthenticated && user && (
         <Box sx={{ mb: 6 }}>
           <Typography variant="h4" sx={{ fontWeight: 600, mb: 2 }}>
-            안녕하세요, {user.name}님! 👋
+            안녕하세요, {displayName}님! 👋
           </Typography>
           <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
             오늘도 건강한 키토 라이프를 이어가세요.
@@ -199,7 +200,7 @@ const HomePage = () => {
         sx={{
           backgroundColor: 'background.paper',
           p: 4,
-          borderRadius: 3,
+          borderRadius: 1,
           border: '1px solid',
           borderColor: 'divider',
         }}
@@ -224,7 +225,7 @@ const HomePage = () => {
               sx={{
                 backgroundColor: 'primary.light',
                 p: 3,
-                borderRadius: 2,
+                borderRadius: 1,
                 color: 'primary.contrastText',
               }}
             >
