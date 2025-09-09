@@ -10,11 +10,12 @@ type KakaoMapProps = {
 const KakaoMap: React.FC<KakaoMapProps> = ({
   lat = 37.5665,
   lng = 126.9780,
-  level = 3,
+  level = 2,
+  height = '100%',
 }) => {
   useEffect(() => {
     if (!import.meta.env.VITE_KAKAO_MAP_JSKEY) {
-      console.error("VITE_KAKAO_JS_KEY가 설정되지 않았습니다.");
+      console.error("VITE_KAKAO_MAP_JSKEY 가 설정되지 않았습니다.");
       return;
     }
 
@@ -63,7 +64,8 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
     };
   }, [lat, lng, level]);
 
-  return <div id="map" style={{ width: "100%", height: "100%" }} />;
+  const resolvedHeight = typeof height === 'number' ? `${height}px` : height;
+  return <div id="map" style={{ width: "100%", height: resolvedHeight }} />;
 };
 
 export default KakaoMap;
