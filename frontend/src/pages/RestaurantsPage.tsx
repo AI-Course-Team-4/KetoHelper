@@ -16,7 +16,7 @@ import {
 } from '@mui/material'
 import { Search, LocationOn, Phone, Favorite, FavoriteBorder, Lock, Psychology, TrendingUp } from '@mui/icons-material'
 import { useAuthStore } from '@store/authStore'
-import KakaoMap from './KakaoMap'
+import KakaoMap from '../components/KakaoMap'
 
 const RestaurantsPage = () => {
   const { user, isAuthenticated } = useAuthStore()
