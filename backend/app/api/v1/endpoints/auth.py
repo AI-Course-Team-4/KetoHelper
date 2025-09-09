@@ -79,8 +79,6 @@ async def google_access_login(request: GoogleAccessLoginRequest):
             "name": info.get("name"),
             "profile_image": info.get("picture"),
         }
-        # 기본 구독 설정(없으면 프리미엄 활성 기본값)
-        user.setdefault("subscription", {"isActive": True, "plan": "premium", "autoRenewal": True})
         server_token = create_access_token(
             {
                 "sub": user["id"],
@@ -129,8 +127,6 @@ async def kakao_login(request: KakaoLoginRequest):
                 or profile.get("thumbnail_image_url")
                 or profile.get("profile_image"),
         }
-        # 기본 구독 설정(없으면 프리미엄 활성 기본값)
-        user.setdefault("subscription", {"isActive": True, "plan": "premium", "autoRenewal": True})
         # 서버 발급 JWT 생성 (우리 서비스용 토큰)
         server_token = create_access_token(
             {
@@ -230,8 +226,6 @@ async def naver_login(request: NaverCallbackRequest):
             "name": response.get("name") or response.get("nickname"),
             "profile_image": response.get("profile_image"),
         }
-        # 기본 구독 설정(없으면 프리미엄 활성 기본값)
-        user.setdefault("subscription", {"isActive": True, "plan": "premium", "autoRenewal": True})
 
         server_token = create_access_token(
             {
