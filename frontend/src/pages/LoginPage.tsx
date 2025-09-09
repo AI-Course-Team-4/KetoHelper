@@ -43,7 +43,7 @@ const LoginPage = () => {
             notifications: { mealReminders: true, recommendations: true, weeklyReport: false },
             units: 'metric' as const,
           },
-          subscription: { isActive: false, plan: 'free' as const, autoRenewal: false },
+          subscription: (backendUser as any)?.subscription ?? { isActive: true, plan: 'premium' as const, autoRenewal: true },
         }
 
         setUser(finalUser as any)
@@ -96,7 +96,7 @@ const LoginPage = () => {
             notifications: { mealReminders: true, recommendations: true, weeklyReport: false },
             units: 'metric' as const,
           },
-          subscription: { isActive: false, plan: 'free' as const, autoRenewal: false },
+          subscription: (backendUser as any)?.subscription ?? { isActive: true, plan: 'premium' as const, autoRenewal: true },
         }
 
         setUser(finalUser as any)
@@ -198,7 +198,7 @@ const LoginPage = () => {
                     notifications: { mealReminders: true, recommendations: true, weeklyReport: false },
                     units: 'metric' as const,
                   },
-                  subscription: { isActive: false, plan: 'free' as const, autoRenewal: false },
+                  subscription: (backendUser as any)?.subscription ?? { isActive: true, plan: 'premium' as const, autoRenewal: true },
                 }
 
                 setUser(finalUser as any)
