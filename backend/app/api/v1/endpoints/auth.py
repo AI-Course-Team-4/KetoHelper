@@ -53,52 +53,6 @@ def decode_access_token(token: str) -> Dict[str, Any]:
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="유효하지 않은 액세스 토큰입니다.")
 
-@router.post("/google", summary="Google OAuth 로그인")
-async def google_login(request: GoogleLoginRequest):
-    """
-    Google ID 토큰을 검증하고 사용자 정보를 반환합니다.
-
-    - token: Google ID Token (JWT)
-    """
-    try:
-        # Google tokeninfo로 ID 토큰 검증 및 클레임 조회
-        async with httpx.AsyncClient(timeout=httpx.Timeout(5.0)) as client:
-            resp = await client.get(
-                "https://oauth2.googleapis.com/tokeninfo",
-                params={"id_token": request.token},
-            )
-        if resp.status_code != 200:
-            return {
-                "success": False,
-                "message": "유효하지 않은 Google ID 토큰입니다.",
-                "data": None,
-            }
-        claims = resp.json()
-        # claims 예: {"sub": "...", "email": "...", "name": "...", "picture": "..."}
-        user = {
-            "id": claims.get("sub"),
-            "email": claims.get("email"),
-            "name": claims.get("name"),
-            "profile_image": claims.get("picture"),
-        }
-        # 서버 발급 JWT 생성 (우리 서비스용 토큰)
-        server_token = create_access_token(
-            {
-                "sub": user["id"],
-                "email": user.get("email"),
-                "name": user.get("name"),
-                "profile_image": user.get("profile_image"),
-                "provider": "google",
-            }
-        )
-        return {"success": True, "data": {"accessToken": server_token, "user": user}}
-    except Exception as e:
-        return {
-            "success": False,
-            "message": "로그인 처리 중 오류가 발생했습니다.",
-            "data": None,
-        }
-
 @router.post("/google/access", summary="Google OAuth 로그인 (Access Token)")
 async def google_access_login(request: GoogleAccessLoginRequest):
     """
