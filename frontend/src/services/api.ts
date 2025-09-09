@@ -40,15 +40,10 @@ api.interceptors.response.use(
   (response: AxiosResponse<ApiResponse<any>>) => {
     // 응답 로깅 (dev 모드에서만)
     if ((import.meta as any).env.VITE_DEV_MODE === 'true') {
-      const url = response.config?.url || ''
       const raw = (response as any)?.data
       const data = (raw as any)?.data ?? raw
       console.log('data', data)
-      if (url.endsWith('/auth/google')) {
-        console.log('[API] Google login user:', data?.user ?? null)
-      } else {
-        console.log(`[API] Response ${response.status}:`, raw)
-      }
+      console.log(`[API] Response ${response.status}:`, raw)
     }
     return response
   },

@@ -6,12 +6,9 @@ import {
   Tabs,
   Tab,
   Button,
-  Switch,
-  FormControlLabel,
   Divider,
-  Alert,
 } from '@mui/material'
-import { Save, Delete } from '@mui/icons-material'
+import { Delete } from '@mui/icons-material'
 import { useAuthStore } from '@store/authStore'
 import ProfilePage from './ProfilePage'
 import PreferencesPage from './PreferencesPage'
@@ -43,7 +40,7 @@ function TabPanel(props: TabPanelProps) {
 
 
 const SettingsPage = () => {
-  const { isAuthenticated } = useAuthStore()
+  const { isAuthenticated, user, toggleSubscription } = useAuthStore()
   const [activeTab, setActiveTab] = useState(0)
 
   if (!isAuthenticated) {
@@ -142,6 +139,24 @@ const SettingsPage = () => {
             계정 관리
           </Typography>
 
+
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+              구독 상태
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              현재 플랜: <strong>{user?.subscription?.plan ? (user!.subscription!.plan === 'premium' ? '프리미엄' : '무료') : '알수없음'}</strong> · 활성화: <strong>{user?.subscription?.isActive ? '예' : '아니오'}</strong>
+            </Typography>
+            <Box>
+              <Button
+                variant="contained"
+                onClick={() => toggleSubscription()}
+              >
+                {user?.subscription?.isActive ? '비구독자로 전환' : '구독자로 전환'}
+              </Button>
+            </Box>
+            <Divider sx={{ my: 2 }} />
+          </Box>
 
           {/* <Alert severity="info" sx={{ mb: 3 }}>
             계정 관련 중요한 설정들을 관리할 수 있습니다.
