@@ -1,5 +1,1 @@
 blank_issues_enabled: false
-contact_links:
-  - name: 🚀 이슈 생성
-    url: https://github.com/AI-Course-Team-4/KetoHelper/issues/new?template=issue_template.md
-    about: 새로운 기능이나 작업을 위한 이슈를 생성합니다
