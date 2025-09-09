@@ -1,5 +1,5 @@
 import { api, apiHelper } from './api'
-import type { User, GoogleAuthResponse, LoginCredentials } from '../types/index'
+import type { User } from '../types/index'
 
 export const authService = {
   // Google OAuth 로그인 (Access Token 교환)
@@ -36,11 +36,6 @@ export const authService = {
       localStorage.setItem('access_token', accessToken)
     }
     return data
-  },
-
-  // 일반 로그인 (향후 구현)
-  login: async (credentials: LoginCredentials): Promise<GoogleAuthResponse> => {
-    return apiHelper.post<GoogleAuthResponse>('/auth/login', credentials)
   },
 
   // 로그아웃
