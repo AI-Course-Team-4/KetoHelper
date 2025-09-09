@@ -1,7 +1,7 @@
 import { Routes, Route } from 'react-router-dom'
 import { Box } from '@mui/material'
 
-import Layout from '@components/Layout'
+import Layout from '@/components/common/Layout'
 import HomePage from '@pages/HomePage'
 import MealsPage from '@pages/MealsPage'
 import RestaurantsPage from '@pages/RestaurantsPage'
