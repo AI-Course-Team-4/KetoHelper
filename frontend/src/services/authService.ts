@@ -2,19 +2,6 @@ import { api, apiHelper } from './api'
 import type { User, GoogleAuthResponse, LoginCredentials } from '../types/index'
 
 export const authService = {
-  // Google OAuth 로그인 (ID 토큰 교환)
-  googleLogin: async (idToken: string): Promise<any> => {
-    // Use raw axios to access either wrapped or unwrapped response
-    const response = await api.post('/auth/google', { token: idToken })
-    const data = (response as any)?.data?.data ?? (response as any)?.data
-
-    const accessToken = data?.accessToken ?? data?.access_token
-    if (accessToken) {
-      localStorage.setItem('access_token', accessToken)
-    }
-    return data
-  },
-
   // Google OAuth 로그인 (Access Token 교환)
   googleAccessLogin: async (accessTokenFromGoogle: string): Promise<any> => {
     const response = await api.post('/auth/google/access', { access_token: accessTokenFromGoogle })
