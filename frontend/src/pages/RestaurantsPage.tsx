@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { 
-  Box, 
-  Typography, 
-  Grid, 
-  Card, 
+import {
+  Box,
+  Typography,
+  Grid,
+  Card,
   CardContent,
   Chip,
   Button,
@@ -16,6 +16,7 @@ import {
 } from '@mui/material'
 import { Search, LocationOn, Phone, Favorite, FavoriteBorder, Lock, Psychology, TrendingUp } from '@mui/icons-material'
 import { useAuthStore } from '@store/authStore'
+import KakaoMap from '../components/KakaoMap'
 
 const RestaurantsPage = () => {
   const { user, isAuthenticated } = useAuthStore()
@@ -80,8 +81,8 @@ const RestaurantsPage = () => {
   ]
 
   const toggleFavorite = (restaurantId: string) => {
-    setFavorites(prev => 
-      prev.includes(restaurantId) 
+    setFavorites(prev =>
+      prev.includes(restaurantId)
         ? prev.filter(id => id !== restaurantId)
         : [...prev, restaurantId]
     )
@@ -156,6 +157,10 @@ const RestaurantsPage = () => {
         </Paper>
       )}
 
+      <div style={{ width: "100%", height: "500px" }}>
+        <KakaoMap lat={37.5665} lng={126.9780} level={3} />
+      </div>
+
       {/* 추천 식당 목록 */}
       <Box sx={{ mb: 6 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
@@ -164,16 +169,16 @@ const RestaurantsPage = () => {
             {isAuthenticated ? (hasSubscription ? 'AI 프리미엄 추천 식당' : 'AI 기본 추천 식당') : '인기 키토 식당'}
           </Typography>
         </Box>
-        
+
         {isAuthenticated && (
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            {hasSubscription 
+            {hasSubscription
               ? '🎯 회원님의 위치와 선호도를 고려한 맞춤형 추천입니다'
               : '⭐ 기본 추천 - 구독하면 개인 맞춤 추천을 받을 수 있습니다'
             }
           </Typography>
         )}
-        
+
         <Grid container spacing={3}>
           {mockRestaurants.slice(0, isAuthenticated ? (hasSubscription ? mockRestaurants.length : 3) : 3).map((restaurant) => (
             <Grid item xs={12} md={6} lg={4} key={restaurant.id}>
@@ -201,7 +206,7 @@ const RestaurantsPage = () => {
                       objectFit: 'cover',
                     }}
                   />
-                  
+
                   {/* 즐겨찾기 버튼 */}
                   <IconButton
                     onClick={(e) => {
@@ -224,7 +229,7 @@ const RestaurantsPage = () => {
                       <FavoriteBorder />
                     )}
                   </IconButton>
-                  
+
                   {/* 키토 점수 뱃지 */}
                   <Chip
                     label={`키토 점수 ${restaurant.ketoScore}`}
@@ -238,7 +243,7 @@ const RestaurantsPage = () => {
                     }}
                   />
                 </Box>
-                
+
                 <CardContent sx={{ flexGrow: 1, p: 3 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
                     <Typography variant="h6" sx={{ fontWeight: 600 }}>
@@ -248,11 +253,11 @@ const RestaurantsPage = () => {
                       {getPriceRangeText(restaurant.priceRange)}
                     </Typography>
                   </Box>
-                  
+
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                     {restaurant.category}
                   </Typography>
-                  
+
                   {/* 주소 및 거리 */}
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                     <LocationOn sx={{ fontSize: 16, mr: 0.5, color: 'text.secondary' }} />
@@ -260,7 +265,7 @@ const RestaurantsPage = () => {
                       {restaurant.address} • {restaurant.distance}km
                     </Typography>
                   </Box>
-                  
+
                   {/* 연락처 */}
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                     <Phone sx={{ fontSize: 16, mr: 0.5, color: 'text.secondary' }} />
@@ -268,7 +273,7 @@ const RestaurantsPage = () => {
                       {restaurant.phone}
                     </Typography>
                   </Box>
-                  
+
                   {/* 평점 */}
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                     <Rating value={restaurant.rating} precision={0.1} size="small" readOnly />
@@ -276,7 +281,7 @@ const RestaurantsPage = () => {
                       {restaurant.rating} ({restaurant.reviewCount}개 리뷰)
                     </Typography>
                   </Box>
-                  
+
                   {/* 대표 메뉴 */}
                   <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
                     추천 키토 메뉴
@@ -291,7 +296,7 @@ const RestaurantsPage = () => {
                       </Typography>
                     </Box>
                   ))}
-                  
+
                   <Button
                     fullWidth
                     variant="contained"
