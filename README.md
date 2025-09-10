@@ -25,7 +25,7 @@
 
 ### Backend
 - **FastAPI** - 고성능 Python 웹 프레임워크
-- **MongoDB Atlas** - 클라우드 데이터베이스 with Motor (비동기 MongoDB 드라이버)
+- **PostgreSQL** - 클라우드 데이터베이스 with Motor (비동기 드라이버)
 - **Pydantic** - 데이터 검증 및 직렬화
 - **OAuth 2.0** - Google 소셜 로그인
 - **Uvicorn** - ASGI 서버
@@ -34,7 +34,7 @@
 - **LangChain** - RAG 시스템 구현
 - **LangGraph** - AI 워크플로우 관리
 - **OpenAI GPT** - 언어 모델
-- **MongoDB Atlas Vector Search** - 벡터 데이터베이스
+- **pgvector + supabase** - 벡터 데이터베이스
 
 ## 📁 프로젝트 구조
 
@@ -69,7 +69,7 @@ mainProject-Team4/
 ### 필요 조건
 - Node.js 18+
 - Python 3.11+
-- MongoDB (로컬 또는 MongoDB Atlas)
+- postgreSQL
 - Git
 
 ### 설치 및 실행
@@ -87,20 +87,15 @@ cp .env.example .env
 # 필요한 환경 변수들을 .env 파일에 설정
 ```
 
-3. **MongoDB Atlas 설정**
-   - [MongoDB Atlas](https://www.mongodb.com/atlas) 계정 생성
-   - 클러스터 생성 및 연결 문자열 복사
-   - `backend/.env` 파일 생성 (env.example 참고)
-   - MONGODB_URL에 Atlas 연결 문자열 입력
 
-4. **프론트엔드 설정**
+3. **프론트엔드 설정**
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-5. **백엔드 설정**
+4. **백엔드 설정**
 ```bash
 cd backend
 python -m venv venv
@@ -115,7 +110,7 @@ python -m uvicorn app.main:app --reload
 
 ### 전체 환경 자동 설정
 ```bash
-# 자동 설정 스크립트 실행 (MongoDB 포함)
+# 자동 설정 스크립트 실행 
 chmod +x scripts/setup.sh
 ./scripts/setup.sh
 ```
@@ -200,7 +195,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 👥 팀
 
 - **프론트엔드**: React, TypeScript, UI/UX
-- **백엔드**: FastAPI, MongoDB, API 설계
+- **백엔드**: FastAPI, posgreSQL, pgvector, supabase, API 설계
 - **AI/ML**: RAG 시스템, LangChain, 추천 알고리즘
 - **DevOps**: 배포, 모니터링, 인프라 관리
 
