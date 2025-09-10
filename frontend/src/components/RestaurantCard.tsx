@@ -1,5 +1,5 @@
 import { Box, Card, CardContent, Typography, IconButton, Chip, Button, Rating } from '@mui/material'
-import { LocationOn, Phone, Favorite, FavoriteBorder } from '@mui/icons-material'
+import { LocationOn, Phone, Star, StarBorder } from '@mui/icons-material'
 import { useState } from 'react'
 import RestaurantDetail from './RestaurantDetail'
 
@@ -24,49 +24,6 @@ export type Restaurant = {
     category?: string
     menu: MenuItem[]
 }
-
-// 임시 데이터
-export const mockRestaurants: Restaurant[] = [
-    {
-        id: '1',
-        name: '키토 스테이크하우스',
-        address: '서울시 강남구 테헤란로 123',
-        phone: '02-1234-5678',
-        ketoScore: 95,
-        distance: 0.8,
-        images: ['https://via.placeholder.com/300x200'],
-        menu: [
-            { name: '립아이 스테이크', price: 45000, carbs: 2, isKetoFriendly: true },
-            { name: '연어 그릴', price: 32000, carbs: 1, isKetoFriendly: true },
-        ],
-    },
-    {
-        id: '2',
-        name: '아보카도 카페',
-        address: '서울시 강남구 신사동 456',
-        phone: '02-2345-6789',
-        ketoScore: 88,
-        distance: 1.2,
-        images: ['https://via.placeholder.com/300x200'],
-        menu: [
-            { name: '아보카도 샐러드', price: 15000, carbs: 8, isKetoFriendly: true },
-            { name: '키토 커피', price: 6000, carbs: 2, isKetoFriendly: true },
-        ],
-    },
-    {
-        id: '3',
-        name: '해산물 전문점',
-        address: '서울시 강남구 압구정동 789',
-        phone: '02-3456-7890',
-        ketoScore: 92,
-        distance: 2.1,
-        images: ['https://via.placeholder.com/300x200'],
-        menu: [
-            { name: '랍스터 그라탱', price: 68000, carbs: 5, isKetoFriendly: true },
-            { name: '새우 샐러드', price: 25000, carbs: 6, isKetoFriendly: true },
-        ],
-    },
-]
 
 export interface RestaurantCardProps {
     restaurant: Restaurant
@@ -104,7 +61,7 @@ const RestaurantCard = ({ restaurant, isFavorite, onToggleFavorite }: Restaurant
                     onClick={(e) => { e.stopPropagation(); onToggleFavorite(restaurant.id) }}
                     sx={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(255,255,255,0.9)', '&:hover': { backgroundColor: 'rgba(255,255,255,1)' } }}
                 >
-                    {isFavorite ? (<Favorite color="error" />) : (<FavoriteBorder />)}
+                    {isFavorite ? (<Star sx={{ color: '#fbbc05' }} />) : (<StarBorder />)}
                 </IconButton>
                 <Chip label={`키토 ${restaurant.ketoScore}`} color={getKetoScoreColor(restaurant.ketoScore)} size="small" sx={{ position: 'absolute', bottom: 8, left: 8, backgroundColor: 'rgba(255,255,255,0.95)' }} />
             </Box>
@@ -117,7 +74,7 @@ const RestaurantCard = ({ restaurant, isFavorite, onToggleFavorite }: Restaurant
                 )}
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                     <LocationOn sx={{ fontSize: 16, mr: 0.5, color: 'text.secondary' }} />
-                    <Typography variant="body2" color="text.secondary">{restaurant.address}{restaurant.distance != null ? ` • ${restaurant.distance}km` : ''}</Typography>
+                    <Typography variant="body2" color="text.secondary">{restaurant.address}</Typography>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                     <Phone sx={{ fontSize: 16, mr: 0.5, color: 'text.secondary' }} />
