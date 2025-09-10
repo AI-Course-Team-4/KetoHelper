@@ -12,6 +12,12 @@ export interface RestaurantDetailProps {
 const RestaurantDetail = ({ open, onClose, restaurant }: RestaurantDetailProps) => {
   const primaryImage = restaurant.images?.[0]
 
+  const handleSearch = () => {
+    if (!restaurant.name.trim()) return;
+    const url = `https://search.naver.com/search.naver?query=${encodeURIComponent(restaurant.name)}`;
+    window.open(url, "_blank"); // 새 창(탭)으로 열기
+  };
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>
@@ -69,7 +75,7 @@ const RestaurantDetail = ({ open, onClose, restaurant }: RestaurantDetailProps) 
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>닫기</Button>
-        <Button variant="contained" onClick={onClose}>길찾기</Button>
+        <Button variant="contained" onClick={handleSearch}>상세 정보 보기</Button>
       </DialogActions>
     </Dialog>
   )
