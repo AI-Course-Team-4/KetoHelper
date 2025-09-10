@@ -36,6 +36,7 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
     }
 
     const createdMarkers: any[] = [];
+    const createdOverlays: any[] = [];
 
     const initMap = () => {
       if (!(window as any).kakao?.maps?.load) return;
@@ -133,6 +134,35 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
           marker.setMap(map);
           createdMarkers.push(marker);
 
+          // 항상 표시되는 레이블(식당명) 오버레이 - 마커 위로 살짝 띄움
+          if ((pos as any).title) {
+            const labelHtml = `
+              <span
+                style="
+                  display: inline-block;
+                  pointer-events: none;
+                  white-space: nowrap;
+                  padding: 2px 6px;
+                  font-size: 11px;
+                  font-weight: 800;
+                  color: #000000;
+                  text-shadow: -1px 0 white, 0 1px white, 1px 0 white, 0 -1px white;
+                  transform: translate(0, -12px);
+                "
+              >
+                ${(pos as any).title}
+              </span>`;
+            const labelOverlay = new window.kakao.maps.CustomOverlay({
+              position: new window.kakao.maps.LatLng(pos.lat, pos.lng),
+              content: labelHtml,
+              yAnchor: 0,
+              xAnchor: 0.5,
+              zIndex: 2,
+            });
+            labelOverlay.setMap(map);
+            createdOverlays.push(labelOverlay);
+          }
+
           // 클릭 시 커스텀 말풍선 오버레이 표시 및 콜백 호출
           const contentHtml = `
             <div style="position:relative;pointer-events:auto;">
@@ -208,6 +238,7 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
     return () => {
       script?.removeEventListener("load", initMap);
       createdMarkers.forEach((m) => m.setMap(null));
+      createdOverlays.forEach((o) => o.setMap(null));
     };
   }, [lat, lng, level, markers, markerSize, onMarkerClick, restaurants]);
 
