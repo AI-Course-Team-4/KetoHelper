@@ -1,9 +1,10 @@
 from typing import List, Optional
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 import os
 
 class Settings(BaseSettings):
     """애플리케이션 설정"""
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
     
     # 기본 설정
     PROJECT_NAME: str = "KetoHelper"
@@ -39,7 +40,7 @@ class Settings(BaseSettings):
     
     # 외부 API 키
     KAKAO_REST_API_KEY: Optional[str] = None
-    NAVER_CLIENT_ID: Optional[str] = None
+    VITE_NAVER_CLIENT_ID: Optional[str] = None
     NAVER_CLIENT_SECRET: Optional[str] = None
     
     # Redis 설정 (선택사항)
@@ -48,9 +49,7 @@ class Settings(BaseSettings):
     # 로그 레벨
     LOG_LEVEL: str = "INFO"
     
-    class Config:
-        # .env 파일 사용하지 않음 - 오류 방지
-        case_sensitive = True
+    # pydantic-settings v2 사용: model_config로 대체됨
 
 # 설정 인스턴스 생성
 settings = Settings()

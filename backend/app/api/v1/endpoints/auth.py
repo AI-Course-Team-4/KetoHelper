@@ -155,7 +155,7 @@ async def naver_login(request: NaverCallbackRequest):
     - redirect_uri: 프론트에서 사용한 콜백 URI (선택, 권장)
     """
     try:
-        client_id = settings.NAVER_CLIENT_ID
+        client_id = settings.VITE_NAVER_CLIENT_ID
         client_secret = settings.NAVER_CLIENT_SECRET
         if not client_id or not client_secret:
             raise HTTPException(status_code=500, detail="네이버 클라이언트 설정이 누락되었습니다.")

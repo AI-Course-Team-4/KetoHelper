@@ -69,6 +69,12 @@ const LoginPage = () => {
         const code = params.get('code') || ''
         const state = params.get('state') || ''
         if (!code || !state) throw new Error('잘못된 네이버 인증 응답입니다.')
+        try {
+          const expected = sessionStorage.getItem('naver_oauth_state')
+          if (expected && expected !== state) {
+            throw new Error('네이버 로그인 상태값이 일치하지 않습니다. 다시 시도해주세요.')
+          }
+        } catch {}
         // Prevent duplicate handling across React StrictMode re-renders
         const dedupeKey = `naver_cb_${code}`
         if (sessionStorage.getItem(dedupeKey)) return
@@ -104,6 +110,7 @@ const LoginPage = () => {
         // Clean URL to avoid re-processing if user refreshes/back
         try {
           window.history.replaceState({}, document.title, '/')
+          sessionStorage.removeItem('naver_oauth_state')
         } catch { }
         navigate('/')
       } catch (e: any) {
@@ -330,14 +337,20 @@ const LoginPage = () => {
         </Box>
 
         {/* Naver Auth 버튼 */}
-        {/* <Box sx={{ mb: 2, display: 'flex', justifyContent: 'center' }}>
+        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'center' }}>
           <Button
             fullWidth
             variant="contained"
             onClick={() => {
-              const clientId = (import.meta as any).env.VITE_NAVER_CLIENT_ID
-              const redirectUri = encodeURIComponent(`${window.location.origin}/auth/naver/callback`)
+              const clientId = (import.meta as any).env.VITE_NAVER_CLIENT_ID as string
+              if (!clientId) {
+                toast.error('Naver Client ID가 설정되지 않았습니다. .env에 VITE_NAVER_CLIENT_ID를 추가하세요.')
+                return
+              }
+              const redirectUriRaw = `${window.location.origin}/auth/naver/callback`
+              const redirectUri = encodeURIComponent(redirectUriRaw)
               const state = Math.random().toString(36).slice(2)
+              try { sessionStorage.setItem('naver_oauth_state', state) } catch {}
               const authUrl = `https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&state=${state}`
               window.location.href = authUrl
             }}
@@ -372,7 +385,7 @@ const LoginPage = () => {
           >
             네이버로 로그인
           </Button>
-        </Box> */}
+        </Box>
         {/* 버그 때문에 잠시 주석 처리 */}
 
         {/* 구글 로딩 표시 */}
