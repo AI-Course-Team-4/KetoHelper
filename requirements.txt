@@ -1,0 +1,32 @@
+# 🕷️ Web Crawling
+playwright==1.40.0
+requests==2.31.0
+beautifulsoup4==4.12.2
+
+# 🗄️ Database
+psycopg2-binary==2.9.9
+asyncpg==0.29.0
+supabase==2.3.4              # Supabase Python client
+postgrest==0.13.2            # PostgreSQL REST API client
+
+# ⚙️ Configuration & Environment
+pyyaml==6.0.1
+python-dotenv==1.0.0
+
+# 📊 Data Processing (현재 미사용 - 필요시 conda install pandas)
+# pandas>=2.0.0
+
+# 🔧 Utilities
+click==8.1.7              # CLI framework
+pydantic==2.5.2           # Data validation
+loguru==0.7.2            # Enhanced logging
+
+# 🧪 Testing (개발용)
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-mock==3.12.0
+
+# 📦 Development Tools
+black==23.12.1           # Code formatter
+flake8==6.1.0           # Linter
+mypy==1.8.0             # Type checker

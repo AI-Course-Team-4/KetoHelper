@@ -1,0 +1,231 @@
+# 🍽️ 식신 (siksin.com) 파서 설정
+
+site:
+  name: "siksin"
+  display_name: "식신"
+  base_url: "https://www.siksin.com"
+  trust_rank: 1              # 소스 신뢰도 (1=최고)
+  encoding: "utf-8"
+  
+# 🔍 검색 설정
+search:
+  # 검색 URL 패턴 (키워드 기반)
+  url_pattern: "https://www.siksin.com/search?query={keyword}&page={page}"
+  method: "GET"
+  max_pages: 5               # 최대 검색 페이지
+  results_per_page: 20       # 페이지당 결과 수
+  
+  # 검색 결과 CSS 셀렉터
+  selectors:
+    # 식당 목록 컨테이너
+    restaurant_list: ".restaurant-list .restaurant-item, .search-results .restaurant-card"
+    
+    # 개별 식당 정보
+    restaurant_name: ".restaurant-name, .shop-name, h3.title"
+    restaurant_url: "a[href*='/restaurants/'], a[href*='/shop/']"
+    restaurant_address: ".address, .location-info"
+    restaurant_category: ".category, .food-category"
+    restaurant_rating: ".rating-score, .grade"
+    
+    # 페이지네이션
+    next_page: ".pagination .next, .page-next"
+    page_numbers: ".pagination .page-num"
+    
+  # 검색 결과가 없을 때 감지
+  no_results_selectors:
+    - ".no-results"
+    - ".empty-search"
+    - ".search-empty"
+    - ".no-data"
+    
+# 🏪 식당 상세 페이지 설정  
+restaurant_detail:
+  # 기본 정보 셀렉터
+  selectors:
+    # 필수 정보
+    name: "h1.restaurant-title, .shop-title, .restaurant-name h1"
+    address: ".address-info .road-address, .location .address"
+    address_jibun: ".address-info .jibun-address, .location .jibun"
+    phone: ".phone-number, .contact-info .phone, .tel"
+    
+    # 카테고리 및 평점
+    category: ".category-tag, .food-type, .cuisine-type"
+    rating: ".rating-average, .total-score .score"
+    review_count: ".review-count, .review-total"
+    
+    # 좌표 정보 (다양한 패턴)
+    latitude: 
+      - "[data-latitude]"
+      - "[data-lat]"
+      - "script:contains('lat')"   # JavaScript 내 좌표
+    longitude: 
+      - "[data-longitude]"
+      - "[data-lng]"
+      - "[data-lon]"
+      - "script:contains('lng')"
+      
+    # 운영 시간
+    hours: ".opening-hours, .business-hours, .hours-info"
+    
+    # 메뉴 정보
+    menu_section: ".menu-section, .menu-list, .food-menu"
+    menu_items: ".menu-item, .menu-card, .food-item"
+    menu_name: ".menu-name, .food-name, .dish-name"
+    menu_price: ".menu-price, .price, .cost"
+    menu_description: ".menu-description, .menu-info, .dish-desc"
+    
+    # 이미지
+    main_image: ".restaurant-image img, .main-photo img, .hero-image img"
+    menu_images: ".menu-item img, .food-photo img"
+    
+# 🔧 데이터 추출 규칙
+extraction:
+  # 좌표 추출 정규식 (JavaScript에서)
+  coordinate_patterns:
+    - "lat[^0-9]*([0-9.]+)"
+    - "latitude[^0-9]*([0-9.]+)"
+    - "lng[^0-9]*([0-9.]+)"
+    - "longitude[^0-9]*([0-9.]+)"
+    
+  # 전화번호 정규화
+  phone_patterns:
+    - "([0-9]{2,3})-([0-9]{3,4})-([0-9]{4})"
+    - "([0-9]{2,3})\\s*([0-9]{3,4})\\s*([0-9]{4})"
+    
+  # 가격 추출 및 정규화
+  price_patterns:
+    - "([0-9,]+)원"
+    - "₩([0-9,]+)"
+    - "([0-9,]+)\\s*원"
+    
+  # 불필요한 텍스트 제거
+  cleanup_patterns:
+    - "\\s+"              # 연속 공백 -> 단일 공백
+    - "^\\s+|\\s+$"       # 앞뒤 공백 제거
+    - "\\n+"              # 연속 개행 -> 단일 개행
+
+# ✅ 데이터 검증 규칙
+validation:
+  # 필수 필드 검증
+  required_fields:
+    restaurant: 
+      - "name"
+      - "address"
+    menu: 
+      - "name"
+      
+  # 데이터 형식 검증
+  formats:
+    phone: "^\\d{2,3}-\\d{3,4}-\\d{4}$"  # 전화번호 형식
+    price: "^[0-9,]+$"                   # 가격 형식 (숫자와 콤마만)
+    rating: "^[0-5](\\.\\d{1,2})?$"      # 평점 0-5 (소수점 2자리)
+    
+  # 데이터 범위 검증
+  ranges:
+    latitude: [37.4, 37.7]    # 서울시 위도 범위
+    longitude: [126.8, 127.2] # 서울시 경도 범위
+    rating: [0, 5]            # 평점 범위
+    
+  # 이상치 탐지
+  anomaly_detection:
+    price_min: 1000           # 최소 가격 1000원
+    price_max: 100000         # 최대 가격 100,000원
+    name_min_length: 2        # 이름 최소 길이
+    name_max_length: 50       # 이름 최대 길이
+    address_min_length: 10    # 주소 최소 길이
+
+# 🚫 차단 감지 설정
+blocking_detection:
+  # 차단 지표 키워드
+  indicators:
+    - "reCAPTCHA"
+    - "Access Denied"
+    - "Rate Limit Exceeded"
+    - "captcha"
+    - "robot"
+    - "bot"
+    - "차단"
+    - "접근 제한"
+    
+  # 빈 페이지 감지 셀렉터
+  empty_page_selectors:
+    - ".no-results"
+    - ".empty-list"
+    - ".error-message"
+    - ".not-found"
+    
+  # 로딩 완료 대기 셀렉터
+  loading_complete_selectors:
+    - ".restaurant-list"
+    - ".search-results"
+    - ".restaurant-detail"
+    
+# ⏱️ 타이밍 설정
+timing:
+  # 페이지 로딩 대기
+  page_load_timeout: 15      # 페이지 로딩 최대 대기 시간
+  element_timeout: 10        # 요소 대기 시간
+  
+  # 액션 간 대기
+  action_delay: 1            # 액션 간 1초 대기
+  scroll_delay: 0.5          # 스크롤 후 대기
+  click_delay: 1             # 클릭 후 대기
+  
+  # 네트워크 대기
+  network_idle_timeout: 2    # 네트워크 유휴 대기
+
+# 🎭 회피 전략
+evasion:
+  # 사용자 에이전트 로테이션 (상위 설정에서 가져옴)
+  rotate_user_agent: true
+  
+  # 뷰포트 랜덤화
+  random_viewport: true
+  viewport_options:
+    - [1920, 1080]
+    - [1366, 768] 
+    - [1280, 720]
+    
+  # 스크롤 시뮬레이션
+  human_like_scrolling: true
+  scroll_pause_min: 0.5
+  scroll_pause_max: 2.0
+  
+  # 클릭 시뮬레이션
+  human_like_clicking: true
+  click_delay_min: 0.5
+  click_delay_max: 1.5
+
+# 📊 성능 최적화
+performance:
+  # 리소스 차단 (속도 향상)
+  block_resources:
+    - "image"      # 이미지 차단 (필요시만 로딩)
+    - "font"       # 폰트 차단
+    - "media"      # 미디어 파일 차단
+    
+  # JavaScript 비활성화 (필요 시)
+  disable_javascript: false
+  
+  # 캐시 사용
+  enable_cache: true
+  
+# 🔄 재시도 전략 (사이트별)
+retry:
+  # 재시도 가능한 에러 코드
+  retryable_status_codes:
+    - 429  # Too Many Requests
+    - 502  # Bad Gateway  
+    - 503  # Service Unavailable
+    - 504  # Gateway Timeout
+    
+  # 파싱 실패 시 대체 셀렉터
+  fallback_selectors:
+    restaurant_name:
+      - "h1"
+      - ".title"
+      - ".name"
+    address:
+      - ".addr"
+      - ".location"
+      - ".place"

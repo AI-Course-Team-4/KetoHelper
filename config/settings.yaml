@@ -1,0 +1,209 @@
+# 🎯 MVP 크롤링 시스템 통합 설정
+
+app:
+  name: "Restaurant Crawler MVP"
+  version: "1.0.0"
+  debug: false
+  
+# 🗄️ 데이터베이스 설정 (Supabase)
+database:
+  # Supabase 연결 정보
+  supabase_url: "${SUPABASE_URL}"
+  supabase_anon_key: "${SUPABASE_ANON_KEY}"
+  supabase_service_key: "${SUPABASE_SERVICE_KEY}"
+  
+  # PostgreSQL 직접 연결 (Supabase에서 제공)
+  host: "${DB_HOST}"
+  port: 5432
+  name: "${DB_NAME:postgres}"
+  user: "${DB_USER:postgres}"
+  password: "${DB_PASSWORD}"
+  
+  # 연결 풀 설정
+  pool_size: 5
+  max_overflow: 10
+  timeout: 30
+  
+  # Supabase 설정
+  enable_realtime: true
+  enable_rest_api: true
+
+# 🕷️ 크롤링 설정  
+crawler:
+  # 성능 제한
+  max_concurrent_tabs: 3
+  default_timeout: 10
+  page_timeout: 15
+  
+  # 속도 제한 (사이트별 QPS)
+  rate_limits:
+    siksin: 0.5          # 0.5 QPS - 안전한 속도
+    diningcode: 0.5
+    mangoplate: 0.3
+    default: 0.3
+    
+  # 재시도 정책
+  retry:
+    max_attempts: 3
+    backoff_multiplier: 2
+    initial_delay: 5     # 초기 5초 대기
+    max_delay: 300       # 최대 5분 대기
+    
+  # User-Agent 로테이션 (차단 방지)
+  user_agents:
+    - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    - "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    
+  # Playwright 옵션
+  playwright:
+    headless: true
+    slow_mo: 1000        # 1초 슬로우 모션 (차단 방지)
+    viewport:
+      width: 1280
+      height: 720
+
+# 📊 데이터 검증 설정
+validation:
+  # 필수 필드 (restaurant)
+  restaurant_required_fields:
+    - "name"
+    - "lat" 
+    - "lng"
+    
+  # 필수 필드 (menu)  
+  menu_required_fields:
+    - "name"
+    
+  # 데이터 품질 기준
+  quality_thresholds:
+    min_quality_score: 50    # 최소 품질 점수
+    min_confidence: 0.3      # 최소 신뢰도
+    
+  # 좌표 검증 (서울시 경계)
+  geo_bounds:
+    lat_min: 37.4
+    lat_max: 37.7  
+    lng_min: 126.8
+    lng_max: 127.2
+    
+  # 가격 검증
+  price_bounds:
+    min: 1000           # 최소 가격 1,000원
+    max: 100000         # 최대 가격 100,000원
+    
+  # 텍스트 길이 제한
+  text_limits:
+    restaurant_name_max: 50
+    menu_name_max: 100
+    address_max: 200
+    phone_pattern: "^\\d{2,3}-\\d{3,4}-\\d{4}$"
+
+# 🚨 에러 처리 설정
+error_handling:
+  # HTTP 에러 매핑
+  http_errors:
+    403: "rate_limit"     # 403 -> 속도 제한
+    429: "rate_limit"     # 429 -> 속도 제한  
+    5xx: "server_error"   # 5xx -> 서버 오류
+    timeout: "timeout"    # 타임아웃
+    
+  # 차단 감지 키워드
+  blocking_indicators:
+    - "reCAPTCHA"
+    - "Access Denied"
+    - "Rate Limit Exceeded"
+    - "captcha"
+    - "bot"
+    - "robot"
+    
+  # 자동 감속 설정
+  rate_limit_response:
+    reduce_qps_factor: 0.5  # QPS 50% 감속
+    backoff_time: 60        # 60초 대기
+    max_backoff: 600        # 최대 10분 대기
+    
+  # 재시도 가능한 에러
+  retryable_errors:
+    - "timeout"
+    - "connection_error"
+    - "server_error"
+    - "rate_limit"
+
+# 📝 로깅 설정
+logging:
+  level: "INFO"
+  format: "[{time:YYYY-MM-DD HH:mm:ss}] {level} - {name} - {message}"
+  
+  # 로그 파일 설정
+  files:
+    main: "logs/crawler.log"
+    error: "logs/error.log" 
+    access: "logs/access.log"
+    
+  # 로그 로테이션
+  rotation:
+    size: "10 MB"
+    retention: "7 days"
+    backup_count: 5
+    
+  # 로그 레벨별 설정
+  levels:
+    root: "INFO"
+    crawler: "DEBUG"
+    database: "INFO"
+    parser: "DEBUG"
+
+# 🔍 모니터링 설정  
+monitoring:
+  # 메트릭 수집 활성화
+  metrics:
+    success_rate: true
+    response_time: true
+    error_rate: true
+    queue_size: true
+    data_quality: true
+    
+  # 알림 임계값
+  alerts:
+    success_rate_min: 0.8    # 성공률 80% 이하 시 알림
+    error_rate_max: 0.2      # 에러율 20% 이상 시 알림
+    queue_size_max: 100      # 큐 크기 100 이상 시 알림
+    response_time_max: 30    # 응답시간 30초 이상 시 알림
+    
+  # 통계 수집 간격
+  collection_interval: 300   # 5분마다 수집
+
+# 🎯 크롤링 전략
+strategy:
+  # 검색 전략
+  search:
+    max_pages: 5           # 검색 결과 최대 페이지 수
+    results_per_page: 20   # 페이지당 결과 수
+    min_results: 1         # 최소 결과 수
+    
+  # 배치 크기
+  batch_size: 10           # 한 번에 처리할 식당 수
+  
+  # 중복 제거 전략
+  deduplication:
+    name_similarity: 0.8   # 이름 유사도 임계값
+    address_radius: 50     # 주소 반경 50m
+    phone_exact: true      # 전화번호 정확 매치
+    
+# 🔧 개발자 설정
+development:
+  # 테스트 모드
+  test_mode: false
+  test_data_limit: 10
+  
+  # 디버그 옵션
+  debug:
+    save_raw_html: true    # 원본 HTML 저장
+    log_requests: true     # 요청 로깅
+    screenshot_on_error: false  # 에러 시 스크린샷
+    
+  # 개발자 도구
+  tools:
+    enable_profiling: false
+    enable_memory_tracking: false
