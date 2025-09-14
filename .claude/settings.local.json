@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:www.10000recipe.com)",
+      "Bash(python test:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

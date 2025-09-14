@@ -1,0 +1,7 @@
+# 임베딩 실험용 패키지들
+sentence-transformers>=2.2.0
+numpy>=1.21.0
+matplotlib>=3.5.0
+seaborn>=0.11.0
+openai>=0.28.0
+scikit-learn>=1.0.0

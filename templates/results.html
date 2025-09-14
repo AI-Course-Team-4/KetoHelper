@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>검색 결과 - 키토 레시피 추천</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            color: #4CAF50;
+            margin-bottom: 15px;
+        }
+        
+        .search-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .search-info h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .search-info p {
+            margin-bottom: 5px;
+            color: #666;
+        }
+        
+        .back-btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            transition: background 0.3s ease;
+        }
+        
+        .back-btn:hover {
+            background: #45a049;
+        }
+        
+        .results-container {
+            display: grid;
+            gap: 20px;
+        }
+        
+        .recipe-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+        
+        .recipe-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .recipe-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+        
+        .search-scores {
+            text-align: right;
+            min-width: 120px;
+        }
+        
+        .score-item {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin-bottom: 5px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .score-label {
+            font-size: 0.8em;
+            opacity: 0.9;
+        }
+        
+        .score-value {
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        
+        .vector-score {
+            background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+        }
+        
+        .keyword-score {
+            background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
+        }
+        
+        .score-breakdown {
+            text-align: center;
+            color: #666;
+            font-size: 0.8em;
+        }
+        
+        .recipe-title {
+            font-size: 1.4em;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .recipe-meta {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .meta-item {
+            background: #f0f0f0;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.9em;
+            color: #666;
+        }
+        
+        .recipe-summary {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            color: #555;
+        }
+        
+        .ingredients-section, .steps-section {
+            margin-bottom: 20px;
+        }
+        
+        .section-title {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #4CAF50;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .ingredients-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 8px;
+        }
+        
+        .ingredient-item {
+            background: #e8f5e8;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            color: #2e7d32;
+        }
+        
+        .steps-list {
+            counter-reset: step-counter;
+        }
+        
+        .step-item {
+            background: #f0f8ff;
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            position: relative;
+            padding-left: 40px;
+            counter-increment: step-counter;
+        }
+        
+        .step-item:before {
+            content: counter(step-counter);
+            position: absolute;
+            left: 15px;
+            top: 12px;
+            background: #4CAF50;
+            color: white;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        
+        .no-results {
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        
+        .no-results h2 {
+            color: #666;
+            margin-bottom: 15px;
+        }
+        
+        .no-results p {
+            color: #999;
+            margin-bottom: 20px;
+        }
+        
+        .tags {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+        
+        .tag {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-btn">← 다시 검색하기</a>
+        
+        <div class="header">
+            <h1>🔍 검색 결과</h1>
+            <div class="search-info">
+                <h3>검색 조건</h3>
+                <p><strong>검색어:</strong> {{ query }}</p>
+                <p><strong>비선호 식재료:</strong> {{ disliked_ingredients or "없음" }}</p>
+                <p><strong>알러지 식재료:</strong> {{ allergies or "없음" }}</p>
+                <p><strong>검색 방식:</strong> {{ search_type }}</p>
+                <p><strong>검색 결과:</strong> {{ result_count }}개 레시피 발견</p>
+            </div>
+        </div>
+        
+        {% if results %}
+        <div class="results-container">
+            {% for recipe in results %}
+            <div class="recipe-card">
+                <div class="recipe-header">
+                    <div>
+                        <h2 class="recipe-title">{{ recipe.title }}</h2>
+                        <p style="color: #666; font-size: 0.9em;">작성자: {{ recipe.author }}</p>
+                    </div>
+                    {% if recipe.search_scores %}
+                    <div class="search-scores">
+                        {% if search_type == "hybrid" %}
+                        <div class="score-item hybrid-score">
+                            <span class="score-label">하이브리드</span>
+                            <span class="score-value">{{ "%.1f"|format(recipe.search_scores.hybrid * 100) }}%</span>
+                        </div>
+                        <div class="score-breakdown">
+                            <small>키워드: {{ "%.1f"|format(recipe.search_scores.keyword * 100) }}% | 
+                                   벡터: {{ "%.1f"|format(recipe.search_scores.vector * 100) }}%</small>
+                        </div>
+                        {% elif search_type == "vector" %}
+                        <div class="score-item vector-score">
+                            <span class="score-label">벡터 유사도</span>
+                            <span class="score-value">{{ "%.1f"|format(recipe.search_scores.vector * 100) }}%</span>
+                        </div>
+                        {% elif search_type == "keyword" %}
+                        <div class="score-item keyword-score">
+                            <span class="score-label">키워드 점수</span>
+                            <span class="score-value">{{ "%.1f"|format(recipe.search_scores.keyword * 100) }}%</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="recipe-meta">
+                    <span class="meta-item">⭐ {{ recipe.rating }}</span>
+                    <span class="meta-item">👀 {{ recipe.views }}</span>
+                    <span class="meta-item">⏱️ {{ recipe.cook_time }}</span>
+                    <span class="meta-item">📊 {{ recipe.difficulty }}</span>
+                    <span class="meta-item">👥 {{ recipe.servings }}</span>
+                </div>
+                
+                {% if recipe.summary %}
+                <div class="recipe-summary">
+                    <strong>📝 요약:</strong> {{ recipe.summary }}
+                </div>
+                {% endif %}
+                
+                {% if recipe.ingredients %}
+                <div class="ingredients-section">
+                    <h3 class="section-title">🥘 재료</h3>
+                    <div class="ingredients-list">
+                        {% for ingredient in recipe.ingredients %}
+                        <div class="ingredient-item">
+                            {% if ingredient.name %}
+                                {{ ingredient.name }}
+                                {% if ingredient.amount %}
+                                    ({{ ingredient.amount }})
+                                {% endif %}
+                            {% else %}
+                                {{ ingredient }}
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if recipe.steps %}
+                <div class="steps-section">
+                    <h3 class="section-title">👨‍🍳 조리 순서</h3>
+                    <div class="steps-list">
+                        {% for step in recipe.steps %}
+                        <div class="step-item">{{ step }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if recipe.tags %}
+                <div class="tags">
+                    {% for tag in recipe.tags %}
+                    <span class="tag">{{ tag }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="no-results">
+            <h2>😔 검색 결과가 없습니다</h2>
+            <p>다른 검색어나 조건으로 다시 시도해보세요.</p>
+            <a href="/" class="back-btn">다시 검색하기</a>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

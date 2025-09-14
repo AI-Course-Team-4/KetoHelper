@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>키토 레시피 추천 시스템</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .form-container {
+            padding: 40px;
+        }
+        
+        .form-group {
+            margin-bottom: 25px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        input[type="text"], textarea, select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+        
+        input[type="text"]:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        
+        .search-type-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+        }
+        
+        .search-type-option {
+            flex: 1;
+            text-align: center;
+        }
+        
+        .search-type-option input[type="radio"] {
+            display: none;
+        }
+        
+        .search-type-option label {
+            display: block;
+            padding: 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 0;
+        }
+        
+        .search-type-option input[type="radio"]:checked + label {
+            background: #4CAF50;
+            color: white;
+            border-color: #4CAF50;
+        }
+        
+        .search-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        
+        .search-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .help-text {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .example {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        
+        .example h3 {
+            color: #4CAF50;
+            margin-bottom: 10px;
+        }
+        
+        .example ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .example li {
+            margin-bottom: 5px;
+            padding-left: 20px;
+            position: relative;
+        }
+        
+        .example li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #4CAF50;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🥗 키토 레시피 추천</h1>
+            <p>개인 맞춤형 키토제닉 레시피를 찾아보세요</p>
+        </div>
+        
+        <div class="form-container">
+            <form method="post" action="/search">
+                <div class="form-group">
+                    <label for="query">🍽️ 원하는 음식을 자연어로 입력하세요</label>
+                    <input type="text" id="query" name="query" placeholder="예: 간단한 달걀 요리, 달콤한 디저트, 김밥" required>
+                    <div class="help-text">원하는 음식의 특징, 재료, 요리법 등을 자유롭게 입력하세요</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="disliked_ingredients">🚫 비선호 식재료 (쉼표로 구분)</label>
+                    <input type="text" id="disliked_ingredients" name="disliked_ingredients" placeholder="예: 양파, 마늘, 생강">
+                    <div class="help-text">먹기 싫은 식재료를 입력하면 해당 재료가 포함된 레시피는 제외됩니다</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="allergies">⚠️ 알러지 식재료 (쉼표로 구분)</label>
+                    <input type="text" id="allergies" name="allergies" placeholder="예: 견과류, 해산물, 아몬드">
+                    <div class="help-text">알러지가 있는 식재료를 입력하면 안전한 레시피만 추천됩니다</div>
+                </div>
+                
+                <div class="form-group">
+                    <label>🔍 검색 방식 선택</label>
+                    <div class="search-type-group">
+                        <div class="search-type-option">
+                            <input type="radio" id="keyword" name="search_type" value="keyword">
+                            <label for="keyword">키워드<br><small>빠른 검색</small></label>
+                        </div>
+                        <div class="search-type-option">
+                            <input type="radio" id="vector" name="search_type" value="vector">
+                            <label for="vector">벡터<br><small>의미 검색</small></label>
+                        </div>
+                        <div class="search-type-option">
+                            <input type="radio" id="hybrid" name="search_type" value="hybrid" checked>
+                            <label for="hybrid">하이브리드<br><small>최적 추천</small></label>
+                        </div>
+                    </div>
+                </div>
+                
+                <button type="submit" class="search-btn">🔍 레시피 검색하기</button>
+            </form>
+            
+            <div class="example">
+                <h3>💡 검색 예시</h3>
+                <ul>
+                    <li><strong>간단한 달걀 요리</strong> - 달걀을 사용한 쉬운 요리</li>
+                    <li><strong>달콤한 디저트</strong> - 단맛이 나는 후식</li>
+                    <li><strong>김밥</strong> - 김밥 관련 모든 레시피</li>
+                    <li><strong>닭고기로 만드는 저탄수화물 요리</strong> - 구체적인 요구사항</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
