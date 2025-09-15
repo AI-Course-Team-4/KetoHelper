@@ -259,7 +259,7 @@ gh auth login
 ```bash
 git switch -c feature/<owner>-<topic>
 git add -A && git commit -m "feat: ..."
-git prdev
+git prdev 
 ```
 ### 패턴(권장): type/<owner>-<topic> — 단 한 번만 슬래시 사용
 
