@@ -22,7 +22,6 @@ import {
   Star,
   StarBorder,
   Restaurant,
-  Schedule,
   Person,
 } from '@mui/icons-material'
 import type { Recipe } from '../types/index'
@@ -58,20 +57,6 @@ const RecipeDetailModal = ({
     //   console.log('즐겨찾기 상태가 업데이트되었습니다.')
     // } catch (error) {
     //   console.error('즐겨찾기 업데이트 중 오류가 발생했습니다:', error)
-    // }
-  }
-
-  const handleAddToCalendar = () => {
-    if (onAddToCalendar) {
-      onAddToCalendar()
-    }
-    
-    // TODO: 백엔드 연동 시 사용 - 캘린더에 추가
-    // try {
-    //   await mealPlanService.addToCalendar(recipe.id, selectedDate, selectedMealType)
-    //   console.log('캘린더에 추가되었습니다.')
-    // } catch (error) {
-    //   console.error('캘린더 추가 중 오류가 발생했습니다:', error)
     // }
   }
 
@@ -296,10 +281,11 @@ const RecipeDetailModal = ({
         </Button>
         <Button
           variant="contained"
-          startIcon={<Schedule />}
-          onClick={handleAddToCalendar}
+          startIcon={isFavorite ? <Star /> : <StarBorder />}
+          onClick={handleFavoriteClick}
+          color={isFavorite ? "warning" : "primary"}
         >
-          캘린더에 추가
+          {isFavorite ? "즐겨찾기 제거" : "즐겨찾기 추가"}
         </Button>
       </DialogActions>
     </Dialog>

@@ -318,17 +318,22 @@ const CalendarPage = () => {
     setSelectedMealForDetail(null)
   }
 
+  const handleMealSelectionClose = () => {
+    setMealSelectionOpen(false)
+    // 선택 모달 닫을 때 상태 초기화는 선택사항 (다음 열 때 다시 설정되므로)
+  }
+
   const handleToggleMealComplete = () => {
-    if (!selectedDate || !selectedMealType) return
+    if (!selectedDateForMeal || !selectedMealType) return
     
-    const currentStatus = weeklyMealPlan[selectedDate]?.completed[selectedMealType] || false
+    const currentStatus = weeklyMealPlan[selectedDateForMeal]?.completed[selectedMealType] || false
     const newStatus = !currentStatus
     
-    handleMealComplete(selectedMealType, selectedDate, newStatus)
+    handleMealComplete(selectedMealType, selectedDateForMeal, newStatus)
     
     // TODO: 백엔드 연동 시 사용 - 완료 상태 업데이트 API 호출
     // try {
-    //   await mealPlanService.updateMealCompletion(selectedDate, selectedMealType, newStatus)
+    //   await mealPlanService.updateMealCompletion(selectedDateForMeal, selectedMealType, newStatus)
     //   console.log('완료 상태가 업데이트되었습니다.')
     // } catch (error) {
     //   console.error('완료 상태 업데이트 중 오류가 발생했습니다:', error)
@@ -618,6 +623,8 @@ const CalendarPage = () => {
                     isCompleted={dayPlan?.completed[mealType] || false}
                     onRecipeClick={(recipe) => {
                       setSelectedMealForDetail(recipe)
+                      setSelectedMealType(mealType)
+                      setSelectedDateForMeal(selectedDate)
                       setMealDetailOpen(true)
                     }}
                     onCompletionToggle={(completed) => {
@@ -695,7 +702,7 @@ const CalendarPage = () => {
       {/* 식사 선택 모달 */}
       <MealSelectionModal
         open={mealSelectionOpen}
-        onClose={() => setMealSelectionOpen(false)}
+        onClose={handleMealSelectionClose}
         mealType={selectedMealType}
         onMealSelect={handleMealSelection}
       />
@@ -707,7 +714,7 @@ const CalendarPage = () => {
         meal={selectedMealForDetail}
         mealType={selectedMealType}
         onEditRequest={handleMealDetailEditRequest}
-        isCompleted={selectedDate ? weeklyMealPlan[selectedDate]?.completed[selectedMealType] || false : false}
+        isCompleted={selectedDateForMeal ? weeklyMealPlan[selectedDateForMeal]?.completed[selectedMealType] || false : false}
         onToggleComplete={handleToggleMealComplete}
       />
     </Box>

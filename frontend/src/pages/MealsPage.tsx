@@ -55,6 +55,8 @@ const MealsPage = () => {
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null)
   const [recipeDetailOpen, setRecipeDetailOpen] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
+  const [visibleRecipesCount, setVisibleRecipesCount] = useState(6) // 초기에는 6개만 보이기
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
 
   const hasSubscription = user?.subscription?.isActive || false
 
@@ -235,11 +237,166 @@ const MealsPage = () => {
       isKetoFriendly: true,
       createdAt: '2025-01-01',
     },
+    {
+      id: '9',
+      title: '버섯 크림 리조또',
+      description: '콜리플라워 라이스로 만든 건강한 키토 리조또',
+      imageUrl: 'https://via.placeholder.com/300x200?text=버섯+리조또',
+      cookingTime: 25,
+      difficulty: '중간',
+      servings: 3,
+      ingredients: [
+        { name: '콜리플라워', amount: 400, unit: 'g', carbs: 5 },
+        { name: '버섯', amount: 200, unit: 'g', carbs: 3 },
+        { name: '크림', amount: 150, unit: 'ml', carbs: 4 },
+        { name: '파르메산 치즈', amount: 60, unit: 'g', carbs: 1 }
+      ],
+      instructions: ['콜리플라워를 라이스 모양으로 잘게 썰어주세요', '버섯을 볶아주세요', '크림과 치즈를 넣고 끓여주세요'],
+      nutrition: { calories: 320, carbs: 9, protein: 18, fat: 24, fiber: 6 },
+      tags: ['키토', '리조또', '저녁', '채식'],
+      rating: 4.5,
+      reviewCount: 92,
+      isKetoFriendly: true,
+      createdAt: '2025-01-01',
+    },
+    {
+      id: '10',
+      title: '아스파라거스 베이컨 말이',
+      description: '아삭한 아스파라거스와 고소한 베이컨의 완벽한 조화',
+      imageUrl: 'https://via.placeholder.com/300x200?text=아스파라거스+베이컨',
+      cookingTime: 18,
+      difficulty: '쉬움',
+      servings: 4,
+      ingredients: [
+        { name: '아스파라거스', amount: 300, unit: 'g', carbs: 4 },
+        { name: '베이컨', amount: 8, unit: '줄', carbs: 0 },
+        { name: '올리브오일', amount: 2, unit: '큰술', carbs: 0 },
+        { name: '레몬즙', amount: 1, unit: '큰술', carbs: 1 }
+      ],
+      instructions: ['아스파라거스를 손질해주세요', '베이컨으로 감싸주세요', '오븐에서 구워주세요'],
+      nutrition: { calories: 280, carbs: 6, protein: 20, fat: 20, fiber: 3 },
+      tags: ['키토', '채소', '저녁', '간단'],
+      rating: 4.7,
+      reviewCount: 134,
+      isKetoFriendly: true,
+      createdAt: '2025-01-01',
+    },
+    {
+      id: '11',
+      title: '새우 마늘 볶음',
+      description: '프로틴이 풍부한 새우와 향긋한 마늘의 만남',
+      imageUrl: 'https://via.placeholder.com/300x200?text=새우+마늘볶음',
+      cookingTime: 15,
+      difficulty: '쉬움',
+      servings: 2,
+      ingredients: [
+        { name: '새우', amount: 300, unit: 'g', carbs: 1 },
+        { name: '마늘', amount: 6, unit: '쪽', carbs: 2 },
+        { name: '올리브오일', amount: 3, unit: '큰술', carbs: 0 },
+        { name: '파슬리', amount: 20, unit: 'g', carbs: 1 }
+      ],
+      instructions: ['새우를 손질해주세요', '마늘을 얇게 썰어주세요', '팬에 볶아 완성하세요'],
+      nutrition: { calories: 290, carbs: 5, protein: 35, fat: 12, fiber: 1 },
+      tags: ['키토', '해산물', '저녁', '단백질'],
+      rating: 4.6,
+      reviewCount: 87,
+      isKetoFriendly: true,
+      createdAt: '2025-01-01',
+    },
+    {
+      id: '12',
+      title: '호두 크림치즈 볼',
+      description: '간편하게 즐기는 고소한 키토 간식',
+      imageUrl: 'https://via.placeholder.com/300x200?text=호두+크림치즈볼',
+      cookingTime: 10,
+      difficulty: '쉬움',
+      servings: 1,
+      ingredients: [
+        { name: '크림치즈', amount: 100, unit: 'g', carbs: 3 },
+        { name: '호두', amount: 50, unit: 'g', carbs: 2 },
+        { name: '에리스리톨', amount: 1, unit: '큰술', carbs: 0 },
+        { name: '바닐라 추출물', amount: 1, unit: '방울', carbs: 0 }
+      ],
+      instructions: ['크림치즈를 실온에 두어주세요', '호두를 잘게 다져주세요', '모든 재료를 섞어 볼을 만들어주세요'],
+      nutrition: { calories: 350, carbs: 6, protein: 12, fat: 32, fiber: 3 },
+      tags: ['키토', '간식', '디저트', '견과류'],
+      rating: 4.4,
+      reviewCount: 156,
+      isKetoFriendly: true,
+      createdAt: '2025-01-01',
+    },
+    {
+      id: '13',
+      title: '스피나치 퀴시',
+      description: '시금치가 들어간 영양 만점 키토 퀴시',
+      imageUrl: 'https://via.placeholder.com/300x200?text=스피나치+퀴시',
+      cookingTime: 45,
+      difficulty: '중간',
+      servings: 6,
+      ingredients: [
+        { name: '시금치', amount: 200, unit: 'g', carbs: 3 },
+        { name: '계란', amount: 6, unit: '개', carbs: 2 },
+        { name: '크림', amount: 200, unit: 'ml', carbs: 6 },
+        { name: '그뤼에르 치즈', amount: 100, unit: 'g', carbs: 1 }
+      ],
+      instructions: ['시금치를 볶아주세요', '계란과 크림을 섞어주세요', '오븐에서 구워주세요'],
+      nutrition: { calories: 380, carbs: 8, protein: 22, fat: 28, fiber: 4 },
+      tags: ['키토', '채소', '저녁', '오븐'],
+      rating: 4.8,
+      reviewCount: 203,
+      isKetoFriendly: true,
+      createdAt: '2025-01-01',
+    },
+    {
+      id: '14',
+      title: '돼지고기 김치찌개',
+      description: '김치의 시원함과 돼지고기의 감칠맛이 어우러진 키토 요리',
+      imageUrl: 'https://via.placeholder.com/300x200?text=김치찌개',
+      cookingTime: 35,
+      difficulty: '중간',
+      servings: 4,
+      ingredients: [
+        { name: '돼지고기', amount: 300, unit: 'g', carbs: 0 },
+        { name: '김치', amount: 200, unit: 'g', carbs: 4 },
+        { name: '두부', amount: 150, unit: 'g', carbs: 2 },
+        { name: '대파', amount: 50, unit: 'g', carbs: 2 }
+      ],
+      instructions: ['돼지고기를 볶아주세요', '김치를 넣고 볶아주세요', '물을 넣고 끓여주세요'],
+      nutrition: { calories: 420, carbs: 8, protein: 38, fat: 25, fiber: 3 },
+      tags: ['키토', '찌개', '저녁', '한식'],
+      rating: 4.9,
+      reviewCount: 267,
+      isKetoFriendly: true,
+      createdAt: '2025-01-01',
+    },
+    {
+      id: '15',
+      title: '코코넛 팬케이크',
+      description: '달콤한 코코넛 향이 가득한 키토 디저트',
+      imageUrl: 'https://via.placeholder.com/300x200?text=코코넛+팬케이크',
+      cookingTime: 20,
+      difficulty: '중간',
+      servings: 2,
+      ingredients: [
+        { name: '코코넛 가루', amount: 100, unit: 'g', carbs: 6 },
+        { name: '계란', amount: 4, unit: '개', carbs: 1 },
+        { name: '코코넛 오일', amount: 2, unit: '큰술', carbs: 0 },
+        { name: '에리스리톨', amount: 2, unit: '큰술', carbs: 0 }
+      ],
+      instructions: ['모든 재료를 섞어주세요', '팬에 부어 구워주세요', '시럽과 함께 드세요'],
+      nutrition: { calories: 340, carbs: 8, protein: 18, fat: 26, fiber: 8 },
+      tags: ['키토', '디저트', '아침', '달콤'],
+      rating: 4.5,
+      reviewCount: 198,
+      isKetoFriendly: true,
+      createdAt: '2025-01-01',
+    },
   ]
 
   // 검색 및 필터링 함수
   const searchRecipes = async (query: string) => {
     setIsSearching(true)
+    setVisibleRecipesCount(6) // 검색 시 초기 표시 개수로 리셋
     
     // TODO: 백엔드 연동 시 사용 - 실제 검색 API 호출
     // try {
@@ -313,23 +470,6 @@ const MealsPage = () => {
     setRecipeDetailOpen(true)
   }
 
-  // 캘린더에 추가 핸들러
-  const handleAddToCalendar = () => {
-    if (!selectedRecipe) return
-    
-    // TODO: 백엔드 연동 시 사용 - 캘린더에 추가
-    // try {
-    //   await mealPlanService.addToCalendar(selectedRecipe.id, selectedDate, selectedMealType)
-    //   alert('캘린더에 추가되었습니다!')
-    // } catch (error) {
-    //   console.error('캘린더 추가 중 오류가 발생했습니다:', error)
-    //   alert('캘린더 추가 중 오류가 발생했습니다.')
-    // }
-    
-    alert(`"${selectedRecipe.title}"이(가) 캘린더에 추가되었습니다!`)
-    setRecipeDetailOpen(false)
-  }
-
   // 검색 입력 핸들러
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const query = event.target.value
@@ -346,6 +486,31 @@ const MealsPage = () => {
     if (event.key === 'Enter') {
       handleSearchSubmit()
     }
+  }
+
+  // 더많은 레시피 로딩 핸들러
+  const handleLoadMoreRecipes = async () => {
+    setIsLoadingMore(true)
+    
+    // TODO: 백엔드 연동 시 사용 - 추가 레시피 API 호출
+    // try {
+    //   const additionalRecipes = await searchService.getMoreRecipes({
+    //     page: Math.floor(visibleRecipesCount / 6) + 1,
+    //     limit: 6,
+    //     searchQuery,
+    //     mealType,
+    //     difficulty
+    //   })
+    //   setFilteredRecipes(prev => [...prev, ...additionalRecipes])
+    // } catch (error) {
+    //   console.error('추가 레시피 로딩 중 오류가 발생했습니다:', error)
+    // }
+    
+    // 현재는 더미 데이터로 시뮬레이션 (1초 지연)
+    setTimeout(() => {
+      setVisibleRecipesCount(prev => prev + 6)
+      setIsLoadingMore(false)
+    }, 1000)
   }
 
   // 초기 데이터 로딩
@@ -373,6 +538,7 @@ const MealsPage = () => {
       searchRecipes(searchQuery)
     } else {
       setFilteredRecipes(mockRecipes)
+      setVisibleRecipesCount(6) // 필터 초기화 시에도 리셋
     }
   }, [mealType, difficulty])
 
@@ -509,7 +675,7 @@ const MealsPage = () => {
           </Box>
         ) : (
           <Grid container spacing={3}>
-            {filteredRecipes.slice(0, isAuthenticated ? (hasSubscription ? filteredRecipes.length : 6) : 6).map((recipe) => (
+            {filteredRecipes.slice(0, Math.min(visibleRecipesCount, isAuthenticated ? (hasSubscription ? filteredRecipes.length : filteredRecipes.length) : filteredRecipes.length)).map((recipe) => (
               <Grid item xs={12} sm={6} md={4} key={recipe.id}>
                 <RecipeCard
                   recipe={recipe}
@@ -542,6 +708,7 @@ const MealsPage = () => {
               setMealType('')
               setDifficulty('')
               setFilteredRecipes(mockRecipes)
+              setVisibleRecipesCount(6) // 전체 레시피 보기 시에도 리셋
             }}
           >
             전체 레시피 보기
@@ -550,10 +717,22 @@ const MealsPage = () => {
       )}
 
       {/* 더 많은 레시피 로드 버튼 */}
-      {!isSearching && filteredRecipes.length > 6 && (
+      {!isSearching && filteredRecipes.length > visibleRecipesCount && (
         <Box sx={{ textAlign: 'center', mt: 4 }}>
-          <Button variant="outlined" size="large">
-            더 많은 레시피 보기 ({filteredRecipes.length - 6}개 더)
+          <Button 
+            variant="outlined" 
+            size="large" 
+            onClick={handleLoadMoreRecipes}
+            disabled={isLoadingMore}
+          >
+            {isLoadingMore ? (
+              <>
+                <CircularProgress size={20} sx={{ mr: 1 }} />
+                로딩 중...
+              </>
+            ) : (
+              `더 많은 레시피 보기 (${filteredRecipes.length - visibleRecipesCount}개 더)`
+            )}
           </Button>
         </Box>
       )}
@@ -569,7 +748,6 @@ const MealsPage = () => {
             handleToggleFavorite(selectedRecipe.id)
           }
         }}
-        onAddToCalendar={handleAddToCalendar}
       />
     </Box>
   )
