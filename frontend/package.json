@@ -1,12 +1,20 @@
 {
+<<<<<<< HEAD
   "name": "keto-coach-frontend",
   "version": "1.0.0",
   "type": "module",
   "description": "키토 코치 프론트엔드 - 대화형 키토 식단 추천 웹앱",
+=======
+  "name": "ketohelper-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+>>>>>>> origin/dev
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+<<<<<<< HEAD
     "preview": "vite preview"
   },
   "dependencies": {
@@ -47,5 +55,52 @@
     "tailwindcss": "^3.3.5",
     "typescript": "^5.2.2",
     "vite": "^4.5.0"
+=======
+    "lint:fix": "eslint . --ext ts,tsx --fix",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.11.1",
+    "@emotion/styled": "^11.11.0",
+    "@hookform/resolvers": "^3.3.2",
+    "@mui/icons-material": "^5.15.0",
+    "@mui/material": "^5.15.0",
+    "@react-oauth/google": "^0.12.2",
+    "@tanstack/react-query": "^5.15.0",
+    "axios": "^1.6.2",
+    "date-fns": "^3.0.0",
+    "firebase": "^12.2.1",
+    "framer-motion": "^10.16.16",
+    "gapi-script": "^1.2.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-hook-form": "^7.48.2",
+    "react-hot-toast": "^2.4.1",
+    "react-intersection-observer": "^9.5.3",
+    "react-router-dom": "^6.21.0",
+    "zod": "^3.22.4",
+    "zustand": "^4.4.7"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.1.6",
+    "@testing-library/react": "^14.1.2",
+    "@testing-library/user-event": "^14.5.1",
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@typescript-eslint/eslint-plugin": "^6.14.0",
+    "@typescript-eslint/parser": "^6.14.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "@vitest/ui": "^1.0.4",
+    "eslint": "^8.55.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.5",
+    "jsdom": "^23.0.1",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.8",
+    "vitest": "^1.0.4"
+>>>>>>> origin/dev
   }
 }
