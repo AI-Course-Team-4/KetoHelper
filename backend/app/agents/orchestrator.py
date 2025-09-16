@@ -11,7 +11,7 @@ from langchain.schema import HumanMessage, AIMessage, BaseMessage
 import json
 
 from app.core.config import settings
-from app.tools.recipe_rag import RecipeRAGTool
+from app.tools.korean_search import KoreanSearchTool
 from app.tools.place_search import PlaceSearchTool
 from app.tools.keto_score import KetoScoreCalculator
 from app.agents.meal_planner import MealPlannerAgent
@@ -41,7 +41,7 @@ class KetoCoachAgent:
         )
         
         # 도구들 초기화
-        self.recipe_rag = RecipeRAGTool()
+        self.recipe_rag = KoreanSearchTool()
         self.place_search = PlaceSearchTool()
         self.keto_score = KetoScoreCalculator()
         self.meal_planner = MealPlannerAgent()
