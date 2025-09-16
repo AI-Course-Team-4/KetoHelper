@@ -89,10 +89,10 @@ class HybridSearchTool:
             for keyword in keywords[:3]:  # 상위 3개 키워드만 사용
                 try:
                     # 제목에서 키워드 검색
-                    title_results = self.supabase.table('recipes').select('*').ilike('title', f'%{keyword}%').limit(k).execute()
+                    title_results = self.supabase.table('recipes_keto_enhanced').select('*').ilike('title', f'%{keyword}%').limit(k).execute()
                     
                     # 내용에서 키워드 검색
-                    content_results = self.supabase.table('recipes').select('*').ilike('content', f'%{keyword}%').limit(k).execute()
+                    content_results = self.supabase.table('recipes_keto_enhanced').select('*').ilike('content', f'%{keyword}%').limit(k).execute()
                     
                     keyword_results.extend(title_results.data or [])
                     keyword_results.extend(content_results.data or [])
@@ -173,8 +173,11 @@ class HybridSearchTool:
             return []
     
     async def search(self, query: str, profile: str = "", max_results: int = 5) -> List[Dict]:
-        """간단한 검색 인터페이스"""
+        """간단한 검색 인터페이스 (한글 최적화)"""
         try:
+            # 한글 검색 최적화 도구 사용
+            from app.tools.korean_search import korean_search_tool
+            
             # 프로필에서 필터 추출
             filters = {}
             if profile:
@@ -183,24 +186,68 @@ class HybridSearchTool:
                 if "쉬운" in profile or "easy" in profile.lower():
                     filters['difficulty'] = '쉬움'
             
-            results = await self.hybrid_search(query, filters, max_results)
+            # 한글 최적화 검색 실행
+            results = await korean_search_tool.korean_hybrid_search(query, max_results)
             
-            # 결과 포맷팅
+            # 결과 포맷팅 (검색 전략과 메시지 포함)
             formatted_results = []
+            search_strategy = "unknown"
+            search_message = ""
+            
             for result in results:
+                # 첫 번째 결과에서 검색 전략과 메시지 추출
+                if not search_message:
+                    search_strategy = result.get('search_strategy', 'unknown')
+                    search_message = result.get('search_message', '')
+                
                 formatted_results.append({
                     'title': result.get('title', '제목 없음'),
                     'content': result.get('content', ''),
-                    'similarity': result.get('hybrid_score', 0.0),
+                    'similarity': result.get('final_score', 0.0),
                     'metadata': result.get('metadata', {}),
-                    'search_types': [result.get('search_type', 'hybrid')]
+                    'search_types': [result.get('search_type', 'hybrid')],
+                    'search_strategy': search_strategy,
+                    'search_message': search_message
                 })
+            
+            # 검색 결과가 없는 경우 메시지 추가
+            if not formatted_results:
+                formatted_results.append({
+                    'title': '검색 결과 없음',
+                    'content': '검색 결과가 없습니다. 다른 키워드를 시도해보세요.',
+                    'similarity': 0.0,
+                    'metadata': {'search_message': '검색 결과가 없습니다.'},
+                    'search_types': ['none'],
+                    'search_strategy': 'none',
+                    'search_message': '검색 결과가 없습니다. 다른 키워드를 시도해보세요.'
+                })
+            
+            # 검색 메시지 출력
+            if search_message:
+                print(f"💬 사용자 안내: {search_message}")
             
             return formatted_results
             
         except Exception as e:
             print(f"Search error: {e}")
-            return []
+            # 폴백: 기존 검색 방식 사용
+            try:
+                results = await self.hybrid_search(query, {}, max_results)
+                
+                formatted_results = []
+                for result in results:
+                    formatted_results.append({
+                        'title': result.get('title', '제목 없음'),
+                        'content': result.get('content', ''),
+                        'similarity': result.get('hybrid_score', 0.0),
+                        'metadata': result.get('metadata', {}),
+                        'search_types': [result.get('search_type', 'hybrid')]
+                    })
+                
+                return formatted_results
+            except Exception as fallback_error:
+                print(f"Fallback search error: {fallback_error}")
+                return []
 
 # 전역 하이브리드 검색 도구 인스턴스
 hybrid_search_tool = HybridSearchTool()
