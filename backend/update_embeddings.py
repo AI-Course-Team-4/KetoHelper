@@ -27,7 +27,7 @@ async def create_embedding(text: str) -> list:
 async def update_all_embeddings():
     """모든 레시피의 임베딩 업데이트"""
     # 레시피 데이터 가져오기
-    recipes = supabase.table('recipes').select('*').execute()
+    recipes = supabase.table('recipes_keto_enhanced').select('*').execute()
     
     for recipe in recipes.data:
         print(f"임베딩 생성 중: {recipe['title']}")

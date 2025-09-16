@@ -106,7 +106,7 @@ async def init_db() -> None:
         if supabase and not isinstance(supabase, DummySupabase):
             try:
                 # Supabase 연결 테스트
-                test_response = supabase.table('recipes').select('id').limit(1).execute()
+                test_response = supabase.table('recipes_keto_enhanced').select('id').limit(1).execute()
                 print("✅ Supabase 연결 성공")
                 print("✅ 하이브리드 검색 시스템 정상 작동")
                 print("✅ 벡터 검색 + 키워드 검색 사용 가능")
@@ -125,7 +125,7 @@ async def test_connection() -> bool:
     """Supabase 연결 테스트"""
     try:
         if supabase and not isinstance(supabase, DummySupabase):
-            test_response = supabase.table('recipes').select('id').limit(1).execute()
+            test_response = supabase.table('recipes_keto_enhanced').select('id').limit(1).execute()
             return True
         return False
     except Exception:
