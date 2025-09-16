@@ -53,7 +53,7 @@ export function ChatPage() {
       const response = await sendMessage.mutateAsync({
         message: userMessage.content,
         profile,
-        location: null, // TODO: 위치 정보 연동
+        // location: null, // TODO: 위치 정보 연동
         radius_km: 5
       })
 
