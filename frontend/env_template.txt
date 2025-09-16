@@ -1,0 +1,9 @@
+# ========================================
+# 프론트엔드 환경 변수
+# ========================================
+# Supabase 설정 (Settings → API에서 확인)
+VITE_SUPABASE_URL=https://xxxxxxxxx.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+# 카카오 지도 API (https://developers.kakao.com에서 발급)
+VITE_KAKAO_JS_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
