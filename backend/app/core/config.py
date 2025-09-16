@@ -6,7 +6,7 @@
 import os
 from typing import Optional
 try:
-    from pydantic_settings import BaseSettings
+    from pydantic_settings import BaseSettings, SettingsConfigDict
 except ImportError:
     from pydantic import BaseSettings
 
@@ -39,9 +39,12 @@ class Settings(BaseSettings):
     enable_cache: bool = os.getenv("ENABLE_CACHE", "true").lower() == "true"
     cache_ttl_seconds: int = int(os.getenv("CACHE_TTL_SECONDS", "3600"))
     
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    # pydantic v2 설정 (예전 class Config 대체)
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",   # 선언하지 않은 변수는 무시
+    )
 
 # 전역 설정 인스턴스
 settings = Settings()
