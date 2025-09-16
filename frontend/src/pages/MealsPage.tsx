@@ -1,28 +1,29 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { 
   Box, 
   Typography, 
   Grid, 
   Button,
-  TextField,
-  InputAdornment,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
   Alert,
   Paper,
-  CircularProgress,
+  Card,
+  CardContent,
+  Chip,
+  Avatar,
+  Container,
 } from '@mui/material'
 import { 
-  Search, 
-  TrendingUp, 
   Psychology, 
   Lock, 
+  MenuBook,
+  AutoAwesome,
+  Restaurant,
+  Lightbulb,
 } from '@mui/icons-material'
+import { motion } from 'framer-motion'
 import { useAuthStore } from '@store/authStore'
 import RecipeDetailModal from '../components/RecipeDetailModal'
-import RecipeCard from '../components/RecipeCard'
+import AISearchComponent from '../components/AISearchComponent'
 import type { Recipe } from '../types/index'
 
 // TODO: 백엔드 연동 시 사용 - API 서비스 import
@@ -47,401 +48,35 @@ import type { Recipe } from '../types/index'
 
 const MealsPage = () => {
   const { user, isAuthenticated } = useAuthStore()
-  const [searchQuery, setSearchQuery] = useState('')
-  const [mealType, setMealType] = useState('')
-  const [difficulty, setDifficulty] = useState('')
-  const [filteredRecipes, setFilteredRecipes] = useState<Recipe[]>([])
   const [favoriteRecipes, setFavoriteRecipes] = useState<Set<string>>(new Set())
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null)
   const [recipeDetailOpen, setRecipeDetailOpen] = useState(false)
-  const [isSearching, setIsSearching] = useState(false)
-  const [visibleRecipesCount, setVisibleRecipesCount] = useState(6) // 초기에는 6개만 보이기
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [aiRecommendedRecipes, setAiRecommendedRecipes] = useState<Recipe[]>([])
 
   const hasSubscription = user?.subscription?.isActive || false
 
-  // 확장된 더미 데이터
-  const mockRecipes: Recipe[] = [
+  const quickPrompts = [
     {
-      id: '1',
-      title: '아보카도 베이컨 샐러드',
-      description: '신선한 아보카도와 바삭한 베이컨이 만나는 완벽한 키토 샐러드',
-      imageUrl: 'https://via.placeholder.com/300x200?text=아보카도+베이컨+샐러드',
-      cookingTime: 15,
-      difficulty: '쉬움',
-      servings: 2,
-      ingredients: [
-        { name: '아보카도', amount: 2, unit: '개', carbs: 4 },
-        { name: '베이컨', amount: 4, unit: '줄', carbs: 0 },
-        { name: '상추', amount: 100, unit: 'g', carbs: 2 },
-        { name: '올리브오일', amount: 2, unit: '큰술', carbs: 0 }
-      ],
-      instructions: ['베이컨을 바삭하게 구워주세요', '아보카도를 적당한 크기로 자르세요', '모든 재료를 섞어주세요'],
-      nutrition: { calories: 380, carbs: 8, protein: 15, fat: 32, fiber: 12 },
-      tags: ['키토', '샐러드', '아침', '점심'],
-      rating: 4.5,
-      reviewCount: 128,
-      isKetoFriendly: true,
-      createdAt: '2025-01-01',
+      text: '점심으로 간단하고 빠른 키토 요리 추천해줘',
+      icon: <MenuBook />,
+      category: '빠른 요리'
     },
     {
-      id: '2',
-      title: '치킨 크림 스프',
-      description: '부드럽고 진한 크림 스프로 포만감을 주는 키토 요리',
-      imageUrl: 'https://via.placeholder.com/300x200?text=치킨+크림+스프',
-      cookingTime: 30,
-      difficulty: '중간',
-      servings: 4,
-      ingredients: [
-        { name: '닭가슴살', amount: 300, unit: 'g', carbs: 0 },
-        { name: '크림', amount: 200, unit: 'ml', carbs: 4 },
-        { name: '양파', amount: 1, unit: '개', carbs: 8 },
-        { name: '마늘', amount: 3, unit: '쪽', carbs: 1 }
-      ],
-      instructions: ['닭가슴살을 삶아주세요', '양파와 마늘을 볶아주세요', '크림을 넣고 끓여주세요'],
-      nutrition: { calories: 420, carbs: 6, protein: 28, fat: 30, fiber: 2 },
-      tags: ['키토', '스프', '저녁', '겨울'],
-      rating: 4.8,
-      reviewCount: 89,
-      isKetoFriendly: true,
-      createdAt: '2025-01-01',
+      text: '아보카도를 활용한 맛있는 레시피가 뭐가 있을까?',
+      icon: <AutoAwesome />,
+      category: '재료별'
     },
     {
-      id: '3',
-      title: '연어 스테이크',
-      description: '오메가3이 풍부한 연어로 만든 고급 키토 요리',
-      imageUrl: 'https://via.placeholder.com/300x200?text=연어+스테이크',
-      cookingTime: 20,
-      difficulty: '중간',
-      servings: 2,
-      ingredients: [
-        { name: '연어 필렛', amount: 400, unit: 'g', carbs: 0 },
-        { name: '올리브오일', amount: 3, unit: '큰술', carbs: 0 },
-        { name: '레몬', amount: 1, unit: '개', carbs: 3 },
-        { name: '허브 솔트', amount: 1, unit: '작은술', carbs: 0 }
-      ],
-      instructions: ['연어에 허브 솔트를 뿌려주세요', '팬에 올리브오일을 두르고 구워주세요', '레몬즙을 뿌려 완성하세요'],
-      nutrition: { calories: 450, carbs: 4, protein: 35, fat: 32, fiber: 1 },
-      tags: ['키토', '생선', '저녁', '고급'],
-      rating: 4.7,
-      reviewCount: 156,
-      isKetoFriendly: true,
-      createdAt: '2025-01-01',
+      text: '저녁에 만들 수 있는 고급스러운 키토 요리',
+      icon: <Restaurant />,
+      category: '저녁 요리'
     },
     {
-      id: '4',
-      title: '버터 커피',
-      description: '키토 다이어터의 필수 아침 음료',
-      imageUrl: 'https://via.placeholder.com/300x200?text=버터+커피',
-      cookingTime: 5,
-      difficulty: '쉬움',
-      servings: 1,
-      ingredients: [
-        { name: '커피', amount: 1, unit: '컵', carbs: 1 },
-        { name: '무염버터', amount: 1, unit: '큰술', carbs: 0 },
-        { name: 'MCT 오일', amount: 1, unit: '큰술', carbs: 0 }
-      ],
-      instructions: ['진한 커피를 내려주세요', '버터와 MCT 오일을 넣어주세요', '블렌더로 잘 섞어주세요'],
-      nutrition: { calories: 230, carbs: 1, protein: 1, fat: 25, fiber: 0 },
-      tags: ['키토', '음료', '아침', '간단'],
-      rating: 4.2,
-      reviewCount: 234,
-      isKetoFriendly: true,
-      createdAt: '2025-01-01',
-    },
-    {
-      id: '5',
-      title: '치즈 오믈렛',
-      description: '푸짐한 치즈가 들어간 고단백 오믈렛',
-      imageUrl: 'https://via.placeholder.com/300x200?text=치즈+오믈렛',
-      cookingTime: 10,
-      difficulty: '쉬움',
-      servings: 1,
-      ingredients: [
-        { name: '계란', amount: 3, unit: '개', carbs: 1 },
-        { name: '체다치즈', amount: 50, unit: 'g', carbs: 1 },
-        { name: '버터', amount: 1, unit: '큰술', carbs: 0 },
-        { name: '소금, 후추', amount: 1, unit: '꼬집', carbs: 0 }
-      ],
-      instructions: ['계란을 잘 풀어주세요', '팬에 버터를 녹이고 계란을 부어주세요', '치즈를 넣고 접어주세요'],
-      nutrition: { calories: 380, carbs: 3, protein: 25, fat: 28, fiber: 0 },
-      tags: ['키토', '계란', '아침', '단백질'],
-      rating: 4.6,
-      reviewCount: 98,
-      isKetoFriendly: true,
-      createdAt: '2025-01-01',
-    },
-    {
-      id: '6',
-      title: '브로콜리 베이컨 볶음',
-      description: '아삭한 브로콜리와 고소한 베이컨의 조화',
-      imageUrl: 'https://via.placeholder.com/300x200?text=브로콜리+베이컨',
-      cookingTime: 12,
-      difficulty: '쉬움',
-      servings: 2,
-      ingredients: [
-        { name: '브로콜리', amount: 300, unit: 'g', carbs: 6 },
-        { name: '베이컨', amount: 6, unit: '줄', carbs: 0 },
-        { name: '마늘', amount: 2, unit: '쪽', carbs: 1 },
-        { name: '올리브오일', amount: 2, unit: '큰술', carbs: 0 }
-      ],
-      instructions: ['브로콜리를 손질해주세요', '베이컨을 먼저 볶아주세요', '브로콜리와 마늘을 넣고 볶아주세요'],
-      nutrition: { calories: 280, carbs: 8, protein: 18, fat: 20, fiber: 5 },
-      tags: ['키토', '채소', '점심', '저녁'],
-      rating: 4.4,
-      reviewCount: 67,
-      isKetoFriendly: true,
-      createdAt: '2025-01-01',
-    },
-    {
-      id: '7',
-      title: '아몬드 크러스트 치킨',
-      description: '바삭한 아몬드 크러스트로 감싼 육즙 가득한 치킨',
-      imageUrl: 'https://via.placeholder.com/300x200?text=아몬드+치킨',
-      cookingTime: 35,
-      difficulty: '어려움',
-      servings: 4,
-      ingredients: [
-        { name: '닭다리', amount: 4, unit: '개', carbs: 0 },
-        { name: '아몬드 가루', amount: 100, unit: 'g', carbs: 4 },
-        { name: '파르메산 치즈', amount: 50, unit: 'g', carbs: 1 },
-        { name: '계란', amount: 1, unit: '개', carbs: 0 }
-      ],
-      instructions: ['치킨에 양념을 해주세요', '아몬드 가루와 치즈를 섞어주세요', '오븐에서 구워주세요'],
-      nutrition: { calories: 520, carbs: 6, protein: 42, fat: 35, fiber: 3 },
-      tags: ['키토', '치킨', '저녁', '오븐'],
-      rating: 4.9,
-      reviewCount: 145,
-      isKetoFriendly: true,
-      createdAt: '2025-01-01',
-    },
-    {
-      id: '8',
-      title: '그릭 요거트 베리 볼',
-      description: '프로틴이 풍부한 그릭 요거트와 신선한 베리',
-      imageUrl: 'https://via.placeholder.com/300x200?text=요거트+베리볼',
-      cookingTime: 5,
-      difficulty: '쉬움',
-      servings: 1,
-      ingredients: [
-        { name: '그릭 요거트', amount: 200, unit: 'g', carbs: 8 },
-        { name: '블루베리', amount: 50, unit: 'g', carbs: 7 },
-        { name: '아몬드 조각', amount: 20, unit: 'g', carbs: 1 },
-        { name: '스테비아', amount: 1, unit: '작은술', carbs: 0 }
-      ],
-      instructions: ['그릭 요거트를 볼에 담아주세요', '베리와 아몬드를 올려주세요', '스테비아로 단맛을 조절하세요'],
-      nutrition: { calories: 220, carbs: 12, protein: 20, fat: 8, fiber: 4 },
-      tags: ['키토', '요거트', '간식', '베리'],
-      rating: 4.3,
-      reviewCount: 78,
-      isKetoFriendly: true,
-      createdAt: '2025-01-01',
-    },
-    {
-      id: '9',
-      title: '버섯 크림 리조또',
-      description: '콜리플라워 라이스로 만든 건강한 키토 리조또',
-      imageUrl: 'https://via.placeholder.com/300x200?text=버섯+리조또',
-      cookingTime: 25,
-      difficulty: '중간',
-      servings: 3,
-      ingredients: [
-        { name: '콜리플라워', amount: 400, unit: 'g', carbs: 5 },
-        { name: '버섯', amount: 200, unit: 'g', carbs: 3 },
-        { name: '크림', amount: 150, unit: 'ml', carbs: 4 },
-        { name: '파르메산 치즈', amount: 60, unit: 'g', carbs: 1 }
-      ],
-      instructions: ['콜리플라워를 라이스 모양으로 잘게 썰어주세요', '버섯을 볶아주세요', '크림과 치즈를 넣고 끓여주세요'],
-      nutrition: { calories: 320, carbs: 9, protein: 18, fat: 24, fiber: 6 },
-      tags: ['키토', '리조또', '저녁', '채식'],
-      rating: 4.5,
-      reviewCount: 92,
-      isKetoFriendly: true,
-      createdAt: '2025-01-01',
-    },
-    {
-      id: '10',
-      title: '아스파라거스 베이컨 말이',
-      description: '아삭한 아스파라거스와 고소한 베이컨의 완벽한 조화',
-      imageUrl: 'https://via.placeholder.com/300x200?text=아스파라거스+베이컨',
-      cookingTime: 18,
-      difficulty: '쉬움',
-      servings: 4,
-      ingredients: [
-        { name: '아스파라거스', amount: 300, unit: 'g', carbs: 4 },
-        { name: '베이컨', amount: 8, unit: '줄', carbs: 0 },
-        { name: '올리브오일', amount: 2, unit: '큰술', carbs: 0 },
-        { name: '레몬즙', amount: 1, unit: '큰술', carbs: 1 }
-      ],
-      instructions: ['아스파라거스를 손질해주세요', '베이컨으로 감싸주세요', '오븐에서 구워주세요'],
-      nutrition: { calories: 280, carbs: 6, protein: 20, fat: 20, fiber: 3 },
-      tags: ['키토', '채소', '저녁', '간단'],
-      rating: 4.7,
-      reviewCount: 134,
-      isKetoFriendly: true,
-      createdAt: '2025-01-01',
-    },
-    {
-      id: '11',
-      title: '새우 마늘 볶음',
-      description: '프로틴이 풍부한 새우와 향긋한 마늘의 만남',
-      imageUrl: 'https://via.placeholder.com/300x200?text=새우+마늘볶음',
-      cookingTime: 15,
-      difficulty: '쉬움',
-      servings: 2,
-      ingredients: [
-        { name: '새우', amount: 300, unit: 'g', carbs: 1 },
-        { name: '마늘', amount: 6, unit: '쪽', carbs: 2 },
-        { name: '올리브오일', amount: 3, unit: '큰술', carbs: 0 },
-        { name: '파슬리', amount: 20, unit: 'g', carbs: 1 }
-      ],
-      instructions: ['새우를 손질해주세요', '마늘을 얇게 썰어주세요', '팬에 볶아 완성하세요'],
-      nutrition: { calories: 290, carbs: 5, protein: 35, fat: 12, fiber: 1 },
-      tags: ['키토', '해산물', '저녁', '단백질'],
-      rating: 4.6,
-      reviewCount: 87,
-      isKetoFriendly: true,
-      createdAt: '2025-01-01',
-    },
-    {
-      id: '12',
-      title: '호두 크림치즈 볼',
-      description: '간편하게 즐기는 고소한 키토 간식',
-      imageUrl: 'https://via.placeholder.com/300x200?text=호두+크림치즈볼',
-      cookingTime: 10,
-      difficulty: '쉬움',
-      servings: 1,
-      ingredients: [
-        { name: '크림치즈', amount: 100, unit: 'g', carbs: 3 },
-        { name: '호두', amount: 50, unit: 'g', carbs: 2 },
-        { name: '에리스리톨', amount: 1, unit: '큰술', carbs: 0 },
-        { name: '바닐라 추출물', amount: 1, unit: '방울', carbs: 0 }
-      ],
-      instructions: ['크림치즈를 실온에 두어주세요', '호두를 잘게 다져주세요', '모든 재료를 섞어 볼을 만들어주세요'],
-      nutrition: { calories: 350, carbs: 6, protein: 12, fat: 32, fiber: 3 },
-      tags: ['키토', '간식', '디저트', '견과류'],
-      rating: 4.4,
-      reviewCount: 156,
-      isKetoFriendly: true,
-      createdAt: '2025-01-01',
-    },
-    {
-      id: '13',
-      title: '스피나치 퀴시',
-      description: '시금치가 들어간 영양 만점 키토 퀴시',
-      imageUrl: 'https://via.placeholder.com/300x200?text=스피나치+퀴시',
-      cookingTime: 45,
-      difficulty: '중간',
-      servings: 6,
-      ingredients: [
-        { name: '시금치', amount: 200, unit: 'g', carbs: 3 },
-        { name: '계란', amount: 6, unit: '개', carbs: 2 },
-        { name: '크림', amount: 200, unit: 'ml', carbs: 6 },
-        { name: '그뤼에르 치즈', amount: 100, unit: 'g', carbs: 1 }
-      ],
-      instructions: ['시금치를 볶아주세요', '계란과 크림을 섞어주세요', '오븐에서 구워주세요'],
-      nutrition: { calories: 380, carbs: 8, protein: 22, fat: 28, fiber: 4 },
-      tags: ['키토', '채소', '저녁', '오븐'],
-      rating: 4.8,
-      reviewCount: 203,
-      isKetoFriendly: true,
-      createdAt: '2025-01-01',
-    },
-    {
-      id: '14',
-      title: '돼지고기 김치찌개',
-      description: '김치의 시원함과 돼지고기의 감칠맛이 어우러진 키토 요리',
-      imageUrl: 'https://via.placeholder.com/300x200?text=김치찌개',
-      cookingTime: 35,
-      difficulty: '중간',
-      servings: 4,
-      ingredients: [
-        { name: '돼지고기', amount: 300, unit: 'g', carbs: 0 },
-        { name: '김치', amount: 200, unit: 'g', carbs: 4 },
-        { name: '두부', amount: 150, unit: 'g', carbs: 2 },
-        { name: '대파', amount: 50, unit: 'g', carbs: 2 }
-      ],
-      instructions: ['돼지고기를 볶아주세요', '김치를 넣고 볶아주세요', '물을 넣고 끓여주세요'],
-      nutrition: { calories: 420, carbs: 8, protein: 38, fat: 25, fiber: 3 },
-      tags: ['키토', '찌개', '저녁', '한식'],
-      rating: 4.9,
-      reviewCount: 267,
-      isKetoFriendly: true,
-      createdAt: '2025-01-01',
-    },
-    {
-      id: '15',
-      title: '코코넛 팬케이크',
-      description: '달콤한 코코넛 향이 가득한 키토 디저트',
-      imageUrl: 'https://via.placeholder.com/300x200?text=코코넛+팬케이크',
-      cookingTime: 20,
-      difficulty: '중간',
-      servings: 2,
-      ingredients: [
-        { name: '코코넛 가루', amount: 100, unit: 'g', carbs: 6 },
-        { name: '계란', amount: 4, unit: '개', carbs: 1 },
-        { name: '코코넛 오일', amount: 2, unit: '큰술', carbs: 0 },
-        { name: '에리스리톨', amount: 2, unit: '큰술', carbs: 0 }
-      ],
-      instructions: ['모든 재료를 섞어주세요', '팬에 부어 구워주세요', '시럽과 함께 드세요'],
-      nutrition: { calories: 340, carbs: 8, protein: 18, fat: 26, fiber: 8 },
-      tags: ['키토', '디저트', '아침', '달콤'],
-      rating: 4.5,
-      reviewCount: 198,
-      isKetoFriendly: true,
-      createdAt: '2025-01-01',
-    },
+      text: '키토 다이어트 초보자도 쉽게 만들 수 있는 요리',
+      icon: <Lightbulb />,
+      category: '초보자용'
+    }
   ]
-
-  // 검색 및 필터링 함수
-  const searchRecipes = async (query: string) => {
-    setIsSearching(true)
-    setVisibleRecipesCount(6) // 검색 시 초기 표시 개수로 리셋
-    
-    // TODO: 백엔드 연동 시 사용 - 실제 검색 API 호출
-    // try {
-    //   const searchFilters = {
-    //     mealType: mealType || undefined,
-    //     difficulty: difficulty || undefined,
-    //     isKetoFriendly: true,
-    //   }
-    //   const results = await searchService.searchRecipes(query, searchFilters)
-    //   setFilteredRecipes(results)
-    //   console.log('검색 결과:', results)
-    // } catch (error) {
-    //   console.error('검색 중 오류가 발생했습니다:', error)
-    //   setFilteredRecipes([])
-    // }
-    
-    // 현재는 더미 데이터 필터링
-    setTimeout(() => {
-      let filtered = mockRecipes
-      
-      if (query.trim()) {
-        filtered = filtered.filter(recipe =>
-          recipe.title.toLowerCase().includes(query.toLowerCase()) ||
-          recipe.description.toLowerCase().includes(query.toLowerCase()) ||
-          recipe.tags.some(tag => tag.toLowerCase().includes(query.toLowerCase()))
-        )
-      }
-      
-      if (mealType) {
-        filtered = filtered.filter(recipe =>
-          recipe.tags.includes(mealType === 'breakfast' ? '아침' : 
-                              mealType === 'lunch' ? '점심' : 
-                              mealType === 'dinner' ? '저녁' : 
-                              mealType === 'snack' ? '간식' : mealType)
-        )
-      }
-      
-      if (difficulty) {
-        filtered = filtered.filter(recipe => recipe.difficulty === difficulty)
-      }
-      
-      setFilteredRecipes(filtered)
-      setIsSearching(false)
-    }, 800) // 검색 지연 시뮬레이션
-  }
 
   // 즐겨찾기 토글 함수
   const handleToggleFavorite = (recipeId: string) => {
@@ -456,286 +91,314 @@ const MealsPage = () => {
     })
     
     // TODO: 백엔드 연동 시 사용 - 즐겨찾기 상태 저장
-    // try {
-    //   await recipeService.toggleFavorite(recipeId)
-    //   console.log('즐겨찾기 상태가 업데이트되었습니다.')
-    // } catch (error) {
-    //   console.error('즐겨찾기 업데이트 중 오류가 발생했습니다:', error)
-    // }
   }
 
-  // 레시피 클릭 핸들러
-  const handleRecipeClick = (recipe: Recipe) => {
-    setSelectedRecipe(recipe)
+  const handleRecipeSelect = (type: 'recipe' | 'restaurant', item: any) => {
+    if (type === 'recipe') {
+      setSelectedRecipe(item)
     setRecipeDetailOpen(true)
-  }
-
-  // 검색 입력 핸들러
-  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const query = event.target.value
-    setSearchQuery(query)
-  }
-
-  // 검색 실행 (엔터 키 또는 버튼 클릭)
-  const handleSearchSubmit = () => {
-    searchRecipes(searchQuery)
-  }
-
-  // 키보드 이벤트 핸들러
-  const handleKeyPress = (event: React.KeyboardEvent) => {
-    if (event.key === 'Enter') {
-      handleSearchSubmit()
+      // AI가 추천한 레시피를 추천 목록에 추가
+      setAiRecommendedRecipes(prev => {
+        const exists = prev.find(r => r.id === item.id)
+        if (!exists) {
+          return [item, ...prev.slice(0, 5)] // 최대 6개까지 유지
+        }
+        return prev
+      })
     }
   }
-
-  // 더많은 레시피 로딩 핸들러
-  const handleLoadMoreRecipes = async () => {
-    setIsLoadingMore(true)
-    
-    // TODO: 백엔드 연동 시 사용 - 추가 레시피 API 호출
-    // try {
-    //   const additionalRecipes = await searchService.getMoreRecipes({
-    //     page: Math.floor(visibleRecipesCount / 6) + 1,
-    //     limit: 6,
-    //     searchQuery,
-    //     mealType,
-    //     difficulty
-    //   })
-    //   setFilteredRecipes(prev => [...prev, ...additionalRecipes])
-    // } catch (error) {
-    //   console.error('추가 레시피 로딩 중 오류가 발생했습니다:', error)
-    // }
-    
-    // 현재는 더미 데이터로 시뮬레이션 (1초 지연)
-    setTimeout(() => {
-      setVisibleRecipesCount(prev => prev + 6)
-      setIsLoadingMore(false)
-    }, 1000)
-  }
-
-  // 초기 데이터 로딩
-  useEffect(() => {
-    setFilteredRecipes(mockRecipes)
-    
-    // TODO: 백엔드 연동 시 사용 - 추천 레시피 로딩
-    // const loadRecommendedRecipes = async () => {
-    //   try {
-    //     const recipes = isAuthenticated 
-    //       ? await searchService.getRecommendedRecipes(user?.id)
-    //       : await searchService.getPopularRecipes()
-    //     setFilteredRecipes(recipes)
-    //   } catch (error) {
-    //     console.error('레시피 로딩 중 오류가 발생했습니다:', error)
-    //     setFilteredRecipes(mockRecipes)
-    //   }
-    // }
-    // loadRecommendedRecipes()
-  }, [])
-
-  // 필터 변경 시 검색 재실행
-  useEffect(() => {
-    if (searchQuery || mealType || difficulty) {
-      searchRecipes(searchQuery)
-    } else {
-      setFilteredRecipes(mockRecipes)
-      setVisibleRecipesCount(6) // 필터 초기화 시에도 리셋
-    }
-  }, [mealType, difficulty])
 
   return (
+    <>
+      <Container maxWidth="xl" sx={{ py: 2 }}>
+      {/* AI 헤더 섹션 */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+      >
+        <Box
+          sx={{
+            background: 'linear-gradient(135deg, #2E7D32 0%, #4CAF50 30%, #FF8F00 100%)',
+            color: 'white',
+            py: { xs: 4, md: 6 },
+            px: 4,
+            borderRadius: 4,
+            mb: 4,
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          <Box sx={{ position: 'relative', zIndex: 1 }}>
+            <Grid container spacing={3} alignItems="center">
+              <Grid item xs={12} md={8}>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <Avatar sx={{ 
+                    backgroundColor: 'rgba(255,255,255,0.2)', 
+                    mr: 2, 
+                    width: 56, 
+                    height: 56,
+                    backdropFilter: 'blur(10px)'
+                  }}>
+                    <Psychology sx={{ fontSize: 28 }} />
+                  </Avatar>
     <Box>
-      {/* 페이지 헤더 */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h3" sx={{ fontWeight: 700, mb: 2 }}>
-          🍳 키토 식단 추천
+                    <Typography variant="h3" sx={{ fontWeight: 800, mb: 0.5 }}>
+                      🍳 AI 레시피 어시스턴트
+                    </Typography>
+                    <Chip 
+                      label="자연어로 대화하세요" 
+                      sx={{ 
+                        backgroundColor: 'rgba(255,255,255,0.2)',
+                        color: 'white',
+                        backdropFilter: 'blur(10px)'
+                      }} 
+                    />
+                  </Box>
+                </Box>
+                <Typography variant="h6" sx={{ mb: 2, opacity: 0.9, fontWeight: 400 }}>
+                  "점심으로 간단한 키토 요리 추천해줘"처럼 자연스럽게 물어보세요
+                </Typography>
+                <Typography variant="body1" sx={{ opacity: 0.8 }}>
+                  AI가 당신의 취향과 상황에 맞는 완벽한 키토 레시피를 찾아드립니다
         </Typography>
-        <Typography variant="body1" color="text.secondary">
-          AI가 추천하는 맞춤형 키토 레시피를 확인하고, 건강한 식단을 계획해보세요.
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Box sx={{ display: { xs: 'none', md: 'block' }, textAlign: 'center' }}>
+                  <Typography variant="h1" sx={{ fontSize: '4rem', opacity: 0.3 }}>
+                    🤖
         </Typography>
       </Box>
+              </Grid>
+            </Grid>
+          </Box>
+        </Box>
+      </motion.div>
 
-      {/* 검색 및 필터 */}
-      <Box sx={{ mb: 4 }}>
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={6}>
-            <TextField
-              fullWidth
-              placeholder="레시피 검색... (예: 아보카도, 치킨, 간단한 요리)"
-              value={searchQuery}
-              onChange={handleSearchChange}
-              onKeyPress={handleKeyPress}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Search />
-                  </InputAdornment>
-                ),
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <Button 
-                      variant="contained" 
-                      size="small"
-                      onClick={handleSearchSubmit}
-                      disabled={isSearching}
-                    >
-                      {isSearching ? <CircularProgress size={16} /> : '검색'}
-                    </Button>
-                  </InputAdornment>
-                ),
-              }}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <FormControl fullWidth>
-              <InputLabel>식사 시간</InputLabel>
-              <Select
-                value={mealType}
-                label="식사 시간"
-                onChange={(e) => setMealType(e.target.value)}
-              >
-                <MenuItem value="">전체</MenuItem>
-                <MenuItem value="breakfast">아침</MenuItem>
-                <MenuItem value="lunch">점심</MenuItem>
-                <MenuItem value="dinner">저녁</MenuItem>
-                <MenuItem value="snack">간식</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <FormControl fullWidth>
-              <InputLabel>난이도</InputLabel>
-              <Select
-                value={difficulty}
-                label="난이도"
-                onChange={(e) => setDifficulty(e.target.value)}
-              >
-                <MenuItem value="">전체</MenuItem>
-                <MenuItem value="쉬움">쉬움</MenuItem>
-                <MenuItem value="중간">중간</MenuItem>
-                <MenuItem value="어려움">어려움</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
+      <Grid container spacing={4}>
+        {/* AI 대화 메인 영역 */}
+        <Grid item xs={12} lg={8}>
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+          >
+            <Card sx={{ 
+              borderRadius: 4, 
+              boxShadow: '0 12px 40px rgba(0,0,0,0.1)',
+              border: '2px solid',
+              borderColor: 'primary.light',
+              overflow: 'hidden'
+            }}>
+              <Box sx={{ 
+                background: 'linear-gradient(90deg, #2E7D32 0%, #4CAF50 100%)',
+                color: 'white',
+                p: 2,
+                display: 'flex',
+                alignItems: 'center'
+              }}>
+                <Psychology sx={{ mr: 1 }} />
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  레시피 AI 어시스턴트
+                </Typography>
+                <Chip 
+                  label="실시간 대화" 
+                  size="small" 
+                  sx={{ 
+                    ml: 'auto',
+                    backgroundColor: 'rgba(255,255,255,0.2)',
+                    color: 'white',
+                    animation: 'pulse 2s infinite'
+                  }} 
+                />
+              </Box>
+              <CardContent sx={{ p: 0 }}>
+                <AISearchComponent 
+                  placeholder="키토 레시피에 대해 무엇이든 물어보세요! 예: '점심으로 빠르게 만들 수 있는 키토 요리 추천해줘'"
+                  onResultSelect={handleRecipeSelect}
+                  showSuggestions={true}
+                />
+              </CardContent>
+            </Card>
+          </motion.div>
         </Grid>
+
+        {/* 사이드 패널 */}
+        <Grid item xs={12} lg={4}>
+          {/* 빠른 질문 제안 */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, delay: 0.4 }}
+          >
+            <Card sx={{ mb: 3, borderRadius: 3 }}>
+              <CardContent>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                  💡 빠른 질문 예시
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                  {quickPrompts.map((prompt, index) => (
+                    <Button 
+                      key={index}
+                      variant="outlined"
+                      size="small"
+                      startIcon={prompt.icon}
+                      sx={{
+                        justifyContent: 'flex-start',
+                        textAlign: 'left',
+                        py: 1.5,
+                        px: 2,
+                        borderRadius: 2,
+                        '&:hover': {
+                          backgroundColor: 'primary.light',
+                          color: 'white',
+                          borderColor: 'primary.main'
+                        }
+                      }}
+                      onClick={() => {
+                        console.log('Quick prompt clicked:', prompt.text)
+                        // TODO: AI 검색창에 텍스트 입력
+                      }}
+                    >
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.8rem', textAlign: 'left' }}>
+                          {prompt.text}
+                        </Typography>
+                        <Chip 
+                          label={prompt.category} 
+                          size="small" 
+                          sx={{ mt: 0.5, height: 18, fontSize: '0.65rem' }} 
+                        />
+                      </Box>
+                    </Button>
+                  ))}
+                </Box>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* AI 추천 레시피 */}
+          {aiRecommendedRecipes.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.6 }}
+            >
+              <Card sx={{ mb: 3, borderRadius: 3 }}>
+                <CardContent>
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                    🤖 AI가 추천한 레시피
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    {aiRecommendedRecipes.slice(0, 3).map((recipe) => (
+                      <Button
+                        key={recipe.id}
+                        variant="outlined"
+                        size="small"
+                        onClick={() => handleRecipeSelect('recipe', recipe)}
+                        sx={{
+                          justifyContent: 'flex-start',
+                          textAlign: 'left',
+                          py: 1.5,
+                          px: 2,
+                          borderRadius: 2,
+                          '&:hover': {
+                            backgroundColor: 'secondary.light',
+                            color: 'white',
+                            borderColor: 'secondary.main'
+                          }
+                        }}
+                      >
+                        <Box sx={{ flex: 1 }}>
+                          <Typography variant="body2" sx={{ fontSize: '0.85rem', fontWeight: 600 }}>
+                            {recipe.title}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {recipe.cookingTime}분 · {recipe.difficulty}
+                          </Typography>
+                        </Box>
+                      </Button>
+                    ))}
       </Box>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
 
       {/* 사용자 상태별 안내 */}
       {!isAuthenticated && (
-        <Alert severity="info" sx={{ mb: 4 }}>
-          <Typography variant="body1">
-            로그인하면 개인 선호도를 반영한 맞춤형 레시피 추천을 받을 수 있습니다.
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.8 }}
+            >
+              <Alert severity="info" sx={{ mb: 3, borderRadius: 3 }}>
+                <Typography variant="body2">
+                  로그인하면 개인 선호도를 반영한 맞춤형 AI 추천을 받을 수 있습니다.
           </Typography>
           <Button variant="outlined" size="small" href="/login" sx={{ mt: 1 }}>
             로그인하기
           </Button>
         </Alert>
+            </motion.div>
       )}
 
       {isAuthenticated && !hasSubscription && (
-        <Paper sx={{ p: 3, mb: 4, background: 'linear-gradient(135deg, #FF8F00 0%, #FFB74D 100%)', color: 'white' }}>
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.8 }}
+            >
+              <Paper sx={{ 
+                p: 3, 
+                mb: 3, 
+                background: 'linear-gradient(135deg, #FF8F00 0%, #FFB74D 100%)', 
+                color: 'white',
+                borderRadius: 3
+              }}>
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
             <Lock sx={{ mr: 1 }} />
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              프리미엄으로 더 많은 레시피를 만나보세요!
+                    AI 프리미엄 기능
             </Typography>
           </Box>
-          <Typography variant="body1" sx={{ mb: 2, opacity: 0.9 }}>
-            구독하면 무제한 레시피와 개인 맞춤 식단 캘린더를 이용할 수 있습니다.
+                <Typography variant="body2" sx={{ mb: 2, opacity: 0.9 }}>
+                  무제한 AI 대화, 개인 맞춤 식단 플래너, 고급 영양 분석
           </Typography>
           <Button variant="contained" size="small" href="/subscription" sx={{ backgroundColor: 'white', color: 'primary.main' }}>
             프리미엄 구독하기
           </Button>
         </Paper>
-      )}
+            </motion.div>
+          )}
 
-      {/* AI 추천 섹션 */}
-      <Box sx={{ mb: 6 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-          {isAuthenticated ? <Psychology sx={{ mr: 1, color: 'primary.main' }} /> : <TrendingUp sx={{ mr: 1, color: 'primary.main' }} />}
-          <Typography variant="h5" sx={{ fontWeight: 600 }}>
-            {isAuthenticated ? (hasSubscription ? 'AI 프리미엄 추천' : 'AI 기본 추천') : '인기 키토 레시피'}
-          </Typography>
-        </Box>
-        
-        {isAuthenticated && (
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            {hasSubscription 
-              ? '🎯 회원님의 선호도와 목표를 고려한 맞춤형 추천입니다'
-              : '⭐ 기본 추천 - 구독하면 개인 맞춤 추천을 받을 수 있습니다'
-            }
-          </Typography>
-        )}
-        
-        {isSearching ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-            <CircularProgress />
-            <Typography variant="body1" sx={{ ml: 2 }}>
-              레시피를 검색하고 있습니다...
-            </Typography>
-          </Box>
-        ) : (
-          <Grid container spacing={3}>
-            {filteredRecipes.slice(0, Math.min(visibleRecipesCount, isAuthenticated ? (hasSubscription ? filteredRecipes.length : filteredRecipes.length) : filteredRecipes.length)).map((recipe) => (
-              <Grid item xs={12} sm={6} md={4} key={recipe.id}>
-                <RecipeCard
-                  recipe={recipe}
-                  variant="default"
-                  isFavorite={favoriteRecipes.has(recipe.id)}
-                  onRecipeClick={handleRecipeClick}
-                  onFavoriteToggle={handleToggleFavorite}
-                  showActions={true}
-                  actionLabel="레시피 보기"
-                />
-              </Grid>
-            ))}
-          </Grid>
-        )}
-      </Box>
-
-      {/* 검색 결과가 없을 때 */}
-      {!isSearching && filteredRecipes.length === 0 && (
-        <Box sx={{ textAlign: 'center', py: 8 }}>
-          <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
-            😔 검색 결과가 없습니다
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            다른 키워드로 검색해보시거나 필터를 조정해보세요.
-          </Typography>
-          <Button 
-            variant="outlined" 
-            onClick={() => {
-              setSearchQuery('')
-              setMealType('')
-              setDifficulty('')
-              setFilteredRecipes(mockRecipes)
-              setVisibleRecipesCount(6) // 전체 레시피 보기 시에도 리셋
-            }}
+          {/* 키토 팁 카드 */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, delay: 1.0 }}
           >
-            전체 레시피 보기
-          </Button>
-        </Box>
-      )}
-
-      {/* 더 많은 레시피 로드 버튼 */}
-      {!isSearching && filteredRecipes.length > visibleRecipesCount && (
-        <Box sx={{ textAlign: 'center', mt: 4 }}>
+            <Card sx={{ borderRadius: 3, background: 'linear-gradient(135deg, #E8F5E8 0%, #F1F8E9 100%)' }}>
+              <CardContent>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, color: 'primary.main' }}>
+                  🌟 레시피 팁
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 2, lineHeight: 1.6 }}>
+                  키토 요리할 때 MCT 오일을 추가하면 더 빠른 키토시스 진입에 도움이 됩니다!
+                </Typography>
           <Button 
-            variant="outlined" 
-            size="large" 
-            onClick={handleLoadMoreRecipes}
-            disabled={isLoadingMore}
-          >
-            {isLoadingMore ? (
-              <>
-                <CircularProgress size={20} sx={{ mr: 1 }} />
-                로딩 중...
-              </>
-            ) : (
-              `더 많은 레시피 보기 (${filteredRecipes.length - visibleRecipesCount}개 더)`
-            )}
+                  size="small" 
+                  variant="contained" 
+                  sx={{ fontSize: '0.75rem' }}
+                >
+                  더 많은 팁 보기
           </Button>
-        </Box>
-      )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        </Grid>
+      </Grid>
+      </Container>
 
       {/* 레시피 상세 모달 */}
       <RecipeDetailModal
@@ -749,7 +412,7 @@ const MealsPage = () => {
           }
         }}
       />
-    </Box>
+    </>
   )
 }
 

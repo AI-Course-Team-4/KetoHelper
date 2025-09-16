@@ -132,6 +132,42 @@ export const theme = createTheme({
   },
   spacing: 8,
   components: {
+    MuiCssBaseline: {
+      styleOverrides: {
+        '@global': {
+          '@keyframes pulse': {
+            '0%': {
+              opacity: 1,
+            },
+            '50%': {
+              opacity: 0.5,
+            },
+            '100%': {
+              opacity: 1,
+            },
+          },
+          '@keyframes gradient': {
+            '0%': {
+              backgroundPosition: '0% 50%',
+            },
+            '50%': {
+              backgroundPosition: '100% 50%',
+            },
+            '100%': {
+              backgroundPosition: '0% 50%',
+            },
+          },
+          '.ai-gradient': {
+            background: 'linear-gradient(-45deg, #2E7D32, #4CAF50, #FF8F00, #FFB74D)',
+            backgroundSize: '400% 400%',
+            animation: 'gradient 15s ease infinite',
+          },
+          '.pulse-animation': {
+            animation: 'pulse 2s infinite',
+          },
+        },
+      },
+    },
     MuiButton: {
       styleOverrides: {
         root: {
@@ -141,13 +177,16 @@ export const theme = createTheme({
           fontSize: '0.875rem',
           fontWeight: 500,
           boxShadow: 'none',
+          transition: 'all 0.3s ease',
           '&:hover': {
             boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
+            transform: 'translateY(-1px)',
           },
         },
         contained: {
           '&:hover': {
             boxShadow: '0 6px 12px rgba(0, 0, 0, 0.15)',
+            transform: 'translateY(-2px)',
           },
         },
       },
@@ -157,8 +196,10 @@ export const theme = createTheme({
         root: {
           borderRadius: 16,
           boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+          transition: 'all 0.3s ease',
           '&:hover': {
             boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)',
+            transform: 'translateY(-2px)',
           },
         },
       },
@@ -168,6 +209,13 @@ export const theme = createTheme({
         root: {
           '& .MuiOutlinedInput-root': {
             borderRadius: 12,
+            transition: 'all 0.3s ease',
+            '&:hover': {
+              boxShadow: '0 2px 8px rgba(46, 125, 50, 0.1)',
+            },
+            '&.Mui-focused': {
+              boxShadow: '0 4px 12px rgba(46, 125, 50, 0.2)',
+            },
           },
         },
       },
@@ -177,6 +225,10 @@ export const theme = createTheme({
         root: {
           borderRadius: 20,
           fontWeight: 500,
+          transition: 'all 0.2s ease',
+          '&:hover': {
+            transform: 'scale(1.05)',
+          },
         },
       },
     },
@@ -186,6 +238,44 @@ export const theme = createTheme({
           backgroundColor: '#FFFFFF',
           color: '#212121',
           boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+          backdropFilter: 'blur(10px)',
+        },
+      },
+    },
+    MuiAvatar: {
+      styleOverrides: {
+        root: {
+          transition: 'all 0.3s ease',
+          '&:hover': {
+            transform: 'scale(1.1)',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
+          },
+        },
+      },
+    },
+    MuiIconButton: {
+      styleOverrides: {
+        root: {
+          transition: 'all 0.2s ease',
+          '&:hover': {
+            transform: 'scale(1.1)',
+            backgroundColor: 'rgba(46, 125, 50, 0.1)',
+          },
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          transition: 'all 0.3s ease',
+        },
+      },
+    },
+    MuiAlert: {
+      styleOverrides: {
+        root: {
+          borderRadius: 12,
+          border: '1px solid rgba(46, 125, 50, 0.2)',
         },
       },
     },
