@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Calendar, Download, Plus, BarChart, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Calendar, Plus, BarChart, ChevronLeft, ChevronRight } from 'lucide-react'
 import { DayPicker } from 'react-day-picker'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
@@ -87,10 +87,6 @@ export function CalendarPage() {
         </div>
         
         <div className="flex gap-2">
-          <Button variant="outline">
-            <Download className="h-4 w-4 mr-2" />
-            ICS 내보내기
-          </Button>
           <Button onClick={handleGenerateMealPlan}>
             <Plus className="h-4 w-4 mr-2" />
             식단표 생성
