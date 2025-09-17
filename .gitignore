@@ -183,3 +183,15 @@ dmypy.json
 *.tmp
 *.temp.env
 .env
+venv/
+backend/venv/
+venv/
+backend/venv/
+.env
+.env.*
+**/.env
+**/.env.*
+venv/
+backend/venv/
+push --force-with-lease origin --tags*/.env.example
+ketohelper-mirror.git/
