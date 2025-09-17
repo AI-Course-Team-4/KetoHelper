@@ -195,3 +195,11 @@ venv/
 backend/venv/
 push --force-with-lease origin --tags*/.env.example
 ketohelper-mirror.git/
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
