@@ -1,30 +1,40 @@
-# 웹 프레임워크
+# Requires: Python 3.12
+
+# Web framework
 fastapi==0.104.1
-uvicorn[standard]==0.24.0
+uvicorn==0.24.0
 
 # AI/ML
-langchain==0.1.0
-langgraph==0.0.20
-openai==1.3.0
-langchain-openai==0.0.8
+openai>=1.10,<2
+langchain>=0.3,<0.4
+langchain-core>=0.3.67,<0.4
+langchain-community>=0.3,<0.4
+langchain-openai>=0.2,<0.3
+langgraph>=0.2,<0.3
+langgraph-checkpoint>=2.1,<3
+langgraph-prebuilt>=0.6,<0.7
+
+# Computer Vision (optional)
+numpy>=2,<2.3
+opencv-python-headless==4.12.0.88
 
 # DB
 sqlalchemy==2.0.23
-psycopg[binary]==3.1.13
+psycopg[binary]>=3.1.19,<3.2
 pgvector==0.2.4
 supabase==2.18.1
 
-# 유틸
+# Utils
 pydantic>=2.11.7,<3
 httpx>=0.26,<0.29
 python-dotenv==1.0.0
 python-multipart==0.0.6
 pydantic-settings>=2.4,<3
 
-# 날짜/시간
+# Date/Time
 pytz==2023.3
 
-# 캘린더 export
+# Calendar export
 icalendar==5.0.11
 
 # 아래의 명령어를 실행하세요
