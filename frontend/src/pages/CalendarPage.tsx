@@ -1,10 +1,30 @@
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Calendar, Download, Plus, BarChart } from 'lucide-react'
+import { Calendar, Download, Plus, BarChart, ChevronLeft, ChevronRight } from 'lucide-react'
+import { DayPicker } from 'react-day-picker'
+import { format } from 'date-fns'
+import { ko } from 'date-fns/locale'
+import 'react-day-picker/dist/style.css'
 
 export function CalendarPage() {
-  const [selectedDate, setSelectedDate] = useState(new Date())
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
+  const [currentMonth, setCurrentMonth] = useState(new Date())
+
+  // 샘플 식단 데이터 (실제로는 API에서 가져올 데이터)
+  const mealData = {
+    '2024-01-15': { breakfast: '아보카도 토스트', lunch: '그릴 치킨 샐러드', dinner: '연어 스테이크' },
+    '2024-01-16': { breakfast: '계란 스크램블', lunch: '불고기', dinner: '새우볶음밥' },
+    '2024-01-17': { breakfast: '베이컨 에그', lunch: '스테이크', dinner: '생선구이' },
+  }
+
+  const handleDateSelect = (date: Date | undefined) => {
+    setSelectedDate(date)
+  }
+
+  const handleMonthChange = (month: Date) => {
+    setCurrentMonth(month)
+  }
 
   return (
     <div className="space-y-6">
@@ -62,24 +82,96 @@ export function CalendarPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 캘린더 */}
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2 min-h-[700px]">
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <Calendar className="h-5 w-5 mr-2" />
-              월간 캘린더
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-96 bg-muted rounded-lg flex items-center justify-center">
-              <div className="text-center">
-                <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
-                <p className="text-muted-foreground">
-                  react-day-picker 캘린더가 여기에 표시됩니다
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  날짜별 식단 계획 및 기록
-                </p>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center">
+                <Calendar className="h-5 w-5 mr-2" />
+                월간 캘린더
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm font-medium min-w-[120px] text-center">
+                  {format(currentMonth, 'yyyy년 M월', { locale: ko })}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
               </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6 pt-0 -mt-24">
+            <div className="calendar-container w-full h-[700px] flex items-center justify-center">
+              <DayPicker
+                mode="single"
+                selected={selectedDate}
+                onSelect={handleDateSelect}
+                month={currentMonth}
+                onMonthChange={handleMonthChange}
+                locale={ko}
+                className="rdp-custom w-full"
+                modifiers={{
+                  hasMeal: Object.keys(mealData).map(date => new Date(date))
+                }}
+                modifiersStyles={{
+                  hasMeal: {
+                    backgroundColor: '#10b981',
+                    color: 'white',
+                    fontWeight: 'bold',
+                    borderRadius: '12px',
+                    boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)'
+                  }
+                }}
+                styles={{
+                  head_cell: {
+                    width: '60px',
+                    height: '50px',
+                    fontSize: '16px',
+                    fontWeight: '700',
+                    color: '#6b7280',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  },
+                  cell: {
+                    width: '60px',
+                    height: '60px',
+                    fontSize: '16px',
+                    padding: '8px'
+                  },
+                  day: {
+                    borderRadius: '12px',
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    fontWeight: '500',
+                    width: '44px',
+                    height: '44px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    position: 'relative'
+                  },
+                  table: {
+                    width: '100%',
+                    maxWidth: '100%'
+                  },
+                  months: {
+                    width: '100%'
+                  },
+                  month: {
+                    width: '100%'
+                  }
+                }}
+              />
             </div>
           </CardContent>
         </Card>

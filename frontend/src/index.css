@@ -136,6 +136,78 @@
   .loading-dots > div:nth-child(3) {
     animation-delay: 0.2s;
   }
+  
+  /* 캘린더 스타일 */
+  .calendar-container {
+    @apply w-full;
+  }
+  
+  .rdp-custom {
+    @apply w-full;
+  }
+  
+  .rdp-custom .rdp-table {
+    @apply w-full border-separate border-spacing-2;
+  }
+  
+  .rdp-custom .rdp-head_cell {
+    @apply text-center font-bold text-base text-gray-600 py-3 px-2;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  .rdp-custom .rdp-cell {
+    @apply text-center relative p-1 h-24;
+  }
+  
+  .rdp-custom .rdp-day {
+    @apply w-11 h-20 flex items-center justify-center rounded-xl cursor-pointer transition-all duration-300 font-medium text-base;
+    @apply hover:bg-blue-50 hover:scale-105 hover:shadow-md;
+  }
+  
+  .rdp-custom .rdp-day_selected {
+    @apply bg-blue-500 text-white font-bold shadow-lg scale-105;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  }
+  
+  .rdp-custom .rdp-day_today {
+    @apply bg-gray-100 font-bold border-2 border-blue-300;
+  }
+  
+  .rdp-custom .rdp-day_outside {
+    @apply text-gray-400 opacity-60;
+  }
+  
+  .rdp-custom .rdp-day_disabled {
+    @apply text-gray-300 opacity-40 cursor-not-allowed;
+  }
+  
+  .rdp-custom .rdp-day:hover:not(.rdp-day_disabled):not(.rdp-day_selected) {
+    @apply bg-blue-50 scale-105 shadow-md;
+  }
+  
+  .rdp-custom .rdp-day_selected:hover {
+    @apply bg-blue-600 scale-110;
+  }
+  
+  /* 식단이 있는 날짜 스타일 */
+  .rdp-custom .rdp-day[data-has-meal="true"] {
+    @apply bg-green-500 text-white font-bold shadow-lg;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+  }
+  
+  .rdp-custom .rdp-day[data-has-meal="true"]:hover {
+    @apply bg-green-600 scale-105;
+  }
+  
+  /* 캘린더 전체 레이아웃 */
+  .rdp-custom .rdp-months {
+    @apply w-full;
+  }
+  
+  .rdp-custom .rdp-month {
+    @apply w-full;
+  }
 }
 
 /* 유틸리티 클래스 */
