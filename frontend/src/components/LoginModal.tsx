@@ -19,7 +19,6 @@ interface LoginModalProps {
     onOpenChange: (open: boolean) => void
 }
 
-
 export function LoginModal({ open, onOpenChange }: LoginModalProps) {
     const googleLogoUrl = (import.meta as any).env.VITE_GOOGLE_LOGO_URL
     const kakaoLogoUrl = (import.meta as any).env.VITE_KAKAO_LOGO_URL
