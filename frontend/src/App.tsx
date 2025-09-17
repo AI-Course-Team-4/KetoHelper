@@ -5,6 +5,8 @@ import { MapPage } from '@/pages/MapPage'
 import { CalendarPage } from '@/pages/CalendarPage'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { Toaster } from '@/components/ui/toaster'
+import NaverCallback from '@/pages/NaverCallback'
+import { Toaster as HotToaster } from 'react-hot-toast'
 
 function App() {
   return (
@@ -16,9 +18,11 @@ function App() {
           <Route path="/map" element={<MapPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/auth/naver/callback" element={<NaverCallback />} />
         </Routes>
       </Layout>
       <Toaster />
+      <HotToaster position="top-center" />
     </div>
   )
 }

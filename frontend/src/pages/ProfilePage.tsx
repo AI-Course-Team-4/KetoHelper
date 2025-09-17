@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { User, Target, AlertTriangle, Trash2, Plus } from 'lucide-react'
 import { useProfileStore } from '@/store/profileStore'
+import { useAuthStore } from '@/store/authStore'
 
 export function ProfilePage() {
   const { 
@@ -15,12 +16,20 @@ export function ProfilePage() {
     addDislike, 
     removeDislike 
   } = useProfileStore()
+  const { user } = useAuthStore()
 
-  const [nickname, setNickname] = useState(profile?.nickname || '')
+  const [nickname, setNickname] = useState(profile?.nickname ?? user?.name ?? '')
   const [goalsKcal, setGoalsKcal] = useState(profile?.goals_kcal || '')
   const [goalsCarbsG, setGoalsCarbsG] = useState(profile?.goals_carbs_g || '')
   const [newAllergy, setNewAllergy] = useState('')
   const [newDislike, setNewDislike] = useState('')
+
+  // 로그아웃 시 닉네임 입력칸 공백 처리
+  useEffect(() => {
+    if (!user) {
+      setNickname('')
+    }
+  }, [user])
 
   const handleSaveProfile = () => {
     updateProfile({
@@ -64,6 +73,27 @@ export function ProfilePage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {user?.profileImage && (
+              <div className="flex items-center gap-3">
+                <img
+                  src={user.profileImage.startsWith('http:') ? user.profileImage.replace('http:', 'https:') : user.profileImage}
+                  alt="avatar"
+                  className="h-12 w-12 rounded-full object-cover"
+                />
+                <div className="text-sm text-muted-foreground">로그인된 사용자</div>
+              </div>
+            )}
+
+            <div>
+              <label className="text-sm font-medium">이메일</label>
+              <Input
+                value={user?.email || ''}
+                placeholder="이메일"
+                className="mt-1"
+                disabled
+              />
+            </div>
+
             <div>
               <label className="text-sm font-medium">닉네임</label>
               <Input

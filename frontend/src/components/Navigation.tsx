@@ -9,6 +9,8 @@ import {
   MapPin
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/store/authStore'
+import { toast } from 'react-hot-toast'
 
 const navigationItems = [
   {
@@ -38,6 +40,7 @@ const navigationItems = [
 ]
 
 export function Navigation() {
+  const { user } = useAuthStore()
   return (
     <nav className="w-64 bg-muted/30 border-r border-border min-h-screen p-4">
       <div className="space-y-2">
@@ -45,6 +48,12 @@ export function Navigation() {
           <NavLink
             key={item.href}
             to={item.href}
+            onClick={(e) => {
+              if (!user && item.href === '/profile') {
+                e.preventDefault()
+                toast.error('로그인해야 이용할 수 있는 기능입니다')
+              }
+            }}
             className={({ isActive }) =>
               cn(
                 "flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
