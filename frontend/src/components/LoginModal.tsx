@@ -4,7 +4,7 @@ import {
     DialogDescription,
     DialogHeader,
     DialogTitle,
-} from './ui/dialog'
+} from '@/components/ui/dialog'
 import { Box } from '@mui/material'
 import MuiButton from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
