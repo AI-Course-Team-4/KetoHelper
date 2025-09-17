@@ -182,4 +182,7 @@ dmypy.json
 # Temporary files
 *.tmp
 *.temp.env
+<<<<<<< HEAD
 .env
+=======
+>>>>>>> origin/dev
