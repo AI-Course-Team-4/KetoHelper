@@ -6,17 +6,18 @@ import { DayPicker } from 'react-day-picker'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import 'react-day-picker/dist/style.css'
+import { MealData, generateRandomMeal } from '@/data/ketoMeals'
+import { MealModal } from '@/components/MealModal'
 
 export function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [currentMonth, setCurrentMonth] = useState(new Date())
-
-  // 샘플 식단 데이터 (실제로는 API에서 가져올 데이터)
-  const mealData = {
+  const [mealData, setMealData] = useState<Record<string, MealData>>({
     '2024-01-15': { breakfast: '아보카도 토스트', lunch: '그릴 치킨 샐러드', dinner: '연어 스테이크' },
     '2024-01-16': { breakfast: '계란 스크램블', lunch: '불고기', dinner: '새우볶음밥' },
     '2024-01-17': { breakfast: '베이컨 에그', lunch: '스테이크', dinner: '생선구이' },
-  }
+  })
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   const handleDateSelect = (date: Date | undefined) => {
     setSelectedDate(date)
@@ -24,6 +25,54 @@ export function CalendarPage() {
 
   const handleMonthChange = (month: Date) => {
     setCurrentMonth(month)
+  }
+
+  // 식단 생성 버튼 클릭 핸들러
+  const handleGenerateMealPlan = () => {
+    const newMealData = { ...mealData }
+    
+    // 현재 월의 모든 날짜에 랜덤 식단 생성
+    const year = currentMonth.getFullYear()
+    const month = currentMonth.getMonth()
+    const daysInMonth = new Date(year, month + 1, 0).getDate()
+    
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, month, day)
+      const dateString = format(date, 'yyyy-MM-dd')
+      
+      // 모든 날짜에 식단 생성
+      newMealData[dateString] = generateRandomMeal()
+    }
+    
+    setMealData(newMealData)
+  }
+
+  // 날짜 문자열로 변환하는 헬퍼 함수
+  const formatDateKey = (date: Date) => format(date, 'yyyy-MM-dd')
+
+  // 특정 날짜의 식단 정보 가져오기
+  const getMealForDate = (date: Date) => {
+    const dateKey = formatDateKey(date)
+    return mealData[dateKey] || null
+  }
+
+  // 모달 열기 핸들러
+  const handleOpenModal = () => {
+    setIsModalOpen(true)
+  }
+
+  // 모달 닫기 핸들러
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+  }
+
+  // 식단 저장 핸들러
+  const handleSaveMeal = (date: Date, newMealData: MealData) => {
+    const dateKey = formatDateKey(date)
+    setMealData(prev => ({
+      ...prev,
+      [dateKey]: newMealData
+    }))
   }
 
   return (
@@ -42,7 +91,7 @@ export function CalendarPage() {
             <Download className="h-4 w-4 mr-2" />
             ICS 내보내기
           </Button>
-          <Button>
+          <Button onClick={handleGenerateMealPlan}>
             <Plus className="h-4 w-4 mr-2" />
             식단표 생성
           </Button>
@@ -132,71 +181,150 @@ export function CalendarPage() {
                     boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)'
                   }
                 }}
-                styles={{
-                  head_cell: {
-                    width: '60px',
-                    height: '50px',
-                    fontSize: '16px',
-                    fontWeight: '700',
-                    color: '#6b7280',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px'
-                  },
-                  cell: {
-                    width: '60px',
-                    height: '60px',
-                    fontSize: '16px',
-                    padding: '8px'
-                  },
-                  day: {
-                    borderRadius: '12px',
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    fontWeight: '500',
-                    width: '44px',
-                    height: '44px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    position: 'relative'
-                  },
-                  table: {
-                    width: '100%',
-                    maxWidth: '100%'
-                  },
-                  months: {
-                    width: '100%'
-                  },
-                  month: {
-                    width: '100%'
+                components={{
+                  Day: ({ date, displayMonth }) => {
+                    const meal = getMealForDate(date)
+                    const isCurrentMonth = date.getMonth() === displayMonth.getMonth()
+                    
+                    return (
+                      <div className="relative w-full h-full flex flex-col">
+                        {isCurrentMonth && (
+                          <div className="text-sm font-medium text-center py-1">
+                            {date.getDate()}
+                          </div>
+                        )}
+                        {meal && isCurrentMonth && (
+                          <div className="flex-1 px-1 pb-1">
+                            <div className="text-xs text-gray-600 truncate" title={meal.breakfast}>
+                              🌅 {meal.breakfast}
+                            </div>
+                            <div className="text-xs text-gray-600 truncate" title={meal.lunch}>
+                              ☀️ {meal.lunch}
+                            </div>
+                            <div className="text-xs text-gray-600 truncate" title={meal.dinner}>
+                              🌙 {meal.dinner}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
                   }
                 }}
+                 styles={{
+                   head_cell: {
+                     width: '70px',
+                     height: '60px',
+                     fontSize: '14px',
+                     color: '#374151',
+                     textTransform: 'uppercase',
+                     letterSpacing: '0.8px',
+                     backgroundColor: '#f8fafc',
+                     borderRight: '1px solid #e2e8f0',
+                     borderBottom: '2px solid #e2e8f0',
+                     borderTop: '1px solid #e2e8f0',
+                     borderLeft: '1px solid #e2e8f0'
+                   },
+                   cell: {
+                     width: '70px',
+                     height: '70px',
+                     fontSize: '15px',
+                     padding: '4px',
+                     borderRight: '1px solid #e2e8f0',
+                     borderBottom: '1px solid #e2e8f0',
+                     borderLeft: '1px solid #e2e8f0',
+                     backgroundColor: '#ffffff',
+                     position: 'relative'
+                   },
+                   day: {
+                     borderRadius: '12px',
+                     transition: 'all 0.2s ease-in-out',
+                     width: '62px',
+                     height: '62px',
+                     display: 'flex',
+                     alignItems: 'center',
+                     justifyContent: 'center',
+                     cursor: 'pointer',
+                     position: 'relative',
+                     backgroundColor: 'transparent',
+                     border: 'none',
+                     color: '#374151',
+                     fontSize: '15px'
+                   },
+                   table: {
+                     width: '100%',
+                     maxWidth: '100%',
+                     borderCollapse: 'separate',
+                     borderSpacing: '0',
+                     borderRadius: '16px',
+                     overflow: 'hidden',
+                     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                     backgroundColor: '#ffffff'
+                   },
+                   months: {
+                     width: '100%'
+                   },
+                   month: {
+                     width: '100%'
+                   },
+                   caption: {
+                     display: 'none'
+                   },
+                   caption_label: {
+                     display: 'none'
+                   }
+                 }}
               />
             </div>
           </CardContent>
         </Card>
 
-        {/* 오늘의 식단 */}
+        {/* 선택된 날짜의 식단 */}
         <Card>
           <CardHeader>
-            <CardTitle>오늘의 식단</CardTitle>
+            <CardTitle>
+              {selectedDate ? format(selectedDate, 'M월 d일', { locale: ko }) : '오늘의'} 식단
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {['아침', '점심', '저녁', '간식'].map((meal) => (
-              <div key={meal} className="border rounded-lg p-3">
-                <div className="flex justify-between items-center">
-                  <h4 className="font-medium">{meal}</h4>
-                  <Button variant="ghost" size="sm">
-                    <Plus className="h-4 w-4" />
-                  </Button>
+            {selectedDate ? (() => {
+              const selectedMeal = getMealForDate(selectedDate)
+              const meals = [
+                { key: 'breakfast', label: '아침', icon: '🌅' },
+                { key: 'lunch', label: '점심', icon: '☀️' },
+                { key: 'dinner', label: '저녁', icon: '🌙' },
+                { key: 'snack', label: '간식', icon: '🍎' }
+              ]
+              
+              return meals.map((meal) => (
+                <div key={meal.key} className="border rounded-lg p-3">
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <span>{meal.icon}</span>
+                      {meal.label}
+                    </h4>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={handleOpenModal}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    {selectedMeal && selectedMeal[meal.key as keyof MealData] 
+                      ? selectedMeal[meal.key as keyof MealData]
+                      : '계획된 식단이 없습니다'
+                    }
+                  </div>
                 </div>
-                <div className="text-sm text-muted-foreground mt-1">
-                  계획된 식단이 없습니다
-                </div>
+              ))
+            })() : (
+              <div className="text-center text-muted-foreground py-8">
+                날짜를 선택하면 해당 날의 식단을 볼 수 있습니다
               </div>
-            ))}
+            )}
             
-            <Button className="w-full">
+            <Button className="w-full" onClick={handleGenerateMealPlan}>
               AI 식단표 생성
             </Button>
           </CardContent>
@@ -236,6 +364,17 @@ export function CalendarPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* 식단 모달 */}
+      {selectedDate && (
+        <MealModal
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+          selectedDate={selectedDate}
+          mealData={getMealForDate(selectedDate)}
+          onSave={handleSaveMeal}
+        />
+      )}
     </div>
   )
 }
