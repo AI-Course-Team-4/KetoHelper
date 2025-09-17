@@ -203,3 +203,6 @@ ketohelper-mirror.git/
 *.py[cod]
 *.pyo
 *.pyd
+**/.vite/
+**/dist/
+**/node_modules/

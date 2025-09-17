@@ -23,7 +23,7 @@ export function ChatPage() {
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   
-  const { messages, addMessage, currentSessionId } = useChatStore()
+  const { messages, addMessage } = useChatStore()
   const { profile } = useProfileStore()
   const sendMessage = useSendMessage()
 
@@ -53,7 +53,7 @@ export function ChatPage() {
       const response = await sendMessage.mutateAsync({
         message: userMessage.content,
         profile,
-        location: null, // TODO: 위치 정보 연동
+        location: undefined, // TODO: 위치 정보 연동
         radius_km: 5
       })
 
