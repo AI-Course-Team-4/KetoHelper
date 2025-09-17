@@ -78,7 +78,7 @@ SUPABASE_ANON_KEY=...
 ```bash
 # 백엔드 실행 (터미널 1)
 cd backend  
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --host :: --port 8000
 
 # 프론트엔드 실행 (터미널 2)
 cd frontend
