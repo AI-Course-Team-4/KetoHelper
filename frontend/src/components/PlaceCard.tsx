@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { MapPin, Star, Phone, ExternalLink, Calendar } from 'lucide-react'
+import { MapPin, Phone, ExternalLink, Calendar } from 'lucide-react'
 import { getKetoScoreColor, getKetoScoreText } from '@/lib/utils'
 
 interface PlaceCardProps {

@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Search, MapPin, Filter } from 'lucide-react'
+import { Search, MapPin } from 'lucide-react'
 import { PlaceCard } from '@/components/PlaceCard'
 import { useSearchPlaces, useNearbyPlaces } from '@/hooks/useApi'
+import KakaoMap from './KakaoMap'
 
 export function MapPage() {
   const [searchQuery, setSearchQuery] = useState('')
@@ -118,15 +119,15 @@ export function MapPage() {
         </CardHeader>
         <CardContent>
           <div className="h-96 bg-muted rounded-lg flex items-center justify-center">
-            <div className="text-center">
-              <MapPin className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
-              <p className="text-muted-foreground">
-                카카오 지도가 여기에 표시됩니다
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Kakao Map JS SDK 연동 필요
-              </p>
-            </div>
+            <KakaoMap
+              lat={userLocation?.lat}
+              lng={userLocation?.lng}
+              level={2}
+              height="100%"
+              markerSize={64}
+              onMarkerClick={() => {}}
+              markers={[]}
+            />
           </div>
         </CardContent>
       </Card>
