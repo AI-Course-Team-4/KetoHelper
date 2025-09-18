@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 import asyncio
 
 from app.api import chat, places, plans
+from app.api import auth as auth_api
 from app.core.config import settings
 from app.core.database import init_db
 
@@ -55,6 +56,7 @@ app.add_middleware(
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(places.router, prefix="/api/v1") 
 app.include_router(plans.router, prefix="/api/v1")
+app.include_router(auth_api.router, prefix="/api/v1")
 
 @app.get("/")
 async def root():
@@ -79,4 +81,3 @@ if __name__ == "__main__":
         reload=False,
         log_level="info"
     )
-
