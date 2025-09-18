@@ -108,7 +108,27 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
             await loadKakaoSdk()
             const w = window as any
             await new Promise<void>((resolve, reject) => {
+                let finished = false
+                const cleanup = () => {
+                    finished = true
+                    try { window.removeEventListener('focus', onFocus) } catch { }
+                    try { clearTimeout(timeoutId) } catch { }
+                }
+                const cancel = () => {
+                    if (finished) return
+                    cleanup()
+                    // silently stop loading without showing error/toast
+                    resolve()
+                }
+                const onFocus = () => {
+                    // 사용자가 팝업을 닫고 부모 창으로 돌아온 경우로 간주
+                    if (!finished) cancel()
+                }
+                const timeoutId = setTimeout(() => {
+                    if (!finished) cancel()
+                }, 20000)
                 try {
+                    window.addEventListener('focus', onFocus)
                     w.Kakao.Auth.login({
                         scope: 'account_email profile_nickname profile_image',
                         success: async (authObj: any) => {
@@ -137,17 +157,20 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                                     email: backendUser?.email,
                                     profile_image: backendUser?.profile_image,
                                 })
+                                cleanup()
                                 toast.success(`안녕하세요 ${backendUser?.name || '사용자'}님!`)
                                 onOpenChange(false)
                                 resolve()
-                            } catch (err) { reject(err) }
+                            } catch (err) { cleanup(); reject(err as any) }
                         },
                         fail: (err: any) => {
                             console.error('[Auth] Kakao login fail', err)
-                            reject(err)
+                            // treat as user-cancel or silent fail → just stop loading
+                            cleanup()
+                            resolve()
                         },
                     })
-                } catch (e) { reject(e) }
+                } catch (e) { cleanup(); reject(e as any) }
             })
         } catch (e: any) {
             console.error('카카오 로그인 실패:', e)
@@ -234,14 +257,6 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                         </MuiButton>
                     </Box>
 
-                    {/* <Button
-                        variant="outline"
-                        type="button"
-                        className="w-full"
-                    >
-                        <span className="mr-2">🟢</span>
-                        Naver로 계속하기
-                    </Button> */}
                     {/* Naver Auth 버튼 */}
                     <Box sx={{ mb: 1, display: 'flex', justifyContent: 'center' }}>
                         <MuiButton
