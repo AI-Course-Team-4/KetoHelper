@@ -25,6 +25,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
     const [isGoogleLoading, setIsGoogleLoading] = useState(false)
     const [isKakaoLoading, setIsKakaoLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [isNaverLoading, setIsNaverLoading] = useState(false)
     const setAuth = useAuthStore((s) => s.setAuth)
 
     const startGoogleAccessFlow = useGoogleLogin({
@@ -252,13 +253,78 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                                     toast.error('Naver Client ID가 설정되지 않았습니다. .env에 VITE_NAVER_CLIENT_ID를 추가하세요.')
                                     return
                                 }
+                                setIsNaverLoading(true)
+                                setError(null)
                                 const redirectUriRaw = `${window.location.origin}/auth/naver/callback`
                                 const redirectUri = encodeURIComponent(redirectUriRaw)
                                 const state = Math.random().toString(36).slice(2)
                                 try { sessionStorage.setItem('naver_oauth_state', state) } catch { }
                                 const authUrl = `https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&state=${state}`
-                                console.log('[Auth] Naver redirect', { authUrl, state, redirectUri: redirectUriRaw })
-                                window.location.href = authUrl
+                                console.log('[Auth] Naver popup start', { authUrl, state, redirectUri: redirectUriRaw })
+
+                                const width = 520
+                                const height = 500
+                                const left = window.screenX + Math.max(0, (window.outerWidth - width) / 2)
+                                const top = window.screenY + Math.max(0, (window.outerHeight - height) / 2)
+                                const popupName = `naver_oauth_popup_${state}`
+                                const features = `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,status=no,toolbar=no,menubar=no,location=no`
+                                const popup = window.open(
+                                    authUrl,
+                                    popupName,
+                                    features
+                                )
+
+                                if (!popup) {
+                                    // Popup blocked, fall back to full-page redirect
+                                    window.location.href = authUrl
+                                    return
+                                }
+
+                                // Attempt to enforce size/position even if the browser reused an existing window
+                                try {
+                                    if (popup) {
+                                        popup.resizeTo(width, height)
+                                        popup.moveTo(Math.round(left), Math.round(top))
+                                    }
+                                } catch {}
+
+                                const messageHandler = (event: MessageEvent) => {
+                                    try {
+                                        if (event.origin !== window.location.origin) return
+                                        const data: any = (event as any).data
+                                        if (!data || data.source !== 'naver_oauth') return
+                                        if (data.type === 'success') {
+                                            const user = data.user
+                                            const at = data.accessToken
+                                            const rt = data.refreshToken
+                                            if (user && at && rt) {
+                                                setAuth(user, at, rt)
+                                                toast.success(`안녕하세요 ${user?.name || '사용자'}님!`)
+                                                onOpenChange(false)
+                                            } else {
+                                                toast.error('네이버 로그인 정보가 올바르지 않습니다.')
+                                            }
+                                        } else if (data.type === 'error') {
+                                            const msg = data.message || '네이버 로그인에 실패했습니다.'
+                                            toast.error(msg)
+                                        }
+                                    } finally {
+                                        window.removeEventListener('message', messageHandler)
+                                        try { popup.close() } catch { }
+                                        setIsNaverLoading(false)
+                                    }
+                                }
+
+                                window.addEventListener('message', messageHandler)
+
+                                // Fallback: if user closes popup without completing
+                                const checkClosed = setInterval(() => {
+                                    if (popup.closed) {
+                                        clearInterval(checkClosed)
+                                        window.removeEventListener('message', messageHandler)
+                                        setIsNaverLoading(false)
+                                    }
+                                }, 500)
                             }}
                             startIcon={
                                 <Box
@@ -290,7 +356,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                                 '&:hover': { bgcolor: '#06be34', boxShadow: 'none' },
                             }}
                         >
-                            네이버로 로그인
+                            {isNaverLoading ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : '네이버로 로그인'}
                         </MuiButton>
                     </Box>
 
