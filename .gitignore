@@ -180,14 +180,6 @@ env.example
 dmypy.json
 
 # Temporary files
-*.tmp
-*.temp.env
-.env
-venv/
-backend/venv/
-venv/
-backend/venv/
-.env
 .env.*
 **/.env
 **/.env.*
@@ -196,13 +188,14 @@ backend/venv/
 push --force-with-lease origin --tags*/.env.example
 ketohelper-mirror.git/
 **/__pycache__/
-*.py[cod]
 *.pyo
 *.pyd
 **/__pycache__/
 *.py[cod]
-*.pyo
-*.pyd
 **/.vite/
 **/dist/
 **/node_modules/
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
