@@ -182,3 +182,7 @@ dmypy.json
 # Temporary files
 *.tmp
 *.temp.env
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
