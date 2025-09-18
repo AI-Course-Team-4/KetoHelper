@@ -257,13 +257,13 @@ export function ChatPage() {
     <div className="flex flex-col h-[calc(100vh-8rem)] bg-gradient-to-br from-background to-muted/20">
       {/* 헤더 */}
       <div className="border-b border-border/50 pb-6 mb-6 bg-background/80 backdrop-blur-sm">
-        <div className="text-center ml-[280px]">
+        <div className="text-center ml-[330px]">
           <div className="inline-flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center">
-              <Bot className="h-4 w-4 text-white" />
+            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center text-white text-lg">
+              🥑
             </div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-              키토 코치 🥑
+              키토 코치
             </h1>
           </div>
           <p className="text-muted-foreground text-lg">
@@ -349,11 +349,11 @@ export function ChatPage() {
             <div className="flex-1 flex items-center justify-center p-8">
               <div className="w-full max-w-3xl">
                 <div className="text-center mb-12">
-                  <div className="w-24 h-24 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center mx-auto mb-6 shadow-lg">
-                    <Bot className="h-12 w-12 text-white" />
+                  <div className="w-32 h-32 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center mx-auto mb-6 shadow-lg">
+                    <Bot className="h-16 w-16 text-white" />
                   </div>
                   <h3 className="text-3xl font-bold mb-4 bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-                    안녕하세요! 키토 코치입니다 🥑
+                    안녕하세요! 키토 코치입니다
                   </h3>
                   <p className="text-muted-foreground text-xl leading-relaxed">
                     건강한 키토 식단을 위한 모든 것을 도와드릴게요.<br />
@@ -428,7 +428,7 @@ export function ChatPage() {
                             ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white' 
                             : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white'
                         }`}>
-                          {msg.role === 'user' ? <User className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
+                          {msg.role === 'user' ? <User className="h-5 w-5" /> : <span className="text-lg">🥑</span>}
                         </div>
 
                         {/* 메시지 내용 */}
@@ -463,7 +463,7 @@ export function ChatPage() {
                     {isLoading && (
                       <div className="flex items-start gap-4">
                         <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 text-white flex items-center justify-center shadow-md">
-                          <Bot className="h-5 w-5" />
+                          <span className="text-lg">🥑</span>
                         </div>
                         <div className="bg-card border border-border/50 p-4 rounded-2xl shadow-sm">
                           <div className="flex items-center gap-3">
