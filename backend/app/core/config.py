@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     # AI/LLM 설정
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     embedding_model: str = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
-    llm_model: str = os.getenv("LLM_MODEL", "gpt-3.5-turbo")
+    llm_model: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
     
     # 외부 API 설정
     kakao_rest_key: str = os.getenv("KAKAO_REST_KEY", "")
@@ -48,3 +48,4 @@ class Settings(BaseSettings):
 
 # 전역 설정 인스턴스
 settings = Settings()
+
