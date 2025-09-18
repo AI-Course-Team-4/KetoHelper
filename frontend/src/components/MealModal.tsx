@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { X, Save, Plus } from 'lucide-react'
+import { X, Save } from 'lucide-react'
 import { MealData } from '@/data/ketoMeals'
 
 interface MealModalProps {
@@ -11,9 +11,10 @@ interface MealModalProps {
   selectedDate: Date
   mealData?: MealData | null
   onSave: (date: Date, mealData: MealData) => void
+  selectedMealType?: string | null
 }
 
-export function MealModal({ isOpen, onClose, selectedDate, mealData, onSave }: MealModalProps) {
+export function MealModal({ isOpen, onClose, selectedDate, mealData, onSave, selectedMealType }: MealModalProps) {
   const [formData, setFormData] = useState<MealData>({
     breakfast: mealData?.breakfast || '',
     lunch: mealData?.lunch || '',
@@ -45,12 +46,17 @@ export function MealModal({ isOpen, onClose, selectedDate, mealData, onSave }: M
 
   if (!isOpen) return null
 
-  const meals = [
+  const allMeals = [
     { key: 'breakfast', label: '아침', icon: '🌅', placeholder: '아침 메뉴를 입력하세요' },
     { key: 'lunch', label: '점심', icon: '☀️', placeholder: '점심 메뉴를 입력하세요' },
     { key: 'dinner', label: '저녁', icon: '🌙', placeholder: '저녁 메뉴를 입력하세요' },
     { key: 'snack', label: '간식', icon: '🍎', placeholder: '간식 메뉴를 입력하세요' }
   ]
+
+  // 선택된 식사 시간이 있으면 해당 시간만, 없으면 모든 시간 표시
+  const meals = selectedMealType 
+    ? allMeals.filter(meal => meal.key === selectedMealType)
+    : allMeals
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -61,7 +67,7 @@ export function MealModal({ isOpen, onClose, selectedDate, mealData, onSave }: M
               year: 'numeric', 
               month: 'long', 
               day: 'numeric' 
-            })} 식단
+            })} {selectedMealType ? allMeals.find(m => m.key === selectedMealType)?.label : '식단'}
           </CardTitle>
           <Button variant="ghost" size="sm" onClick={handleClose}>
             <X className="h-4 w-4" />

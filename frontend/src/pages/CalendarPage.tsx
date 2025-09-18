@@ -18,6 +18,7 @@ export function CalendarPage() {
     '2024-01-17': { breakfast: '베이컨 에그', lunch: '스테이크', dinner: '생선구이' },
   })
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedMealType, setSelectedMealType] = useState<string | null>(null)
 
   const handleDateSelect = (date: Date | undefined) => {
     setSelectedDate(date)
@@ -57,13 +58,15 @@ export function CalendarPage() {
   }
 
   // 모달 열기 핸들러
-  const handleOpenModal = () => {
+  const handleOpenModal = (mealType?: string) => {
+    setSelectedMealType(mealType || null)
     setIsModalOpen(true)
   }
 
   // 모달 닫기 핸들러
   const handleCloseModal = () => {
     setIsModalOpen(false)
+    setSelectedMealType(null)
   }
 
   // 식단 저장 핸들러
@@ -292,7 +295,11 @@ export function CalendarPage() {
               ]
               
               return meals.map((meal) => (
-                <div key={meal.key} className="border rounded-lg p-3">
+                <div 
+                  key={meal.key} 
+                  className="border rounded-lg p-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                  onClick={() => handleOpenModal(meal.key)}
+                >
                   <div className="flex justify-between items-center">
                     <h4 className="font-medium flex items-center gap-2">
                       <span>{meal.icon}</span>
@@ -301,7 +308,7 @@ export function CalendarPage() {
                     <Button 
                       variant="ghost" 
                       size="sm"
-                      onClick={handleOpenModal}
+                      className="pointer-events-none"
                     >
                       <Plus className="h-4 w-4" />
                     </Button>
@@ -369,6 +376,7 @@ export function CalendarPage() {
           selectedDate={selectedDate}
           mealData={getMealForDate(selectedDate)}
           onSave={handleSaveMeal}
+          selectedMealType={selectedMealType}
         />
       )}
     </div>
