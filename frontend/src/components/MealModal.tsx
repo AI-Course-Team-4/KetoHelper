@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { X, Save, Plus } from 'lucide-react'
+import { X, Save } from 'lucide-react'
 import { MealData } from '@/data/ketoMeals'
 
 interface MealModalProps {
