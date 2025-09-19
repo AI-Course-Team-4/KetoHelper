@@ -8,6 +8,7 @@ import { ko } from 'date-fns/locale'
 import 'react-day-picker/dist/style.css'
 import { MealData, generateRandomMeal } from '@/data/ketoMeals'
 import { MealModal } from '@/components/MealModal'
+import { DateDetailModal } from '@/components/DateDetailModal'
 
 export function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
@@ -19,9 +20,17 @@ export function CalendarPage() {
   })
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedMealType, setSelectedMealType] = useState<string | null>(null)
+  const [isDateDetailModalOpen, setIsDateDetailModalOpen] = useState(false)
+  const [clickedDate, setClickedDate] = useState<Date | null>(null)
 
   const handleDateSelect = (date: Date | undefined) => {
     setSelectedDate(date)
+  }
+
+  // 날짜 클릭 핸들러 (모달 열기)
+  const handleDateClick = (date: Date) => {
+    setClickedDate(date)
+    setIsDateDetailModalOpen(true)
   }
 
   const handleMonthChange = (month: Date) => {
@@ -67,6 +76,12 @@ export function CalendarPage() {
   const handleCloseModal = () => {
     setIsModalOpen(false)
     setSelectedMealType(null)
+  }
+
+  // 날짜 상세 모달 닫기 핸들러
+  const handleCloseDateDetailModal = () => {
+    setIsDateDetailModalOpen(false)
+    setClickedDate(null)
   }
 
   // 식단 저장 핸들러
@@ -130,7 +145,7 @@ export function CalendarPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 캘린더 */}
-        <Card className="lg:col-span-2 min-h-[700px]">
+        <Card className="lg:col-span-2">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center">
@@ -158,8 +173,8 @@ export function CalendarPage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-6 pt-0 -mt-24">
-            <div className="calendar-container w-full h-[700px] flex items-center justify-center">
+          <CardContent className="p-6 pt-0">
+            <div className="calendar-container w-full flex items-start justify-center">
               <DayPicker
                 mode="single"
                 selected={selectedDate}
@@ -186,21 +201,25 @@ export function CalendarPage() {
                     const isCurrentMonth = date.getMonth() === displayMonth.getMonth()
                     
                     return (
-                      <div className="relative w-full h-full flex flex-col">
+                      <div 
+                        className="relative w-full h-full flex flex-col cursor-pointer hover:bg-gray-50 transition-colors rounded-lg"
+                        onClick={() => isCurrentMonth && handleDateClick(date)}
+                        style={{ minHeight: '80px' }}
+                      >
                         {isCurrentMonth && (
-                          <div className="text-sm font-medium text-center py-1">
+                          <div className="date-number w-full">
                             {date.getDate()}
                           </div>
                         )}
                         {meal && isCurrentMonth && (
-                          <div className="flex-1 px-1 pb-1">
-                            <div className="text-xs text-gray-600 truncate" title={meal.breakfast}>
+                          <div className="meal-info-container">
+                            <div className="meal-info" title={meal.breakfast}>
                               🌅 {meal.breakfast}
                             </div>
-                            <div className="text-xs text-gray-600 truncate" title={meal.lunch}>
+                            <div className="meal-info" title={meal.lunch}>
                               ☀️ {meal.lunch}
                             </div>
-                            <div className="text-xs text-gray-600 truncate" title={meal.dinner}>
+                            <div className="meal-info" title={meal.dinner}>
                               🌙 {meal.dinner}
                             </div>
                           </div>
@@ -212,7 +231,7 @@ export function CalendarPage() {
                  styles={{
                    head_cell: {
                      width: '70px',
-                     height: '60px',
+                     height: '50px',
                      fontSize: '14px',
                      color: '#374151',
                      textTransform: 'uppercase',
@@ -221,33 +240,39 @@ export function CalendarPage() {
                      borderRight: '1px solid #e2e8f0',
                      borderBottom: '2px solid #e2e8f0',
                      borderTop: '1px solid #e2e8f0',
-                     borderLeft: '1px solid #e2e8f0'
+                     borderLeft: '1px solid #e2e8f0',
+                     position: 'sticky',
+                     top: '0',
+                     zIndex: '10'
                    },
                    cell: {
                      width: '70px',
-                     height: '70px',
+                     minHeight: '80px',
                      fontSize: '15px',
                      padding: '4px',
                      borderRight: '1px solid #e2e8f0',
                      borderBottom: '1px solid #e2e8f0',
                      borderLeft: '1px solid #e2e8f0',
                      backgroundColor: '#ffffff',
-                     position: 'relative'
+                     position: 'relative',
+                     verticalAlign: 'top'
                    },
                    day: {
                      borderRadius: '12px',
                      transition: 'all 0.2s ease-in-out',
                      width: '62px',
-                     height: '62px',
+                     minHeight: '72px',
                      display: 'flex',
-                     alignItems: 'center',
+                     alignItems: 'flex-start',
                      justifyContent: 'center',
                      cursor: 'pointer',
                      position: 'relative',
                      backgroundColor: 'transparent',
                      border: 'none',
                      color: '#374151',
-                     fontSize: '15px'
+                     fontSize: '15px',
+                     flexDirection: 'column',
+                     padding: '4px'
                    },
                    table: {
                      width: '100%',
@@ -377,6 +402,17 @@ export function CalendarPage() {
           mealData={getMealForDate(selectedDate)}
           onSave={handleSaveMeal}
           selectedMealType={selectedMealType}
+        />
+      )}
+
+      {/* 날짜 상세 모달 */}
+      {clickedDate && (
+        <DateDetailModal
+          isOpen={isDateDetailModalOpen}
+          onClose={handleCloseDateDetailModal}
+          selectedDate={clickedDate}
+          mealData={getMealForDate(clickedDate)}
+          onSaveMeal={handleSaveMeal}
         />
       )}
     </div>
