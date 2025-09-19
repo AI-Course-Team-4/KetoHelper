@@ -23,6 +23,7 @@ from app.chat.prompts.intent_classification import INTENT_CLASSIFICATION_PROMPT
 from app.chat.prompts.memory_update import MEMORY_UPDATE_PROMPT
 from app.chat.prompts.response_generation import RESPONSE_GENERATION_PROMPT
 from app.restaurant.prompts.place_search_improvement import PLACE_SEARCH_IMPROVEMENT_PROMPT
+from app.restaurant.prompts.search_failure import PLACE_SEARCH_FAILURE_PROMPT
 
 from typing_extensions import TypedDict, NotRequired
 
@@ -358,7 +359,12 @@ class KetoCoachAgent:
             
             # 결과 기반 응답 생성
             context = ""
-            if state["results"]:
+            answer_prompt = ""
+            
+            # 식당 검색 실패시 전용 프롬프트 사용
+            if state["intent"] == "place" and not state["results"]:
+                answer_prompt = PLACE_SEARCH_FAILURE_PROMPT.format(message=message)
+            elif state["results"]:
                 # 의도별로 다른 포맷팅
                 if state["intent"] == "recipe":
                     context = "추천 레시피:\n"
@@ -379,12 +385,19 @@ class KetoCoachAgent:
                     context = "생성된 식단표 요약"
                 else:
                     context = json.dumps(state["results"][:3], ensure_ascii=False, indent=2)
-            
-            answer_prompt = RESPONSE_GENERATION_PROMPT.format(
-                message=message,
-                intent=state["intent"],
-                context=context
-            )
+                
+                answer_prompt = RESPONSE_GENERATION_PROMPT.format(
+                    message=message,
+                    intent=state["intent"],
+                    context=context
+                )
+            else:
+                # 기본 응답 생성 프롬프트 사용
+                answer_prompt = RESPONSE_GENERATION_PROMPT.format(
+                    message=message,
+                    intent=state["intent"],
+                    context=context
+                )
             
             response = await self.llm.ainvoke([HumanMessage(content=answer_prompt)])
             state["response"] = response.content

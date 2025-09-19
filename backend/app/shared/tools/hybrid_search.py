@@ -181,7 +181,7 @@ class HybridSearchTool:
         """간단한 검색 인터페이스 (한글 최적화)"""
         try:
             # 한글 검색 최적화 도구 사용
-            from app.restaurant.tools.korean_search import korean_search_tool
+            from app.meal.tools.korean_search import korean_search_tool
             
             # 프로필에서 필터 추출
             filters = {}
