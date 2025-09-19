@@ -15,6 +15,7 @@ import { authService } from '@/lib/authService'
 import { toast } from 'react-hot-toast'
 import { LoginModal } from './LoginModal'
 import { useNavigate } from 'react-router-dom'
+import { cleanupLocalAuthArtifacts, clearChatHistoryStorage, clearNaverOAuthState } from '@/lib/bootCleanup'
 
 export function Header() {
   const [, setIsSearchOpen] = useState(false)
@@ -39,13 +40,20 @@ export function Header() {
       // ignore
     }
     clear()
+    try { cleanupLocalAuthArtifacts() } catch {}
+    try { clearChatHistoryStorage() } catch {}
+    try { clearNaverOAuthState() } catch {}
+  }
+
+  const handleMenuClick = () => {
+    navigate('/')
   }
 
   return (
     <header className="bg-white border-b border-border shadow-sm">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         {/* 로고 */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-4" onClick={handleMenuClick} style={{ cursor: 'pointer' }}>
           <Button
             variant="ghost"
             size="sm"
