@@ -29,19 +29,22 @@ export function ChatPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([])
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
-  const [hasStartedChatting, setHasStartedChatting] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
   
   const { messages, addMessage, clearMessages } = useChatStore()
+  // hasStartedChatting을 메시지 존재 여부로 계산
+  const hasStartedChatting = messages.length > 0
   const { profile } = useProfileStore()
   const sendMessage = useSendMessage()
 
   // 시간 포맷팅 함수들
   const formatMessageTime = (timestamp: Date) => {
+    // timestamp가 Date 객체인지 확인하고 변환
+    const date = timestamp instanceof Date ? timestamp : new Date(timestamp)
     const now = new Date()
-    const diff = now.getTime() - timestamp.getTime()
+    const diff = now.getTime() - date.getTime()
     
     // 1분 미만
     if (diff < 60000) return '방금 전'
@@ -65,7 +68,7 @@ export function ChatPage() {
     }
     
     // 그 이상은 날짜로 표시
-    return timestamp.toLocaleDateString('ko-KR', {
+    return date.toLocaleDateString('ko-KR', {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
@@ -74,7 +77,9 @@ export function ChatPage() {
   }
 
   const formatDetailedTime = (timestamp: Date) => {
-    return timestamp.toLocaleString('ko-KR', {
+    // timestamp가 Date 객체인지 확인하고 변환
+    const date = timestamp instanceof Date ? timestamp : new Date(timestamp)
+    return date.toLocaleString('ko-KR', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -92,7 +97,11 @@ export function ChatPage() {
     
     if (!currentMessage || !previousMessage) return true
     
-    const timeDiff = currentMessage.timestamp.getTime() - previousMessage.timestamp.getTime()
+    // timestamp가 Date 객체인지 확인하고 변환
+    const currentTime = currentMessage.timestamp instanceof Date ? currentMessage.timestamp : new Date(currentMessage.timestamp)
+    const previousTime = previousMessage.timestamp instanceof Date ? previousMessage.timestamp : new Date(previousMessage.timestamp)
+    
+    const timeDiff = currentTime.getTime() - previousTime.getTime()
     
     // 5분 이상 차이나면 타임스탬프 표시
     return timeDiff > 300000
@@ -106,24 +115,31 @@ export function ChatPage() {
     
     if (!currentMessage || !previousMessage) return false
     
-    const currentDate = currentMessage.timestamp.toDateString()
-    const previousDate = previousMessage.timestamp.toDateString()
+    // timestamp가 Date 객체인지 확인하고 변환
+    const currentTime = currentMessage.timestamp instanceof Date ? currentMessage.timestamp : new Date(currentMessage.timestamp)
+    const previousTime = previousMessage.timestamp instanceof Date ? previousMessage.timestamp : new Date(previousMessage.timestamp)
+    
+    const currentDate = currentTime.toDateString()
+    const previousDate = previousTime.toDateString()
     
     return currentDate !== previousDate
   }
 
   const formatDateSeparator = (timestamp: Date) => {
+    // timestamp가 Date 객체인지 확인하고 변환
+    const date = timestamp instanceof Date ? timestamp : new Date(timestamp)
+    
     const now = new Date()
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const yesterday = new Date(today.getTime() - 86400000)
-    const messageDate = new Date(timestamp.getFullYear(), timestamp.getMonth(), timestamp.getDate())
+    const messageDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
     
     if (messageDate.getTime() === today.getTime()) {
       return '오늘'
     } else if (messageDate.getTime() === yesterday.getTime()) {
       return '어제'
     } else {
-      return timestamp.toLocaleDateString('ko-KR', {
+      return date.toLocaleDateString('ko-KR', {
         year: 'numeric',
         month: 'long',
         day: 'numeric'
@@ -173,7 +189,6 @@ export function ChatPage() {
     setCurrentSessionId(newSessionId)
     clearMessages()
     setMessage('')
-    setHasStartedChatting(false)
   }
 
   // 채팅 세션 삭제
@@ -182,7 +197,6 @@ export function ChatPage() {
     if (currentSessionId === sessionId) {
       setCurrentSessionId(null)
       clearMessages()
-      setHasStartedChatting(false) // 초기 화면으로 돌아가기
     }
   }
 
@@ -194,7 +208,6 @@ export function ChatPage() {
       // 선택된 세션의 메시지들을 채팅 스토어에 로드
       clearMessages()
       session.messages.forEach(msg => addMessage(msg))
-      setHasStartedChatting(session.messages.length > 0)
     }
   }
 
@@ -211,9 +224,6 @@ export function ChatPage() {
 
   const handleSendMessage = async () => {
     if (!message.trim() || isLoading) return
-
-    // 채팅 시작 상태로 변경
-    setHasStartedChatting(true)
 
     // 현재 세션이 없으면 새 세션 생성
     let sessionId = currentSessionId
@@ -262,13 +272,14 @@ export function ChatPage() {
       addMessage(assistantMessage)
       addMessageToCurrentSession(assistantMessage)
 
-      // 첫 번째 메시지인 경우 세션 제목 업데이트
-      if (sessionId && messages.length === 0) {
-        setChatSessions(prev => prev.map(session =>
-          session.id === sessionId
-            ? { ...session, title: userMessage.content.slice(0, 30) + (userMessage.content.length > 30 ? '...' : '') }
-            : session
-        ))
+      // 첫 번째 메시지인 경우 세션 제목 업데이트 (사용자 메시지가 첫 번째 메시지인지 확인)
+      if (sessionId) {
+        setChatSessions(prev => prev.map(session => {
+          if (session.id === sessionId && session.title === '새 채팅') {
+            return { ...session, title: userMessage.content.slice(0, 30) + (userMessage.content.length > 30 ? '...' : '') }
+          }
+          return session
+        }))
       }
     } catch (error) {
       console.error('메시지 전송 실패:', error)
@@ -295,9 +306,6 @@ export function ChatPage() {
   // 빠른 질문 메시지 전송
   const handleQuickMessage = async (quickMessage: string) => {
     if (!quickMessage.trim() || isLoading) return
-
-    // 채팅 시작 상태로 변경
-    setHasStartedChatting(true)
 
     // 현재 세션이 없으면 새 세션 생성
     let sessionId = currentSessionId
@@ -345,13 +353,14 @@ export function ChatPage() {
       addMessage(assistantMessage)
       addMessageToCurrentSession(assistantMessage)
 
-      // 첫 번째 메시지인 경우 세션 제목 업데이트
-      if (sessionId && messages.length === 0) {
-        setChatSessions(prev => prev.map(session =>
-          session.id === sessionId
-            ? { ...session, title: userMessage.content.slice(0, 30) + (userMessage.content.length > 30 ? '...' : '') }
-            : session
-        ))
+      // 첫 번째 메시지인 경우 세션 제목 업데이트 (사용자 메시지가 첫 번째 메시지인지 확인)
+      if (sessionId) {
+        setChatSessions(prev => prev.map(session => {
+          if (session.id === sessionId && session.title === '새 채팅') {
+            return { ...session, title: userMessage.content.slice(0, 30) + (userMessage.content.length > 30 ? '...' : '') }
+          }
+          return session
+        }))
       }
     } catch (error) {
       console.error('메시지 전송 실패:', error)
