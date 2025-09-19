@@ -7,7 +7,7 @@ import asyncio
 import json
 from typing import Dict, Any, List, Optional
 from datetime import date, timedelta
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import HumanMessage
 
 from app.core.config import settings
@@ -19,11 +19,15 @@ class MealPlannerAgent:
     """7일 키토 식단표 생성 에이전트"""
     
     def __init__(self):
-        self.llm = ChatOpenAI(
-            model=settings.llm_model,
-            api_key=settings.openai_api_key,
-            temperature=0.2
-        )
+        try:
+            self.llm = ChatGoogleGenerativeAI(
+                model=settings.llm_model,
+                google_api_key=settings.google_api_key,
+                temperature=settings.gemini_temperature
+            )
+        except Exception as e:
+            print(f"Gemini AI 초기화 실패: {e}")
+            self.llm = None
         
         # 하이브리드 검색 도구 사용
         self.place_search = PlaceSearchTool()

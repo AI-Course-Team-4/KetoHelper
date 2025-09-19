@@ -6,45 +6,54 @@ LangGraph 기반 키토 코치 에이전트 오케스트레이터
 import asyncio
 from typing import Dict, Any, Optional, List, AsyncGenerator
 from langgraph.graph import StateGraph, START, END
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import HumanMessage, AIMessage, BaseMessage
 import json
+import re
 
 from app.core.config import settings
-from app.shared.tools.recipe_rag import RecipeRAGTool
+from app.shared.tools.hybrid_search import hybrid_search_tool
 from app.restaurant.tools.place_search import PlaceSearchTool
 from app.meal.tools.keto_score import KetoScoreCalculator
 from app.meal.agents.meal_planner import MealPlannerAgent
+from app.chat.agents.simple_agent import SimpleKetoCoachAgent
 
-from typing_extensions import TypedDict
+from typing_extensions import TypedDict, NotRequired
 
 class AgentState(TypedDict):
     """에이전트 상태 관리 클래스"""
     messages: List[BaseMessage]
-    intent: str
-    slots: Dict[str, Any]
-    results: List[Dict[str, Any]]
-    response: str
-    tool_calls: List[Dict[str, Any]]
-    profile: Optional[Dict[str, Any]]
-    location: Optional[Dict[str, float]]
-    radius_km: float
+    intent: NotRequired[str]
+    slots: NotRequired[Dict[str, Any]]
+    results: NotRequired[List[Dict[str, Any]]]
+    response: NotRequired[str]
+    tool_calls: NotRequired[List[Dict[str, Any]]]
+    profile: NotRequired[Optional[Dict[str, Any]]]
+    location: NotRequired[Optional[Dict[str, float]]]
+    radius_km: NotRequired[float]
 
 class KetoCoachAgent:
-    """키토 코치 메인 에이전트"""
+    """키토 코치 메인 에이전트 (LangGraph 오케스트레이터)"""
     
     def __init__(self):
-        self.llm = ChatOpenAI(
-            model=settings.llm_model,
-            api_key=settings.openai_api_key,
-            temperature=0.1
-        )
+        try:
+            # Gemini LLM 초기화
+            self.llm = ChatGoogleGenerativeAI(
+                model=settings.llm_model,
+                google_api_key=settings.google_api_key,
+                temperature=settings.gemini_temperature,
+                max_tokens=settings.gemini_max_tokens
+            )
+        except Exception as e:
+            print(f"Gemini AI 초기화 실패: {e}")
+            self.llm = None
         
         # 도구들 초기화
-        self.recipe_rag = RecipeRAGTool()
+        self.hybrid_search = hybrid_search_tool  # 이미 초기화된 인스턴스 사용
         self.place_search = PlaceSearchTool()
-        self.keto_score = KetoScoreCalculator()
+        self.keto_score = KetoScoreCalculator() 
         self.meal_planner = MealPlannerAgent()
+        self.simple_agent = SimpleKetoCoachAgent()
         
         # 워크플로우 그래프 구성
         self.workflow = self._build_workflow()
@@ -56,7 +65,7 @@ class KetoCoachAgent:
         
         # 노드 추가
         workflow.add_node("router", self._router_node)
-        workflow.add_node("recipe_rag", self._recipe_rag_node)
+        workflow.add_node("recipe_search", self._recipe_search_node)
         workflow.add_node("place_search", self._place_search_node)
         workflow.add_node("meal_plan", self._meal_plan_node)
         workflow.add_node("memory_update", self._memory_update_node)
@@ -70,7 +79,7 @@ class KetoCoachAgent:
             "router",
             self._route_condition,
             {
-                "recipe": "recipe_rag",
+                "recipe": "recipe_search",
                 "place": "place_search",
                 "mealplan": "meal_plan",
                 "memory": "memory_update",
@@ -79,7 +88,7 @@ class KetoCoachAgent:
         )
         
         # 모든 노드에서 answer로
-        workflow.add_edge("recipe_rag", "answer")
+        workflow.add_edge("recipe_search", "answer")
         workflow.add_edge("place_search", "answer")
         workflow.add_edge("meal_plan", "answer")
         workflow.add_edge("memory_update", "answer")
@@ -112,9 +121,9 @@ class KetoCoachAgent:
         }}
         
         의도 분류:
-        - recipe: 레시피 추천 요청
-        - place: 식당/장소 검색 요청
-        - mealplan: 식단표 생성 요청
+        - recipe: 레시피 추천 요청 (만들어 먹을 음식, 조리법)
+        - place: 식당/장소 검색 요청 (외식, 배달, 근처 식당)
+        - mealplan: 식단표 생성 요청 (주간/일간 식단)
         - memory: 프로필/선호도 업데이트
         - other: 일반 대화/기타
         """
@@ -123,7 +132,6 @@ class KetoCoachAgent:
             response = await self.llm.ainvoke([HumanMessage(content=router_prompt)])
             
             # JSON 파싱
-            import re
             json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
             if json_match:
                 result = json.loads(json_match.group())
@@ -150,39 +158,39 @@ class KetoCoachAgent:
         """라우팅 조건 함수"""
         return state["intent"]
     
-    async def _recipe_rag_node(self, state: AgentState) -> AgentState:
-        """레시피 RAG 노드"""
+    async def _recipe_search_node(self, state: AgentState) -> AgentState:
+        """레시피 검색 노드 (Hybrid Search 사용)"""
         
         try:
-            message = state.messages[-1].content if state.messages else ""
+            message = state["messages"][-1].content if state["messages"] else ""
             
             # 프로필 정보 반영
             profile_context = ""
-            if state.profile:
-                allergies = state.profile.get("allergies", [])
-                dislikes = state.profile.get("dislikes", [])
+            if state["profile"]:
+                allergies = state["profile"].get("allergies", [])
+                dislikes = state["profile"].get("dislikes", [])
                 if allergies:
                     profile_context += f"알레르기: {', '.join(allergies)}. "
                 if dislikes:
                     profile_context += f"싫어하는 음식: {', '.join(dislikes)}. "
             
-            # RAG 검색 실행
-            search_results = await self.recipe_rag.search(
-                query=message,
-                profile_context=profile_context,
+            # 하이브리드 검색 실행
+            full_query = f"{message} {profile_context}".strip()
+            search_results = await self.hybrid_search.search(
+                query=full_query,
                 max_results=5
             )
             
-            state.results = search_results
-            state.tool_calls.append({
-                "tool": "recipe_rag",
-                "query": message,
+            state["results"] = search_results
+            state["tool_calls"].append({
+                "tool": "recipe_search",
+                "query": full_query,
                 "results_count": len(search_results)
             })
             
         except Exception as e:
-            print(f"Recipe RAG error: {e}")
-            state.results = []
+            print(f"Recipe search error: {e}")
+            state["results"] = []
         
         return state
     
@@ -190,11 +198,11 @@ class KetoCoachAgent:
         """장소 검색 노드"""
         
         try:
-            message = state.messages[-1].content if state.messages else ""
+            message = state["messages"][-1].content if state["messages"] else ""
             
             # 위치 정보 추출
-            lat = state.location.get("lat", 37.4979) if state.location else 37.4979  # 기본: 강남역
-            lng = state.location.get("lng", 127.0276) if state.location else 127.0276
+            lat = state["location"].get("lat", 37.4979) if state["location"] else 37.4979  # 기본: 강남역
+            lng = state["location"].get("lng", 127.0276) if state["location"] else 127.0276
             
             # 검색 쿼리 개선
             query_improvement_prompt = f"""
@@ -217,7 +225,7 @@ class KetoCoachAgent:
                     query=keyword.strip('"'),
                     lat=lat,
                     lng=lng,
-                    radius=int(state.radius_km * 1000)
+                    radius=int(state["radius_km"] * 1000)
                 )
                 
                 # 키토 스코어 계산
@@ -250,17 +258,17 @@ class KetoCoachAgent:
                 reverse=True
             )
             
-            state.results = sorted_places[:10]  # 상위 10개
-            state.tool_calls.append({
+            state["results"] = sorted_places[:10]  # 상위 10개
+            state["tool_calls"].append({
                 "tool": "place_search",
                 "keywords": search_keywords,
                 "location": {"lat": lat, "lng": lng},
-                "results_count": len(state.results)
+                "results_count": len(state["results"])
             })
             
         except Exception as e:
             print(f"Place search error: {e}")
-            state.results = []
+            state["results"] = []
         
         return state
     
@@ -269,7 +277,7 @@ class KetoCoachAgent:
         
         try:
             # 슬롯에서 매개변수 추출
-            days = state.slots.get("days", 7)
+            days = int(state["slots"].get("days", 7)) if state["slots"].get("days") else 7
             
             # 프로필에서 제약 조건 추출
             kcal_target = None
@@ -277,11 +285,11 @@ class KetoCoachAgent:
             allergies = []
             dislikes = []
             
-            if state.profile:
-                kcal_target = state.profile.get("goals_kcal")
-                carbs_max = state.profile.get("goals_carbs_g", 30)
-                allergies = state.profile.get("allergies", [])
-                dislikes = state.profile.get("dislikes", [])
+            if state["profile"]:
+                kcal_target = state["profile"].get("goals_kcal")
+                carbs_max = state["profile"].get("goals_carbs_g", 30)
+                allergies = state["profile"].get("allergies", [])
+                dislikes = state["profile"].get("dislikes", [])
             
             # 식단표 생성
             meal_plan = await self.meal_planner.generate_meal_plan(
@@ -292,8 +300,8 @@ class KetoCoachAgent:
                 dislikes=dislikes
             )
             
-            state.results = [meal_plan]
-            state.tool_calls.append({
+            state["results"] = [meal_plan]
+            state["tool_calls"].append({
                 "tool": "meal_planner",
                 "days": days,
                 "constraints": {
@@ -306,7 +314,7 @@ class KetoCoachAgent:
             
         except Exception as e:
             print(f"Meal plan error: {e}")
-            state.results = []
+            state["results"] = []
         
         return state
     
@@ -314,7 +322,7 @@ class KetoCoachAgent:
         """메모리/프로필 업데이트 노드"""
         
         try:
-            message = state.messages[-1].content if state.messages else ""
+            message = state["messages"][-1].content if state["messages"] else ""
             
             # 프로필 업데이트 정보 추출
             update_prompt = f"""
@@ -336,18 +344,17 @@ class KetoCoachAgent:
             response = await self.llm.ainvoke([HumanMessage(content=update_prompt)])
             
             # JSON 파싱 및 프로필 업데이트
-            import re
             json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
             if json_match:
                 updates = json.loads(json_match.group())
-                if not state.profile:
-                    state.profile = {}
+                if not state["profile"]:
+                    state["profile"] = {}
                 
                 for key, value in updates.items():
                     if value:  # 빈 값이 아닌 경우만 업데이트
-                        state.profile[key] = value
+                        state["profile"][key] = value
                 
-                state.tool_calls.append({
+                state["tool_calls"].append({
                     "tool": "memory_update",
                     "updates": updates
                 })
@@ -361,36 +368,56 @@ class KetoCoachAgent:
         """최종 응답 생성 노드"""
         
         try:
-            message = state.messages[-1].content if state.messages else ""
+            message = state["messages"][-1].content if state["messages"] else ""
             
             # 결과 기반 응답 생성
             context = ""
-            if state.results:
-                context = f"검색 결과: {json.dumps(state.results[:3], ensure_ascii=False, indent=2)}"
+            if state["results"]:
+                # 의도별로 다른 포맷팅
+                if state["intent"] == "recipe":
+                    context = "추천 레시피:\n"
+                    for idx, result in enumerate(state["results"][:3], 1):
+                        context += f"{idx}. {result.get('name', '이름 없음')}\n"
+                        if result.get('ingredients'):
+                            context += f"   재료: {result['ingredients']}\n"
+                        if result.get('carbs'):
+                            context += f"   탄수화물: {result['carbs']}g\n"
+                elif state["intent"] == "place":
+                    context = "추천 식당:\n"
+                    for idx, result in enumerate(state["results"][:5], 1):
+                        context += f"{idx}. {result.get('name', '이름 없음')} (키토점수: {result.get('keto_score', 0)})\n"
+                        context += f"   주소: {result.get('address', '')}\n"
+                        if result.get('tips'):
+                            context += f"   팁: {', '.join(result['tips'][:2])}\n"
+                elif state["intent"] == "mealplan":
+                    context = "생성된 식단표 요약"
+                else:
+                    context = json.dumps(state["results"][:3], ensure_ascii=False, indent=2)
             
             answer_prompt = f"""
             사용자의 키토 식단 관련 질문에 친근하고 도움이 되는 답변을 해주세요.
             
             사용자 질문: "{message}"
-            의도: {state.intent}
-            검색 결과: {context}
+            의도: {state["intent"]}
+            
+            {context}
             
             답변 가이드라인:
             1. 한국어로 자연스럽게 답변
             2. 키토 식단의 특성을 고려한 조언 포함
             3. 구체적이고 실용적인 정보 제공
             4. 검색 결과가 있으면 적극 활용
-            5. 200자 내외로 간결하게
+            5. 200-300자 내외로 간결하게
             
             검색 결과가 없는 경우 일반적인 키토 식단 조언을 제공하세요.
             """
             
             response = await self.llm.ainvoke([HumanMessage(content=answer_prompt)])
-            state.response = response.content
+            state["response"] = response.content
             
         except Exception as e:
             print(f"Answer generation error: {e}")
-            state.response = "죄송합니다. 답변 생성 중 오류가 발생했습니다. 다시 시도해주세요."
+            state["response"] = "죄송합니다. 답변 생성 중 오류가 발생했습니다. 다시 시도해주세요."
         
         return state
     
@@ -413,17 +440,17 @@ class KetoCoachAgent:
             "tool_calls": [],
             "profile": profile,
             "location": location,
-            "radius_km": radius_km
+            "radius_km": radius_km or 5.0
         }
         
         # 워크플로우 실행
         final_state = await self.workflow.ainvoke(initial_state)
         
         return {
-            "response": final_state.response,
-            "intent": final_state.intent,
-            "results": final_state.results,
-            "tool_calls": final_state.tool_calls
+            "response": final_state["response"],
+            "intent": final_state["intent"],
+            "results": final_state["results"],
+            "tool_calls": final_state["tool_calls"]
         }
     
     async def stream_response(
@@ -441,16 +468,28 @@ class KetoCoachAgent:
         # 의도 분류
         yield {"event": "routing", "message": "의도를 분석하고 있습니다..."}
         
-        # 워크플로우 실행 (실제로는 위의 process_message와 동일)
+        # 워크플로우 실행
         result = await self.process_message(message, location, radius_km, profile)
         
         # 도구 실행 이벤트들
         for tool_call in result.get("tool_calls", []):
+            tool_name = tool_call["tool"]
+            tool_messages = {
+                "router": "의도 분석 완료",
+                "recipe_search": "레시피를 검색하고 있습니다...",
+                "place_search": "주변 식당을 찾고 있습니다...",
+                "meal_planner": "식단표를 생성하고 있습니다...",
+                "memory_update": "프로필을 업데이트하고 있습니다..."
+            }
+            
             yield {
                 "event": "tool_execution",
-                "tool": tool_call["tool"],
-                "message": f"{tool_call['tool']} 도구를 실행하고 있습니다..."
+                "tool": tool_name,
+                "message": tool_messages.get(tool_name, f"{tool_name} 실행 중...")
             }
+            
+            # 약간의 지연 추가 (UX 개선)
+            await asyncio.sleep(0.5)
         
         # 최종 응답
         yield {
@@ -459,3 +498,41 @@ class KetoCoachAgent:
             "intent": result["intent"],
             "results": result["results"]
         }
+
+
+# 사용 예시
+if __name__ == "__main__":
+    async def test():
+        agent = KetoCoachAgent()
+        
+        # 테스트 1: 식당 검색
+        result = await agent.process_message(
+            message="강남역 근처 키토 식당 추천해줘",
+            location={"lat": 37.4979, "lng": 127.0276},
+            radius_km=2.0
+        )
+        print("식당 검색 결과:", result)
+        
+        # 테스트 2: 레시피 검색
+        result = await agent.process_message(
+            message="저탄수 아침식사 레시피 알려줘",
+            profile={"allergies": ["새우"], "goals_carbs_g": 20}
+        )
+        print("레시피 검색 결과:", result)
+        
+        # 테스트 3: 식단표 생성
+        result = await agent.process_message(
+            message="일주일 키토 식단표 만들어줘",
+            profile={"goals_kcal": 1800, "goals_carbs_g": 30}
+        )
+        print("식단표 생성 결과:", result)
+        
+        # 테스트 4: 스트리밍
+        print("\n스트리밍 테스트:")
+        async for event in agent.stream_response(
+            message="오늘 저녁 뭐 먹을까?",
+            profile={"allergies": ["땅콩"], "dislikes": ["브로콜리"]}
+        ):
+            print(f"[{event['event']}] {event.get('message', '')}")
+    
+    # asyncio.run(test())
