@@ -25,7 +25,7 @@ class SimpleKetoCoachAgent:
             
             # Gemini 초기화
             self.llm = ChatGoogleGenerativeAI(
-                model=settings.gemini_model,
+                model=settings.llm_model,
                 google_api_key=settings.google_api_key,
                 temperature=settings.gemini_temperature,
                 max_tokens=settings.gemini_max_tokens
