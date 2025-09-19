@@ -6,7 +6,8 @@ import {
   User, 
   BarChart3,
   Utensils,
-  MapPin
+  MapPin,
+  CreditCard
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
@@ -36,6 +37,12 @@ const navigationItems = [
     href: '/profile',
     icon: User,
     description: '개인 설정 및 목표'
+  },
+  {
+    title: '구독',
+    href: '/subscribe',
+    icon: CreditCard,
+    description: '구독 관리'
   }
 ]
 
