@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 import uvicorn
-import os
+import os, re
 from dotenv import load_dotenv
 import asyncio
 
