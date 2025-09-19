@@ -2,13 +2,13 @@ const AUTH_STORAGE_KEY = 'keto-auth'
 
 export function cleanupLocalAuthArtifacts() {
   try {
-    // 1) Sanitize our own persisted store
+    // 1) 우리 앱의 저장 상태에서 토큰 흔적 정리
     const raw = typeof window !== 'undefined' ? window.localStorage.getItem(AUTH_STORAGE_KEY) : null
     if (raw) {
       const parsed = JSON.parse(raw)
       const persistedState = parsed && typeof parsed === 'object' ? parsed.state : null
       if (persistedState && typeof persistedState === 'object') {
-        // Drop tokens if present
+        // 토큰 필드가 있으면 제거
         if ('accessToken' in persistedState || 'refreshToken' in persistedState) {
           const sanitized = {
             version: 2,
@@ -19,7 +19,7 @@ export function cleanupLocalAuthArtifacts() {
       }
     }
 
-    // 2) Remove legacy/foreign auth keys we don't use anymore
+    // 2) 더 이상 사용하지 않는 과거/외부 인증 관련 키 제거
     const legacyExactKeys = [
       'access_token',
       'refresh_token',
@@ -43,7 +43,7 @@ export function cleanupLocalAuthArtifacts() {
       }
     } catch {}
   } catch {
-    // Ignore JSON/storage errors silently
+    // JSON/스토리지 오류는 무시
   }
 }
 
@@ -55,7 +55,7 @@ export function clearNaverOAuthState() {
   try { window.sessionStorage.removeItem('naver_oauth_state') } catch {}
 }
 
-// Run cleanup on import
+// 모듈 임포트 시 즉시 정리 실행
 try { cleanupLocalAuthArtifacts() } catch {}
 
 
