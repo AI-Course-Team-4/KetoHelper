@@ -41,10 +41,11 @@ const navigationItems = [
 
 export function Navigation() {
   const { user } = useAuthStore()
+  const items = user ? navigationItems : navigationItems.filter((i) => i.href !== '/profile' && i.href !== '/calendar')
   return (
     <nav className="w-64 bg-muted/30 border-r border-border min-h-screen p-4">
       <div className="space-y-2">
-        {navigationItems.map((item) => (
+        {items.map((item) => (
           <NavLink
             key={item.href}
             to={item.href}

@@ -27,6 +27,22 @@ export const useAuthStore = create<AuthState>()(
       setAccessToken: (accessToken) => set({ accessToken }),
       clear: () => set({ user: null, accessToken: undefined, refreshToken: undefined }),
     }),
-    { name: 'keto-auth' }
+    {
+      name: 'keto-auth',
+      version: 2,
+      // Persist only non-sensitive fields (exclude tokens)
+      partialize: (state) => ({ user: state.user }),
+      migrate: (persistedState: any, version) => {
+        // Drop any previously saved tokens from storage
+        if (version < 2 && persistedState && typeof persistedState === 'object') {
+          return { user: persistedState.user ?? null }
+        }
+        // From v2 onward we only keep user in storage
+        if (persistedState && typeof persistedState === 'object') {
+          return { user: persistedState.user ?? null }
+        }
+        return { user: null }
+      },
+    }
   )
 )

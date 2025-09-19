@@ -7,13 +7,14 @@ import { ProfilePage } from '@/pages/ProfilePage'
 import { Toaster } from '@/components/ui/toaster'
 import NaverCallback from '@/pages/NaverCallback'
 import { Toaster as HotToaster } from 'react-hot-toast'
+import { MainPage } from '@/pages/MainPage'
 
 function App() {
   return (
     <div className="min-h-screen bg-background">
       <Layout>
         <Routes>
-          <Route path="/" element={<ChatPage />} />
+          <Route path="/" element={<MainPage />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/map" element={<MapPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
