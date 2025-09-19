@@ -217,8 +217,9 @@ class KoreanSearchTool:
             
             # 벡터 검색 실행 (RPC 함수 사용)
             results = self.supabase.rpc('vector_search', {
-                'q_embedding': query_embedding,
-                'k': k
+                'query_embedding': query_embedding,
+                'match_count': k,
+                'similarity_threshold': 0.0
             }).execute()
             
             formatted_results = []
@@ -252,14 +253,10 @@ class KoreanSearchTool:
             
             for keyword in keywords[:3]:  # 상위 3개 키워드만 사용
                 try:
-                    # 제목에서 키워드 검색
-                    title_results = self.supabase.table('recipes_keto_enhanced').select('*').ilike('title', f'%{keyword}%').limit(k).execute()
-                    
-                    # blob(내용)에서 키워드 검색
-                    content_results = self.supabase.table('recipes_keto_enhanced').select('*').ilike('blob', f'%{keyword}%').limit(k).execute()
+                    # 제목에서 키워드 검색만 사용 (JSONB 검색 제거)
+                    title_results = self.supabase.table('recipe_blob_emb').select('*').ilike('title', f'%{keyword}%').limit(k).execute()
                     
                     all_results.extend(title_results.data or [])
-                    all_results.extend(content_results.data or [])
                     
                 except Exception as e:
                     print(f"키워드 검색 오류 for '{keyword}': {e}")
