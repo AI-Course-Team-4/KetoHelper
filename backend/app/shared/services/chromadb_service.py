@@ -4,7 +4,7 @@ PostgreSQL 대신 ChromaDB 사용
 """
 
 from typing import List, Dict, Any, Optional
-from app.tools.recipe_rag import get_vector_store
+from app.shared.tools.recipe_rag import get_vector_store
 import json
 from datetime import datetime
 

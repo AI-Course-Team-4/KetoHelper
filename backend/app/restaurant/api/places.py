@@ -8,9 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 
 from app.core.database import get_db
-from app.models.schemas import PlaceSearchRequest, PlaceResponse
-from app.tools.place_search import PlaceSearchTool
-from app.tools.keto_score import KetoScoreCalculator
+from app.shared.models.schemas import PlaceSearchRequest, PlaceResponse
+from app.restaurant.tools.place_search import PlaceSearchTool
+from app.meal.tools.keto_score import KetoScoreCalculator
 
 router = APIRouter(prefix="/places", tags=["places"])
 

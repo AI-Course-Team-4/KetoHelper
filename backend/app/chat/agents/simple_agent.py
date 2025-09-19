@@ -9,7 +9,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import HumanMessage
 
 from app.core.config import settings
-from app.tools.hybrid_search import hybrid_search_tool
+from app.shared.tools.hybrid_search import hybrid_search_tool
 
 class SimpleKetoCoachAgent:
     """간단한 키토 코치 에이전트"""
