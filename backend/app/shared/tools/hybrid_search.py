@@ -94,10 +94,10 @@ class HybridSearchTool:
             for keyword in keywords[:3]:  # 상위 3개 키워드만 사용
                 try:
                     # 제목에서 키워드 검색
-                    title_results = self.supabase.table('recipes_keto_enhanced').select('*').ilike('title', f'%{keyword}%').limit(k).execute()
+                    title_results = self.supabase.table('recipe_blob_emb').select('*').ilike('title', f'%{keyword}%').limit(k).execute()
                     
                     # 내용에서 키워드 검색
-                    content_results = self.supabase.table('recipes_keto_enhanced').select('*').ilike('content', f'%{keyword}%').limit(k).execute()
+                    content_results = self.supabase.table('recipe_blob_emb').select('*').ilike('content', f'%{keyword}%').limit(k).execute()
                     
                     keyword_results.extend(title_results.data or [])
                     keyword_results.extend(content_results.data or [])
