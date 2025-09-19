@@ -11,9 +11,9 @@ from langchain_openai import ChatOpenAI
 from langchain.schema import HumanMessage
 
 from app.core.config import settings
-from app.tools.hybrid_search import hybrid_search_tool
-from app.tools.place_search import PlaceSearchTool
-from app.tools.keto_score import KetoScoreCalculator
+from app.shared.tools.hybrid_search import hybrid_search_tool
+from app.restaurant.tools.place_search import PlaceSearchTool
+from app.meal.tools.keto_score import KetoScoreCalculator
 
 class MealPlannerAgent:
     """7일 키토 식단표 생성 에이전트"""

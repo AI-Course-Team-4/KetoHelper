@@ -14,12 +14,12 @@ import pytz
 from datetime import datetime
 
 from app.core.database import get_db
-from app.models.schemas import (
+from app.shared.models.schemas import (
     PlanCreate, PlanUpdate, PlanResponse, MealPlanRequest, 
     MealPlanResponse, StatsSummary
 )
-from app.models.database_models import Plan, Recipe
-from app.agents.meal_planner import MealPlannerAgent
+from app.shared.models.database_models import Plan, Recipe
+from app.meal.agents.meal_planner import MealPlannerAgent
 
 router = APIRouter(prefix="/plans", tags=["plans"])
 
