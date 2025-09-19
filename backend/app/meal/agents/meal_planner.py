@@ -15,6 +15,11 @@ from app.shared.tools.hybrid_search import hybrid_search_tool
 from app.restaurant.tools.place_search import PlaceSearchTool
 from app.meal.tools.keto_score import KetoScoreCalculator
 
+# 프롬프트 모듈 import
+from app.meal.prompts.meal_plan_structure import MEAL_PLAN_STRUCTURE_PROMPT
+from app.meal.prompts.meal_generation import MEAL_GENERATION_PROMPT
+from app.meal.prompts.meal_plan_notes import MEAL_PLAN_NOTES_PROMPT
+
 class MealPlannerAgent:
     """7일 키토 식단표 생성 에이전트"""
     
@@ -125,33 +130,10 @@ class MealPlannerAgent:
     async def _plan_meal_structure(self, days: int, constraints: str) -> List[Dict[str, str]]:
         """전체 식단 구조 계획"""
         
-        structure_prompt = f"""
-        {days}일간의 키토 식단 구조를 계획하세요.
-        
-        제약 조건: {constraints}
-        
-        각 날짜별로 아침/점심/저녁의 대략적인 메뉴 타입을 정하세요.
-        
-        키토 원칙:
-        - 아침: 간단하고 지방 위주 (계란, 아보카도, 치즈 등)
-        - 점심: 단백질 + 채소 (샐러드, 구이, 볶음 등)  
-        - 저녁: 풍성한 단백질 + 발효 채소 (고기, 생선 + 김치, 나물 등)
-        - 간식: 견과류, 치즈, 올리브 등
-        
-        다양성을 고려하여 반복되지 않도록 하세요.
-        
-        JSON 형태로 응답하세요:
-        [
-            {{
-                "day": 1,
-                "breakfast_type": "계란 요리",
-                "lunch_type": "샐러드",
-                "dinner_type": "고기 구이",
-                "snack_type": "견과류"
-            }},
-            ...
-        ]
-        """
+        structure_prompt = MEAL_PLAN_STRUCTURE_PROMPT.format(
+            days=days,
+            constraints=constraints
+        )
         
         try:
             response = await self.llm.ainvoke([HumanMessage(content=structure_prompt)])
@@ -244,23 +226,11 @@ class MealPlannerAgent:
     ) -> Dict[str, Any]:
         """LLM을 통한 메뉴 생성"""
         
-        meal_prompt = f"""
-        {slot}에 적합한 {meal_type} 키토 메뉴를 생성하세요.
-        
-        제약 조건: {constraints}
-        
-        다음 JSON 형태로 응답하세요:
-        {{
-            "type": "recipe",
-            "title": "메뉴명",
-            "macros": {{"kcal": 칼로리, "carb": 탄수화물g, "protein": 단백질g, "fat": 지방g}},
-            "ingredients": [
-                {{"name": "재료명", "amount": 양, "unit": "단위"}}
-            ],
-            "steps": ["조리 과정"],
-            "tips": ["키토 팁"]
-        }}
-        """
+        meal_prompt = MEAL_GENERATION_PROMPT.format(
+            slot=slot,
+            meal_type=meal_type,
+            constraints=constraints
+        )
         
         try:
             response = await self.llm.ainvoke([HumanMessage(content=meal_prompt)])
@@ -422,20 +392,7 @@ class MealPlannerAgent:
     ) -> List[str]:
         """식단표 조언 생성"""
         
-        notes_prompt = f"""
-        다음 키토 식단표에 대한 실용적인 조언 3-5개를 생성하세요.
-        
-        제약 조건: {constraints}
-        
-        조언 내용:
-        - 식단 실행 팁
-        - 쇼핑 가이드
-        - 조리 준비 사항
-        - 키토 부작용 대처법
-        - 식단 유지 방법
-        
-        간결하고 실용적인 조언으로 작성하세요.
-        """
+        notes_prompt = MEAL_PLAN_NOTES_PROMPT.format(constraints=constraints)
         
         try:
             response = await self.llm.ainvoke([HumanMessage(content=notes_prompt)])

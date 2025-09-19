@@ -18,6 +18,12 @@ from app.meal.tools.keto_score import KetoScoreCalculator
 from app.meal.agents.meal_planner import MealPlannerAgent
 from app.chat.agents.simple_agent import SimpleKetoCoachAgent
 
+# 프롬프트 모듈 import
+from app.chat.prompts.intent_classification import INTENT_CLASSIFICATION_PROMPT
+from app.chat.prompts.memory_update import MEMORY_UPDATE_PROMPT
+from app.chat.prompts.response_generation import RESPONSE_GENERATION_PROMPT
+from app.restaurant.prompts.place_search_improvement import PLACE_SEARCH_IMPROVEMENT_PROMPT
+
 from typing_extensions import TypedDict, NotRequired
 
 class AgentState(TypedDict):
@@ -69,6 +75,7 @@ class KetoCoachAgent:
         workflow.add_node("place_search", self._place_search_node)
         workflow.add_node("meal_plan", self._meal_plan_node)
         workflow.add_node("memory_update", self._memory_update_node)
+        workflow.add_node("general_chat", self._general_chat_node)
         workflow.add_node("answer", self._answer_node)
         
         # 시작점 설정
@@ -83,15 +90,16 @@ class KetoCoachAgent:
                 "place": "place_search",
                 "mealplan": "meal_plan",
                 "memory": "memory_update",
-                "other": "answer"
+                "other": "general_chat"
             }
         )
         
-        # 모든 노드에서 answer로
+        # 모든 노드에서 answer로 (general_chat은 직접 END로)
         workflow.add_edge("recipe_search", "answer")
         workflow.add_edge("place_search", "answer")
         workflow.add_edge("meal_plan", "answer")
         workflow.add_edge("memory_update", "answer")
+        workflow.add_edge("general_chat", END)
         workflow.add_edge("answer", END)
         
         return workflow.compile()
@@ -101,32 +109,7 @@ class KetoCoachAgent:
         
         message = state["messages"][-1].content if state["messages"] else ""
         
-        router_prompt = f"""
-        사용자 메시지를 분석하여 의도와 슬롯을 추출하세요.
-        
-        사용자 메시지: "{message}"
-        
-        다음 JSON 형태로 응답하세요:
-        {{
-            "intent": "recipe|place|mealplan|memory|other",
-            "slots": {{
-                "location": "지역명 (예: 역삼역, 강남)",
-                "radius": "검색 반경 (km)",
-                "category": "음식 카테고리",
-                "preferences": "선호사항",
-                "allergies": "알레르기",
-                "meal_type": "식사 타입 (아침/점심/저녁)",
-                "days": "식단표 일수"
-            }}
-        }}
-        
-        의도 분류:
-        - recipe: 레시피 추천 요청 (만들어 먹을 음식, 조리법)
-        - place: 식당/장소 검색 요청 (외식, 배달, 근처 식당)
-        - mealplan: 식단표 생성 요청 (주간/일간 식단)
-        - memory: 프로필/선호도 업데이트
-        - other: 일반 대화/기타
-        """
+        router_prompt = INTENT_CLASSIFICATION_PROMPT.format(message=message)
         
         try:
             response = await self.llm.ainvoke([HumanMessage(content=router_prompt)])
@@ -205,14 +188,7 @@ class KetoCoachAgent:
             lng = state["location"].get("lng", 127.0276) if state["location"] else 127.0276
             
             # 검색 쿼리 개선
-            query_improvement_prompt = f"""
-            사용자 요청을 카카오 로컬 검색에 적합한 키워드로 변환하세요.
-            
-            사용자 요청: "{message}"
-            
-            키토 친화적인 검색 키워드 (1-3개)를 반환하세요:
-            예시: "구이", "샤브샤브", "샐러드", "스테이크", "회"
-            """
+            query_improvement_prompt = PLACE_SEARCH_IMPROVEMENT_PROMPT.format(message=message)
             
             llm_response = await self.llm.ainvoke([HumanMessage(content=query_improvement_prompt)])
             search_keywords = llm_response.content.strip().split(", ")
@@ -325,21 +301,7 @@ class KetoCoachAgent:
             message = state["messages"][-1].content if state["messages"] else ""
             
             # 프로필 업데이트 정보 추출
-            update_prompt = f"""
-            사용자 메시지에서 프로필 업데이트 정보를 추출하세요.
-            
-            사용자 메시지: "{message}"
-            
-            JSON 형태로 응답하세요:
-            {{
-                "allergies": ["추가할 알레르기"],
-                "dislikes": ["추가할 비선호 음식"],
-                "goals_kcal": 목표칼로리숫자,
-                "goals_carbs_g": 목표탄수화물그램
-            }}
-            
-            업데이트할 항목만 포함하세요.
-            """
+            update_prompt = MEMORY_UPDATE_PROMPT.format(message=message)
             
             response = await self.llm.ainvoke([HumanMessage(content=update_prompt)])
             
@@ -361,6 +323,30 @@ class KetoCoachAgent:
             
         except Exception as e:
             print(f"Memory update error: {e}")
+        
+        return state
+    
+    async def _general_chat_node(self, state: AgentState) -> AgentState:
+        """일반 채팅 노드 (simple_agent 사용)"""
+        
+        try:
+            message = state["messages"][-1].content if state["messages"] else ""
+            
+            # simple_agent를 통한 일반 채팅 처리
+            result = await self.simple_agent.process_message(
+                message=message,
+                location=state.get("location"),
+                radius_km=state.get("radius_km", 5.0),
+                profile=state.get("profile")
+            )
+            
+            # 결과를 state에 저장
+            state["response"] = result.get("response", "")
+            state["tool_calls"].extend(result.get("tool_calls", []))
+            
+        except Exception as e:
+            print(f"General chat error: {e}")
+            state["response"] = "죄송합니다. 일반 채팅 처리 중 오류가 발생했습니다. 다시 시도해주세요."
         
         return state
     
@@ -394,23 +380,11 @@ class KetoCoachAgent:
                 else:
                     context = json.dumps(state["results"][:3], ensure_ascii=False, indent=2)
             
-            answer_prompt = f"""
-            사용자의 키토 식단 관련 질문에 친근하고 도움이 되는 답변을 해주세요.
-            
-            사용자 질문: "{message}"
-            의도: {state["intent"]}
-            
-            {context}
-            
-            답변 가이드라인:
-            1. 한국어로 자연스럽게 답변
-            2. 키토 식단의 특성을 고려한 조언 포함
-            3. 구체적이고 실용적인 정보 제공
-            4. 검색 결과가 있으면 적극 활용
-            5. 200-300자 내외로 간결하게
-            
-            검색 결과가 없는 경우 일반적인 키토 식단 조언을 제공하세요.
-            """
+            answer_prompt = RESPONSE_GENERATION_PROMPT.format(
+                message=message,
+                intent=state["intent"],
+                context=context
+            )
             
             response = await self.llm.ainvoke([HumanMessage(content=answer_prompt)])
             state["response"] = response.content

@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime
 
 from app.shared.models.schemas import ChatMessage, ChatResponse
-from app.chat.agents.simple_agent import SimpleKetoCoachAgent
+from app.core.orchestrator import KetoCoachAgent
 from app.core.database import supabase
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -40,12 +40,12 @@ async def chat_endpoint(request: ChatMessage):
         }
         # TODO: Supabase에 메시지 저장 구현
         
-        # 간단한 에이전트 실행
-        agent = SimpleKetoCoachAgent()
+        # 키토 코치 오케스트레이터 실행
+        agent = KetoCoachAgent()
         result = await agent.process_message(
             message=request.message,
             location=request.location,
-            radius_km=request.radius_km,
+            radius_km=request.radius_km or 5.0,
             profile=request.profile
         )
         
@@ -92,11 +92,11 @@ async def chat_stream(request: ChatMessage):
             # TODO: Supabase에 메시지 저장 구현
             
             # 에이전트를 통한 스트리밍 응답
-            agent = SimpleKetoCoachAgent()
+            agent = KetoCoachAgent()
             async for chunk in agent.stream_response(
                 message=request.message,
                 location=request.location,
-                radius_km=request.radius_km,
+                radius_km=request.radius_km or 5.0,
                 profile=request.profile
             ):
                 yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
