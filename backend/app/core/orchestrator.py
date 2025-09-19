@@ -11,10 +11,10 @@ from langchain.schema import HumanMessage, AIMessage, BaseMessage
 import json
 
 from app.core.config import settings
-from app.tools.recipe_rag import RecipeRAGTool
-from app.tools.place_search import PlaceSearchTool
-from app.tools.keto_score import KetoScoreCalculator
-from app.agents.meal_planner import MealPlannerAgent
+from app.shared.tools.recipe_rag import RecipeRAGTool
+from app.restaurant.tools.place_search import PlaceSearchTool
+from app.meal.tools.keto_score import KetoScoreCalculator
+from app.meal.agents.meal_planner import MealPlannerAgent
 
 from typing_extensions import TypedDict
 

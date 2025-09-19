@@ -10,8 +10,8 @@ import json
 import uuid
 from datetime import datetime
 
-from app.models.schemas import ChatMessage, ChatResponse
-from app.agents.simple_agent import SimpleKetoCoachAgent
+from app.shared.models.schemas import ChatMessage, ChatResponse
+from app.chat.agents.simple_agent import SimpleKetoCoachAgent
 from app.core.database import supabase
 
 router = APIRouter(prefix="/chat", tags=["chat"])

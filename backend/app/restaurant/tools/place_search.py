@@ -12,7 +12,7 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
-from app.models.database_models import PlaceCache
+from app.shared.models.database_models import PlaceCache
 
 class PlaceSearchTool:
     """카카오 로컬 API 장소 검색 도구"""
