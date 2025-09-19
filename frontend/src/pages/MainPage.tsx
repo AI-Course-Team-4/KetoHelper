@@ -50,7 +50,7 @@ export function MainPage() {
                                 <CardTitle className="text-sm font-medium">시도한 레시피</CardTitle>
                             </CardHeader>
                             <CardContent className="pt-0">
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-3 mt-2">
                                     <svg width="72" height="72" viewBox="0 0 100 100" className="shrink-0">
                                         <circle cx="50" cy="50" r="42" strokeWidth="8" className="stroke-border" fill="none" />
                                         <circle
@@ -78,7 +78,7 @@ export function MainPage() {
                                 <CardTitle className="text-sm font-medium">즐겨찾기한 식당</CardTitle>
                             </CardHeader>
                             <CardContent className="pt-0">
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-3 mt-2">
                                     <div className="w-16 h-16 flex items-center justify-center rounded-full bg-green-100 dark:bg-green-700 mb-3">
                                         <svg className="w-8 h-8 text-green-600 dark:text-green-300" fill="currentColor" viewBox="0 0 20 20">
                                             <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
