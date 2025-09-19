@@ -8,6 +8,7 @@ import { useProfileStore } from '@/store/profileStore'
 import { RecipeCard } from '@/components/RecipeCard'
 import { PlaceCard } from '@/components/PlaceCard'
 import { useSendMessage } from '@/hooks/useApi'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface Message {
   id: string
@@ -168,7 +169,7 @@ export function ChatPage() {
       messages: [],
       createdAt: new Date()
     }
-    
+
     setChatSessions(prev => [newSession, ...prev])
     setCurrentSessionId(newSessionId)
     clearMessages()
@@ -201,8 +202,8 @@ export function ChatPage() {
   // 현재 세션에 메시지 추가
   const addMessageToCurrentSession = (message: Message) => {
     if (currentSessionId) {
-      setChatSessions(prev => prev.map(session => 
-        session.id === currentSessionId 
+      setChatSessions(prev => prev.map(session =>
+        session.id === currentSessionId
           ? { ...session, messages: [...session.messages, message] }
           : session
       ))
@@ -225,7 +226,7 @@ export function ChatPage() {
         messages: [],
         createdAt: new Date()
       }
-      
+
       setChatSessions(prev => [newSession, ...prev])
       setCurrentSessionId(newSessionId)
       sessionId = newSessionId
@@ -264,8 +265,8 @@ export function ChatPage() {
 
       // 첫 번째 메시지인 경우 세션 제목 업데이트
       if (sessionId && messages.length === 0) {
-        setChatSessions(prev => prev.map(session => 
-          session.id === sessionId 
+        setChatSessions(prev => prev.map(session =>
+          session.id === sessionId
             ? { ...session, title: userMessage.content.slice(0, 30) + (userMessage.content.length > 30 ? '...' : '') }
             : session
         ))
@@ -309,7 +310,7 @@ export function ChatPage() {
         messages: [],
         createdAt: new Date()
       }
-      
+
       setChatSessions(prev => [newSession, ...prev])
       setCurrentSessionId(newSessionId)
       sessionId = newSessionId
@@ -347,8 +348,8 @@ export function ChatPage() {
 
       // 첫 번째 메시지인 경우 세션 제목 업데이트
       if (sessionId && messages.length === 0) {
-        setChatSessions(prev => prev.map(session => 
-          session.id === sessionId 
+        setChatSessions(prev => prev.map(session =>
+          session.id === sessionId
             ? { ...session, title: userMessage.content.slice(0, 30) + (userMessage.content.length > 30 ? '...' : '') }
             : session
         ))
@@ -385,6 +386,10 @@ export function ChatPage() {
             건강한 키토 식단을 위한 AI 어시스턴트
           </p>
         </div>
+      </div> */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gradient">키토 코치</h1>
+        <p className="text-muted-foreground mt-1">건강한 키토 식단을 위한 AI 어시스턴트</p>
       </div>
 
       {/* 메인 콘텐츠 영역 */}
@@ -395,67 +400,64 @@ export function ChatPage() {
           <div className="p-6 border-b border-border/50">
             <Button 
               onClick={createNewChat}
-              className="w-full justify-center gap-3 h-12 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200"
+              className="w-full justify-center gap-3 h-12 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200 mb-4"
               variant="default"
             >
               <Plus className="h-5 w-5" />
               새 채팅 시작
             </Button>
-          </div>
 
-          {/* 채팅 히스토리 */}
-          <ScrollArea className="flex-1 p-4">
-            <div className="space-y-3">
-              {chatSessions.length === 0 && (
-                <div className="text-center py-12 text-muted-foreground">
-                  <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-4">
-                    <MessageSquare className="h-8 w-8" />
-                  </div>
-                  <p className="text-sm font-medium mb-1">아직 채팅이 없습니다</p>
-                  <p className="text-xs opacity-70">새 채팅을 시작해보세요!</p>
-                </div>
-              )}
-              
-              {chatSessions.map((session) => (
-                <div
-                  key={session.id}
-                  className={`group relative p-4 rounded-xl cursor-pointer transition-all duration-200 ${
-                    currentSessionId === session.id 
-                      ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg' 
-                      : 'hover:bg-muted/50 hover:shadow-md'
-                  }`}
-                  onClick={() => selectChatSession(session.id)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-medium truncate mb-1">
-                        {session.title}
-                      </h4>
-                      <p className={`text-xs ${
-                        currentSessionId === session.id ? 'text-white/70' : 'text-muted-foreground'
-                      }`}>
-                        {session.createdAt.toLocaleDateString()}
-                      </p>
+            {/* 채팅 히스토리 */}
+            <ScrollArea className="max-h-[60vh]">
+              <div className="space-y-3">
+                {chatSessions.length === 0 && (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-4">
+                      <MessageSquare className="h-8 w-8" />
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className={`opacity-0 group-hover:opacity-100 h-7 w-7 p-0 transition-opacity duration-200 ${
-                        currentSessionId === session.id ? 'text-white hover:bg-white/20' : 'hover:bg-muted'
-                      }`}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        deleteChatSession(session.id)
-                      }}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
+                    <p className="text-sm font-medium mb-1">아직 채팅이 없습니다</p>
+                    <p className="text-xs opacity-70">새 채팅을 시작해보세요!</p>
                   </div>
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
-        </div>
+                )}
+
+                {chatSessions.map((session) => (
+                  <div
+                    key={session.id}
+                    className={`group relative p-4 rounded-xl cursor-pointer transition-all duration-200 ${currentSessionId === session.id
+                      ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg'
+                      : 'hover:bg-muted/50 hover:shadow-md'
+                      }`}
+                    onClick={() => selectChatSession(session.id)}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm font-medium truncate mb-1">
+                          {session.title}
+                        </h4>
+                        <p className={`text-xs ${currentSessionId === session.id ? 'text-white/70' : 'text-muted-foreground'
+                          }`}>
+                          {session.createdAt.toLocaleDateString()}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={`opacity-0 group-hover:opacity-100 h-7 w-7 p-0 transition-opacity duration-200 ${currentSessionId === session.id ? 'text-white hover:bg-white/20' : 'hover:bg-muted'
+                          }`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          deleteChatSession(session.id)
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
 
         {/* 메인 채팅 영역 */}
         <div className="flex-1 flex flex-col bg-card/30 backdrop-blur-sm border border-border/50 rounded-xl shadow-sm min-h-0 w-full lg:w-auto">
@@ -666,15 +668,152 @@ export function ChatPage() {
                         disabled={isLoading}
                         className="text-xs px-2 lg:px-3 py-1 rounded-md lg:rounded-lg border-border/50 hover:bg-muted/50 hover:shadow-sm transition-all duration-200"
                       >
-                        {quickMessage}
+                        <Send className="h-5 w-5" />
                       </Button>
-                    ))}
+                    </div>
+
+                    {/* 빠른 질문 버튼들 */}
+                    <div className="flex flex-wrap gap-3 justify-center">
+                      {[
+                        "아침 키토 레시피 추천해줘",
+                        "강남역 근처 키토 식당 찾아줘",
+                        "7일 키토 식단표 만들어줘",
+                        "키토 다이어트 방법 알려줘"
+                      ].map((quickMessage) => (
+                        <Button
+                          key={quickMessage}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleQuickMessage(quickMessage)}
+                          disabled={isLoading}
+                          className="text-sm px-4 py-2 rounded-xl border-border/50 hover:bg-muted/50 hover:shadow-md transition-all duration-200"
+                        >
+                          {quickMessage}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
-            </>
-          )}
-        </div>
+            ) : (
+              // 채팅 시작 후 - 일반 채팅 레이아웃
+              <>
+                {/* 메시지 영역 */}
+                <ScrollArea className="flex-1 p-6">
+                  <div className="max-w-4xl mx-auto">
+                    <div className="space-y-6">
+                      {messages.map((msg) => (
+                        <div key={msg.id} className={`flex items-start gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''
+                          }`}>
+                          {/* 아바타 */}
+                          <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center shadow-md ${msg.role === 'user'
+                            ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white'
+                            : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white'
+                            }`}>
+                            {msg.role === 'user' ? <User className="h-5 w-5" /> : <span className="text-lg">🥑</span>}
+                          </div>
+
+                          {/* 메시지 내용 */}
+                          <div className={`flex-1 max-w-2xl ${msg.role === 'user' ? 'text-right' : ''}`}>
+                            <div className={`inline-block p-4 rounded-2xl shadow-sm ${msg.role === 'user'
+                              ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white'
+                              : 'bg-card border border-border/50'
+                              }`}>
+                              <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                            </div>
+
+                            {/* 결과 카드들 */}
+                            {msg.results && msg.results.length > 0 && (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                {msg.results.map((result, index) => (
+                                  <div key={index}>
+                                    {result.title && result.ingredients ? (
+                                      <RecipeCard recipe={result} />
+                                    ) : result.name && result.address ? (
+                                      <PlaceCard place={result} />
+                                    ) : null}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* 로딩 표시 */}
+                      {isLoading && (
+                        <div className="flex items-start gap-4">
+                          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 text-white flex items-center justify-center shadow-md">
+                            <span className="text-lg">🥑</span>
+                          </div>
+                          <div className="bg-card border border-border/50 p-4 rounded-2xl shadow-sm">
+                            <div className="flex items-center gap-3">
+                              <Loader2 className="h-4 w-4 animate-spin text-green-500" />
+                              <span className="text-sm text-muted-foreground">키토 코치가 생각하고 있어요...</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div ref={messagesEndRef} />
+                    </div>
+                  </div>
+                </ScrollArea>
+
+                {/* 입력 영역 */}
+                <div className="border-t border-border/50 bg-background/50 backdrop-blur-sm p-6">
+                  <div className="max-w-4xl mx-auto">
+                    <div className="flex gap-3">
+                      <div className="flex-1 relative">
+                        <Input
+                          value={message}
+                          onChange={(e) => setMessage(e.target.value)}
+                          onKeyDown={handleKeyDown}
+                          placeholder="키토 식단에 대해 무엇이든 물어보세요..."
+                          className="h-12 pl-4 pr-12 bg-background/80 border-border/50 rounded-xl shadow-sm focus:shadow-md transition-all duration-200"
+                          disabled={isLoading}
+                        />
+                        {isLoading && (
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          </div>
+                        )}
+                      </div>
+                      <Button
+                        onClick={handleSendMessage}
+                        disabled={!message.trim() || isLoading}
+                        className="h-12 px-6 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200"
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    {/* 빠른 질문 버튼들 */}
+                    <div className="flex flex-wrap gap-2 mt-4">
+                      {[
+                        "아침 키토 레시피 추천해줘",
+                        "강남역 근처 키토 식당 찾아줘",
+                        "7일 키토 식단표 만들어줘",
+                        "키토 다이어트 방법 알려줘"
+                      ].map((quickMessage) => (
+                        <Button
+                          key={quickMessage}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleQuickMessage(quickMessage)}
+                          disabled={isLoading}
+                          className="text-xs px-3 py-1 rounded-lg border-border/50 hover:bg-muted/50 hover:shadow-sm transition-all duration-200"
+                        >
+                          {quickMessage}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
