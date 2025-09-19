@@ -1,0 +1,437 @@
+{
+  "project_info": {
+    "name": "키토 메뉴 분석 ETL 파이프라인",
+    "version": "v1.0",
+    "generated_at": "2024-01-15T10:30:00Z",
+    "scope": "강남 지역 다이닝코드 식당 50곳 분석"
+  },
+  
+  "data_summary": {
+    "total_restaurants": 50,
+    "total_menus": 245,
+    "scored_menus": 238,
+    "geocoding_success_rate": 0.94,
+    "processing_time_seconds": 180
+  },
+
+  "restaurants": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440001",
+      "name": "맛있는 한우집",
+      "phone": "02-1234-5678",
+      "address": {
+        "original": "서울 강남구 테헤란로 123",
+        "normalized": "서울특별시 강남구 테헤란로 123",
+        "latitude": 37.566535,
+        "longitude": 127.978966,
+        "geohash6": "wy3xyz"
+      },
+      "cuisine_types": ["한식", "고기"],
+      "price_range": "HIGH",
+      "rating_avg": 4.2,
+      "review_count": 156,
+      "sources": [
+        {
+          "source_name": "diningcode",
+          "source_url": "https://www.diningcode.com/profile.php?rid=12345",
+          "is_primary": true
+        }
+      ],
+      "created_at": "2024-01-15T10:30:00Z"
+    },
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440002", 
+      "name": "키토 전문점",
+      "phone": "02-9876-5432",
+      "address": {
+        "original": "서울 강남구 강남대로 456",
+        "normalized": "서울특별시 강남구 강남대로 456",
+        "latitude": 37.497952,
+        "longitude": 127.027619,
+        "geohash6": "wy3abc"
+      },
+      "cuisine_types": ["양식", "키토"],
+      "price_range": "MEDIUM",
+      "rating_avg": 4.5,
+      "review_count": 89,
+      "sources": [
+        {
+          "source_name": "diningcode", 
+          "source_url": "https://www.diningcode.com/profile.php?rid=67890",
+          "is_primary": true
+        }
+      ],
+      "created_at": "2024-01-15T10:30:00Z"
+    }
+  ],
+
+  "menus": [
+    {
+      "id": "menu-001",
+      "restaurant_id": "550e8400-e29b-41d4-a716-446655440001",
+      "name": "한우 등심 스테이크",
+      "description": "프리미엄 한우 등심을 구워낸 스테이크",
+      "price": 45000,
+      "category": "MAIN",
+      "created_at": "2024-01-15T10:30:00Z"
+    },
+    {
+      "id": "menu-002", 
+      "restaurant_id": "550e8400-e29b-41d4-a716-446655440001",
+      "name": "한우 등심 덮밥",
+      "description": "한우 등심과 밥이 함께 나오는 덮밥",
+      "price": 25000,
+      "category": "MAIN",
+      "created_at": "2024-01-15T10:30:00Z"
+    },
+    {
+      "id": "menu-003",
+      "restaurant_id": "550e8400-e29b-41d4-a716-446655440002", 
+      "name": "곤약밥 소고기덮밥",
+      "description": "곤약밥에 소고기를 올린 키토 친화적 메뉴",
+      "price": 18000,
+      "category": "MAIN",
+      "created_at": "2024-01-15T10:30:00Z"
+    },
+    {
+      "id": "menu-004",
+      "restaurant_id": "550e8400-e29b-41d4-a716-446655440002",
+      "name": "키토 김밥 (밥 대신 계란지단)",
+      "description": "밥 대신 계란지단을 사용한 키토 김밥",
+      "price": 12000,
+      "category": "MAIN", 
+      "created_at": "2024-01-15T10:30:00Z"
+    },
+    {
+      "id": "menu-005",
+      "restaurant_id": "550e8400-e29b-41d4-a716-446655440001",
+      "name": "혼마정식",
+      "description": "일본식 정식 메뉴",
+      "price": 35000,
+      "category": "SET",
+      "created_at": "2024-01-15T10:30:00Z"
+    }
+  ],
+
+  "keto_scores": [
+    {
+      "menu_id": "menu-001",
+      "raw_score": 85.5,
+      "final_score": 88.2,
+      "confidence": 0.92,
+      "category": "KETO_EXCELLENT",
+      "detected_keywords": ["한우", "스테이크", "구이"],
+      "applied_rules": ["base_scoring", "context_adjustment"],
+      "reasons": [
+        {
+          "rule_id": "base_scoring",
+          "keyword": "한우",
+          "impact": 15.0,
+          "explanation": "키토 친화적 식품 감지: 한우"
+        },
+        {
+          "rule_id": "base_scoring", 
+          "keyword": "스테이크",
+          "impact": 20.0,
+          "explanation": "키토 친화적 식품 감지: 스테이크"
+        },
+        {
+          "rule_id": "post_process",
+          "keyword": "premium_price",
+          "impact": 4.5,
+          "explanation": "고가 메뉴 품질 보정 (+4.5)"
+        }
+      ],
+      "calculated_at": "2024-01-15T10:30:00Z"
+    },
+    {
+      "menu_id": "menu-002",
+      "raw_score": -45.0,
+      "final_score": -42.3,
+      "confidence": 0.88,
+      "category": "KETO_POOR", 
+      "detected_keywords": ["한우", "덮밥", "밥"],
+      "applied_rules": ["base_scoring", "menu_type_penalty"],
+      "reasons": [
+        {
+          "rule_id": "base_scoring",
+          "keyword": "한우",
+          "impact": 15.0,
+          "explanation": "키토 친화적 식품 감지: 한우"
+        },
+        {
+          "rule_id": "base_scoring",
+          "keyword": "덮밥", 
+          "impact": -65.0,
+          "explanation": "고탄수화물 식품 감지: 덮밥"
+        },
+        {
+          "rule_id": "base_scoring",
+          "keyword": "밥",
+          "impact": -60.0,
+          "explanation": "고탄수화물 식품 감지: 밥"
+        }
+      ],
+      "calculated_at": "2024-01-15T10:30:00Z"
+    },
+    {
+      "menu_id": "menu-003",
+      "raw_score": 75.0,
+      "final_score": 78.5,
+      "confidence": 0.85,
+      "category": "KETO_GOOD",
+      "detected_keywords": ["곤약밥", "소고기", "덮밥"],
+      "applied_rules": ["base_scoring", "substitution_bonus", "negation_detection"],
+      "reasons": [
+        {
+          "rule_id": "base_scoring",
+          "keyword": "소고기",
+          "impact": 15.0,
+          "explanation": "키토 친화적 식품 감지: 소고기"
+        },
+        {
+          "rule_id": "base_scoring",
+          "keyword": "덮밥",
+          "impact": -65.0,
+          "explanation": "고탄수화물 식품 감지: 덮밥"
+        },
+        {
+          "rule_id": "substitution_bonus",
+          "keyword": "곤약밥",
+          "impact": 25.0,
+          "explanation": "건강한 대체재료 사용: 곤약밥"
+        },
+        {
+          "rule_id": "negation_detection",
+          "keyword": "곤약밥+덮밥",
+          "impact": 32.5,
+          "explanation": "'덮밥' 제외 표현으로 패널티 상쇄"
+        }
+      ],
+      "calculated_at": "2024-01-15T10:30:00Z"
+    },
+    {
+      "menu_id": "menu-004",
+      "raw_score": 80.0,
+      "final_score": 82.1,
+      "confidence": 0.78,
+      "category": "KETO_EXCELLENT",
+      "detected_keywords": ["김밥", "밥", "계란지단"],
+      "applied_rules": ["base_scoring", "negation_detection"],
+      "reasons": [
+        {
+          "rule_id": "base_scoring",
+          "keyword": "김밥",
+          "impact": -65.0,
+          "explanation": "고탄수화물 식품 감지: 김밥"
+        },
+        {
+          "rule_id": "base_scoring",
+          "keyword": "밥",
+          "impact": -60.0,
+          "explanation": "고탄수화물 식품 감지: 밥"
+        },
+        {
+          "rule_id": "negation_detection",
+          "keyword": "밥 대신+김밥",
+          "impact": 62.5,
+          "explanation": "'김밥' 제외 표현으로 패널티 상쇄"
+        },
+        {
+          "rule_id": "base_scoring",
+          "keyword": "계란지단",
+          "impact": 10.0,
+          "explanation": "키토 친화적 식품 감지: 계란지단"
+        }
+      ],
+      "calculated_at": "2024-01-15T10:30:00Z"
+    },
+    {
+      "menu_id": "menu-005",
+      "raw_score": -25.0,
+      "final_score": -22.1,
+      "confidence": 0.45,
+      "category": "KETO_MODERATE",
+      "detected_keywords": ["정식"],
+      "applied_rules": ["base_scoring", "menu_type_penalty"],
+      "reasons": [
+        {
+          "rule_id": "menu_type_penalty",
+          "keyword": "정식",
+          "impact": -15.0,
+          "explanation": "메뉴 타입 패널티: 정식"
+        }
+      ],
+      "needs_review": true,
+      "calculated_at": "2024-01-15T10:30:00Z"
+    }
+  ],
+
+  "quality_report": {
+    "report_id": "QR_20240115_103000",
+    "generated_at": "2024-01-15T10:30:00Z",
+    "overall_quality": "GOOD",
+    "metrics": {
+      "total_items": 245,
+      "scored_items": 238,
+      "high_confidence_items": 198,
+      "low_confidence_items": 12,
+      "avg_confidence": 0.78,
+      "keyword_coverage": 0.85
+    },
+    "score_statistics": {
+      "mean": 25.3,
+      "median": 18.7,
+      "std_dev": 45.2,
+      "min": -85.2,
+      "max": 92.1
+    },
+    "category_distribution": {
+      "excellent": 45,
+      "good": 67,
+      "moderate": 89,
+      "poor": 28,
+      "avoid": 9
+    },
+    "top_keywords": [
+      ["밥", 45],
+      ["면", 32],
+      ["고기", 28],
+      ["스테이크", 25],
+      ["곤약밥", 18],
+      ["소고기", 15],
+      ["정식", 12],
+      ["덮밥", 10]
+    ],
+    "issues": [
+      {
+        "issue_type": "low_confidence",
+        "severity": "FAIR",
+        "description": "신뢰도가 낮은 항목이 12개 발견됨",
+        "affected_items": [
+          "혼마정식 (신뢰도: 0.45)",
+          "일본식 라멘 (신뢰도: 0.38)"
+        ],
+        "recommendation": "메뉴명이나 설명을 더 상세히 수집하거나 키워드 사전을 보완하세요"
+      }
+    ],
+    "recommendations": [
+      "전체적인 신뢰도가 양호합니다.",
+      "키토 친화적 메뉴 비율이 45.8%로 높습니다.",
+      "🟡 신뢰도가 낮은 메뉴들의 데이터 품질을 개선하세요."
+    ],
+    "needs_review": [
+      "[낮은 신뢰도] 혼마정식",
+      "[극단적 점수] 곤약밥 소고기덮밥 (78.5점)",
+      "[키워드 없음] 특별 메뉴"
+    ]
+  },
+
+  "restaurant_analysis": [
+    {
+      "restaurant_id": "550e8400-e29b-41d4-a716-446655440001",
+      "restaurant_name": "맛있는 한우집",
+      "analysis_summary": {
+        "total_menus": 15,
+        "average_score": 12.3,
+        "average_confidence": 0.82,
+        "keto_friendly_percentage": 33.3,
+        "friendliness_grade": "C"
+      },
+      "top_recommended_menus": [
+        {
+          "name": "한우 등심 스테이크",
+          "score": 88.2,
+          "category": "KETO_EXCELLENT"
+        },
+        {
+          "name": "한우 샐러드",
+          "score": 75.5,
+          "category": "KETO_GOOD"
+        }
+      ],
+      "menus_to_avoid": [
+        {
+          "name": "한우 등심 덮밥",
+          "score": -42.3,
+          "category": "KETO_POOR"
+        }
+      ]
+    },
+    {
+      "restaurant_id": "550e8400-e29b-41d4-a716-446655440002",
+      "restaurant_name": "키토 전문점",
+      "analysis_summary": {
+        "total_menus": 8,
+        "average_score": 65.2,
+        "average_confidence": 0.89,
+        "keto_friendly_percentage": 87.5,
+        "friendliness_grade": "A"
+      },
+      "top_recommended_menus": [
+        {
+          "name": "키토 김밥 (밥 대신 계란지단)",
+          "score": 82.1,
+          "category": "KETO_EXCELLENT"
+        },
+        {
+          "name": "곤약밥 소고기덮밥",
+          "score": 78.5,
+          "category": "KETO_GOOD"
+        }
+      ],
+      "menus_to_avoid": []
+    }
+  ],
+
+  "processing_log": {
+    "crawling": {
+      "start_time": "2024-01-15T10:00:00Z",
+      "end_time": "2024-01-15T10:15:00Z",
+      "duration_seconds": 900,
+      "total_pages": 50,
+      "successful_pages": 48,
+      "failed_pages": 2,
+      "errors": [
+        "HTTP 429: Rate limit exceeded for page 23",
+        "Parse error: Selector changed for page 41"
+      ]
+    },
+    "geocoding": {
+      "total_requests": 50,
+      "successful_requests": 47,
+      "failed_requests": 3,
+      "cache_hits": 12,
+      "api_calls": 35
+    },
+    "scoring": {
+      "start_time": "2024-01-15T10:15:00Z",
+      "end_time": "2024-01-15T10:30:00Z",
+      "duration_seconds": 900,
+      "menus_processed": 245,
+      "scores_calculated": 238,
+      "rules_applied": {
+        "base_scoring": 238,
+        "negation_detection": 45,
+        "substitution_bonus": 23,
+        "menu_type_penalty": 67,
+        "context_adjustment": 156
+      }
+    }
+  },
+
+  "export_files": {
+    "restaurants_csv": "data/processed/restaurants_20240115.csv",
+    "menus_csv": "data/processed/menus_20240115.csv", 
+    "keto_scores_csv": "data/processed/keto_scores_20240115.csv",
+    "quality_report_csv": "data/reports/quality_report_20240115.csv",
+    "processing_log_json": "data/reports/processing_log_20240115.json"
+  },
+
+  "next_steps": [
+    "검수 필요 항목 12개 수동 검토",
+    "신뢰도 낮은 메뉴 데이터 보완",
+    "키워드 사전 확장 (일본식 메뉴 키워드 추가)",
+    "다음 배치: 식신 소스 추가 수집"
+  ]
+}
