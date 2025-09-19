@@ -8,6 +8,7 @@ import { Toaster } from '@/components/ui/toaster'
 import NaverCallback from '@/pages/NaverCallback'
 import { Toaster as HotToaster } from 'react-hot-toast'
 import { MainPage } from '@/pages/MainPage'
+import { SubscribePage } from '@/pages/SubscribePage'
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/auth/naver/callback" element={<NaverCallback />} />
+          <Route path="/subscribe" element={<SubscribePage />} />
         </Routes>
       </Layout>
       <Toaster />
