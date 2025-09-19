@@ -4,7 +4,8 @@ Supabase 하이브리드 검색 도구
 """
 
 import re
-import openai
+# OpenAI import 주석 처리 (Gemini로 교체)
+# import openai
 import asyncio
 from typing import List, Dict, Any, Optional
 from app.core.database import supabase
@@ -15,19 +16,24 @@ class HybridSearchTool:
     
     def __init__(self):
         self.supabase = supabase
-        self.openai_client = openai.OpenAI(api_key=settings.openai_api_key)
+        # OpenAI 클라이언트 주석 처리 (임베딩 기능 임시 비활성화)
+        # self.openai_client = openai.OpenAI(api_key=settings.openai_api_key)
     
     async def _create_embedding(self, text: str) -> List[float]:
-        """텍스트를 임베딩으로 변환"""
-        try:
-            response = self.openai_client.embeddings.create(
-                model="text-embedding-3-small",
-                input=text
-            )
-            return response.data[0].embedding
-        except Exception as e:
-            print(f"임베딩 생성 오류: {e}")
-            return []
+        """텍스트를 임베딩으로 변환 (임시 비활성화)"""
+        # OpenAI 임베딩 기능 임시 비활성화 - 키워드 검색만 사용
+        print(f"⚠️ 임베딩 기능 비활성화됨 - 키워드 검색만 사용: {text}")
+        return []
+        
+        # try:
+        #     response = self.openai_client.embeddings.create(
+        #         model="text-embedding-3-small",
+        #         input=text
+        #     )
+        #     return response.data[0].embedding
+        # except Exception as e:
+        #     print(f"임베딩 생성 오류: {e}")
+        #     return []
     
     def _extract_keywords(self, query: str) -> List[str]:
         """쿼리에서 키워드 추출"""
