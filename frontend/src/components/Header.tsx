@@ -45,11 +45,15 @@ export function Header() {
     try { clearNaverOAuthState() } catch {}
   }
 
+  const handleMenuClick = () => {
+    navigate('/')
+  }
+
   return (
     <header className="bg-white border-b border-border shadow-sm">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         {/* 로고 */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-4" onClick={handleMenuClick} style={{ cursor: 'pointer' }}>
           <Button
             variant="ghost"
             size="sm"
