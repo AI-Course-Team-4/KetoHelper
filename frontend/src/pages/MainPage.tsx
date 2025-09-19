@@ -155,40 +155,41 @@ export function MainPage() {
                     </div>
                 </CardContent>
                 <CardContent>
-                    <div className="grid gap-4 md:grid-cols-3">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-sm font-medium">탄수화물 5–10%</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-sm text-muted-foreground">
-                                    정제 탄수화물은 최소화하고, 채소 위주로 섭취.
-                                </div>
-                            </CardContent>
-                        </Card>
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-sm font-medium">단백질 15–25%</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-sm text-muted-foreground">
-                                    닭가슴살, 달걀, 두부 등으로 균형 있게.
-                                </div>
-                            </CardContent>
-                        </Card>
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-sm font-medium">지방 70–80%</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-sm text-muted-foreground">
-                                    아보카도, 올리브오일, 견과류처럼 좋은 지방 위주.
-                                </div>
-                            </CardContent>
-                        </Card>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="text-center p-4 bg-green-50 rounded-lg">
+                            <div className="text-2xl font-bold text-green-600">70-80%</div>
+                            <div className="text-sm text-green-700">지방</div>
+                            <div className="text-xs text-muted-foreground mt-1">
+                                주 에너지원
+                            </div>
+                        </div>
+
+                        <div className="text-center p-4 bg-blue-50 rounded-lg">
+                            <div className="text-2xl font-bold text-blue-600">15-25%</div>
+                            <div className="text-sm text-blue-700">단백질</div>
+                            <div className="text-xs text-muted-foreground mt-1">
+                                근육 유지
+                            </div>
+                        </div>
+
+                        <div className="text-center p-4 bg-orange-50 rounded-lg">
+                            <div className="text-2xl font-bold text-orange-600">5-10%</div>
+                            <div className="text-sm text-orange-700">탄수화물</div>
+                            <div className="text-xs text-muted-foreground mt-1">
+                                최소 섭취
+                            </div>
+                        </div>
                     </div>
-                    <div className="mt-6 text-sm text-muted-foreground">
-                        해당 정보는 일반적 안내이며, 건강 상태에 따라 조정이 필요할 수 있습니다.
+
+                    <div className="mt-6 space-y-2">
+                        <h4 className="font-medium">💡 키토 성공 팁</h4>
+                        <ul className="text-sm text-muted-foreground space-y-1">
+                            <li>• 충분한 물 섭취 (하루 2-3L)</li>
+                            <li>• 전해질 보충 (나트륨, 칼륨, 마그네슘)</li>
+                            <li>• 점진적 탄수화물 감소</li>
+                            <li>• 규칙적인 식사 시간</li>
+                            <li>• 스트레스 관리와 충분한 수면</li>
+                        </ul>
                     </div>
                 </CardContent>
             </Card>
