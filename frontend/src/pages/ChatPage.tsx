@@ -393,7 +393,8 @@ export function ChatPage() {
           <div className="p-6 border-b border-border/50">
             <Button 
               onClick={createNewChat}
-              className="w-full justify-center gap-3 h-12 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200 mb-4"
+              disabled={isLoading}
+              className={`w-full justify-center gap-3 h-12 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200 mb-4 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
               variant="default"
             >
               <Plus className="h-5 w-5" />
@@ -416,11 +417,15 @@ export function ChatPage() {
                 {chatSessions.map((session) => (
                   <div
                     key={session.id}
-                    className={`group relative p-4 rounded-xl cursor-pointer transition-all duration-200 ${currentSessionId === session.id
+                    className={`group relative p-4 rounded-xl transition-all duration-200 ${currentSessionId === session.id
                       ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg'
                       : 'hover:bg-muted/50 hover:shadow-md'
-                      }`}
-                    onClick={() => selectChatSession(session.id)}
+                      } ${isLoading ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'}`}
+                    onClick={() => {
+                      if (!isLoading) {
+                        selectChatSession(session.id)
+                      }
+                    }}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
@@ -435,11 +440,14 @@ export function ChatPage() {
                       <Button
                         variant="ghost"
                         size="sm"
+                        disabled={isLoading}
                         className={`opacity-0 group-hover:opacity-100 h-7 w-7 p-0 transition-opacity duration-200 ${currentSessionId === session.id ? 'text-white hover:bg-white/20' : 'hover:bg-muted'
-                          }`}
+                          } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                         onClick={(e) => {
                           e.stopPropagation()
-                          deleteChatSession(session.id)
+                          if (!isLoading) {
+                            deleteChatSession(session.id)
+                          }
                         }}
                       >
                         <Trash2 className="h-3 w-3" />
