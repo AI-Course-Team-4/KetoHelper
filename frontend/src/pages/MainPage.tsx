@@ -26,90 +26,112 @@ export function MainPage() {
                 </p>
             </div>
 
-            <Card>
-                <CardHeader className="pb-2">
-                    <CardTitle className="text-lg">진행도</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                    <p className="text-sm text-muted-foreground mb-4">{user?.name ? `${user.name}님, ` : ''}오늘도 건강한 키토 라이프를 이어가세요!</p>
-                    <div className="grid gap-4 md:grid-cols-3">
-                        <Card>
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-medium">키토 진행률</CardTitle>
-                            </CardHeader>
-                            <CardContent className="pt-0">
-                                <div className="text-3xl font-bold">{ketoProgress}%</div>
-                                <div className="mt-3 h-2 bg-border rounded-full overflow-hidden">
-                                    <div className="h-full bg-green-500" style={{ width: `${ketoProgress}%` }} />
-                                </div>
-                                <div className="text-sm text-muted-foreground mt-1">목표 대비 진행률</div>
-                            </CardContent>
-                        </Card>
-                        <Card>
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-medium">시도한 레시피</CardTitle>
-                            </CardHeader>
-                            <CardContent className="pt-0">
-                                <div className="flex items-center gap-3 mt-2">
-                                    <svg width="72" height="72" viewBox="0 0 100 100" className="shrink-0">
-                                        <circle cx="50" cy="50" r="42" strokeWidth="8" className="stroke-border" fill="none" />
-                                        <circle
-                                            cx="50"
-                                            cy="50"
-                                            r="42"
-                                            strokeWidth="8"
-                                            className="stroke-green-500"
-                                            fill="none"
-                                            strokeDasharray={264}
-                                            strokeDashoffset={264 * (1 - recipesPct / 100)}
-                                            transform="rotate(-90 50 50)"
-                                            strokeLinecap="round"
-                                        />
-                                    </svg>
-                                    <div>
-                                        <div className="text-3xl font-bold leading-none">{recipesTried}</div>
-                                        <div className="text-sm text-muted-foreground mt-1">전체 {recipesTotal}개 중 · {recipesPct}%</div>
+            {user ? (
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-lg">진행도</CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                        <p className="text-sm text-muted-foreground mb-4">{user?.name ? `${user.name}님, ` : ''}오늘도 건강한 키토 라이프를 이어가세요!</p>
+                        <div className="grid gap-4 md:grid-cols-3">
+                            <Card>
+                                <CardHeader className="pb-2">
+                                    <CardTitle className="text-sm font-medium">키토 진행률</CardTitle>
+                                </CardHeader>
+                                <CardContent className="pt-0">
+                                    <div className="text-3xl font-bold">{ketoProgress}%</div>
+                                    <div className="mt-3 h-2 bg-border rounded-full overflow-hidden">
+                                        <div className="h-full bg-green-500" style={{ width: `${ketoProgress}%` }} />
                                     </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                        <Card>
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-medium">즐겨찾기한 식당</CardTitle>
-                            </CardHeader>
-                            <CardContent className="pt-0">
-                                <div className="flex items-center gap-3 mt-2">
-                                    <div className="w-16 h-16 flex items-center justify-center rounded-full bg-green-100 dark:bg-green-700 mb-3">
-                                        <svg className="w-8 h-8 text-green-600 dark:text-green-300" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                                    <div className="text-sm text-muted-foreground mt-1">목표 대비 진행률</div>
+                                </CardContent>
+                            </Card>
+                            <Card>
+                                <CardHeader className="pb-2">
+                                    <CardTitle className="text-sm font-medium">시도한 레시피</CardTitle>
+                                </CardHeader>
+                                <CardContent className="pt-0">
+                                    <div className="flex items-center gap-3 mt-2">
+                                        <svg width="72" height="72" viewBox="0 0 100 100" className="shrink-0">
+                                            <circle cx="50" cy="50" r="42" strokeWidth="8" className="stroke-border" fill="none" />
+                                            <circle
+                                                cx="50"
+                                                cy="50"
+                                                r="42"
+                                                strokeWidth="8"
+                                                className="stroke-green-500"
+                                                fill="none"
+                                                strokeDasharray={264}
+                                                strokeDashoffset={264 * (1 - recipesPct / 100)}
+                                                transform="rotate(-90 50 50)"
+                                                strokeLinecap="round"
+                                            />
                                         </svg>
+                                        <div>
+                                            <div className="text-3xl font-bold leading-none">{recipesTried}</div>
+                                            <div className="text-sm text-muted-foreground mt-1">전체 {recipesTotal}개 중 · {recipesPct}%</div>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <div className="text-3xl font-bold leading-none">8</div>
-                                        <div className="text-sm text-muted-foreground mt-1">즐겨찾기한 식당 수</div>
+                                </CardContent>
+                            </Card>
+                            <Card>
+                                <CardHeader className="pb-2">
+                                    <CardTitle className="text-sm font-medium">즐겨찾기한 식당</CardTitle>
+                                </CardHeader>
+                                <CardContent className="pt-0">
+                                    <div className="flex items-center gap-3 mt-2">
+                                        <div className="w-16 h-16 flex items-center justify-center rounded-full bg-green-100 dark:bg-green-700 mb-3">
+                                            <svg className="w-8 h-8 text-green-600 dark:text-green-300" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <div className="text-3xl font-bold leading-none">8</div>
+                                            <div className="text-sm text-muted-foreground mt-1">즐겨찾기한 식당 수</div>
+                                        </div>
                                     </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </div>
-                </CardContent>
-            </Card>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    </CardContent>
+                </Card>
+            ) : (
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-lg">진행도</CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                        <div className="text-sm text-muted-foreground">로그인해야 확인할 수 있는 기능입니다.</div>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* 피드: 오늘의 추천 레시피 (추후 랜덤 3개로 나오게끔 변경) */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                        <Sparkles className="h-5 w-5 text-green-600" /> 오늘의 추천 레시피
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="grid gap-4 md:grid-cols-3">
-                        {sampleRecipes.map((r) => (
-                            <RecipeCard key={r.id} recipe={r as any} />
-                        ))}
-                    </div>
-                </CardContent>
-            </Card>
+            {user ? (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                            <Sparkles className="h-5 w-5 text-green-600" /> 오늘의 추천 레시피
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid gap-4 md:grid-cols-3">
+                            {sampleRecipes.map((r) => (
+                                <RecipeCard key={r.id} recipe={r as any} />
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+            ) : (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-lg flex items-center gap-2"><Sparkles className="h-5 w-5 text-green-600" />오늘의 추천 레시피</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-sm text-muted-foreground">로그인해야 확인할 수 있는 기능입니다.</div>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* 피드: 키토제닉 다이어트란? */}
             <Card>
