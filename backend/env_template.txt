@@ -16,10 +16,16 @@ SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 # ========================================
 # AI/LLM 설정
 # ========================================
-# OpenAI API 키 (https://platform.openai.com/api-keys에서 발급)
-OPENAI_API_KEY=sk-...
-EMBEDDING_MODEL=text-embedding-3-small
-LLM_MODEL=gpt-3.5-turbo
+# OpenAI API 키 (주석 처리 - Gemini로 교체)
+# OPENAI_API_KEY=sk-...
+# EMBEDDING_MODEL=text-embedding-3-small
+# LLM_MODEL=gpt-3.5-turbo
+
+# Google Gemini API 키 (https://aistudio.google.com/app/apikey에서 발급)
+GOOGLE_API_KEY=AIzaSy...
+GEMINI_MODEL=gemini-1.5-flash
+GEMINI_TEMPERATURE=0.1
+GEMINI_MAX_TOKENS=8192
 
 # ========================================
 # 외부 API 설정

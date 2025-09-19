@@ -6,7 +6,8 @@ import {
   User, 
   BarChart3,
   Utensils,
-  MapPin
+  MapPin,
+  CreditCard
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
@@ -36,15 +37,22 @@ const navigationItems = [
     href: '/profile',
     icon: User,
     description: '개인 설정 및 목표'
+  },
+  {
+    title: '구독',
+    href: '/subscribe',
+    icon: CreditCard,
+    description: '구독 관리'
   }
 ]
 
 export function Navigation() {
   const { user } = useAuthStore()
+  const items = user ? navigationItems : navigationItems.filter((i) => i.href !== '/profile' && i.href !== '/calendar')
   return (
     <nav className="w-64 bg-muted/30 border-r border-border min-h-screen p-4">
       <div className="space-y-2">
-        {navigationItems.map((item) => (
+        {items.map((item) => (
           <NavLink
             key={item.href}
             to={item.href}

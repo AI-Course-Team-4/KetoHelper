@@ -8,12 +8,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 import uvicorn
-import os
+import os, re
 from dotenv import load_dotenv
 import asyncio
 
-from app.api import chat, places, plans
-from app.api import auth as auth_api
+from app.chat.api import chat
+from app.restaurant.api import places
+from app.meal.api import plans
+from app.shared.api import auth as auth_api
 from app.core.config import settings
 from app.core.database import init_db
 
