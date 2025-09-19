@@ -1,9 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi import Body
+from fastapi import Response, Request
 from pydantic import BaseModel
 import httpx
 import os
-from app.core.jwt_utils import create_access_token, create_refresh_token, decode_token
+from app.core.jwt_utils import (
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+    ACCESS_TOKEN_EXP_MINUTES,
+    REFRESH_TOKEN_EXP_DAYS,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -33,8 +40,38 @@ async def _upsert_user(profile: dict) -> dict:
     }
 
 
+def _set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
+    secure = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+    samesite = os.getenv("COOKIE_SAMESITE", "lax")  # "lax" | "none" | "strict"
+    domain = os.getenv("COOKIE_DOMAIN") or None
+    # Align cookie lifetimes with JWT lifetimes (approx.)
+    access_max_age = ACCESS_TOKEN_EXP_MINUTES * 60
+    refresh_max_age = REFRESH_TOKEN_EXP_DAYS * 24 * 60 * 60
+
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=secure,
+        samesite=samesite,
+        max_age=access_max_age,
+        domain=domain,
+        path="/",
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=secure,
+        samesite=samesite,
+        max_age=refresh_max_age,
+        domain=domain,
+        path="/",
+    )
+
+
 @router.post("/google")
-async def google_login(payload: GoogleAccessRequest):
+async def google_login(payload: GoogleAccessRequest, response: Response):
     async with httpx.AsyncClient(timeout=10) as client:
         r = await client.get(
             "https://www.googleapis.com/oauth2/v3/userinfo",
@@ -47,11 +84,13 @@ async def google_login(payload: GoogleAccessRequest):
     user = await _upsert_user(profile)
     access = create_access_token(user["id"], {"email": user["email"], "name": user["name"]})
     refresh = create_refresh_token(user["id"])
+    _set_auth_cookies(response, access, refresh)
+    # 응답 본문으로도 계속 반환 (프론트 호환성 유지)
     return {"accessToken": access, "refreshToken": refresh, "user": user}
 
 
 @router.post("/kakao")
-async def kakao_login(payload: KakaoAccessRequest):
+async def kakao_login(payload: KakaoAccessRequest, response: Response):
     async with httpx.AsyncClient(timeout=10) as client:
         r = await client.get(
             "https://kapi.kakao.com/v2/user/me",
@@ -71,11 +110,12 @@ async def kakao_login(payload: KakaoAccessRequest):
     user = await _upsert_user(profile)
     access = create_access_token(user["id"], {"email": user["email"], "name": user["name"]})
     refresh = create_refresh_token(user["id"])
+    _set_auth_cookies(response, access, refresh)
     return {"accessToken": access, "refreshToken": refresh, "user": user}
 
 
 @router.post("/naver")
-async def naver_login(payload: NaverCodeRequest):
+async def naver_login(payload: NaverCodeRequest, response: Response):
     # Support both backend and Vite-style env names
     client_id = os.getenv("NAVER_CLIENT_ID") or os.getenv("VITE_NAVER_CLIENT_ID", "")
     client_secret = os.getenv("NAVER_CLIENT_SECRET") or os.getenv("VITE_NAVER_CLIENT_SECRET", "")
@@ -121,28 +161,38 @@ async def naver_login(payload: NaverCodeRequest):
     user = await _upsert_user(profile)
     access = create_access_token(user["id"], {"email": user["email"], "name": user["name"]})
     refresh = create_refresh_token(user["id"])
+    _set_auth_cookies(response, access, refresh)
     return {"accessToken": access, "refreshToken": refresh, "user": user}
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str
+    refresh_token: str | None = None
 
 
 @router.post("/refresh")
-async def refresh_token(payload: RefreshRequest):
+async def refresh_token(payload: RefreshRequest, request: Request, response: Response):
     try:
-        data = decode_token(payload.refresh_token)
+        token = payload.refresh_token or request.cookies.get("refresh_token")
+        if not token:
+            raise HTTPException(status_code=401, detail="Missing refresh token")
+        data = decode_token(token)
         if data.get("type") != "refresh":
             raise HTTPException(status_code=400, detail="Invalid token type")
         user_id = data.get("sub")
         access = create_access_token(user_id)
+        # 업데이트된 액세스 토큰을 쿠키에도 반영
+        # 기존 리프레시 토큰은 그대로 유지
+        _set_auth_cookies(response, access, request.cookies.get("refresh_token", ""))
         return {"accessToken": access}
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
 
 @router.post("/logout")
-async def logout():
-    # 클라이언트 토큰 삭제는 프론트에서 처리.
+async def logout(response: Response):
+    # 쿠키 삭제 (도메인/설정 일치 필요)
+    domain = os.getenv("COOKIE_DOMAIN") or None
+    response.delete_cookie(key="access_token", domain=domain, path="/")
+    response.delete_cookie(key="refresh_token", domain=domain, path="/")
     return {"ok": True}
 
