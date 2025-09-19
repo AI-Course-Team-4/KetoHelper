@@ -15,6 +15,7 @@ import { authService } from '@/lib/authService'
 import { toast } from 'react-hot-toast'
 import { LoginModal } from './LoginModal'
 import { useNavigate } from 'react-router-dom'
+import { cleanupLocalAuthArtifacts, clearChatHistoryStorage, clearNaverOAuthState } from '@/lib/bootCleanup'
 
 export function Header() {
   const [, setIsSearchOpen] = useState(false)
@@ -39,6 +40,9 @@ export function Header() {
       // ignore
     }
     clear()
+    try { cleanupLocalAuthArtifacts() } catch {}
+    try { clearChatHistoryStorage() } catch {}
+    try { clearNaverOAuthState() } catch {}
   }
 
   return (
