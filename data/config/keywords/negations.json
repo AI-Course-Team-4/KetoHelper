@@ -1,0 +1,140 @@
+{
+  "version": "v1.0",
+  "description": "부정/제외 표현 키워드 사전 (패널티 50% 상쇄)",
+  "last_updated": "2024-01-15",
+  "exclusion_patterns": {
+    "밥제외": {
+      "patterns": [
+        "(밥|쌀밥)\\s*(을|를)?\\s*(빼|제외|없이|빼고)",
+        "(밥|쌀밥)\\s*제외",
+        "밥\\s*없는",
+        "밥\\s*안\\s*들어간"
+      ],
+      "weight": 0.5,
+      "confidence": 0.9,
+      "description": "밥 제외 표현"
+    },
+    "면제외": {
+      "patterns": [
+        "(면|국수|라면)\\s*(을|를)?\\s*(빼|제외|없이|빼고)",
+        "(면|국수)\\s*제외",
+        "면\\s*없는",
+        "면\\s*안\\s*들어간"
+      ],
+      "weight": 0.5,
+      "confidence": 0.9,
+      "description": "면 제외 표현"
+    },
+    "빵제외": {
+      "patterns": [
+        "(빵|브레드)\\s*(을|를)?\\s*(빼|제외|없이|빼고)",
+        "(빵|브레드)\\s*제외",
+        "빵\\s*없는"
+      ],
+      "weight": 0.5,
+      "confidence": 0.9,
+      "description": "빵 제외 표현"
+    }
+  },
+  "replacement_patterns": {
+    "밥대신": {
+      "patterns": [
+        "(밥|쌀밥)\\s*대신\\s*(곤약|두부|콜리플라워|양배추)",
+        "(밥|쌀밥)\\s*말고\\s*(곤약|두부|콜리플라워)"
+      ],
+      "weight": 0.8,
+      "confidence": 0.95,
+      "description": "밥 대신 다른 재료"
+    },
+    "면대신": {
+      "patterns": [
+        "(면|국수)\\s*대신\\s*(곤약면|두부면|호박면|시라타키)",
+        "(면|국수)\\s*말고\\s*(곤약면|두부면)"
+      ],
+      "weight": 0.8,
+      "confidence": 0.95,
+      "description": "면 대신 다른 재료"
+    }
+  },
+  "negation_words": {
+    "빼고": {
+      "weight": 0.5,
+      "confidence": 0.8,
+      "context_required": true
+    },
+    "없이": {
+      "weight": 0.5,
+      "confidence": 0.8,
+      "context_required": true
+    },
+    "제외": {
+      "weight": 0.5,
+      "confidence": 0.9,
+      "context_required": true
+    },
+    "빼기": {
+      "weight": 0.5,
+      "confidence": 0.7,
+      "context_required": true
+    },
+    "안들어간": {
+      "weight": 0.6,
+      "confidence": 0.8,
+      "context_required": true
+    },
+    "없는": {
+      "weight": 0.6,
+      "confidence": 0.8,
+      "context_required": true
+    },
+    "대신": {
+      "weight": 0.7,
+      "confidence": 0.9,
+      "context_required": true
+    },
+    "말고": {
+      "weight": 0.7,
+      "confidence": 0.8,
+      "context_required": true
+    }
+  },
+  "option_indicators": {
+    "선택": {
+      "patterns": [
+        "밥\\s*(선택|옵션)",
+        "면\\s*(선택|옵션)",
+        "(밥|면)\\s*추가\\s*가능"
+      ],
+      "weight": 0.7,
+      "confidence": 0.8,
+      "description": "선택 가능한 옵션"
+    },
+    "추가가능": {
+      "patterns": [
+        "(밥|면)\\s*추가\\s*가능",
+        "(밥|면)\\s*별도\\s*주문"
+      ],
+      "weight": 0.7,
+      "confidence": 0.8,
+      "description": "별도 추가 가능"
+    }
+  },
+  "context_rules": {
+    "proximity_window": 5,
+    "description": "부정어와 탄수화물 키워드 간 최대 단어 거리",
+    "require_carb_context": true,
+    "description2": "부정어 감지시 주변에 탄수화물 키워드 필수"
+  },
+  "complex_patterns": {
+    "conditional_exclusion": [
+      "밥\\s*(빼고|없이)\\s*드실\\s*수\\s*있습니다",
+      "면\\s*(빼고|없이)\\s*주문\\s*가능",
+      "(밥|면)\\s*제외\\s*가능"
+    ],
+    "partial_replacement": [
+      "반\\s*밥",
+      "밥\\s*반\\s*공기",
+      "적은\\s*양의\\s*(밥|면)"
+    ]
+  }
+}

@@ -1,0 +1,134 @@
+{
+  "version": "v1.0",
+  "description": "대체 재료 키워드 사전 (패널티 상쇄/축소)",
+  "last_updated": "2024-01-15",
+  "complete_substitutions": {
+    "곤약밥": {
+      "weight": 70,
+      "confidence": 0.95,
+      "replaces": ["밥", "쌀밥"],
+      "carb_base": "konjac_rice",
+      "aliases": ["곤약쌀", "konjac rice"]
+    },
+    "두부면": {
+      "weight": 65,
+      "confidence": 0.9,
+      "replaces": ["면", "국수", "라면면"],
+      "carb_base": "tofu_noodle",
+      "aliases": ["두부국수"]
+    },
+    "콜리플라워라이스": {
+      "weight": 70,
+      "confidence": 0.95,
+      "replaces": ["밥", "쌀밥"],
+      "carb_base": "cauli_rice",
+      "aliases": ["콜리플라워 라이스", "cauliflower rice"]
+    },
+    "시라타키": {
+      "weight": 65,
+      "confidence": 0.9,
+      "replaces": ["면", "국수"],
+      "carb_base": "tofu_noodle",
+      "aliases": ["곤약면", "shirataki"]
+    },
+    "호박면": {
+      "weight": 60,
+      "confidence": 0.85,
+      "replaces": ["면", "파스타면"],
+      "carb_base": "none",
+      "aliases": ["주키니면", "zucchini noodles"]
+    },
+    "양배추": {
+      "weight": 50,
+      "confidence": 0.8,
+      "replaces": ["밥"],
+      "carb_base": "none",
+      "aliases": ["양배추쌀"]
+    }
+  },
+  "keto_ingredients": {
+    "무설탕": {
+      "weight": 25,
+      "confidence": 0.9,
+      "aliases": ["설탕무첨가", "sugar free"]
+    },
+    "저당": {
+      "weight": 20,
+      "confidence": 0.85,
+      "aliases": ["저설탕", "low sugar"]
+    },
+    "키토": {
+      "weight": 30,
+      "confidence": 0.95,
+      "aliases": ["케토", "keto", "ketogenic"]
+    },
+    "lchf": {
+      "weight": 30,
+      "confidence": 0.95,
+      "aliases": ["LCHF", "저탄고지"]
+    },
+    "저탄수화물": {
+      "weight": 25,
+      "confidence": 0.9,
+      "aliases": ["저탄수", "low carb"]
+    },
+    "글루텐프리": {
+      "weight": 15,
+      "confidence": 0.7,
+      "aliases": ["글루텐 프리", "gluten free"]
+    },
+    "에리스리톨": {
+      "weight": 20,
+      "confidence": 0.85,
+      "aliases": ["erythritol"]
+    },
+    "스테비아": {
+      "weight": 20,
+      "confidence": 0.85,
+      "aliases": ["stevia"]
+    },
+    "아가베": {
+      "weight": 10,
+      "confidence": 0.6,
+      "aliases": ["agave"]
+    }
+  },
+  "preparation_methods": {
+    "굽기": {
+      "weight": 15,
+      "confidence": 0.8,
+      "description": "기름 없이 구운 조리법"
+    },
+    "찜": {
+      "weight": 12,
+      "confidence": 0.75,
+      "description": "기름 없이 찐 조리법"
+    },
+    "삶기": {
+      "weight": 10,
+      "confidence": 0.7,
+      "description": "물에 삶은 조리법"
+    }
+  },
+  "patterns": {
+    "완전대체": [
+      "곤약.*밥",
+      "두부.*면",
+      "콜리플라워.*라이스",
+      "시라타키",
+      "호박.*면"
+    ],
+    "키토표시": [
+      "키토.*",
+      "케토.*",
+      ".*keto.*",
+      "lchf.*",
+      "저탄고지.*"
+    ],
+    "무설탕": [
+      "무설탕.*",
+      "설탕.*무첨가",
+      ".*sugar.*free.*"
+    ]
+  }
+}

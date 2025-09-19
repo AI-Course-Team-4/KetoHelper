@@ -1,0 +1,162 @@
+{
+  "version": "v1.0",
+  "description": "고탄수화물 키워드 사전 (큰 감점)",
+  "last_updated": "2024-01-15",
+  "keywords": {
+    "밥": {
+      "weight": -60,
+      "confidence": 0.9,
+      "aliases": ["쌀밥", "흰밥", "현미밥", "잡곡밥"],
+      "carb_base": "rice"
+    },
+    "덮밥": {
+      "weight": -65,
+      "confidence": 0.95,
+      "aliases": ["덮밥류", "돈부리"],
+      "carb_base": "rice"
+    },
+    "볶음밥": {
+      "weight": -65,
+      "confidence": 0.95,
+      "aliases": ["차하는", "차한"],
+      "carb_base": "rice"
+    },
+    "초밥": {
+      "weight": -70,
+      "confidence": 0.95,
+      "aliases": ["스시", "니기리"],
+      "carb_base": "rice"
+    },
+    "김밥": {
+      "weight": -65,
+      "confidence": 0.9,
+      "aliases": ["김밥류"],
+      "carb_base": "rice"
+    },
+    "비빔밥": {
+      "weight": -60,
+      "confidence": 0.9,
+      "aliases": [],
+      "carb_base": "rice"
+    },
+    "라면": {
+      "weight": -65,
+      "confidence": 0.95,
+      "aliases": ["라멘", "인스턴트라면"],
+      "carb_base": "noodle"
+    },
+    "우동": {
+      "weight": -65,
+      "confidence": 0.95,
+      "aliases": ["우동면"],
+      "carb_base": "noodle"
+    },
+    "국수": {
+      "weight": -60,
+      "confidence": 0.9,
+      "aliases": ["소면", "중면"],
+      "carb_base": "noodle"
+    },
+    "면": {
+      "weight": -55,
+      "confidence": 0.8,
+      "aliases": ["면류"],
+      "carb_base": "noodle"
+    },
+    "냉면": {
+      "weight": -60,
+      "confidence": 0.9,
+      "aliases": ["물냉면", "비빔냉면"],
+      "carb_base": "noodle"
+    },
+    "파스타": {
+      "weight": -65,
+      "confidence": 0.95,
+      "aliases": ["스파게티", "펜네", "리조또"],
+      "carb_base": "noodle"
+    },
+    "빵": {
+      "weight": -60,
+      "confidence": 0.9,
+      "aliases": ["브레드", "식빵", "바게트"],
+      "carb_base": "bread"
+    },
+    "버거": {
+      "weight": -55,
+      "confidence": 0.85,
+      "aliases": ["햄버거", "치즈버거"],
+      "carb_base": "bread"
+    },
+    "피자": {
+      "weight": -60,
+      "confidence": 0.9,
+      "aliases": ["피자류"],
+      "carb_base": "bread"
+    },
+    "샌드위치": {
+      "weight": -55,
+      "confidence": 0.85,
+      "aliases": ["샌드"],
+      "carb_base": "bread"
+    },
+    "토스트": {
+      "weight": -50,
+      "confidence": 0.8,
+      "aliases": [],
+      "carb_base": "bread"
+    },
+    "떡": {
+      "weight": -65,
+      "confidence": 0.9,
+      "aliases": ["떡볶이", "떡류", "가래떡"],
+      "carb_base": "rice"
+    },
+    "토르티야": {
+      "weight": -55,
+      "confidence": 0.85,
+      "aliases": ["타코"],
+      "carb_base": "bread"
+    },
+    "감자": {
+      "weight": -40,
+      "confidence": 0.7,
+      "aliases": ["포테이토", "감자튀김"],
+      "carb_base": "unknown"
+    },
+    "고구마": {
+      "weight": -35,
+      "confidence": 0.7,
+      "aliases": [],
+      "carb_base": "unknown"
+    },
+    "옥수수": {
+      "weight": -30,
+      "confidence": 0.6,
+      "aliases": ["콘"],
+      "carb_base": "unknown"
+    },
+    "전분": {
+      "weight": -50,
+      "confidence": 0.8,
+      "aliases": ["전분가루"],
+      "carb_base": "unknown"
+    },
+    "설탕": {
+      "weight": -45,
+      "confidence": 0.8,
+      "aliases": ["당분", "백설탕"],
+      "carb_base": "unknown"
+    },
+    "시럽": {
+      "weight": -40,
+      "confidence": 0.75,
+      "aliases": ["메이플시럽", "물엿"],
+      "carb_base": "unknown"
+    }
+  },
+  "patterns": {
+    "rice_dishes": [".*밥$", ".*밥.*"],
+    "noodle_dishes": [".*면$", ".*면.*"],
+    "bread_dishes": [".*빵.*", ".*버거.*"]
+  }
+}

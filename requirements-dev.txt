@@ -1,0 +1,22 @@
+# 개발 의존성
+-r requirements.txt
+
+# 테스팅
+pytest==7.4.3               # 테스트 프레임워크
+pytest-asyncio==0.21.1      # 비동기 테스트
+pytest-cov==4.1.0           # 커버리지 측정
+pytest-mock==3.12.0         # Mock 객체
+factory-boy==3.3.0          # 테스트 데이터 생성
+
+# 코드 품질
+black==23.11.0               # 코드 포매터
+isort==5.12.0                # Import 정리
+flake8==6.1.0                # 린터
+mypy==1.7.1                  # 타입 체커
+bandit==1.7.5                # 보안 검사
+
+# 개발 도구
+ipython==8.17.2             # 향상된 REPL
+jupyter==1.0.0              # 노트북
+pre-commit==3.5.0           # Git 훅
+python-dotenv[cli]==1.0.0   # 환경변수 CLI

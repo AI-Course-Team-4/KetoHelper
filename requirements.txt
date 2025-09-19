@@ -1,0 +1,35 @@
+# 핵심 의존성
+asyncio-compat==0.1.2
+asyncpg==0.29.0              # PostgreSQL 비동기 드라이버
+pydantic==2.5.2              # 데이터 검증 및 직렬화
+python-dotenv==1.0.0         # 환경변수 관리
+
+# 웹 크롤링
+httpx==0.25.2                # 비동기 HTTP 클라이언트
+selectolax==0.3.17           # 빠른 HTML 파싱
+playwright==1.40.0           # 동적 페이지 처리 (필요시)
+beautifulsoup4==4.12.2       # HTML 파싱 백업
+
+# 데이터 처리
+pandas==2.1.4                # 데이터 분석 및 처리
+numpy==1.24.4                # 수치 계산
+geohash2==1.1                # 지오해시 생성
+
+# 캐싱 및 직렬화
+redis==5.0.1                 # Redis 캐시 (선택적)
+orjson==3.9.10               # 빠른 JSON 처리
+msgpack==1.0.7               # 바이너리 직렬화
+
+# 로깅 및 모니터링
+structlog==23.2.0            # 구조화된 로깅
+prometheus-client==0.19.0    # 메트릭 수집
+
+# CLI 및 설정
+click==8.1.7                 # CLI 인터페이스
+PyYAML==6.0.1                # YAML 설정 파일
+toml==0.10.2                 # TOML 설정 파일
+
+# 유틸리티
+python-dateutil==2.8.2      # 날짜 처리
+phonenumbers==8.13.26       # 전화번호 검증
+email-validator==2.1.0      # 이메일 검증

@@ -1,0 +1,189 @@
+{
+  "version": "v1.0",
+  "description": "키토 친화적 키워드 사전 (가점)",
+  "last_updated": "2024-01-15",
+  "keywords": {
+    "소고기": {
+      "weight": 20,
+      "confidence": 0.9,
+      "aliases": ["한우", "수입소고기", "등심", "안심", "갈비"]
+    },
+    "돼지고기": {
+      "weight": 20,
+      "confidence": 0.9,
+      "aliases": ["삼겹살", "목살", "항정살", "가브리살"]
+    },
+    "닭고기": {
+      "weight": 18,
+      "confidence": 0.85,
+      "aliases": ["치킨", "닭", "닭다리", "닭가슴살"]
+    },
+    "양고기": {
+      "weight": 22,
+      "confidence": 0.9,
+      "aliases": ["램", "양갈비"]
+    },
+    "연어": {
+      "weight": 25,
+      "confidence": 0.95,
+      "aliases": ["살몬", "훈제연어"]
+    },
+    "참치": {
+      "weight": 22,
+      "confidence": 0.9,
+      "aliases": ["튜나", "참치회"]
+    },
+    "대구": {
+      "weight": 20,
+      "confidence": 0.85,
+      "aliases": ["대구살"]
+    },
+    "삼치": {
+      "weight": 20,
+      "confidence": 0.85,
+      "aliases": []
+    },
+    "고등어": {
+      "weight": 22,
+      "confidence": 0.9,
+      "aliases": ["고등어구이"]
+    },
+    "두부": {
+      "weight": 15,
+      "confidence": 0.8,
+      "aliases": ["연두부", "순두부", "부침두부"]
+    },
+    "계란": {
+      "weight": 18,
+      "confidence": 0.9,
+      "aliases": ["달걀", "에그", "계란말이"]
+    },
+    "치즈": {
+      "weight": 15,
+      "confidence": 0.8,
+      "aliases": ["체다치즈", "모짜렐라", "파마산"]
+    },
+    "베이컨": {
+      "weight": 20,
+      "confidence": 0.9,
+      "aliases": []
+    },
+    "아보카도": {
+      "weight": 25,
+      "confidence": 0.95,
+      "aliases": ["아보까도"]
+    },
+    "브로콜리": {
+      "weight": 12,
+      "confidence": 0.8,
+      "aliases": []
+    },
+    "버섯": {
+      "weight": 10,
+      "confidence": 0.7,
+      "aliases": ["새송이버섯", "느타리버섯", "표고버섯"]
+    },
+    "가지": {
+      "weight": 10,
+      "confidence": 0.7,
+      "aliases": []
+    },
+    "양파": {
+      "weight": 8,
+      "confidence": 0.6,
+      "aliases": []
+    },
+    "마늘": {
+      "weight": 5,
+      "confidence": 0.5,
+      "aliases": []
+    },
+    "시금치": {
+      "weight": 10,
+      "confidence": 0.7,
+      "aliases": []
+    },
+    "상추": {
+      "weight": 8,
+      "confidence": 0.6,
+      "aliases": ["양상추"]
+    },
+    "샐러드": {
+      "weight": 20,
+      "confidence": 0.85,
+      "aliases": ["샐러드류", "그린샐러드"]
+    },
+    "구이": {
+      "weight": 15,
+      "confidence": 0.8,
+      "aliases": ["구운", "그릴"]
+    },
+    "스테이크": {
+      "weight": 25,
+      "confidence": 0.95,
+      "aliases": ["스테익"]
+    },
+    "사시미": {
+      "weight": 30,
+      "confidence": 0.95,
+      "aliases": ["회", "생선회", "횟감"]
+    },
+    "올리브오일": {
+      "weight": 12,
+      "confidence": 0.8,
+      "aliases": ["올리브유"]
+    },
+    "코코넛오일": {
+      "weight": 15,
+      "confidence": 0.85,
+      "aliases": ["코코넛유"]
+    },
+    "견과류": {
+      "weight": 10,
+      "confidence": 0.7,
+      "aliases": ["아몬드", "호두", "피칸"]
+    },
+    "조개": {
+      "weight": 15,
+      "confidence": 0.8,
+      "aliases": ["홍합", "바지락", "가리비"]
+    },
+    "새우": {
+      "weight": 18,
+      "confidence": 0.85,
+      "aliases": ["쉬림프"]
+    },
+    "게": {
+      "weight": 18,
+      "confidence": 0.85,
+      "aliases": ["크랩", "대게", "킹크랩"]
+    },
+    "굴": {
+      "weight": 15,
+      "confidence": 0.8,
+      "aliases": ["오이스터", "굴구이"]
+    }
+  },
+  "cooking_methods": {
+    "구이": {
+      "weight": 15,
+      "confidence": 0.8,
+      "aliases": ["구운", "그릴", "바베큐"]
+    },
+    "찜": {
+      "weight": 12,
+      "confidence": 0.75,
+      "aliases": ["찐", "스팀"]
+    },
+    "볶음": {
+      "weight": 10,
+      "confidence": 0.7,
+      "aliases": ["볶은", "스터프라이"]
+    },
+    "조림": {
+      "weight": 8,
+      "confidence": 0.6,
+      "aliases": ["조린"]
+    }
+  }
+}

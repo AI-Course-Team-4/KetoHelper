@@ -1,0 +1,148 @@
+{
+  "version": "v1.0",
+  "description": "메뉴 타입 키워드 사전 (저점 베이스)",
+  "last_updated": "2024-01-15",
+  "low_score_types": {
+    "정식": {
+      "weight": -15,
+      "confidence": 0.85,
+      "aliases": ["정식류"],
+      "description": "보통 밥이 포함되는 메뉴"
+    },
+    "세트": {
+      "weight": -15,
+      "confidence": 0.8,
+      "aliases": ["세트메뉴", "set"],
+      "description": "여러 음식이 조합된 메뉴"
+    },
+    "코스": {
+      "weight": -10,
+      "confidence": 0.75,
+      "aliases": ["코스요리", "course"],
+      "description": "다양한 요리가 순서대로 나오는 메뉴"
+    },
+    "모둠": {
+      "weight": -12,
+      "confidence": 0.8,
+      "aliases": ["모듬"],
+      "description": "여러 종류를 섞은 메뉴"
+    },
+    "런치": {
+      "weight": -10,
+      "confidence": 0.7,
+      "aliases": ["점심", "lunch"],
+      "description": "점심 메뉴 (보통 밥 포함)"
+    },
+    "디너": {
+      "weight": -8,
+      "confidence": 0.65,
+      "aliases": ["저녁", "dinner"],
+      "description": "저녁 메뉴"
+    },
+    "스페셜": {
+      "weight": -5,
+      "confidence": 0.6,
+      "aliases": ["특선", "special"],
+      "description": "특별 메뉴"
+    },
+    "플래터": {
+      "weight": -8,
+      "confidence": 0.7,
+      "aliases": ["platter"],
+      "description": "대접시 요리"
+    },
+    "정갈한": {
+      "weight": -10,
+      "confidence": 0.7,
+      "aliases": [],
+      "description": "한정식 스타일"
+    }
+  },
+  "combo_indicators": {
+    "과함께": {
+      "weight": -5,
+      "confidence": 0.6,
+      "description": "다른 음식과 함께 제공"
+    },
+    "포함": {
+      "weight": -8,
+      "confidence": 0.7,
+      "description": "무언가가 포함된 메뉴"
+    },
+    "세트로": {
+      "weight": -10,
+      "confidence": 0.8,
+      "description": "세트로 구성된 메뉴"
+    },
+    "조합": {
+      "weight": -8,
+      "confidence": 0.7,
+      "description": "여러 음식의 조합"
+    }
+  },
+  "portion_indicators": {
+    "대": {
+      "weight": -5,
+      "confidence": 0.6,
+      "description": "큰 사이즈"
+    },
+    "특대": {
+      "weight": -8,
+      "confidence": 0.7,
+      "description": "특별히 큰 사이즈"
+    },
+    "곱빼기": {
+      "weight": -10,
+      "confidence": 0.8,
+      "description": "양이 많은 메뉴"
+    },
+    "왕": {
+      "weight": -8,
+      "confidence": 0.7,
+      "description": "큰 사이즈를 의미하는 접두사"
+    }
+  },
+  "korean_traditional": {
+    "한정식": {
+      "weight": -20,
+      "confidence": 0.9,
+      "description": "전통 한국 정식 (보통 밥 포함)"
+    },
+    "백반": {
+      "weight": -25,
+      "confidence": 0.95,
+      "description": "한국식 정식 (밥 필수)"
+    },
+    "상차림": {
+      "weight": -18,
+      "confidence": 0.85,
+      "description": "한국 전통 상차림"
+    },
+    "밥상": {
+      "weight": -20,
+      "confidence": 0.9,
+      "description": "밥을 중심으로 한 상차림"
+    }
+  },
+  "patterns": {
+    "set_menu": [
+      ".*세트$",
+      ".*정식$",
+      ".*코스$"
+    ],
+    "combo_menu": [
+      ".*모둠.*",
+      ".*플래터.*",
+      ".*과\\s*함께"
+    ]
+  },
+  "exclusions": {
+    "description": "메뉴 타입이지만 패널티를 주지 않는 경우",
+    "safe_types": [
+      "샐러드세트",
+      "고기세트",
+      "해산물코스",
+      "스테이크코스"
+    ]
+  }
+}
