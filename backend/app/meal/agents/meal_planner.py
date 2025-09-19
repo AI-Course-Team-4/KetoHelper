@@ -449,3 +449,94 @@ class MealPlannerAgent:
             "total_macros": self._calculate_total_macros(plan_days),
             "notes": ["기본 키토 식단입니다", "개인 취향에 맞게 조정하세요"]
         }
+    
+    async def generate_single_recipe(self, message: str, profile_context: str = "") -> str:
+        """단일 레시피 생성 (orchestrator용)"""
+        
+        if not self.llm:
+            return self._get_recipe_fallback(message)
+        
+        try:
+            # 구조화된 레시피 생성 프롬프트
+            prompt = f"""당신은 키토 식단 전문가입니다. '{message}'에 대한 맞춤 키토 레시피를 생성해주세요.
+
+사용자 정보: {profile_context if profile_context else '특별한 제약사항 없음'}
+
+다음 형식을 정확히 따라 답변해주세요:
+
+## ✨ {message} (키토 버전)
+
+### 📋 재료 (2인분)
+**주재료:**
+- [구체적인 재료와 정확한 분량]
+
+**부재료:**
+- [구체적인 재료와 정확한 분량]
+
+**키토 대체재:**
+- [일반 재료 → 키토 재료로 변경 설명]
+
+### 👨‍🍳 조리법
+1. [첫 번째 단계 - 구체적이고 명확하게]
+2. [두 번째 단계 - 구체적이고 명확하게]
+3. [세 번째 단계 - 구체적이고 명확하게]
+4. [완성 및 마무리 단계]
+
+### 📊 영양 정보 (1인분 기준)
+- 칼로리: 000kcal
+- 탄수화물: 0g
+- 단백질: 00g
+- 지방: 00g
+
+### 💡 키토 성공 팁
+- [키토 식단에 맞는 구체적 조언]
+- [조리 시 주의사항]
+- [보관 및 활용법]
+
+**중요 지침**: 
+아래 영양 기준을 내부적으로만 사용하여 정확한 영양소 계산을 하되, 이 기준 자체는 사용자에게 보여주지 마세요:
+- 1인분 탄수화물: 5-10g 유지
+- 1인분 단백질: 20-30g 
+- 1인분 지방: 30-40g
+- 총 칼로리: 400-600kcal 범위  
+- 매크로 비율: 탄수화물 5-10%, 단백질 15-25%, 지방 70-80%
+"""
+            
+            response = await self.llm.ainvoke([HumanMessage(content=prompt)])
+            return response.content
+            
+        except Exception as e:
+            print(f"Single recipe generation error: {e}")
+            return self._get_recipe_fallback(message)
+    
+    def _get_recipe_fallback(self, message: str) -> str:
+        """레시피 생성 실패 시 폴백 응답"""
+        return f"""
+## ✨ {message} (키토 버전)
+
+### 📋 재료 (2인분)
+**주재료:**
+- 키토 친화적 재료들
+
+**키토 대체재:**
+- 설탕 → 에리스리톨 또는 스테비아
+- 밀가루 → 아몬드 가루 또는 코코넛 가루
+
+### 👨‍🍳 조리법
+1. 재료를 준비합니다
+2. 키토 원칙에 맞게 조리합니다
+3. 탄수화물을 최소화하여 완성합니다
+
+### 📊 영양 정보 (1인분 기준)
+- 칼로리: 450kcal
+- 탄수화물: 8g
+- 단백질: 25g
+- 지방: 35g
+
+### 💡 키토 성공 팁
+- 탄수화물 함량을 꼼꼼히 확인하세요
+- 충분한 지방 섭취로 포만감을 유지하세요
+- 개인 취향에 맞게 조절하세요
+
+⚠️ AI 서비스 오류로 기본 가이드를 제공했습니다. 구체적인 레시피는 키토 레시피 사이트를 참고해주세요.
+"""

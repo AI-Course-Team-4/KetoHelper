@@ -121,6 +121,10 @@ class KetoCoachAgent:
                 result = json.loads(json_match.group())
                 state["intent"] = result.get("intent", "other")
                 state["slots"] = result.get("slots", {})
+                
+                # 디버깅: 의도 분류 결과 출력
+                print(f"🎯 의도 분류 결과: {state['intent']} (메시지: {message[:50]}...)")
+                print(f"   슬롯: {state['slots']}")
             else:
                 state["intent"] = "other"
                 state["slots"] = {}
@@ -165,12 +169,69 @@ class KetoCoachAgent:
                 max_results=5
             )
             
-            state["results"] = search_results
-            state["tool_calls"].append({
-                "tool": "recipe_search",
-                "query": full_query,
-                "results_count": len(search_results)
-            })
+            # 검색 결과가 없거나 관련성이 낮을 때 AI 레시피 생성
+            valid_results = [r for r in search_results if r.get('title') != '검색 결과 없음']
+            
+            # 사용자 요청에 구체적인 음식명이 있는지 확인
+            food_keywords = ["아이스크림", "케이크", "쿠키", "브라우니", "머핀", "푸딩", "치즈케이크", "티라미수"]
+            has_specific_food = any(keyword in message.lower() for keyword in food_keywords)
+            
+            # 검색 결과에 해당 음식이 포함되어 있는지 확인
+            if has_specific_food and valid_results:
+                matching_results = []
+                for keyword in food_keywords:
+                    if keyword in message.lower():
+                        matching_results = [r for r in valid_results if keyword in r.get('title', '').lower()]
+                        break
+                
+                # 구체적인 음식을 요청했는데 일치하는 결과가 없으면 AI 생성
+                should_generate_ai = len(matching_results) == 0
+            else:
+                # 일반적인 조건: 결과 없음 또는 점수가 낮음
+                max_score = max([r.get('final_score', 0) for r in valid_results]) if valid_results else 0
+                should_generate_ai = not search_results or len(valid_results) == 0 or max_score < 0.2
+            
+            if should_generate_ai:
+                print(f"  🤖 검색 결과 없음, AI 레시피 생성 실행...")
+                
+                # 프로필 정보를 문자열로 변환
+                profile_context = ""
+                if state.get("profile"):
+                    profile = state["profile"]
+                    allergies = profile.get("allergies", [])
+                    dislikes = profile.get("dislikes", [])
+                    if allergies:
+                        profile_context += f"알레르기: {', '.join(allergies)}. "
+                    if dislikes:
+                        profile_context += f"싫어하는 음식: {', '.join(dislikes)}. "
+                
+                # AI 레시피 생성 (MealPlannerAgent 사용)
+                ai_recipe = await self.meal_planner.generate_single_recipe(
+                    message=message,
+                    profile_context=profile_context
+                )
+                
+                # AI 생성 레시피를 결과로 설정
+                state["results"] = [{
+                    "title": f"AI 생성: {message}",
+                    "content": ai_recipe,
+                    "source": "ai_generated",
+                    "type": "recipe"
+                }]
+                
+                state["tool_calls"].append({
+                    "tool": "ai_recipe_generator",
+                    "query": message,
+                    "method": "gemini_generation"
+                })
+            else:
+                # 검색 결과가 있을 때
+                state["results"] = search_results
+                state["tool_calls"].append({
+                    "tool": "recipe_search",
+                    "query": full_query,
+                    "results_count": len(search_results)
+                })
             
         except Exception as e:
             print(f"Recipe search error: {e}")
@@ -365,8 +426,12 @@ class KetoCoachAgent:
             if state["intent"] == "place" and not state["results"]:
                 answer_prompt = PLACE_SEARCH_FAILURE_PROMPT.format(message=message)
             elif state["results"]:
-                # 의도별로 다른 포맷팅
-                if state["intent"] == "recipe":
+                # AI 생성 레시피는 그대로 출력
+                if state["intent"] == "recipe" and state["results"] and state["results"][0].get("source") == "ai_generated":
+                    state["response"] = state["results"][0].get("content", "레시피 생성에 실패했습니다.")
+                    return state
+                # 검색 결과 기반 레시피 포맷팅
+                elif state["intent"] == "recipe":
                     context = "추천 레시피:\n"
                     for idx, result in enumerate(state["results"][:3], 1):
                         context += f"{idx}. {result.get('name', '이름 없음')}\n"
