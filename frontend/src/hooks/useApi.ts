@@ -8,7 +8,7 @@ export const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
   timeout: 30000,
 });
-console.log('API_BASE =', import.meta.env.VITE_API_BASE_URL);
+console.log('API_BASE =', API_BASE);
 // Chat API
 export interface ChatRequest {
   message: string
