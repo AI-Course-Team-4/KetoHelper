@@ -127,35 +127,25 @@ class RestaurantAgent:
         except ImportError:
             pass
         
-        # 폴백 프롬프트들
-        defaults = {
-            "search_improvement": """
-사용자의 식당 검색 요청을 분석하여 더 효과적인 검색 키워드를 생성하세요.
-
-사용자 메시지: "{message}"
-
-키토 식단에 적합한 식당을 찾기 위한 검색 키워드들을 쉼표로 구분하여 제시하세요.
-예: "스테이크하우스", "구이 전문점", "샐러드 전문점"
-""",
-            "search_failure": """
-식당 검색 결과가 없을 때 도움이 되는 대안을 제시하세요.
-
-검색 요청: "{message}"
-
-키토 식단에 적합한 일반적인 조언과 대안을 제공해주세요.
-""",
-            "recommendation": """
-검색된 식당들을 바탕으로 개인화된 추천을 생성하세요.
-
-사용자 요청: "{message}"
-식당 목록: {restaurants}
-사용자 프로필: {profile}
-
-키토 관점에서 각 식당의 장점과 주문 팁을 포함한 추천을 제공해주세요.
-"""
-        }
-        
-        return defaults.get(key, "기본 프롬프트가 설정되지 않았습니다.")
+        # 폴백 프롬프트 파일에서 로드
+        try:
+            from app.restaurant.prompts.fallback_prompts import (
+                FALLBACK_SEARCH_IMPROVEMENT_PROMPT,
+                FALLBACK_SEARCH_FAILURE_PROMPT,
+                FALLBACK_RECOMMENDATION_PROMPT
+            )
+            
+            fallback_defaults = {
+                "search_improvement": FALLBACK_SEARCH_IMPROVEMENT_PROMPT,
+                "search_failure": FALLBACK_SEARCH_FAILURE_PROMPT,
+                "recommendation": FALLBACK_RECOMMENDATION_PROMPT
+            }
+            
+            return fallback_defaults.get(key, "프롬프트를 찾을 수 없습니다.")
+            
+        except ImportError:
+            # 정말 마지막 폴백
+            return f"키토 식당 {key} 작업을 수행하세요."
     
     async def search_restaurants(
         self,

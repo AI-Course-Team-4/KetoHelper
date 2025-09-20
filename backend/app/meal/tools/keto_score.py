@@ -286,3 +286,6 @@ class KetoScoreCalculator:
         scored_places.sort(key=lambda x: x["score"], reverse=True)
         
         return scored_places
+
+# 별칭 추가 (하위 호환성을 위해)
+KetoScore = KetoScoreCalculator

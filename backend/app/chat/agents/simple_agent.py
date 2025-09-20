@@ -41,7 +41,7 @@ class SimpleKetoCoachAgent:
             print(f"Gemini AI 초기화 실패: {e}")
             self.llm = None
     
-        def _load_prompt_template(self) -> str:
+    def _load_prompt_template(self) -> str:
         """프롬프트 템플릿 동적 로딩"""
         try:
             # 프롬프트 모듈 동적 import
@@ -56,7 +56,7 @@ class SimpleKetoCoachAgent:
             else:
                 print(f"경고: {self.prompt_file_name}에서 프롬프트를 찾을 수 없습니다. 기본 프롬프트 사용.")
                 return self._get_default_prompt()
-                
+            
         except ImportError:
             print(f"경고: {self.prompt_file_name} 프롬프트 파일을 찾을 수 없습니다. 기본 프롬프트 사용.")
             return self._get_default_prompt()
@@ -67,21 +67,13 @@ class SimpleKetoCoachAgent:
             from app.chat.prompts.general_chat_prompt import DEFAULT_CHAT_PROMPT
             return DEFAULT_CHAT_PROMPT
         except ImportError:
-            return """
-키토 식단 전문가로서 다음 질문에 친근하고 도움이 되는 답변을 해주세요.
-
-질문: {message}
-사용자 프로필: {profile_context}
-
-답변 가이드라인:
-1. 키토 식단 관련 질문에는 과학적이고 실용적인 조언 제공
-2. 일반적인 인사나 대화에는 친근하게 응답하되 키토 주제로 자연스럽게 유도
-3. 구체적인 레시피나 식당을 요청하면 전문 검색 서비스 이용을 안내
-4. 개인의 건강 상태에 대한 의학적 조언은 피하고 전문의 상담 권유
-5. 200-300자 내외로 간결하고 이해하기 쉽게 답변
-
-친근하고 격려하는 톤으로 답변해주세요.
-"""
+            # 폴백 프롬프트 파일에서 로드
+            try:
+                from app.chat.prompts.fallback_prompts import FALLBACK_GENERAL_CHAT_PROMPT
+                return FALLBACK_GENERAL_CHAT_PROMPT
+            except ImportError:
+                # 정말 마지막 폴백
+                return "키토 식단에 대해 질문해주세요. 질문: {message}, 프로필: {profile_context}"
     
     async def process_message(
         self,
