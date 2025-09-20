@@ -290,96 +290,80 @@ class KoreanSearchTool:
             return []
     
     async def korean_hybrid_search(self, query: str, k: int = 5) -> List[Dict]:
-        """한글 최적화 하이브리드 검색 (스마트 개선)"""
+        """한글 최적화 하이브리드 검색 (병렬 실행 방식)"""
         try:
             print(f"🔍 한글 최적화 하이브리드 검색 시작: '{query}'")
             
             all_results = []
             search_strategy = "hybrid"
-            search_message = ""
+            search_message = "종합 검색 결과입니다."
             
-            # 0단계: ILIKE 기반 정확 매칭(가장 단순·안정)
-            print("  🔎 0단계: ILIKE 정확 매칭 검색...")
+            # 모든 검색 방식을 병렬로 실행
+            print("  🚀 모든 검색 방식 병렬 실행...")
+            
+            # 1. 벡터 검색 (가중치 40% - 가장 높음)
+            print("    📊 벡터 검색 실행...")
+            query_embedding = await self._create_embedding(query)
+            vector_results = []
+            if query_embedding:
+                vector_results = await self._vector_search(query, query_embedding, k)
+                for result in vector_results:
+                    result['final_score'] = result['search_score'] * 0.4
+                    result['search_type'] = 'vector'
+                all_results.extend(vector_results)
+                print(f"    ✅ 벡터 검색 완료: {len(vector_results)}개")
+            else:
+                print("    ⚠️ 임베딩 생성 실패, 벡터 검색 건너뜀")
+            
+            # 2. 정확한 ILIKE 매칭 (가중치 35%)
+            print("    🔎 ILIKE 정확 매칭 검색...")
             ilike_exact = await self._exact_ilike_search(query, k)
-            if ilike_exact:
-                print(f"    ✅ ILIKE 정확 매칭 발견: {len(ilike_exact)}개")
-                search_strategy = "exact"
-                search_message = "정확한 검색 결과를 찾았습니다."
-                for result in ilike_exact:
-                    result['final_score'] = result['search_score'] * 2.2
-                all_results.extend(ilike_exact)
-            else:
-                print("    ⚠️ ILIKE 정확 매칭 없음 → FTS 단계로")
-
-            # 1단계: 정확한 매칭 시도 (Full-Text Search 우선)
-            print("  📝 1단계: 정확한 매칭 검색...")
+            for result in ilike_exact:
+                result['final_score'] = result['search_score'] * 0.35
+                result['search_type'] = 'exact_ilike'
+            all_results.extend(ilike_exact)
+            print(f"    ✅ ILIKE 정확 매칭 완료: {len(ilike_exact)}개")
+            
+            # 3. Full-Text Search (가중치 30%)
+            print("    📝 Full-Text Search 실행...")
             fts_results = await self._full_text_search(query, k)
-            if fts_results and any(result['search_score'] > 0.1 for result in fts_results):
-                print(f"    ✅ 정확한 매칭 발견: {len(fts_results)}개")
+            for result in fts_results:
+                result['final_score'] = result['search_score'] * 0.3
+                result['search_type'] = 'fts'
+            all_results.extend(fts_results)
+            print(f"    ✅ FTS 검색 완료: {len(fts_results)}개")
+            
+            # 4. Trigram 유사도 검색 (가중치 20%)
+            print("    🔤 Trigram 검색 실행...")
+            trigram_results = await self._trigram_similarity_search(query, k)
+            for result in trigram_results:
+                result['final_score'] = result['search_score'] * 0.2
+                result['search_type'] = 'trigram'
+            all_results.extend(trigram_results)
+            print(f"    ✅ Trigram 검색 완료: {len(trigram_results)}개")
+            
+            # 5. ILIKE 폴백 검색 (가중치 15%)
+            print("    🔍 ILIKE 폴백 검색 실행...")
+            ilike_results = await self._fallback_ilike_search(query, k)
+            for result in ilike_results:
+                result['final_score'] = result['search_score'] * 0.15
+                result['search_type'] = 'ilike_fallback'
+            all_results.extend(ilike_results)
+            print(f"    ✅ ILIKE 폴백 완료: {len(ilike_results)}개")
+            
+            # 검색 전략 결정 (결과 종류에 따라)
+            if vector_results and len(vector_results) >= 2:
+                search_strategy = "vector_strong"
+                search_message = "AI 임베딩 검색으로 관련성 높은 결과를 찾았습니다."
+            elif ilike_exact and len(ilike_exact) >= 2:
                 search_strategy = "exact"
                 search_message = "정확한 검색 결과를 찾았습니다."
-                for result in fts_results:
-                    result['final_score'] = result['search_score'] * 2.0  # 정확한 매칭 가중치 증가
-                all_results.extend(fts_results)
-            else:
-                print("    ⚠️ 정확한 매칭 없음, 부분 매칭 시도...")
-                
-                # 2단계: 부분 매칭 시도 (Trigram + ILIKE)
-                print("  🔤 2단계: 부분 매칭 검색...")
-                trigram_results = await self._trigram_similarity_search(query, k)
-                ilike_results = await self._fallback_ilike_search(query, k)
-                
-                if trigram_results or ilike_results:
-                    print(f"    ✅ 부분 매칭 발견: Trigram {len(trigram_results)}개, ILIKE {len(ilike_results)}개")
-                    search_strategy = "partial"
-                    search_message = "정확한 검색어가 없어서 관련 키워드로 검색했습니다."
-                    
-                    # Trigram 결과 처리
-                    for result in trigram_results:
-                        result['final_score'] = result['search_score'] * 1.5  # 부분 매칭 가중치
-                    all_results.extend(trigram_results)
-                    
-                    # ILIKE 결과 처리
-                    for result in ilike_results:
-                        result['final_score'] = result['search_score'] * 1.0  # 기본 가중치
-                    all_results.extend(ilike_results)
-                else:
-                    print("    ⚠️ 부분 매칭도 없음, 하이브리드 검색 시도...")
-                    
-                    # 3단계: 하이브리드 검색 (모든 방식)
-                    print("  🔄 3단계: 하이브리드 검색...")
-                    search_strategy = "hybrid"
-                    search_message = "종합 검색 결과입니다."
-                    
-                    # 벡터 검색 (가중치 40%)
-                    print("    📊 벡터 검색 실행...")
-                    query_embedding = await self._create_embedding(query)
-                    if query_embedding:
-                        vector_results = await self._vector_search(query, query_embedding, k)
-                        for result in vector_results:
-                            result['final_score'] = result['search_score'] * 0.4
-                        all_results.extend(vector_results)
-                    
-                    # Full-Text Search (가중치 30%)
-                    print("    📝 Full-Text Search 실행...")
-                    fts_results = await self._full_text_search(query, k)
-                    for result in fts_results:
-                        result['final_score'] = result['search_score'] * 0.3
-                    all_results.extend(fts_results)
-                    
-                    # Trigram 유사도 검색 (가중치 20%)
-                    print("    🔤 Trigram 유사도 검색 실행...")
-                    trigram_results = await self._trigram_similarity_search(query, k)
-                    for result in trigram_results:
-                        result['final_score'] = result['search_score'] * 0.2
-                    all_results.extend(trigram_results)
-                    
-                    # 폴백 ILIKE 검색 (가중치 10%)
-                    print("    🔍 ILIKE 폴백 검색 실행...")
-                    ilike_results = await self._fallback_ilike_search(query, k)
-                    for result in ilike_results:
-                        result['final_score'] = result['search_score'] * 0.1
-                    all_results.extend(ilike_results)
+            elif fts_results and len(fts_results) >= 2:
+                search_strategy = "fts_strong"
+                search_message = "전문 검색으로 관련 내용을 찾았습니다."
+            elif any([vector_results, ilike_exact, fts_results, trigram_results]):
+                search_strategy = "partial"
+                search_message = "관련 키워드로 검색한 결과입니다."
             
             # 결과 통합 및 정렬
             if not all_results:

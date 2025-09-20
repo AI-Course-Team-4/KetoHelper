@@ -256,7 +256,12 @@ export function ChatPage() {
     try {
       const response = await sendMessage.mutateAsync({
         message: userMessage.content,
-        profile,
+        profile: profile ? {
+          allergies: profile.allergies,
+          dislikes: profile.dislikes,
+          goals_kcal: profile.goals_kcal,
+          goals_carbs_g: profile.goals_carbs_g
+        } : undefined,
         location: undefined, // TODO: 위치 정보 연동
         radius_km: 5
       })
@@ -337,7 +342,12 @@ export function ChatPage() {
     try {
       const response = await sendMessage.mutateAsync({
         message: userMessage.content,
-        profile,
+        profile: profile ? {
+          allergies: profile.allergies,
+          dislikes: profile.dislikes,
+          goals_kcal: profile.goals_kcal,
+          goals_carbs_g: profile.goals_carbs_g
+        } : undefined,
         location: undefined, // TODO: 위치 정보 연동
         radius_km: 5
       })

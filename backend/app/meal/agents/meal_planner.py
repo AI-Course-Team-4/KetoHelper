@@ -1,33 +1,157 @@
 """
 식단표 생성 에이전트
 AI 기반 7일 키토 식단 계획 생성
+
+팀원 개인화 가이드:
+1. PROMPT_FILES 딕셔너리의 파일명을 변경하여 자신만의 프롬프트 사용
+2. AGENT_NAME을 변경하여 개인 브랜딩
+3. TOOL_FILES 딕셔너리의 파일명을 변경하여 자신만의 도구 사용
+4. 프롬프트 파일은 meal/prompts/ 폴더에 생성
+5. 도구 파일은 meal/tools/ 폴더에 생성
 """
 
 import asyncio
 import json
 from typing import Dict, Any, List, Optional
 from datetime import date, timedelta
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import HumanMessage
+import importlib
 
 from app.core.config import settings
 from app.shared.tools.hybrid_search import hybrid_search_tool
 from app.restaurant.tools.place_search import PlaceSearchTool
-from app.meal.tools.keto_score import KetoScoreCalculator
 
 class MealPlannerAgent:
     """7일 키토 식단표 생성 에이전트"""
     
-    def __init__(self):
-        self.llm = ChatOpenAI(
-            model=settings.llm_model,
-            api_key=settings.openai_api_key,
-            temperature=0.2
-        )
+    # 개인화 설정 - 이 부분을 수정하여 자신만의 에이전트 만들기
+    AGENT_NAME = "Meal Planner Agent"
+    PROMPT_FILES = {
+        "structure": "meal_plan_structure",  # meal/prompts/ 폴더의 파일명
+        "generation": "meal_generation",
+        "notes": "meal_plan_notes"
+    }
+    TOOL_FILES = {
+        "keto_score": "keto_score"  # meal/tools/ 폴더의 파일명
+    }
+    
+    def __init__(self, prompt_files: Dict[str, str] = None, tool_files: Dict[str, str] = None, agent_name: str = None):
+        # 개인화된 설정 적용
+        self.prompt_files = prompt_files or self.PROMPT_FILES
+        self.tool_files = tool_files or self.TOOL_FILES
+        self.agent_name = agent_name or self.AGENT_NAME
+        
+        # 동적 프롬프트 로딩
+        self.prompts = self._load_prompts()
+        
+        # 동적 도구 로딩
+        self.tools = self._load_tools()
+        
+        try:
+            self.llm = ChatGoogleGenerativeAI(
+                model=settings.llm_model,
+                google_api_key=settings.google_api_key,
+                temperature=settings.gemini_temperature
+            )
+        except Exception as e:
+            print(f"Gemini AI 초기화 실패: {e}")
+            self.llm = None
         
         # 하이브리드 검색 도구 사용
         self.place_search = PlaceSearchTool()
-        self.keto_score = KetoScoreCalculator()
+    
+    def _load_prompts(self) -> Dict[str, str]:
+        """프롬프트 파일들 동적 로딩"""
+        prompts = {}
+        
+        for key, filename in self.prompt_files.items():
+            try:
+                module_path = f"app.meal.prompts.{filename}"
+                prompt_module = importlib.import_module(module_path)
+                
+                # 다양한 프롬프트 속성명 지원
+                possible_names = [
+                    f"{key.upper()}_PROMPT",
+                    f"MEAL_{key.upper()}_PROMPT", 
+                    "PROMPT",
+                    filename.upper().replace("_", "_") + "_PROMPT"
+                ]
+                
+                prompt_found = False
+                for name in possible_names:
+                    if hasattr(prompt_module, name):
+                        prompts[key] = getattr(prompt_module, name)
+                        prompt_found = True
+                        break
+                
+                if not prompt_found:
+                    print(f"경고: {filename}에서 프롬프트를 찾을 수 없습니다. 기본 프롬프트 사용.")
+                    prompts[key] = self._get_default_prompt(key)
+                    
+            except ImportError:
+                print(f"경고: {filename} 프롬프트 파일을 찾을 수 없습니다. 기본 프롬프트 사용.")
+                prompts[key] = self._get_default_prompt(key)
+        
+        return prompts
+    
+    def _load_tools(self) -> Dict[str, Any]:
+        """도구 파일들 동적 로딩"""
+        tools = {}
+        
+        for key, filename in self.tool_files.items():
+            try:
+                module_path = f"app.meal.tools.{filename}"
+                tool_module = importlib.import_module(module_path)
+                
+                # 클래스명 추정 (파일명을 CamelCase로 변환)
+                class_name = "".join(word.capitalize() for word in filename.split("_"))
+                
+                if hasattr(tool_module, class_name):
+                    tool_class = getattr(tool_module, class_name)
+                    tools[key] = tool_class()
+                else:
+                    print(f"경고: {filename}에서 {class_name} 클래스를 찾을 수 없습니다.")
+                    
+            except ImportError:
+                print(f"경고: {filename} 도구 파일을 찾을 수 없습니다.")
+        
+        return tools
+    
+    def _get_default_prompt(self, key: str) -> str:
+        """기본 프롬프트 템플릿 (프롬프트 파일에서 로드)"""
+        try:
+            if key == "structure":
+                from app.meal.prompts.meal_plan_structure import DEFAULT_STRUCTURE_PROMPT
+                return DEFAULT_STRUCTURE_PROMPT
+            elif key == "generation":
+                from app.meal.prompts.meal_generation import DEFAULT_GENERATION_PROMPT
+                return DEFAULT_GENERATION_PROMPT
+            elif key == "notes":
+                from app.meal.prompts.meal_plan_notes import DEFAULT_NOTES_PROMPT
+                return DEFAULT_NOTES_PROMPT
+        except ImportError:
+            pass
+        
+        # 최종 폴백 - 폴백 프롬프트 파일에서 로드
+        try:
+            from app.meal.prompts.fallback_prompts import (
+                FALLBACK_STRUCTURE_PROMPT,
+                FALLBACK_GENERATION_PROMPT, 
+                FALLBACK_NOTES_PROMPT
+            )
+            
+            fallback_defaults = {
+                "structure": FALLBACK_STRUCTURE_PROMPT,
+                "generation": FALLBACK_GENERATION_PROMPT,
+                "notes": FALLBACK_NOTES_PROMPT
+            }
+            
+            return fallback_defaults.get(key, "프롬프트를 찾을 수 없습니다.")
+            
+        except ImportError:
+            # 정말 마지막 폴백
+            return f"키토 {key} 작업을 수행하세요."
     
     async def generate_meal_plan(
         self,
@@ -121,33 +245,10 @@ class MealPlannerAgent:
     async def _plan_meal_structure(self, days: int, constraints: str) -> List[Dict[str, str]]:
         """전체 식단 구조 계획"""
         
-        structure_prompt = f"""
-        {days}일간의 키토 식단 구조를 계획하세요.
-        
-        제약 조건: {constraints}
-        
-        각 날짜별로 아침/점심/저녁의 대략적인 메뉴 타입을 정하세요.
-        
-        키토 원칙:
-        - 아침: 간단하고 지방 위주 (계란, 아보카도, 치즈 등)
-        - 점심: 단백질 + 채소 (샐러드, 구이, 볶음 등)  
-        - 저녁: 풍성한 단백질 + 발효 채소 (고기, 생선 + 김치, 나물 등)
-        - 간식: 견과류, 치즈, 올리브 등
-        
-        다양성을 고려하여 반복되지 않도록 하세요.
-        
-        JSON 형태로 응답하세요:
-        [
-            {{
-                "day": 1,
-                "breakfast_type": "계란 요리",
-                "lunch_type": "샐러드",
-                "dinner_type": "고기 구이",
-                "snack_type": "견과류"
-            }},
-            ...
-        ]
-        """
+        structure_prompt = self.prompts["structure"].format(
+            days=days,
+            constraints=constraints
+        )
         
         try:
             response = await self.llm.ainvoke([HumanMessage(content=structure_prompt)])
@@ -240,23 +341,11 @@ class MealPlannerAgent:
     ) -> Dict[str, Any]:
         """LLM을 통한 메뉴 생성"""
         
-        meal_prompt = f"""
-        {slot}에 적합한 {meal_type} 키토 메뉴를 생성하세요.
-        
-        제약 조건: {constraints}
-        
-        다음 JSON 형태로 응답하세요:
-        {{
-            "type": "recipe",
-            "title": "메뉴명",
-            "macros": {{"kcal": 칼로리, "carb": 탄수화물g, "protein": 단백질g, "fat": 지방g}},
-            "ingredients": [
-                {{"name": "재료명", "amount": 양, "unit": "단위"}}
-            ],
-            "steps": ["조리 과정"],
-            "tips": ["키토 팁"]
-        }}
-        """
+        meal_prompt = self.prompts["generation"].format(
+            slot=slot,
+            meal_type=meal_type,
+            constraints=constraints
+        )
         
         try:
             response = await self.llm.ainvoke([HumanMessage(content=meal_prompt)])
@@ -418,20 +507,7 @@ class MealPlannerAgent:
     ) -> List[str]:
         """식단표 조언 생성"""
         
-        notes_prompt = f"""
-        다음 키토 식단표에 대한 실용적인 조언 3-5개를 생성하세요.
-        
-        제약 조건: {constraints}
-        
-        조언 내용:
-        - 식단 실행 팁
-        - 쇼핑 가이드
-        - 조리 준비 사항
-        - 키토 부작용 대처법
-        - 식단 유지 방법
-        
-        간결하고 실용적인 조언으로 작성하세요.
-        """
+        notes_prompt = self.prompts["notes"].format(constraints=constraints)
         
         try:
             response = await self.llm.ainvoke([HumanMessage(content=notes_prompt)])
@@ -488,3 +564,50 @@ class MealPlannerAgent:
             "total_macros": self._calculate_total_macros(plan_days),
             "notes": ["기본 키토 식단입니다", "개인 취향에 맞게 조정하세요"]
         }
+    
+    async def generate_single_recipe(self, message: str, profile_context: str = "") -> str:
+        """단일 레시피 생성 (orchestrator용)"""
+        
+        if not self.llm:
+            return self._get_recipe_fallback(message)
+        
+        try:
+            # 프롬프트 파일에서 로드
+            try:
+                from app.meal.prompts.single_recipe_generation import SINGLE_RECIPE_GENERATION_PROMPT
+                prompt = SINGLE_RECIPE_GENERATION_PROMPT.format(
+                    message=message,
+                    profile_context=profile_context if profile_context else '특별한 제약사항 없음'
+                )
+            except ImportError:
+                # 폴백 프롬프트 파일에서 로드
+                try:
+                    from app.meal.prompts.fallback_prompts import FALLBACK_SINGLE_RECIPE_PROMPT
+                    prompt = FALLBACK_SINGLE_RECIPE_PROMPT.format(
+                        message=message,
+                        profile_context=profile_context if profile_context else '특별한 제약사항 없음'
+                    )
+                except ImportError:
+                    # 정말 마지막 폴백
+                    prompt = f"'{message}'에 대한 키토 레시피를 생성하세요. 사용자 정보: {profile_context if profile_context else '없음'}"
+            
+            response = await self.llm.ainvoke([HumanMessage(content=prompt)])
+            return response.content
+            
+        except Exception as e:
+            print(f"Single recipe generation error: {e}")
+            return self._get_recipe_fallback(message)
+    
+    def _get_recipe_fallback(self, message: str) -> str:
+        """레시피 생성 실패 시 폴백 응답 (프롬프트 파일에서 로드)"""
+        try:
+            from app.meal.prompts.single_recipe_generation import RECIPE_FALLBACK_PROMPT
+            return RECIPE_FALLBACK_PROMPT.format(message=message)
+        except ImportError:
+            # 폴백 프롬프트 파일에서 로드
+            try:
+                from app.meal.prompts.fallback_prompts import FALLBACK_RECIPE_ERROR_PROMPT
+                return FALLBACK_RECIPE_ERROR_PROMPT.format(message=message)
+            except ImportError:
+                # 정말 마지막 폴백
+                return f"키토 레시피 '{message}' 생성에 실패했습니다. 키토 원칙에 맞는 재료로 직접 조리해보세요."
