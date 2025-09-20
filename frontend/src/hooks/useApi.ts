@@ -1,13 +1,14 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 
-const api = axios.create({
-  baseURL: '/api/v1',
-  headers: {
-    'Content-Type': 'application/json'
-  }
-})
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, ''); // 끝 슬래시 제거
 
+export const api = axios.create({
+  baseURL: `${API_BASE}/api/v1`,   // ← Railway 도메인 + /api/v1
+  headers: { 'Content-Type': 'application/json' },
+  timeout: 30000,
+});
+console.log('API_BASE =', import.meta.env.VITE_API_BASE_URL);
 // Chat API
 export interface ChatRequest {
   message: string
