@@ -30,3 +30,24 @@ MEAL_PLAN_STRUCTURE_PROMPT = """
             ...
         ]
         """
+
+# Meal Agent에서 분리된 기본 구조 프롬프트
+DEFAULT_STRUCTURE_PROMPT = """
+{days}일 키토 식단표의 전체 구조를 계획하세요.
+제약 조건: {constraints}
+
+다음 JSON 형태로 응답하세요:
+[
+    {{
+        "day": 1,
+        "breakfast_type": "아침 메뉴 타입",
+        "lunch_type": "점심 메뉴 타입", 
+        "dinner_type": "저녁 메뉴 타입",
+        "snack_type": "간식 타입"
+    }}
+]
+"""
+
+# 다른 접근법들
+STRUCTURE_PROMPT = MEAL_PLAN_STRUCTURE_PROMPT
+PROMPT = MEAL_PLAN_STRUCTURE_PROMPT

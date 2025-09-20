@@ -1,18 +1,35 @@
 """
 일반 채팅 전용 키토 코치 에이전트
 레시피/식당 검색이 아닌 일반적인 키토 식단 상담 처리
+
+팀원 개인화 가이드:
+1. PROMPT_FILE_NAME을 변경하여 자신만의 프롬프트 파일 사용
+2. AGENT_NAME을 변경하여 개인 브랜딩
+3. 프롬프트 파일은 chat/prompts/ 폴더에 생성
 """
 
 from typing import Dict, Any, Optional
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import HumanMessage
+import importlib
 
 from app.core.config import settings
 
 class SimpleKetoCoachAgent:
     """일반 채팅 전용 키토 코치 에이전트"""
     
-    def __init__(self):
+    # 개인화 설정 - 이 부분을 수정하여 자신만의 에이전트 만들기
+    AGENT_NAME = "Simple Keto Coach"
+    PROMPT_FILE_NAME = "general_chat_prompt"  # chat/prompts/ 폴더의 파일명
+    
+    def __init__(self, prompt_file_name: str = None, agent_name: str = None):
+        # 개인화된 설정 적용
+        self.prompt_file_name = prompt_file_name or self.PROMPT_FILE_NAME
+        self.agent_name = agent_name or self.AGENT_NAME
+        
+        # 동적 프롬프트 로딩
+        self.prompt_template = self._load_prompt_template()
+        
         try:
             self.llm = ChatGoogleGenerativeAI(
                 model=settings.llm_model,
@@ -23,6 +40,48 @@ class SimpleKetoCoachAgent:
         except Exception as e:
             print(f"Gemini AI 초기화 실패: {e}")
             self.llm = None
+    
+        def _load_prompt_template(self) -> str:
+        """프롬프트 템플릿 동적 로딩"""
+        try:
+            # 프롬프트 모듈 동적 import
+            module_path = f"app.chat.prompts.{self.prompt_file_name}"
+            prompt_module = importlib.import_module(module_path)
+            
+            # GENERAL_CHAT_PROMPT 또는 PROMPT 속성 찾기
+            if hasattr(prompt_module, 'GENERAL_CHAT_PROMPT'):
+                return prompt_module.GENERAL_CHAT_PROMPT
+            elif hasattr(prompt_module, 'PROMPT'):
+                return prompt_module.PROMPT
+            else:
+                print(f"경고: {self.prompt_file_name}에서 프롬프트를 찾을 수 없습니다. 기본 프롬프트 사용.")
+                return self._get_default_prompt()
+                
+        except ImportError:
+            print(f"경고: {self.prompt_file_name} 프롬프트 파일을 찾을 수 없습니다. 기본 프롬프트 사용.")
+            return self._get_default_prompt()
+    
+    def _get_default_prompt(self) -> str:
+        """기본 프롬프트 템플릿 (프롬프트 파일에서 로드)"""
+        try:
+            from app.chat.prompts.general_chat_prompt import DEFAULT_CHAT_PROMPT
+            return DEFAULT_CHAT_PROMPT
+        except ImportError:
+            return """
+키토 식단 전문가로서 다음 질문에 친근하고 도움이 되는 답변을 해주세요.
+
+질문: {message}
+사용자 프로필: {profile_context}
+
+답변 가이드라인:
+1. 키토 식단 관련 질문에는 과학적이고 실용적인 조언 제공
+2. 일반적인 인사나 대화에는 친근하게 응답하되 키토 주제로 자연스럽게 유도
+3. 구체적인 레시피나 식당을 요청하면 전문 검색 서비스 이용을 안내
+4. 개인의 건강 상태에 대한 의학적 조언은 피하고 전문의 상담 권유
+5. 200-300자 내외로 간결하고 이해하기 쉽게 답변
+
+친근하고 격려하는 톤으로 답변해주세요.
+"""
     
     async def process_message(
         self,
@@ -61,7 +120,7 @@ class SimpleKetoCoachAgent:
             }
     
     async def _generate_general_response(self, message: str, profile: Optional[Dict[str, Any]]) -> str:
-        """일반 채팅 응답 생성"""
+        """일반 채팅 응답 생성 (개인화된 프롬프트 사용)"""
         
         try:
             # 프로필 정보 컨텍스트
@@ -74,28 +133,11 @@ class SimpleKetoCoachAgent:
                 if profile.get("goals_carbs_g"):
                     profile_context += f"목표 탄수화물: {profile['goals_carbs_g']}g/일. "
             
-            # 일반 키토 상담 프롬프트
-            prompt = f"""
-키토 식단 전문가로서 다음 질문에 친근하고 도움이 되는 답변을 해주세요.
-
-질문: {message}
-사용자 프로필: {profile_context if profile_context else '특별한 제약사항 없음'}
-
-답변 가이드라인:
-1. 키토 식단 관련 질문에는 과학적이고 실용적인 조언 제공
-2. 일반적인 인사나 대화에는 친근하게 응답하되 키토 주제로 자연스럽게 유도
-3. 구체적인 레시피나 식당을 요청하면 전문 검색 서비스 이용을 안내
-4. 개인의 건강 상태에 대한 의학적 조언은 피하고 전문의 상담 권유
-5. 200-300자 내외로 간결하고 이해하기 쉽게 답변
-
-특별한 경우 처리:
-- "안녕", "안녕하세요" 등 인사: 친근한 인사 후 키토 식단 도움 제안
-- "고마워", "감사해" 등 감사 인사: 따뜻한 응답 후 추가 도움 제안  
-- "해볼게", "좋네" 등 모호한 대답: 구체적인 키토 관련 질문 유도
-- 키토와 무관한 질문: 정중히 키토 식단 전문가임을 알리고 관련 질문 유도
-
-친근하고 격려하는 톤으로 답변해주세요.
-"""
+            # 개인화된 프롬프트 템플릿 사용
+            prompt = self.prompt_template.format(
+                message=message,
+                profile_context=profile_context if profile_context else '특별한 제약사항 없음'
+            )
             
             response = await self.llm.ainvoke([HumanMessage(content=prompt)])
             return response.content
