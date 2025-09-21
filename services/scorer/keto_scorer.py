@@ -38,7 +38,7 @@ class KetoScorer(IKetoScorer):
                 raw_score=0.0,
                 final_score=0.0,
                 confidence=0.1,
-                category=ScoreCategory.KETO_MODERATE,
+                category=ScoreCategory.KETO_AVOID,
                 reasons=[ScoreReason(
                     rule_id="error_handling",
                     keyword="error",
@@ -120,13 +120,11 @@ class KetoScorer(IKetoScorer):
         adjusted_score = score * confidence
 
         if adjusted_score >= 40:
-            return ScoreCategory.KETO_EXCELLENT
+            return ScoreCategory.KETO_RECOMMENDED
         elif adjusted_score >= 15:
-            return ScoreCategory.KETO_GOOD
-        elif adjusted_score >= -15:
             return ScoreCategory.KETO_MODERATE
-        elif adjusted_score >= -40:
-            return ScoreCategory.KETO_POOR
+        elif adjusted_score >= -15:
+            return ScoreCategory.KETO_CAUTION
         else:
             return ScoreCategory.KETO_AVOID
 
@@ -195,7 +193,7 @@ class KetoScorer(IKetoScorer):
                 "대신 고기, 생선, 채소 위주의 메뉴를 선택하세요"
             ])
 
-        elif score.category == ScoreCategory.KETO_POOR:
+        elif score.category == ScoreCategory.KETO_CAUTION:
             recommendations.extend([
                 "키토 다이어트 중이라면 피하는 것이 좋습니다",
                 "밥이나 면을 제외하고 주문할 수 있는지 확인해보세요"
@@ -208,13 +206,13 @@ class KetoScorer(IKetoScorer):
                 "가능하다면 밥이나 면을 빼고 주문하세요"
             ])
 
-        elif score.category == ScoreCategory.KETO_GOOD:
+        elif score.category == ScoreCategory.KETO_MODERATE:
             recommendations.extend([
                 "키토 다이어트에 적합한 메뉴입니다",
                 "안심하고 드실 수 있습니다"
             ])
 
-        elif score.category == ScoreCategory.KETO_EXCELLENT:
+        elif score.category == ScoreCategory.KETO_RECOMMENDED:
             recommendations.extend([
                 "키토 다이어트에 매우 좋은 메뉴입니다",
                 "이런 메뉴를 더 많이 선택하세요"
@@ -250,8 +248,8 @@ class KetoScorer(IKetoScorer):
 
         # 키토 친화도 등급 결정
         keto_friendly_percentage = (
-            category_distribution[ScoreCategory.KETO_EXCELLENT.value]['percentage'] +
-            category_distribution[ScoreCategory.KETO_GOOD.value]['percentage']
+            category_distribution[ScoreCategory.KETO_RECOMMENDED.value]['percentage'] +
+            category_distribution[ScoreCategory.KETO_MODERATE.value]['percentage']
         )
 
         if keto_friendly_percentage >= 50:

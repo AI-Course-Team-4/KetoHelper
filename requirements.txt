@@ -1,6 +1,5 @@
 # 핵심 의존성
-asyncio-compat==0.1.2
-asyncpg==0.29.0              # PostgreSQL 비동기 드라이버
+supabase==2.3.4              # Supabase 클라이언트
 pydantic==2.5.2              # 데이터 검증 및 직렬화
 python-dotenv==1.0.0         # 환경변수 관리
 
@@ -11,8 +10,8 @@ playwright==1.40.0           # 동적 페이지 처리 (필요시)
 beautifulsoup4==4.12.2       # HTML 파싱 백업
 
 # 데이터 처리
-pandas==2.1.4                # 데이터 분석 및 처리
-numpy==1.24.4                # 수치 계산
+pandas>=2.2.0                # 데이터 분석 및 처리
+numpy>=1.26.0                # 수치 계산
 geohash2==1.1                # 지오해시 생성
 
 # 캐싱 및 직렬화

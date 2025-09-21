@@ -12,6 +12,35 @@ from services.crawler.base_crawler import BaseCrawler
 
 logger = logging.getLogger(__name__)
 
+def clean_menu_name(name: str) -> str:
+    """메뉴명 전처리 함수"""
+    if not name:
+        return name
+        
+    original_name = name
+    
+    # 1. "메뉴정보" 접두사 제거
+    name = name.replace("메뉴정보 ", "")
+    
+    # 2. "추천 숫자" 패턴 제거 (예: "추천 1", "추천 2")
+    name = re.sub(r'\s+추천\s+\d+$', '', name)
+    
+    # 3. 끝의 단독 숫자 제거 (예: "돈육전 1" -> "돈육전")
+    # 단, 용량/수량 정보는 보존 (예: "150g", "500ml")
+    name = re.sub(r'\s+\d+$', '', name)
+    
+    # 4. 연속된 공백을 하나로 정리
+    name = re.sub(r'\s+', ' ', name)
+    
+    # 5. 앞뒤 공백 제거
+    name = name.strip()
+    
+    # 6. 빈 문자열이 되면 원본 반환
+    if not name:
+        return original_name
+        
+    return name
+
 class DiningcodeCrawler(BaseCrawler):
     """다이닝코드 크롤러"""
 
@@ -36,26 +65,74 @@ class DiningcodeCrawler(BaseCrawler):
         return bool(re.search(r'/profile\.php\?rid=\d+', url))
 
     def _extract_restaurant_urls_from_search(self, html: str) -> List[str]:
-        """검색 결과에서 식당 URL 추출"""
-        tree = HTMLParser(html)
+        """검색 결과에서 식당 URL 추출 - JavaScript JSON 데이터에서 추출"""
         urls = []
+        
+        try:
+            # JavaScript의 listData에서 JSON 데이터 추출
+            import json
+            
+            # listData 변수 찾기
+            listdata_pattern = r"localStorage\.setItem\('listData',\s*'([^']+)'\)"
+            listdata_match = re.search(listdata_pattern, html)
+            
+            if listdata_match:
+                # JSON 문자열 디코딩
+                json_str = listdata_match.group(1)
+                # 유니코드 이스케이프 문자 디코딩
+                json_str = json_str.encode().decode('unicode_escape')
+                
+                try:
+                    data = json.loads(json_str)
+                    
+                    # poi_section > list에서 식당 정보 추출
+                    if 'poi_section' in data and 'list' in data['poi_section']:
+                        restaurants = data['poi_section']['list']
+                        
+                        for restaurant in restaurants:
+                            if 'v_rid' in restaurant:
+                                # 식당 URL 생성
+                                restaurant_url = f"https://www.diningcode.com/profile.php?rid={restaurant['v_rid']}"
+                                urls.append(restaurant_url)
+                                
+                        logger.info(f"JSON 데이터에서 {len(urls)}개 식당 URL 추출 완료")
+                        
+                except json.JSONDecodeError as e:
+                    logger.error(f"JSON 파싱 오류: {e}")
+            
+            # JSON 추출 실패시 기존 방법으로 시도
+            if not urls:
+                logger.warning("JSON 데이터 추출 실패, HTML 파싱으로 시도")
+                tree = HTMLParser(html)
+                
+                # 다이닝코드 특정 선택자 사용
+                for link in tree.css('a.btxt'):
+                    if link.attributes:
+                        href = link.attributes.get('href', '')
+                        if self.is_restaurant_url(href):
+                            full_url = self._normalize_url(href)
+                            urls.append(full_url)
 
-        # 다이닝코드 특정 선택자 사용
-        # 검색 결과 카드에서 링크 추출
-        for link in tree.css('a.btxt'):
-            href = link.attributes.get('href', '')
-            if self.is_restaurant_url(href):
-                full_url = self._normalize_url(href)
-                urls.append(full_url)
-
-        # 대체 선택자: 식당명 링크
-        if not urls:
-            for link in tree.css('a[href*="profile.php"]'):
-                href = link.attributes.get('href', '')
-                if self.is_restaurant_url(href):
-                    full_url = self._normalize_url(href)
-                    urls.append(full_url)
-
+                # 대체 선택자들
+                if not urls:
+                    selectors = [
+                        'a[href*="profile.php"]',
+                        'a[href*="rid="]'
+                    ]
+                    
+                    for selector in selectors:
+                        for link in tree.css(selector):
+                            if link.attributes:
+                                href = link.attributes.get('href', '')
+                                if self.is_restaurant_url(href):
+                                    full_url = self._normalize_url(href)
+                                    urls.append(full_url)
+                        if urls:  # 하나라도 찾으면 중단
+                            break
+            
+        except Exception as e:
+            logger.error(f"URL 추출 중 오류 발생: {e}")
+        
         return list(set(urls))  # 중복 제거
 
     async def extract_restaurant_info(self, html: str, url: str) -> Dict[str, Any]:
@@ -65,37 +142,60 @@ class DiningcodeCrawler(BaseCrawler):
 
         try:
             # 식당명
-            name_element = tree.css_first('h1.tit, .tit h1, .restaurant_name h1')
+            name_element = tree.css_first('h1.tit, .tit h1, .restaurant_name h1, h1')
             if name_element:
                 info['name'] = self._clean_text(name_element.text())
 
-            # 주소
-            addr_element = tree.css_first('.txt .Restaurant_Address, .restaurant_info .addr, .addr')
-            if addr_element:
-                info['address'] = self._clean_text(addr_element.text())
+            # 주소 - 텍스트 패턴에서 추출
+            text_content = tree.text()
+            addr_patterns = [
+                r'서울특별시\s+[^0-9]*?구\s+[^0-9]*?[동로길][^0-9]*?\d+[^0-9]*?[^\n]*',
+                r'서울\s+[^0-9]*?구\s+[^0-9]*?[동로길][^0-9]*?\d+[^0-9]*?[^\n]*'
+            ]
+            
+            for pattern in addr_patterns:
+                addr_matches = re.findall(pattern, text_content)
+                if addr_matches:
+                    # 가장 완전한 주소 선택
+                    full_address = max(addr_matches, key=len)
+                    info['address'] = self._clean_text(full_address)
+                    break
 
-            # 전화번호
-            phone_element = tree.css_first('.txt .Restaurant_Phone, .restaurant_info .phone, .phone')
+            # 전화번호 - 개선된 선택자와 패턴 매칭
+            phone_element = tree.css_first('.tel, .phone, .contact')
             if phone_element:
                 phone_text = self._clean_text(phone_element.text())
                 # 전화번호 정규화
                 phone_clean = re.sub(r'[^\d-]', '', phone_text)
-                if phone_clean:
+                if phone_clean and len(phone_clean) >= 10:
                     info['phone'] = phone_clean
+            else:
+                # 텍스트에서 전화번호 패턴 찾기
+                phone_patterns = [r'0\d{1,2}-\d{3,4}-\d{4}', r'\d{3,4}-\d{3,4}-\d{4}']
+                for pattern in phone_patterns:
+                    phone_matches = re.findall(pattern, text_content)
+                    if phone_matches:
+                        info['phone'] = phone_matches[0]
+                        break
 
             # 영업시간
-            hours_element = tree.css_first('.txt .Restaurant_Hours, .restaurant_info .hours, .hours')
+            hours_element = tree.css_first('.hours, .time, .business_hours')
             if hours_element:
                 info['business_hours'] = self._clean_text(hours_element.text())
 
-            # 평점
-            rating_element = tree.css_first('.Rating .rate_point, .rating .point, .rate_point')
-            if rating_element:
-                rating_text = self._clean_text(rating_element.text())
-                rating_match = re.search(r'(\d+\.?\d*)', rating_text)
-                if rating_match:
+            # 평점 - 개선된 선택자
+            score_element = tree.css_first('.score, .rating, .rate_point')
+            if score_element:
+                score_text = self._clean_text(score_element.text())
+                score_match = re.search(r'(\d+\.?\d*)', score_text)
+                if score_match:
                     try:
-                        info['rating'] = float(rating_match.group(1))
+                        score_value = float(score_match.group(1))
+                        # 100점 만점을 5점 만점으로 변환
+                        if score_value > 10:
+                            info['rating'] = round(score_value / 20, 1)
+                        else:
+                            info['rating'] = score_value
                     except ValueError:
                         pass
 
@@ -193,7 +293,8 @@ class DiningcodeCrawler(BaseCrawler):
                 if name_elem:
                     name = self._clean_text(name_elem.text())
                     if name:
-                        menu_info['name'] = name
+                        # 메뉴명 전처리 적용
+                        menu_info['name'] = clean_menu_name(name)
                         break
 
             # 가격
@@ -246,7 +347,7 @@ class DiningcodeCrawler(BaseCrawler):
                         price = int(price_text)
                         if 1000 <= price <= 500000:  # 합리적인 가격 범위
                             menus.append({
-                                'name': name,
+                                'name': clean_menu_name(name),  # 메뉴명 전처리 적용
                                 'price': price
                             })
                     except ValueError:

@@ -1,0 +1,16 @@
+{
+  "crawl_diningcode": [
+    {
+      "restaurant": {
+        "name": "테스트 식당 1"
+      },
+      "menus": []
+    },
+    {
+      "restaurant": {
+        "name": "테스트 식당 2"
+      },
+      "menus": []
+    }
+  ]
+}

@@ -1,0 +1,680 @@
+[
+  {
+    "restaurant": {
+      "name": "육전식당",
+      "address": "서울특별시 강남구 테헤란로8길 11-4 신도빌딩 1층 지번",
+      "phone": "02-3452-6373",
+      "rating": 4.2,
+      "review_count": 25,
+      "source_url": "https://www.diningcode.com/profile.php?rid=hHS7rIvK3Ivn",
+      "source_name": "diningcode"
+    },
+    "menus": [
+      {
+        "name": "메뉴정보 통생목살 150g 추천 1",
+        "price": 9000
+      },
+      {
+        "name": "통생삼겹살 150g 추천 1",
+        "price": 9000
+      },
+      {
+        "name": "김치전",
+        "price": 8000
+      },
+      {
+        "name": "몽글 치즈 계란찜",
+        "price": 7000
+      },
+      {
+        "name": "씨앗 젓갈 김밥",
+        "price": 9000
+      },
+      {
+        "name": "돈육전 1",
+        "price": 1000
+      },
+      {
+        "name": "항정살 150g 추천 2",
+        "price": 1000
+      },
+      {
+        "name": "육전 생갈비 추천 2",
+        "price": 2000
+      },
+      {
+        "name": "들기름 막국수 추천 1",
+        "price": 2000
+      },
+      {
+        "name": "김치말이생면 추천 1",
+        "price": 1000
+      },
+      {
+        "name": "비빔 칼국수 추천 1",
+        "price": 1000
+      },
+      {
+        "name": "육전샐러드 추천",
+        "price": 9000
+      }
+    ],
+    "source_url": "https://www.diningcode.com/profile.php?rid=hHS7rIvK3Ivn",
+    "source_name": "diningcode"
+  },
+  {
+    "restaurant": {
+      "name": "갓덴스시",
+      "address": "서울특별시 강남구 테헤란로 109, 1층 시간 : 매일 11:00 - 21:30 주차 : 유료주차 및 발렛가능 번호 : 0507-1423-1477 1. 강남역 회전초밥 맛집 갓덴스시 강남점 웨이팅 갓덴스시 강남점은 웨이팅이 있는 편인데 다행히 저희가 방문했을 때는 웨이팅 없이 바로 들어갈 수 있었어요~~ 웨이팅이 있는 경우 테이블링 기계에 번호를 등록하시면 카카오톡 알림이 가요!! 테이블링 앱으로 원격 웨이팅도 가능하다구 해요~~ 매장 바깥에 대기할 수 있은 의자가 마련되어 있어 편하게 앉아 웨이팅하실 수 있어여^^ 2. 강남역 회전초밥 맛집 갓덴스시 강남점 메뉴 및 가격 녹색접시 1,500원 빨강접시 2,900원 보라접시 3,700원 곤색접시 4,700원 은색접시 5,700원 금색접시 7,900원 체크접시 8,000원 3. 강남역 회전초밥 맛집 갓덴스시 강남점 내부 분위기 갓덴스시 강남점 내부는 따뜻하고 편안한 조명이였구, 바테이블에서 먹을 수도 있구 4인 테이블에서 먹을 수도 있어요..!! 저희는 세명이서 방문했기 때문에 4인 테이블 좌석에 앉아 먹을 수 있었어요 바테이블에서 혼밥하거나 데이트하러 와도 좋겠더라구요..!! 직원분들께서 다들 친절하시구 조금만 큰 소리가 나도 죄송하다고 하시더라구요 서비스 최고^^ 내부도 넓은 편이라 편안하게 회전초밥을 즐길 수 있었어요♡ 4. 강남역 회전초밥 맛집 갓덴스시 강남점 맛 솔직후기 우선 테이블에 앉으면 미소 된장국을 주셔요~~ 깊고 진한 맛의 된장국이라 에피타이저로 먹기 좋더라구요 종류별로 초밥이 돌아가고 있어 원하시는 초밥을 가져다 드시면돼요!! 갓덴스시 강남점은 회전초밥 전문점답게 메뉴가 꽤 다양하고, 신선도와 밸런스를 중요하게 챙기는 곳이에요! 분위기는 깔끔하고 초밥이 회전하기도 하지만 원하는 건 주문해서 바로 받을 수도 있어요 참치초밥은 부드럽고 촉촉한 식감이 특징이에요 기름기가 적당히 올라와있어 입안에 풍미가 돌더라구요 오른쪽은 직화 스테이크 초밥인데 불맛이 강해서 좋았어요♡ 연어초밥은 은은하게 녹아들면서 비리지 않고 담백했어요 두께감이 적당해서 한입에 먹기 딱이더라구요 갓덴스시 강남점은 회의 신선도와 식감을 굉장히 좋은 상태로 만들어주셔서 장인정신이 느껴지더라구요 갈릭새우도 맛있었구 광어초밥도 감태와 어우러져 특히 쫄깃했어요 전체적으로 생선이 두껍고...",
+      "phone": "0507-1423-1477",
+      "rating": 4.3,
+      "review_count": 65,
+      "source_url": "https://www.diningcode.com/profile.php?rid=7BGMZuWt0dcu",
+      "source_name": "diningcode"
+    },
+    "menus": [
+      {
+        "name": "메뉴정보 녹색접시",
+        "price": 1500
+      },
+      {
+        "name": "빨강접시",
+        "price": 2900
+      },
+      {
+        "name": "보라접시",
+        "price": 3700
+      },
+      {
+        "name": "곤색접시",
+        "price": 4700
+      },
+      {
+        "name": "은색접시",
+        "price": 5700
+      },
+      {
+        "name": "금색접시",
+        "price": 6900
+      },
+      {
+        "name": "체크접시",
+        "price": 8000
+      },
+      {
+        "name": "시그니처 아메리카노",
+        "price": 2500
+      },
+      {
+        "name": "강남역 회전초밥 맛집 갓덴스시 강남점 메뉴 및 가격 녹색접시",
+        "price": 1500
+      },
+      {
+        "name": "빨강접시",
+        "price": 2900
+      },
+      {
+        "name": "보라접시",
+        "price": 3700
+      },
+      {
+        "name": "곤색접시",
+        "price": 4700
+      },
+      {
+        "name": "은색접시",
+        "price": 5700
+      },
+      {
+        "name": "금색접시",
+        "price": 7900
+      },
+      {
+        "name": "체크접시",
+        "price": 8000
+      }
+    ],
+    "source_url": "https://www.diningcode.com/profile.php?rid=7BGMZuWt0dcu",
+    "source_name": "diningcode"
+  },
+  {
+    "restaurant": {
+      "name": "고에몬",
+      "address": "서울특별시 서초구 서초대로77길 7 서초빌딩 1층 지번",
+      "phone": "02-534-8036",
+      "rating": 4.3,
+      "review_count": 130,
+      "source_url": "https://www.diningcode.com/profile.php?rid=PAq5mv0EYtuM",
+      "source_name": "diningcode"
+    },
+    "menus": [
+      {
+        "name": "추천 1",
+        "price": 3000
+      },
+      {
+        "name": "수플레오믈렛 멘타이꼬 리조또 추천 1",
+        "price": 6000
+      },
+      {
+        "name": "치킨 카라아게 미트소스 1",
+        "price": 4000
+      },
+      {
+        "name": "까르보나라 베이컨 칠리 토마토 1",
+        "price": 4000
+      },
+      {
+        "name": "슈림프모짜렐라치즈 1",
+        "price": 4000
+      },
+      {
+        "name": "모짤렐라 가지 미트소스 1",
+        "price": 4000
+      },
+      {
+        "name": "수플레오믈렛 새우 크림소스 리조또 1",
+        "price": 6000
+      },
+      {
+        "name": "수플레오믈렛 새우 로제소스 리조또 1",
+        "price": 6000
+      },
+      {
+        "name": "수제 멘치카츠",
+        "price": 6400
+      },
+      {
+        "name": "수제 캬베츠 멘치카츠",
+        "price": 6400
+      },
+      {
+        "name": "수제 카라아게",
+        "price": 5400
+      },
+      {
+        "name": "웨지감자 with 명란마요",
+        "price": 4400
+      },
+      {
+        "name": "메콤 새우 버섯 토마토소스 1",
+        "price": 4000
+      },
+      {
+        "name": "치즈 아란치니",
+        "price": 3400
+      },
+      {
+        "name": "맛차푸딩",
+        "price": 6000
+      },
+      {
+        "name": "초코푸딩",
+        "price": 6000
+      },
+      {
+        "name": "망고푸딩",
+        "price": 6000
+      },
+      {
+        "name": "크림브릴레",
+        "price": 6000
+      },
+      {
+        "name": "아이스 커피",
+        "price": 4500
+      },
+      {
+        "name": "아이스 맛차 라떼",
+        "price": 4700
+      }
+    ],
+    "source_url": "https://www.diningcode.com/profile.php?rid=PAq5mv0EYtuM",
+    "source_name": "diningcode"
+  },
+  {
+    "restaurant": {
+      "name": "오레노라멘 강남점",
+      "address": "서울특별시 강남구 테헤란로1길 28-9 2F 지번",
+      "phone": "0507-1377-3539",
+      "rating": 4.2,
+      "review_count": 32,
+      "source_url": "https://www.diningcode.com/profile.php?rid=H0B0VuVfBJqu",
+      "source_name": "diningcode"
+    },
+    "menus": [
+      {
+        "name": "메뉴정보 토리빠이탄 추천 1",
+        "price": 2000
+      },
+      {
+        "name": "카라빠이탄 1",
+        "price": 2000
+      },
+      {
+        "name": "시그니처 아메리카노",
+        "price": 2500
+      }
+    ],
+    "source_url": "https://www.diningcode.com/profile.php?rid=H0B0VuVfBJqu",
+    "source_name": "diningcode"
+  },
+  {
+    "restaurant": {
+      "name": "해몽",
+      "address": "서울특별시 서초구 사평대로56길 8 2층 해몽 지번",
+      "phone": "0507-1335-6080",
+      "rating": 4.2,
+      "review_count": 22,
+      "source_url": "https://www.diningcode.com/profile.php?rid=GDii2MZ4WSJc",
+      "source_name": "diningcode"
+    },
+    "menus": [
+      {
+        "name": "항정살 1",
+        "price": 6000
+      },
+      {
+        "name": "김치찌개",
+        "price": 8000
+      },
+      {
+        "name": "냄비비빔밥",
+        "price": 5000
+      },
+      {
+        "name": "베스트메뉴 칠리베이컨 웜볼",
+        "price": 6900
+      },
+      {
+        "name": "항정살 189g 1",
+        "price": 6000
+      },
+      {
+        "name": "등갈비 300g 1",
+        "price": 9000
+      },
+      {
+        "name": "냄비비빔밥",
+        "price": 5000
+      },
+      {
+        "name": "김치찌개",
+        "price": 8000
+      },
+      {
+        "name": "가격은",
+        "price": 4000
+      }
+    ],
+    "source_url": "https://www.diningcode.com/profile.php?rid=GDii2MZ4WSJc",
+    "source_name": "diningcode"
+  },
+  {
+    "restaurant": {
+      "name": "파이브가이즈 강남",
+      "address": "서울특별시 서초구 신반포로 176 신세계백화점 강남점 지하 1층 고속터미널역 8번출구 스위트파크 쪽에 있고, 9번 게이트와 가까워요. 주차는 이곳 영수증을 갖고 있다가 정산소에서 찍으면 차감이 돼요. • 5만 원 이상 : 1시간 • 10만 원 이상 : 2시간 • 15만 원 이상 : 3시간 상품권은 사용 불가능해요. 메뉴 버거 종류는 햄버거, 치즈버거, 베이컨버거, 베이컨치즈버거 4가지예요. 보통 치즈버거나 베이컨치즈버거를 골라요. 핫도그, 샌드위치 종류도 있어요. 세트메뉴는 따로 없고, 개별로 골라야 해요. 쉐이크도 유명한데 초콜렛, 피넛버터, 솔티드카라멜 등 다양하게 있어요. 리틀 vs 오리지널 버거 차이 크기는 똑같은데 리틀은 고기패티가 1장, 오리지널은 2장이에요. 그래서 오리지널이 높이가 조금 더 높아요 주문방법 골라 먹는 방식이라 주문이 어렵지 않을까 걱정하시는 분들도 있으실 텐데 그냥 토핑만 고르는 거예요. App Topping Free라 원하는 대로 고르시면 돼요. 고기의 깊은 풍미를 느끼고 싶으면 야채를 빼고, 샌드위치 스타일이 좋으면 넣으세요. 소스도 싫어하는 건 빼면 되는데 전 다다익선이라 생각합니다. 치즈버거 치즈버거에는 소고기패티 2장과 함께 치즈, 우리가 고른 토핑이 들어가요. 고기를 먹는 것 같아요 패티가 두꺼워서 버거를 먹는다기보다 고기를 먹는 것 같아요. 요즘 얇은 빵피 크림빵 유행하잖아요. 그런 느낌기에요. 외국버거라 더 기름지고, 헤비할 걸 예상했는데 의외로 담백해요. 소스 맛이 잘 느껴지는 편이 아니라 우리가 좋아하는 다른 소스들 곁들여 먹으면 또 다른 매력을 느낄 수 있어요. 단면은 리틀 치즈 버거에서 자세히 보여 드릴게요. 잘라놓고 그냥 먹어버린 나.. 리틀 치즈 버거 전 개인적으로 리틀 치즈 버거가 더 입맛에 맞았어요. 치즈 버거는 고기 맛이 중심이었다면 얘는 버섯, 토마토 등 다른 재료들 맛도 잘 느껴져서 조화로워요....",
+      "phone": "070-8834-7900",
+      "rating": 4.2,
+      "review_count": 88,
+      "source_url": "https://www.diningcode.com/profile.php?rid=PNjW19Kgnn0j",
+      "source_name": "diningcode"
+    },
+    "menus": [
+      {
+        "name": "메뉴정보 햄버거 1",
+        "price": 3400
+      },
+      {
+        "name": "치즈버거 1",
+        "price": 4900
+      },
+      {
+        "name": "베이컨버거 1",
+        "price": 5900
+      },
+      {
+        "name": "베이컨치즈버거 1",
+        "price": 7400
+      },
+      {
+        "name": "비프핫도그",
+        "price": 8900
+      },
+      {
+        "name": "페스츄리 아아가",
+        "price": 6500
+      },
+      {
+        "name": "900 핫도그",
+        "price": 8900
+      },
+      {
+        "name": "쉐이크",
+        "price": 8900
+      },
+      {
+        "name": "감자튀김",
+        "price": 6900
+      }
+    ],
+    "source_url": "https://www.diningcode.com/profile.php?rid=PNjW19Kgnn0j",
+    "source_name": "diningcode"
+  },
+  {
+    "restaurant": {
+      "name": "오제제",
+      "address": "서울특별시 강남구 강남대로 358 2층 201호 지번",
+      "phone": "070-8691-4659",
+      "rating": 4.2,
+      "review_count": 23,
+      "source_url": "https://www.diningcode.com/profile.php?rid=VrVJxxwpKRWs",
+      "source_name": "diningcode"
+    },
+    "menus": [
+      {
+        "name": "자루우동 4",
+        "price": 1000
+      },
+      {
+        "name": "새우튀김2개 4",
+        "price": 3000
+      },
+      {
+        "name": "카다이프 새우튀김",
+        "price": 7000
+      },
+      {
+        "name": "제로콜라",
+        "price": 3000
+      },
+      {
+        "name": "사이다",
+        "price": 3000
+      },
+      {
+        "name": "테라 생맥주",
+        "price": 5000
+      },
+      {
+        "name": "테라 병맥주",
+        "price": 4000
+      },
+      {
+        "name": "안심돈카츠 1",
+        "price": 7000
+      },
+      {
+        "name": "새우튀김 2",
+        "price": 4000
+      },
+      {
+        "name": "등심돈카츠 1",
+        "price": 6000
+      },
+      {
+        "name": "새우튀김 2",
+        "price": 3000
+      },
+      {
+        "name": "특등심돈카츠 1",
+        "price": 7000
+      },
+      {
+        "name": "새우튀김 2",
+        "price": 4000
+      },
+      {
+        "name": "지도리 우동 1",
+        "price": 3000
+      },
+      {
+        "name": "새우튀김 2개 4",
+        "price": 3000
+      },
+      {
+        "name": "과 지도리 우동 1",
+        "price": 3000
+      },
+      {
+        "name": "온우동에 닭고기가 들어갔는데 굉장히 맛이 이색적이고 따뜻하면서 간이 딱 맞아 맛있었습니닷 세트메뉴로 나왔던 새우튀김 2개는 3명이었던 우리의 니즈를 충족하지 못했고 하나 추가주문 이슈 ㅋ 새우튀김",
+        "price": 7000
+      }
+    ],
+    "source_url": "https://www.diningcode.com/profile.php?rid=VrVJxxwpKRWs",
+    "source_name": "diningcode"
+  },
+  {
+    "restaurant": {
+      "name": "티엔미미 강남점",
+      "address": "서울특별시 서초구 사임당로 143 104-1, 104-2, 104-3호 지번",
+      "phone": "0507-1476-1686",
+      "rating": 4.2,
+      "review_count": 34,
+      "source_url": "https://www.diningcode.com/profile.php?rid=deLs35hMcPFD",
+      "source_name": "diningcode"
+    },
+    "menus": [
+      {
+        "name": "凉拌三种海鲜 4",
+        "price": 1000
+      },
+      {
+        "name": "馄饨汤面 1",
+        "price": 5000
+      },
+      {
+        "name": "白花豆腐 3",
+        "price": 4000
+      },
+      {
+        "name": "葱姜鸡 3",
+        "price": 6000
+      },
+      {
+        "name": "炒蔬菜 2",
+        "price": 8000
+      },
+      {
+        "name": "鱼香肉丝盖饭 1",
+        "price": 5000
+      },
+      {
+        "name": "锅巴鸡丝面 1",
+        "price": 5000
+      },
+      {
+        "name": "黄金炒饭 1",
+        "price": 5000
+      },
+      {
+        "name": "오이무침",
+        "price": 9000
+      },
+      {
+        "name": "鱼香丸子茄子 추천 3",
+        "price": 9000
+      },
+      {
+        "name": "甜蜜蜜 炒铁板 추천 4",
+        "price": 9000
+      },
+      {
+        "name": "麻辣奶油虾 추천 3",
+        "price": 8000
+      },
+      {
+        "name": "西红柿汤面 추천 1",
+        "price": 5000
+      },
+      {
+        "name": "东北锅包肉 추천 3",
+        "price": 1000
+      },
+      {
+        "name": "糖醋排骨 3",
+        "price": 9000
+      },
+      {
+        "name": "도시락 1인 3",
+        "price": 5000
+      },
+      {
+        "name": "먹어보고싶은 마라크림새우를 추가하기룽 타이거 생맥주",
+        "price": 9000
+      },
+      {
+        "name": "이건 꼭 먹어보기로 약속 오이무침 이거는 단무지 개념이라 한번씩 집어먹기 딱 좋아서 단품으로 시키더라도 무조건 시킬듯 마라크림새우 3",
+        "price": 8000
+      },
+      {
+        "name": "총 7",
+        "price": 3000
+      }
+    ],
+    "source_url": "https://www.diningcode.com/profile.php?rid=deLs35hMcPFD",
+    "source_name": "diningcode"
+  },
+  {
+    "restaurant": {
+      "name": "불이아 역삼점",
+      "address": "서울특별시 강남구 논현로 514 지번",
+      "phone": "02-556-6689",
+      "rating": 4.2,
+      "review_count": 21,
+      "source_url": "https://www.diningcode.com/profile.php?rid=YJNtKNUTKv0t",
+      "source_name": "diningcode"
+    },
+    "menus": [
+      {
+        "name": "팔순연 상차림 추천 소고기 정식 추천 2",
+        "price": 9000
+      },
+      {
+        "name": "라즈지 2",
+        "price": 5000
+      },
+      {
+        "name": "고구마 빠스 2",
+        "price": 2000
+      },
+      {
+        "name": "점심특선 2",
+        "price": 3000
+      },
+      {
+        "name": "불이아정식 2",
+        "price": 9000
+      },
+      {
+        "name": "홍백탕런치 2",
+        "price": 3000
+      },
+      {
+        "name": "버섯탕런치 2",
+        "price": 3000
+      },
+      {
+        "name": "꿔바로우 추천 2",
+        "price": 2000
+      },
+      {
+        "name": "마라 건두부 무침 1",
+        "price": 5000
+      },
+      {
+        "name": "양고기 정식 2",
+        "price": 9000
+      },
+      {
+        "name": "한우정식 5",
+        "price": 1000
+      },
+      {
+        "name": "해물정식 5",
+        "price": 1000
+      },
+      {
+        "name": "생새우완자 1",
+        "price": 3000
+      },
+      {
+        "name": "샹라시아 3",
+        "price": 5000
+      },
+      {
+        "name": "6689 주차 발레파킹",
+        "price": 3000
+      }
+    ],
+    "source_url": "https://www.diningcode.com/profile.php?rid=YJNtKNUTKv0t",
+    "source_name": "diningcode"
+  },
+  {
+    "restaurant": {
+      "name": "정돈 강남점",
+      "address": "서울특별시 강남구 강남대로110길 19-1 1층 지번",
+      "phone": "0507-1316-0924",
+      "rating": 4.3,
+      "review_count": 55,
+      "source_url": "https://www.diningcode.com/profile.php?rid=J7k047iseiV2",
+      "source_name": "diningcode"
+    },
+    "menus": [
+      {
+        "name": "메뉴정보 A세트 추천 4",
+        "price": 5800
+      },
+      {
+        "name": "B세트 추천 3",
+        "price": 9800
+      },
+      {
+        "name": "치즈카츠",
+        "price": 4000
+      },
+      {
+        "name": "새우카츠 1",
+        "price": 3000
+      },
+      {
+        "name": "치즈카레",
+        "price": 7000
+      },
+      {
+        "name": "등심돈카츠 1",
+        "price": 6000
+      },
+      {
+        "name": "안심돈카츠 1",
+        "price": 7000
+      },
+      {
+        "name": "안심돈카츠 2",
+        "price": 1000
+      },
+      {
+        "name": "치킨카츠 1",
+        "price": 7000
+      },
+      {
+        "name": "생선카츠 1",
+        "price": 7000
+      },
+      {
+        "name": "스페셜 등심돈카츠 2",
+        "price": 1000
+      },
+      {
+        "name": "등심돈카츠 2",
+        "price": 7000
+      },
+      {
+        "name": "안심돈카츠 2",
+        "price": 8000
+      }
+    ],
+    "source_url": "https://www.diningcode.com/profile.php?rid=J7k047iseiV2",
+    "source_name": "diningcode"
+  }
+]

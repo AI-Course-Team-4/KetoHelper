@@ -53,6 +53,9 @@ class KeywordMatcher(IKeywordMatcher):
 
         elif category == 'keto_friendly':
             self._process_simple_keywords(data['keywords'], MatchType.KETO_FRIENDLY)
+            # cooking_methods도 키토 친화적으로 처리
+            if 'cooking_methods' in data:
+                self._process_simple_keywords(data['cooking_methods'], MatchType.KETO_FRIENDLY)
 
         elif category == 'substitutions':
             self._process_substitutions(data)

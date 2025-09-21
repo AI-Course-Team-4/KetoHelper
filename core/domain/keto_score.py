@@ -9,40 +9,49 @@ from uuid import UUID
 
 from core.domain.base import BaseEntity
 from core.domain.enums import CarbBase
+from enum import Enum
+
+class ScoreCategory(Enum):
+    """키토 점수 카테고리"""
+    KETO_RECOMMENDED = "keto_recommended"    # 80점 이상
+    KETO_MODERATE = "keto_moderate"          # 50-79점
+    KETO_CAUTION = "keto_caution"           # 20-49점
+    KETO_AVOID = "keto_avoid"               # 20점 미만
+
+@dataclass
+class ScoreReason:
+    """점수 산출 근거"""
+    rule_id: str
+    keyword: str
+    impact: float
+    explanation: str
 
 @dataclass
 class KetoScore(BaseEntity):
-    """키토 점수 엔티티"""
+    """키토 점수 엔티티 (슈퍼베이스 keto_scores 테이블 구조에 맞춤)"""
 
-    # 관계
-    menu_id: UUID
+    # 관계 (필수 필드)
+    menu_id: Optional[UUID] = None
+    score: int = 0                          # 0-100
 
-    # 점수 정보
-    score: int                          # 0-100
-    confidence_score: Optional[Decimal] = None  # 점수 신뢰도
-
-    # 상세 분석
-    reasons_json: Dict[str, Any] = field(default_factory=dict)
-    detected_keywords: List[str] = field(default_factory=list)
-    penalty_keywords: List[str] = field(default_factory=list)
-    bonus_keywords: List[str] = field(default_factory=list)
-
-    # 대체/예외 처리
-    substitution_tags: Optional[Dict[str, Any]] = None
-    negation_detected: bool = False
-
-    # 최종 판정
-    final_carb_base: Optional[CarbBase] = None
-    override_reason: Optional[str] = None
-
-    # 품질 관리
-    needs_review: bool = False
-    reviewed_at: Optional[Any] = None  # datetime
-    reviewed_by: Optional[str] = None
-
-    # 시스템 정보
+    # 선택적 필드들
+    reasons_json: Optional[Dict[str, Any]] = None  # 점수 산출 근거
     rule_version: str = "v1.0"
-    ingredients_confidence: Optional[Decimal] = None
+    prompt_version: Optional[str] = None  # 프롬프트 버전
+    valid_until: Optional[str] = None   # 유효 기간
+    
+    # 추가 필드들 (스코어링 시스템에서 사용)
+    confidence: float = 0.5
+    raw_score: float = 0.0
+    final_score: float = 0.0
+    category: Optional[ScoreCategory] = None
+    reasons: List[ScoreReason] = field(default_factory=list)
+    detected_keywords: List[str] = field(default_factory=list)
+    applied_rules: List[str] = field(default_factory=list)
+    calculated_at: Optional[Any] = None
+    keto_friendly_ingredients: List[str] = field(default_factory=list)
+    high_carb_ingredients: List[str] = field(default_factory=list)
+    substitution_suggestions: List[str] = field(default_factory=list)
 
     def __post_init__(self):
         super().__post_init__()
@@ -52,8 +61,8 @@ class KetoScore(BaseEntity):
             raise ValueError("Score must be between 0 and 100")
 
         # 신뢰도 검증
-        if self.confidence_score is not None:
-            if not (0 <= self.confidence_score <= 1):
+        if self.confidence is not None:
+            if not (0 <= self.confidence <= 1):
                 raise ValueError("Confidence score must be between 0 and 1")
 
     @property
@@ -182,10 +191,10 @@ class KetoScore(BaseEntity):
 class KetoScoreHistory(BaseEntity):
     """키토 점수 변경 이력"""
 
-    menu_id: UUID
-    old_score: Optional[int]
-    new_score: int
-    change_reason: str
+    menu_id: Optional[UUID] = None
+    old_score: Optional[int] = None
+    new_score: int = 0
+    change_reason: str = ""
     changed_by: Optional[str] = None
 
     def __post_init__(self):

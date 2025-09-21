@@ -286,14 +286,12 @@ class MenuRuleEngine(IRuleEngine):
 
     def _determine_category(self, score: float) -> ScoreCategory:
         """점수를 기반으로 카테고리 결정"""
-        if score >= 50:
-            return ScoreCategory.KETO_EXCELLENT
-        elif score >= 20:
-            return ScoreCategory.KETO_GOOD
-        elif score >= -20:
+        if score >= 80:
+            return ScoreCategory.KETO_RECOMMENDED
+        elif score >= 50:
             return ScoreCategory.KETO_MODERATE
-        elif score >= -50:
-            return ScoreCategory.KETO_POOR
+        elif score >= 20:
+            return ScoreCategory.KETO_CAUTION
         else:
             return ScoreCategory.KETO_AVOID
 

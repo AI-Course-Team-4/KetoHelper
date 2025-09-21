@@ -5,8 +5,9 @@
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 from decimal import Decimal
-from uuid import UUID
-from core.domain.base import BaseEntity, ValueObject
+from uuid import UUID, uuid4
+from datetime import datetime
+from core.domain.base import ValueObject
 from core.domain.enums import MenuCategory, SpiceLevel, IngredientRole, IngredientSource
 
 @dataclass
@@ -48,7 +49,7 @@ class NutritionInfo(ValueObject):
         return any([self.carbohydrates, self.protein, self.fat])
 
 @dataclass
-class MenuIngredient(BaseEntity):
+class MenuIngredient:
     """메뉴-재료 관계"""
     menu_id: UUID
     ingredient_name: str
@@ -56,10 +57,13 @@ class MenuIngredient(BaseEntity):
     quantity: Optional[str] = None
     source: IngredientSource = IngredientSource.RULE
     confidence: Optional[Decimal] = None
+    
+    # BaseEntity 필드들
+    id: UUID = field(default_factory=uuid4)
+    created_at: datetime = field(default_factory=datetime.utcnow)
+    updated_at: datetime = field(default_factory=datetime.utcnow)
 
     def __post_init__(self):
-        super().__post_init__()
-
         if not self.ingredient_name or not self.ingredient_name.strip():
             raise ValueError("Ingredient name is required")
 
@@ -79,8 +83,8 @@ class MenuIngredient(BaseEntity):
         self.update_timestamp()
 
 @dataclass
-class Menu(BaseEntity):
-    """메뉴 엔티티"""
+class Menu:
+    """메뉴 엔티티 (슈퍼베이스 menu 테이블 구조에 맞춤)"""
 
     # 기본 정보
     restaurant_id: UUID
@@ -88,28 +92,24 @@ class Menu(BaseEntity):
     name_norm: Optional[str] = None
     description: Optional[str] = None
     price: Optional[int] = None  # KRW 단위
+    currency: str = "KRW"        # 통화
 
     # 분류 정보
-    category: MenuCategory = MenuCategory.UNKNOWN
-    menu_type: Optional[str] = None  # 세트/단품/코스 등
     is_signature: bool = False
+    is_side: bool = False        # 사이드 메뉴 여부
 
-    # 영양 정보
-    nutrition_info: Optional[NutritionInfo] = None
+    # 이미지 정보
+    image_url: Optional[str] = None
 
-    # 기타 정보
-    allergens: List[str] = field(default_factory=list)
-    spice_level: Optional[SpiceLevel] = None
-
-    # 상태
-    is_available: bool = True
-
-    # 재료 정보 (관계 데이터지만 도메인 객체로도 보유)
-    ingredients: List[MenuIngredient] = field(default_factory=list)
+    # 메타데이터
+    last_checked_at: Optional[str] = None  # 마지막 확인 시간
+    
+    # BaseEntity 필드들
+    id: UUID = field(default_factory=uuid4)
+    created_at: datetime = field(default_factory=datetime.utcnow)
+    updated_at: datetime = field(default_factory=datetime.utcnow)
 
     def __post_init__(self):
-        super().__post_init__()
-
         if not self.name or not self.name.strip():
             raise ValueError("Menu name is required")
 

@@ -1,22 +1,21 @@
 """
-데이터베이스 연결 관리
+데이터베이스 연결 관리 (슈퍼베이스 사용)
 """
 
 import asyncio
-import asyncpg
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from contextlib import asynccontextmanager
 import logging
-from config.settings import DatabaseConfig, settings
+from config.settings import settings
+from infrastructure.database.supabase_connection import SupabaseConnection
 
 logger = logging.getLogger(__name__)
 
 class DatabasePool:
-    """데이터베이스 연결 풀 관리자"""
+    """데이터베이스 연결 풀 관리자 (슈퍼베이스 사용)"""
 
-    def __init__(self, config: DatabaseConfig = None):
-        self.config = config or settings.database
-        self._pool: Optional[asyncpg.Pool] = None
+    def __init__(self):
+        self.supabase = SupabaseConnection()
         self._is_initialized = False
 
     async def initialize(self):
@@ -25,188 +24,175 @@ class DatabasePool:
             return
 
         try:
-            logger.info(f"Initializing database connection pool to {self.config.host}:{self.config.port}")
+            logger.info("Initializing Supabase connection")
 
-            self._pool = await asyncpg.create_pool(
-                host=self.config.host,
-                port=self.config.port,
-                database=self.config.database,
-                user=self.config.username,
-                password=self.config.password,
-                min_size=1,
-                max_size=self.config.pool_size,
-                max_inactive_connection_lifetime=300,  # 5분
-                command_timeout=self.config.timeout
-            )
-
-            # 연결 테스트
-            async with self._pool.acquire() as conn:
-                await conn.fetchval("SELECT 1")
-
+            await self.supabase.initialize()
             self._is_initialized = True
-            logger.info("Database connection pool initialized successfully")
+            logger.info("Supabase connection initialized successfully")
 
         except Exception as e:
-            logger.error(f"Failed to initialize database pool: {e}")
+            logger.error(f"Failed to initialize Supabase connection: {e}")
             raise
 
     async def close(self):
         """연결 풀 종료"""
-        if self._pool:
-            await self._pool.close()
-            self._pool = None
-            self._is_initialized = False
-            logger.info("Database connection pool closed")
+        await self.supabase.close()
+        self._is_initialized = False
+        logger.info("Supabase connection closed")
 
-    @asynccontextmanager
-    async def acquire(self):
-        """연결 획득 컨텍스트 매니저"""
+    async def execute_query(self, table: str, operation: str, **kwargs) -> Any:
+        """쿼리 실행"""
         if not self._is_initialized:
             await self.initialize()
+        
+        return await self.supabase.execute_query(table, operation, **kwargs)
 
-        connection = await self._pool.acquire()
-        try:
-            yield connection
-        finally:
-            await self._pool.release(connection)
+    async def insert_restaurant(self, restaurant_data: Dict[str, Any]) -> Dict[str, Any]:
+        """식당 데이터 삽입"""
+        if not self._is_initialized:
+            await self.initialize()
+        
+        return await self.supabase.insert_restaurant(restaurant_data)
 
-    @asynccontextmanager
-    async def transaction(self):
-        """트랜잭션 컨텍스트 매니저"""
-        async with self.acquire() as conn:
-            async with conn.transaction():
-                yield conn
+    async def insert_menu(self, menu_data: Dict[str, Any]) -> Dict[str, Any]:
+        """메뉴 데이터 삽입"""
+        if not self._is_initialized:
+            await self.initialize()
+        
+        return await self.supabase.insert_menu(menu_data)
 
-    async def execute(self, query: str, *args) -> str:
-        """쿼리 실행"""
-        async with self.acquire() as conn:
-            return await conn.execute(query, *args)
+    async def insert_keto_score(self, score_data: Dict[str, Any]) -> Dict[str, Any]:
+        """키토 점수 데이터 삽입"""
+        if not self._is_initialized:
+            await self.initialize()
+        
+        return await self.supabase.insert_keto_score(score_data)
 
-    async def fetch(self, query: str, *args) -> list:
-        """다중 레코드 조회"""
-        async with self.acquire() as conn:
-            return await conn.fetch(query, *args)
+    async def get_restaurant_by_source_url(self, source: str, source_url: str) -> Optional[Dict[str, Any]]:
+        """소스 URL로 식당 조회"""
+        if not self._is_initialized:
+            await self.initialize()
+        
+        return await self.supabase.get_restaurant_by_source_url(source, source_url)
 
-    async def fetchrow(self, query: str, *args) -> Optional[asyncpg.Record]:
-        """단일 레코드 조회"""
-        async with self.acquire() as conn:
-            return await conn.fetchrow(query, *args)
-
-    async def fetchval(self, query: str, *args) -> Any:
-        """단일 값 조회"""
-        async with self.acquire() as conn:
-            return await conn.fetchval(query, *args)
+    async def get_menus_by_restaurant_id(self, restaurant_id: str) -> List[Dict[str, Any]]:
+        """식당 ID로 메뉴 목록 조회"""
+        if not self._is_initialized:
+            await self.initialize()
+        
+        return await self.supabase.get_menus_by_restaurant_id(restaurant_id)
 
     async def health_check(self) -> Dict[str, Any]:
         """헬스 체크"""
-        try:
-            start_time = asyncio.get_event_loop().time()
-            async with self.acquire() as conn:
-                result = await conn.fetchval("SELECT 1")
-                response_time = asyncio.get_event_loop().time() - start_time
+        if not self._is_initialized:
+            await self.initialize()
+        
+        return await self.supabase.health_check()
 
-            return {
-                "status": "healthy",
-                "response_time_ms": round(response_time * 1000, 2),
-                "pool_size": self._pool.get_size() if self._pool else 0,
-                "pool_idle": self._pool.get_idle_size() if self._pool else 0
-            }
-        except Exception as e:
-            return {
-                "status": "unhealthy",
-                "error": str(e)
-            }
+    # 데이터 삽입 메서드들
+    async def insert_restaurant(self, restaurant_data: Dict[str, Any]) -> Dict[str, Any]:
+        """식당 데이터 삽입"""
+        if not self._is_initialized:
+            await self.initialize()
+        
+        return await self.supabase.insert_restaurant(restaurant_data)
+
+    async def insert_menu(self, menu_data: Dict[str, Any]) -> Dict[str, Any]:
+        """메뉴 데이터 삽입"""
+        if not self._is_initialized:
+            await self.initialize()
+        
+        return await self.supabase.insert_menu(menu_data)
+
+    async def insert_keto_score(self, keto_score_data: Dict[str, Any]) -> Dict[str, Any]:
+        """키토 점수 데이터 삽입"""
+        if not self._is_initialized:
+            await self.initialize()
+        
+        return await self.supabase.insert_keto_score(keto_score_data)
+
+    async def get_restaurant_by_id(self, restaurant_id: str) -> Optional[Dict[str, Any]]:
+        """식당 ID로 조회"""
+        if not self._is_initialized:
+            await self.initialize()
+        
+        return await self.supabase.get_restaurant_by_id(restaurant_id)
+
+    async def get_menu_by_id(self, menu_id: str) -> Optional[Dict[str, Any]]:
+        """메뉴 ID로 조회"""
+        if not self._is_initialized:
+            await self.initialize()
+        
+        return await self.supabase.get_menu_by_id(menu_id)
+
+    async def get_keto_score_by_id(self, keto_score_id: str) -> Optional[Dict[str, Any]]:
+        """키토 점수 ID로 조회"""
+        if not self._is_initialized:
+            await self.initialize()
+        
+        return await self.supabase.get_keto_score_by_id(keto_score_id)
+
+    async def get_restaurants(self, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+        """식당 목록 조회"""
+        if not self._is_initialized:
+            await self.initialize()
+        
+        return await self.supabase.get_restaurants(limit, offset)
+
+    async def get_menus(self, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+        """메뉴 목록 조회"""
+        if not self._is_initialized:
+            await self.initialize()
+        
+        return await self.supabase.get_menus(limit, offset)
+
+    async def count_restaurants(self) -> int:
+        """식당 수 조회"""
+        if not self._is_initialized:
+            await self.initialize()
+        
+        return await self.supabase.count_restaurants()
+
+    async def count_menus(self) -> int:
+        """메뉴 수 조회"""
+        if not self._is_initialized:
+            await self.initialize()
+        
+        return await self.supabase.count_menus()
 
     @property
     def is_initialized(self) -> bool:
         """초기화 상태"""
         return self._is_initialized
 
-    @property
-    def pool_stats(self) -> Dict[str, int]:
-        """풀 통계"""
-        if not self._pool:
-            return {"size": 0, "idle": 0, "used": 0}
-
-        return {
-            "size": self._pool.get_size(),
-            "idle": self._pool.get_idle_size(),
-            "used": self._pool.get_size() - self._pool.get_idle_size()
-        }
-
 class DatabaseMigrator:
-    """데이터베이스 마이그레이션 관리"""
+    """데이터베이스 마이그레이션 관리 (슈퍼베이스는 스키마가 이미 존재)"""
 
     def __init__(self, db_pool: DatabasePool):
         self.db_pool = db_pool
 
     async def run_migrations(self, migrations_dir: str = "infrastructure/database/migrations"):
-        """마이그레이션 실행"""
-        import os
-        from pathlib import Path
+        """마이그레이션 실행 (슈퍼베이스는 스키마가 이미 존재하므로 스킵)"""
+        logger.info("Supabase database schema already exists, skipping migrations")
+        return
 
-        migrations_path = Path(migrations_dir)
-        if not migrations_path.exists():
-            logger.warning(f"Migrations directory not found: {migrations_path}")
-            return
-
-        # 마이그레이션 테이블 생성
-        await self._ensure_migration_table()
-
-        # 마이그레이션 파일들 정렬
-        migration_files = sorted([
-            f for f in os.listdir(migrations_path)
-            if f.endswith('.sql')
-        ])
-
-        for migration_file in migration_files:
-            await self._run_migration(migrations_path / migration_file)
-
-    async def _ensure_migration_table(self):
-        """마이그레이션 추적 테이블 생성"""
-        query = """
-        CREATE TABLE IF NOT EXISTS __migrations (
-            id SERIAL PRIMARY KEY,
-            filename VARCHAR(255) UNIQUE NOT NULL,
-            executed_at TIMESTAMPTZ DEFAULT NOW()
-        )
-        """
-        await self.db_pool.execute(query)
-
-    async def _run_migration(self, migration_path: Path):
-        """개별 마이그레이션 실행"""
-        filename = migration_path.name
-
-        # 이미 실행된 마이그레이션인지 확인
-        executed = await self.db_pool.fetchval(
-            "SELECT 1 FROM __migrations WHERE filename = $1",
-            filename
-        )
-
-        if executed:
-            logger.info(f"Migration {filename} already executed, skipping")
-            return
-
-        logger.info(f"Running migration: {filename}")
-
+    async def check_schema_compatibility(self) -> bool:
+        """스키마 호환성 확인"""
         try:
-            # 마이그레이션 파일 읽기
-            with open(migration_path, 'r', encoding='utf-8') as f:
-                sql_content = f.read()
-
-            # 트랜잭션으로 실행
-            async with self.db_pool.transaction() as conn:
-                await conn.execute(sql_content)
-                await conn.execute(
-                    "INSERT INTO __migrations (filename) VALUES ($1)",
-                    filename
-                )
-
-            logger.info(f"Migration {filename} completed successfully")
-
+            # 기본 테이블들이 존재하는지 확인
+            tables_to_check = ['restaurant', 'menu', 'keto_scores', 'ingredient']
+            
+            for table in tables_to_check:
+                result = await self.db_pool.execute_query(table, 'select', columns='id', limit=1)
+                if not result.data:
+                    logger.warning(f"Table {table} exists but is empty")
+            
+            logger.info("Schema compatibility check passed")
+            return True
+            
         except Exception as e:
-            logger.error(f"Migration {filename} failed: {e}")
-            raise
+            logger.error(f"Schema compatibility check failed: {e}")
+            return False
 
 # 글로벌 데이터베이스 풀 인스턴스
 db_pool = DatabasePool()

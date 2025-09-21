@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from core.domain.menu import Menu
+from core.domain.keto_score import KetoScore
 
 class ScoreConfidenceLevel(Enum):
     """점수 신뢰도 레벨"""
@@ -48,14 +49,40 @@ class ScoringResult:
     scoring_reasons: Dict[str, Any]
     rule_version: str
 
+class MatchType(Enum):
+    """매치 타입"""
+    HIGH_CARB = "high_carb"
+    KETO_FRIENDLY = "keto_friendly"
+    SUBSTITUTION = "substitution"
+    NEGATION = "negation"
+    MENU_TYPE = "menu_type"
+
 @dataclass
 class KeywordMatch:
     """키워드 매칭 결과"""
     keyword: str
-    category: str           # 'high_carb', 'keto_friendly', 'substitution', 'negation'
+    match_type: MatchType
     weight: float
     confidence: float
     position: int           # 텍스트 내 위치
+    context: str = ""       # 주변 컨텍스트
+
+@dataclass
+class ScoringRule:
+    """스코어링 룰"""
+    rule_id: str
+    description: str
+    weight_multiplier: float = 1.0
+    confidence_threshold: float = 0.5
+    enabled: bool = True
+
+@dataclass
+class RuleResult:
+    """룰 적용 결과"""
+    rule_id: str
+    applied: bool
+    impact: float
+    explanation: str
 
 @dataclass
 class ScoringContext:
@@ -194,4 +221,33 @@ class QualityReporterInterface(ABC):
         sample_size: int = 50
     ) -> Dict[str, float]:
         """감지 히트율 계산"""
+        pass
+
+class IKeywordMatcher(ABC):
+    """키워드 매처 인터페이스"""
+    
+    @abstractmethod
+    def find_matches(self, text: str) -> List[KeywordMatch]:
+        """텍스트에서 키워드 매치 찾기"""
+        pass
+
+class IRuleEngine(ABC):
+    """룰 엔진 인터페이스"""
+    
+    @abstractmethod
+    def apply_rules(self, menu: Menu) -> KetoScore:
+        """메뉴에 룰 적용하여 키토 점수 계산"""
+        pass
+
+class IKetoScorer(ABC):
+    """키토 스코어러 인터페이스"""
+    
+    @abstractmethod
+    async def calculate_score(self, menu: Menu) -> KetoScore:
+        """메뉴의 키토 점수 계산"""
+        pass
+    
+    @abstractmethod
+    async def batch_calculate_scores(self, menus: List[Menu]) -> List[KetoScore]:
+        """메뉴들의 키토 점수 일괄 계산"""
         pass

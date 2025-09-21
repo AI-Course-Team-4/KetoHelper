@@ -5,37 +5,25 @@
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 from decimal import Decimal
-from core.domain.base import AggregateRoot, ValueObject
+from uuid import UUID, uuid4
+from datetime import datetime
+from core.domain.base import ValueObject
 from core.domain.enums import SourceType, PriceRange
 
 @dataclass
 class Address(ValueObject):
-    """주소 값 객체"""
-    original: str                           # 원본 주소
-    normalized: Optional[str] = None        # 표준화된 주소
-    latitude: Optional[Decimal] = None      # 위도
-    longitude: Optional[Decimal] = None     # 경도
-    geohash6: Optional[str] = None          # 6자리 지오해시
+    """주소 값 객체 (슈퍼베이스 restaurant 테이블 구조에 맞춤)"""
+    addr_road: Optional[str] = None         # 도로명 주소
+    addr_jibun: Optional[str] = None        # 지번 주소
+    latitude: Optional[float] = None        # 위도 (double precision)
+    longitude: Optional[float] = None       # 경도 (double precision)
 
     def __post_init__(self):
         """주소 유효성 검증"""
-        if not self.original or not self.original.strip():
-            raise ValueError("Original address is required")
-
-        # 좌표가 있으면 지오해시 생성
-        if self.latitude is not None and self.longitude is not None:
-            self.geohash6 = self._generate_geohash()
+        if not self.addr_road and not self.addr_jibun:
+            raise ValueError("At least one address (road or jibun) is required")
 
         super().__post_init__()
-
-    def _generate_geohash(self) -> str:
-        """지오해시 생성"""
-        try:
-            import geohash2
-            return geohash2.encode(float(self.latitude), float(self.longitude), precision=6)
-        except ImportError:
-            # geohash2가 없으면 간단한 구현
-            return f"{self.latitude:.3f},{self.longitude:.3f}"
 
     @property
     def has_coordinates(self) -> bool:
@@ -45,7 +33,7 @@ class Address(ValueObject):
     @property
     def display_address(self) -> str:
         """표시용 주소"""
-        return self.normalized or self.original
+        return self.addr_road or self.addr_jibun or ""
 
 @dataclass
 class BusinessHours(ValueObject):
@@ -103,63 +91,39 @@ class RestaurantSource:
             raise ValueError("Source URL is required")
 
 @dataclass
-class Restaurant(AggregateRoot):
-    """식당 애그리게이트 루트"""
+class Restaurant:
+    """식당 애그리게이트 루트 (슈퍼베이스 restaurant 테이블 구조에 맞춤)"""
 
-    # 기본 정보
+    # 필수 필드들 (기본값 없음)
     name: str
+    source: str                             # 소스 (diningcode, siksin 등)
+    source_url: str                         # 소스 URL
+
+    # 선택적 필드들 (기본값 있음)
     phone: Optional[str] = None
     address: Optional[Address] = None
-    business_hours: Optional[BusinessHours] = None
-
-    # 분류 정보
-    cuisine_types: List[str] = field(default_factory=list)
-    price_range: Optional[PriceRange] = None
-
-    # 평가 정보
-    rating_avg: Optional[Decimal] = None
-    review_count: int = 0
-
-    # 메타데이터
-    canonical_key: Optional[str] = None
-    is_active: bool = True
-
-    # 소스 정보 (별도 테이블로 관리되지만 도메인 객체로도 보유)
+    category: Optional[str] = None           # 요리 종류
+    price_range: Optional[int] = None        # 가격대 (integer)
+    place_provider: Optional[str] = None     # 장소 제공자
+    place_id: Optional[str] = None          # 장소 ID
+    normalized_name: Optional[str] = None    # 정규화된 이름
+    homepage_url: Optional[str] = None      # 홈페이지 URL
+    
+    # BaseEntity 필드들 (기본값 있음)
+    id: UUID = field(default_factory=uuid4)
+    created_at: datetime = field(default_factory=datetime.utcnow)
+    updated_at: datetime = field(default_factory=datetime.utcnow)
+    
+    # 소스 정보
     sources: List[RestaurantSource] = field(default_factory=list)
 
     def __post_init__(self):
-        super().__post_init__()
-
         if not self.name or not self.name.strip():
             raise ValueError("Restaurant name is required")
 
         # 정규화
         self.name = self.name.strip()
 
-        # 캐노니컬 키 생성
-        if not self.canonical_key:
-            self.canonical_key = self._generate_canonical_key()
-
-    def _generate_canonical_key(self) -> str:
-        """중복 제거용 캐노니컬 키 생성"""
-        import re
-
-        # 이름 정규화
-        normalized_name = re.sub(r'[^\w가-힣]', '', self.name.lower())
-
-        # 지오해시 포함 (있으면)
-        geohash_part = ""
-        if self.address and self.address.geohash6:
-            geohash_part = f"_{self.address.geohash6}"
-
-        # 전화번호 포함 (있으면)
-        phone_part = ""
-        if self.phone:
-            clean_phone = re.sub(r'[^\d]', '', self.phone)
-            if clean_phone:
-                phone_part = f"_{clean_phone[-8:]}"  # 뒤 8자리만
-
-        return f"{normalized_name}{geohash_part}{phone_part}"
 
     def add_source(self, source: RestaurantSource):
         """소스 정보 추가"""
@@ -204,8 +168,6 @@ class Restaurant(AggregateRoot):
         if business_hours is not None:
             self.business_hours = business_hours
 
-        # 캐노니컬 키 재생성
-        self.canonical_key = self._generate_canonical_key()
         self.update_timestamp()
 
     def update_rating(self, rating: Decimal, review_count: int):

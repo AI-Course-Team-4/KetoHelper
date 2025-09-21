@@ -98,13 +98,12 @@ class DataProcessor:
             # Restaurant 객체 생성
             restaurant = Restaurant(
                 name=name,
+                source=raw_data.get('source', 'diningcode'),
+                source_url=raw_data.get('source_url', ''),
                 phone=phone,
                 address=address,
-                business_hours=business_hours,
-                cuisine_types=cuisine_types,
-                price_range=price_range,
-                rating_avg=rating_avg,
-                review_count=review_count
+                category=cuisine_types[0] if cuisine_types else None,
+                price_range=price_range
             )
 
             # 소스 정보 추가
@@ -198,17 +197,17 @@ class DataProcessor:
 
             if geocoded:
                 return Address(
-                    original=address_text,
-                    normalized=geocoded.get('formatted_address'),
-                    latitude=Decimal(str(geocoded['lat'])) if geocoded.get('lat') else None,
-                    longitude=Decimal(str(geocoded['lng'])) if geocoded.get('lng') else None
+                    addr_road=geocoded.get('road_address') or geocoded.get('formatted_address'),
+                    addr_jibun=geocoded.get('jibun_address'),
+                    latitude=float(geocoded['lat']) if geocoded.get('lat') else None,
+                    longitude=float(geocoded['lng']) if geocoded.get('lng') else None
                 )
             else:
-                return Address(original=address_text)
+                return Address(addr_road=address_text)
 
         except Exception as e:
             logger.error(f"Error processing address '{address_text}': {e}")
-            return Address(original=address_text)
+            return Address(addr_road=address_text)
 
     def _process_business_hours(self, hours_text: str) -> Optional[BusinessHours]:
         """영업시간 텍스트 파싱"""
