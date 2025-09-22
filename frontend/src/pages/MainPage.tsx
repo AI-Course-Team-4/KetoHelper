@@ -36,22 +36,18 @@ export function MainPage() {
                             <div className="space-y-3">
                                 <div className="flex justify-end">
                                     <div className="max-w-[75%] rounded-2xl px-3 py-2 text-sm text-white bg-gradient-to-r from-green-500 to-emerald-500">
-                                        키토 아침 레시피 추천해줘
+                                        아침 키토 레시피 추천해줘
                                     </div>
                                 </div>
                                 <div className="flex justify-start">
                                     <div className="max-w-[75%] rounded-2xl px-3 py-2 text-sm bg-card border border-border">
-                                        아보카도 에그볼, 버섯 오믈렛, 그릭요거트 견과 믹스 중에서 선택해보세요. 칼로리/탄수 기준으로도 맞춰 드릴게요.
-                                    </div>
-                                </div>
-                                <div className="flex justify-end">
-                                    <div className="max-w-[75%] rounded-2xl px-3 py-2 text-sm text-white bg-gradient-to-r from-green-500 to-emerald-500">
-                                        오믈렛 좋아! 재료랑 칼로리도 알려줘
-                                    </div>
-                                </div>
-                                <div className="flex justify-start">
-                                    <div className="max-w-[75%] rounded-2xl px-3 py-2 text-sm bg-card border border-border">
-                                        버섯 오믈렛(1인분) — 계란 2, 버섯 80g, 버터 10g, 치즈 20g. 약 320kcal, 탄수 5g 내외입니다. 캘린더에 추가할까요?
+                                        ## ✨ 아침 키토 레시피 추천해줘 (키토 버전)<br /><br />
+
+                                        ### 👨‍🍳 조리법<br />
+                                        1. 양파를 잘게 다져 버터 1큰술을 두른 팬에 볶아 향을 냅니다.<br />
+                                        2. 베이컨을 넣고 바삭하게 굽습니다.  익은 베이컨은 따로 접시에 덜어둡니다.<br />
+                                        3. 베이컨을 굽던 팬에 계란을 깨뜨려 스크램블 에그를 만듭니다.  소금, 후추로 간을 합니다.<br />
+                                        4. 아보카도를 반으로 갈라 씨를 제거하고,  스크램블 에그와 구운 베이컨, 다진 체다 치즈를 넣어 섞어 먹거나, 아보카도를 토스트처럼 활용하여 베이컨과 계란을 얹어 먹습니다.... (중략)
                                     </div>
                                 </div>
                             </div>

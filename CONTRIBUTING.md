@@ -42,6 +42,13 @@ git release
 ```bash
 # prdev : feature → dev PR 생성
 # release : dev → main 릴리즈 PR 생성(템플릿 강제 주입)
+# syncmain -> release -> release-finish 순서대로 진행하여 dev 브랜치의 내용을 main으로 이전
+
+# 해당 순서대로 진행하여 dev 내용을 main으로 동기화.
+# git syncmain   # 사전 정리
+# git release    # dev→main 릴리즈 PR 생성/열기
+# GitHub에서 릴리즈 PR 머지
+# git release-finish   # main→dev 동기화
 
 
 # prdev (템플릿 강제 주입 → 생성 후 웹 열기)
@@ -71,47 +78,65 @@ git config --global alias.prdev '!f(){
 
 # main → dev 동기화 PR (템플릿 강제 주입 + 자동머지 시도 + 웹 열기)
 git config --global alias.syncmain '!f(){
-  set -e
+  set -euo pipefail
   git fetch origin
 
-  # 분기 상황 파악 (main_only, dev_only)
-  read L R <<EOF
-  $(git rev-list --left-right --count origin/main...origin/dev)
+  # main_only(L), dev_only(R) 계산: origin/main...origin/dev 의 서로 다른 커밋 수
+  # L = main 전용 커밋, R = dev 전용 커밋
+  read -r L R <<EOF
+$(git rev-list --left-right --count origin/main...origin/dev)
 EOF
+
   if [ "$L" -eq 0 ]; then
     echo "✅ main→dev 동기화 필요 없음 (main_only=0)"
     exit 0
   fi
   echo "ℹ️ main_only=$L, dev_only=$R → main→dev 동기화 PR 진행"
 
-  # 본문 템플릿 준비: origin/dev 우선, 없으면 origin/main에서 가져오기
-  TMP=$(mktemp)
+  # PR 본문 템플릿 준비(임시파일, 안전 삭제)
+  TMP="$(mktemp)"
+  cleanup() { rm -f "$TMP" || true; }
+  trap cleanup EXIT
+
   if git show origin/dev:.github/pull_request_template.md > "$TMP" 2>/dev/null; then
     :
   elif git show origin/main:.github/pull_request_template.md > "$TMP" 2>/dev/null; then
     :
   else
-    echo "Sync main → dev" > "$TMP"
+    {
+      echo "Sync main → dev"
+      echo
+      echo "- This PR syncs commits that exist only on **main** back into **dev**."
+      echo "- Triggered by \`git syncmain\` alias."
+      echo
+      echo "**main only commits:**"
+      git log --oneline origin/dev..origin/main || true
+    } > "$TMP"
   fi
 
-  # 이미 열린 PR 있으면 그걸 사용
-  NUM=$(gh pr list --base dev --head main --state open --json number --jq ".[0].number" 2>/dev/null || true)
-  if [ -n "$NUM" ]; then
+  # 이미 열린 PR이 있으면 그걸 사용, 없으면 생성
+  NUM="$(gh pr list --base dev --head main --state open --json number --jq ".[0].number" 2>/dev/null || true)"
+  if [ -n "${NUM:-}" ]; then
     echo "ℹ️ 기존 PR #$NUM 이 열려 있어요."
   else
-    gh pr create -B dev -H main -F "$TMP" --title "Sync main → dev"
-    NUM=$(gh pr list --base dev --head main --state open --json number --jq ".[0].number")
+    gh pr create -B dev -H main -F "$TMP" --title "Sync main → dev" >/dev/null
+    # 생성 직후 재조회(네트워크 지연 대비)
+    NUM="$(gh pr list --base dev --head main --state open --json number --jq ".[0].number" 2>/dev/null || true)"
+    if [ -z "${NUM:-}" ]; then
+      echo "⚠️ PR 번호를 찾지 못했어요. PR이 생성됐는지 웹에서 확인해주세요."
+      gh pr list --base dev --head main --state open || true
+      gh repo view --web || true
+      exit 0
+    fi
   fi
 
-  # Auto-merge (레포에서 Allow auto-merge가 켜져 있어야 동작, 승인/체크 충족 시 자동 병합)
+  # Auto-merge 시도 (레포에서 Allow auto-merge + 보호규칙 충족 필요)
+  # 병합 방식은 --merge. 레포 정책상 merge 불가면 --squash/--rebase 로 바꾸거나 생략
   gh pr merge "$NUM" --auto --merge || true
 
-  gh pr view "$NUM" --web
-  rm -f "$TMP"
+  # PR 페이지 열기
+  gh pr view "$NUM" --web || true
 }; f'
-
-
-
 
 # dev → main 릴리즈 PR (템플릿 강제 주입)
 git config --global alias.release '!f(){
@@ -134,6 +159,55 @@ git config --global alias.release '!f(){
     -F .github/pull_request_template.md \
     --title "Release: dev → main" \
     --web
+}; f'
+
+# release 후 main→dev 동기화(PR 생성/열기 + 자동머지 시도) - main에만 존재하는 커밋을 dev로 되돌려, 다음 릴리즈 때 막히지 않게 하는 마무리 동기화하는 역할
+git config --global alias.release-finish '!f(){
+  set -euo pipefail
+  git fetch origin
+
+  # main_only(L), dev_only(R)
+  read -r L R <<EOF
+$(git rev-list --left-right --count origin/main...origin/dev)
+EOF
+
+  if [ "$L" -eq 0 ]; then
+    echo "✅ 릴리즈 후 동기화 필요 없음 (main_only=0)"
+    exit 0
+  fi
+  echo "ℹ️ 릴리즈 반영 커밋을 dev로 되돌립니다 (main_only=$L, dev_only=$R)"
+
+  # PR 본문 템플릿 준비
+  TMP="$(mktemp)"; trap "rm -f \"$TMP\"" EXIT
+  if git show origin/dev:.github/pull_request_template.md > "$TMP" 2>/dev/null || \
+     git show origin/main:.github/pull_request_template.md > "$TMP" 2>/dev/null; then
+    :
+  else
+    {
+      echo "Sync main → dev (post-release)"
+      echo
+      echo "- Bring post-release commits from **main** back into **dev**."
+      echo
+      echo "**main-only commits:**"
+      git log --oneline origin/dev..origin/main || true
+    } > "$TMP"
+  fi
+
+  # 기존 PR 재사용 또는 새 PR 생성
+  NUM="$(gh pr list --base dev --head main --state open --json number --jq ".[0].number" 2>/dev/null || true)"
+  if [ -n "${NUM:-}" ]; then
+    echo "ℹ️ 기존 동기화 PR #$NUM 사용"
+  else
+    gh pr create -B dev -H main -F "$TMP" -t "Sync main → dev (post-release)" >/dev/null
+    NUM="$(gh pr list --base dev --head main --state open --json number --jq ".[0].number" 2>/dev/null || true)"
+    [ -z "${NUM:-}" ] && { echo "⚠️ PR 번호 재조회 실패 — 웹에서 확인해주세요."; gh pr list --base dev --head main --state open || true; gh repo view --web || true; exit 0; }
+  fi
+
+  # 자동 머지 시도(Allow auto-merge + 필수체크/승인 필요)
+  gh pr merge "$NUM" --auto --merge || true
+
+  # PR 페이지 열기
+  gh pr view "$NUM" --web || true
 }; f'
 ```
 
