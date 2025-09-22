@@ -11,6 +11,8 @@ from app.core.jwt_utils import (
     ACCESS_TOKEN_EXP_MINUTES,
     REFRESH_TOKEN_EXP_DAYS,
 )
+from app.core.database import supabase_admin
+import uuid
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -30,13 +32,36 @@ class NaverCodeRequest(BaseModel):
 
 
 async def _upsert_user(profile: dict) -> dict:
-    # TODO: 실제 DB와 연동하여 사용자 upsert
-    # 여기서는 데모용으로 profile 그대로 반환
-    return {
-        "id": profile.get("id") or profile.get("sub") or profile.get("email") or "demo-user",
+    # 공급자 ID로 UUIDv5 생성 (DB가 uuid 타입일 때 안전)
+    raw_id = str(profile.get("id") or profile.get("sub") or profile.get("email") or "")
+    provider = profile.get("provider") or profile.get("source") or "oauth"
+    try:
+        fixed_id = str(uuid.UUID(raw_id))
+    except Exception:
+        fixed_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{provider}:{raw_id}"))
+
+    user_data = {
+        "id": fixed_id,
         "email": profile.get("email", ""),
-        "name": profile.get("name") or profile.get("nickname") or "",
-        "profile_image": profile.get("picture") or profile.get("profile_image") or "",
+        "nickname": profile.get("name") or profile.get("nickname") or "",
+        "profile_image_url": profile.get("picture") or profile.get("profile_image") or "",
+    }
+
+    try:
+        resp = supabase_admin.table("users").upsert([user_data], on_conflict="id").execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={"message": "supabase upsert failed", "error": str(e)})
+
+    data = getattr(resp, "data", None) if resp else None
+    if not data:
+        raise HTTPException(status_code=500, detail="supabase upsert returned no data")
+
+    row = data[0]
+    return {
+        "id": row.get("id", fixed_id),
+        "email": row.get("email", user_data["email"]),
+        "name": row.get("nickname", ""),
+        "profile_image": row.get("profile_image_url", ""),
     }
 
 
@@ -81,6 +106,9 @@ async def google_login(payload: GoogleAccessRequest, response: Response):
             raise HTTPException(status_code=400, detail="Invalid Google access token")
         profile = r.json()
 
+    # 구글 userinfo는 보통 sub가 안정적인 id
+    profile["provider"] = "google"
+    profile["id"] = profile.get("sub") or profile.get("id")
     user = await _upsert_user(profile)
     access = create_access_token(user["id"], {"email": user["email"], "name": user["name"]})
     refresh = create_refresh_token(user["id"])
