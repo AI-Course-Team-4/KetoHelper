@@ -1,20 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Sparkles } from 'lucide-react'
-import { useAuthStore } from '@/store/authStore'
-import { RecipeCard } from '@/components/RecipeCard'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { MessageSquare, CalendarDays, MapPin, Filter } from 'lucide-react'
+import { useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 export function MainPage() {
-    const { user } = useAuthStore()
-
-    const sampleRecipes = [
-        { id: 'r1', title: '연어 아보카도 샐러드', tags: ['저탄수', '오메가3'], ketoized: true },
-        { id: 'r2', title: '버섯 크림 오믈렛', tags: ['고단백', '간단'], ketoized: true },
-        { id: 'r3', title: '닭가슴살 스테이크 & 버터야채', tags: ['저탄수', '고지방'], ketoized: true },
-    ]
-    const ketoProgress = 75
-    const recipesTried = 12
-    const recipesTotal = 20
-    const recipesPct = Math.round((recipesTried / recipesTotal) * 100)
+    const featuresRef = useRef<HTMLDivElement | null>(null)
+    const navigate = useNavigate()
 
     return (
         <div className="space-y-6">
@@ -26,112 +19,99 @@ export function MainPage() {
                 </p>
             </div>
 
-            {user ? (
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-lg">진행도</CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                        <p className="text-sm text-muted-foreground mb-4">{user?.name ? `${user.name}님, ` : ''}오늘도 건강한 키토 라이프를 이어가세요!</p>
-                        <div className="grid gap-4 md:grid-cols-3">
-                            <Card>
-                                <CardHeader className="pb-2">
-                                    <CardTitle className="text-sm font-medium">키토 진행률</CardTitle>
-                                </CardHeader>
-                                <CardContent className="pt-0">
-                                    <div className="text-3xl font-bold">{ketoProgress}%</div>
-                                    <div className="mt-3 h-2 bg-border rounded-full overflow-hidden">
-                                        <div className="h-full bg-green-500" style={{ width: `${ketoProgress}%` }} />
-                                    </div>
-                                    <div className="text-sm text-muted-foreground mt-1">목표 대비 진행률</div>
-                                </CardContent>
-                            </Card>
-                            <Card>
-                                <CardHeader className="pb-2">
-                                    <CardTitle className="text-sm font-medium">시도한 레시피</CardTitle>
-                                </CardHeader>
-                                <CardContent className="pt-0">
-                                    <div className="flex items-center gap-3 mt-2">
-                                        <svg width="72" height="72" viewBox="0 0 100 100" className="shrink-0">
-                                            <circle cx="50" cy="50" r="42" strokeWidth="8" className="stroke-border" fill="none" />
-                                            <circle
-                                                cx="50"
-                                                cy="50"
-                                                r="42"
-                                                strokeWidth="8"
-                                                className="stroke-green-500"
-                                                fill="none"
-                                                strokeDasharray={264}
-                                                strokeDashoffset={264 * (1 - recipesPct / 100)}
-                                                transform="rotate(-90 50 50)"
-                                                strokeLinecap="round"
-                                            />
-                                        </svg>
-                                        <div>
-                                            <div className="text-3xl font-bold leading-none">{recipesTried}</div>
-                                            <div className="text-sm text-muted-foreground mt-1">전체 {recipesTotal}개 중 · {recipesPct}%</div>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                            <Card>
-                                <CardHeader className="pb-2">
-                                    <CardTitle className="text-sm font-medium">즐겨찾기한 식당</CardTitle>
-                                </CardHeader>
-                                <CardContent className="pt-0">
-                                    <div className="flex items-center gap-3 mt-2">
-                                        <div className="w-16 h-16 flex items-center justify-center rounded-full bg-green-100 dark:bg-green-700 mb-3">
-                                            <svg className="w-8 h-8 text-green-600 dark:text-green-300" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <div className="text-3xl font-bold leading-none">8</div>
-                                            <div className="text-sm text-muted-foreground mt-1">즐겨찾기한 식당 수</div>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
+            {/* 랜딩 히어로 */}
+            <Card>
+                <CardContent className="p-6 lg:p-8 grid lg:grid-cols-2 gap-8 items-center">
+                    <div>
+                        <h2 className="text-3xl sm:text-4xl font-extrabold leading-tight">AI가 당신에게 딱 맞는 키토 식단과 식당을 추천해드립니다!</h2>
+                        <p className="mt-3 text-muted-foreground">채팅으로 간편하게 추천받고, 캘린더에 바로 등록하세요. 위치 기반 식당 추천과 알레르기 필터까지 제공합니다.</p>
+                        <div className="mt-5 flex flex-col sm:flex-row gap-3">
+                            <Button onClick={() => featuresRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>주요 기능 확인하기</Button>
+                            <Button variant="outline" onClick={() => navigate('/subscribe')}>구독하기</Button>
                         </div>
-                    </CardContent>
-                </Card>
-            ) : (
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-lg">진행도</CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                        <div className="text-sm text-muted-foreground">로그인해야 확인할 수 있는 기능입니다.</div>
-                    </CardContent>
-                </Card>
-            )}
+                    </div>
+                    <div className="relative">
+                        <div className="mb-2"><Badge variant="secondary">예시 프리뷰</Badge></div>
+                        <div className="rounded-2xl border border-border bg-background/60 backdrop-blur p-4 shadow-sm">
+                            <div className="space-y-3">
+                                <div className="flex justify-end">
+                                    <div className="max-w-[75%] rounded-2xl px-3 py-2 text-sm text-white bg-gradient-to-r from-green-500 to-emerald-500">
+                                        키토 아침 레시피 추천해줘
+                                    </div>
+                                </div>
+                                <div className="flex justify-start">
+                                    <div className="max-w-[75%] rounded-2xl px-3 py-2 text-sm bg-card border border-border">
+                                        아보카도 에그볼, 버섯 오믈렛, 그릭요거트 견과 믹스 중에서 선택해보세요. 칼로리/탄수 기준으로도 맞춰 드릴게요.
+                                    </div>
+                                </div>
+                                <div className="flex justify-end">
+                                    <div className="max-w-[75%] rounded-2xl px-3 py-2 text-sm text-white bg-gradient-to-r from-green-500 to-emerald-500">
+                                        오믈렛 좋아! 재료랑 칼로리도 알려줘
+                                    </div>
+                                </div>
+                                <div className="flex justify-start">
+                                    <div className="max-w-[75%] rounded-2xl px-3 py-2 text-sm bg-card border border-border">
+                                        버섯 오믈렛(1인분) — 계란 2, 버섯 80g, 버터 10g, 치즈 20g. 약 320kcal, 탄수 5g 내외입니다. 캘린더에 추가할까요?
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="mt-4 flex gap-2">
+                                <div className="flex-1 h-10 rounded-full border border-border bg-background/70 px-4 flex items-center text-sm text-muted-foreground">
+                                    메시지를 입력하세요...
+                                </div>
+                                <Button size="sm" className="rounded-full px-4">전송</Button>
+                            </div>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
 
-            {/* 피드: 오늘의 추천 레시피 (추후 랜덤 3개로 나오게끔 변경) */}
-            {user ? (
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-lg flex items-center gap-2">
-                            <Sparkles className="h-5 w-5 text-green-600" /> 오늘의 추천 레시피
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid gap-4 md:grid-cols-3">
-                            {sampleRecipes.map((r) => (
-                                <RecipeCard key={r.id} recipe={r as any} />
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
-            ) : (
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-lg flex items-center gap-2"><Sparkles className="h-5 w-5 text-green-600" />오늘의 추천 레시피</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-sm text-muted-foreground">로그인해야 확인할 수 있는 기능입니다.</div>
-                    </CardContent>
-                </Card>
-            )}
+            {/* 주요 기능 */}
+            <Card ref={featuresRef as any}>
+                <CardHeader className="pb-6">
+                    <CardTitle className="text-lg">주요 기능</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                    <div className="grid md:grid-cols-4 gap-4">
+                        <Card>
+                            <CardContent className="p-6 text-center hover:scale-[1.02] transition-transform" onClick={() => navigate('/chat')}>
+                                <div className="flex items-center justify-center">
+                                    <MessageSquare className="h-7 w-7 text-green-600" />
+                                </div>
+                                <div className="font-semibold mt-2 cursor-pointer">채팅 기반 추천</div>
+                                <div className="text-sm text-muted-foreground mt-1">질문하면 AI가 바로 식단과 식당을 추천합니다.</div>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardContent className="p-6 text-center hover:scale-[1.02] transition-transform" onClick={() => navigate('/calendar')}>
+                                <div className="flex items-center justify-center">
+                                    <CalendarDays className="h-7 w-7 text-green-600" />
+                                </div>
+                                <div className="font-semibold mt-2">캘린더 등록</div>
+                                <div className="text-sm text-muted-foreground mt-1">추천 식단을 클릭하면 캘린더에 자동 등록됩니다.</div>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardContent className="p-6 text-center hover:scale-[1.02] transition-transform" onClick={() => navigate('/map')}>
+                                <div className="flex items-center justify-center">
+                                    <MapPin className="h-7 w-7 text-green-600" />
+                                </div>
+                                <div className="font-semibold mt-2">위치 기반 식당</div>
+                                <div className="text-sm text-muted-foreground mt-1">현재 위치 주변의 키토 친화 식당을 찾아드립니다.</div>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardContent className="p-6 text-center hover:scale-[1.02] transition-transform" onClick={() => navigate('/profile')}>
+                                <div className="flex items-center justify-center">
+                                    <Filter className="h-7 w-7 text-green-600" />
+                                </div>
+                                <div className="font-semibold mt-2">알레르기 & 필터</div>
+                                <div className="text-sm text-muted-foreground mt-1">알레르기나 비선호 음식은 추천에서 자동 제외됩니다.</div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </CardContent>
+            </Card>
 
             {/* 피드: 키토제닉 다이어트란? */}
             <Card>
