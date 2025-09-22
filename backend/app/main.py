@@ -14,9 +14,9 @@ import os, re
 from dotenv import load_dotenv
 import asyncio
 
-from app.chat.api import chat
-from app.restaurant.api import places
-from app.meal.api import plans
+from app.domains.chat.api import chat
+from app.domains.restaurant.api import places
+from app.domains.meal.api import plans
 from app.shared.api import auth as auth_api
 from app.core.config import settings
 from app.core.database import init_db
@@ -51,16 +51,17 @@ origins =[
 
 origins = list({o for o in origins if o})
 
-preview_regex = None
 project = os.getenv("VERCEL_PROJECT_NAME", "").strip()  # ex) keto-helper
-if project:
-    preview_regex = rf"^https://{re.escape(project)}-[a-z0-9-]+\.vercel\.app$"
+preview_or_prod_regex = (
+    rf"^https://{re.escape(project)}(?:-[a-z0-9-]+)?\.vercel\.app$"
+    if project else None
+)
 
 # CORS 설정
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_origin_regex=preview_regex,  # 프리뷰 자동 허용
+    allow_origin_regex=preview_or_prod_regex,  # 프리뷰 자동 허용
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -70,10 +71,12 @@ app.add_middleware(
 load_dotenv()
 
 # 라우터 등록
+print("🔧 DEBUG: 라우터 등록 중...")
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(places.router, prefix="/api/v1") 
 app.include_router(plans.router, prefix="/api/v1")
 app.include_router(auth_api.router, prefix="/api/v1")
+print("✅ DEBUG: 모든 라우터 등록 완료")
 
 @app.get("/")
 async def root():

@@ -2,9 +2,15 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, ''); // 끝 슬래시 제거
+const isDev = import.meta.env.DEV;
+
+if (!isDev && !API_BASE) {
+  // 배포에서 값이 비어 있으면 바로 알 수 있게
+  throw new Error('VITE_API_BASE_URL is missing in production build');
+}
 
 export const api = axios.create({
-  baseURL: `${API_BASE}/api/v1`,   // ← Railway 도메인 + /api/v1
+  baseURL: isDev ? "/api/v1" : `${API_BASE}/api/v1`, // dev는 상대경로로 프록시 태움
   headers: { 'Content-Type': 'application/json' },
   timeout: 30000,
 });
@@ -14,14 +20,22 @@ export interface ChatRequest {
   message: string
   location?: { lat: number; lng: number }
   radius_km?: number
-  profile?: any
+  profile?: {
+    allergies?: string[]
+    dislikes?: string[]
+    goals_kcal?: number
+    goals_carbs_g?: number
+  }
 }
 
 export interface ChatResponse {
   response: string
   intent: string
   results?: any[]
-  session_id?: string
+  tool_calls?: Array<{
+    tool: string
+    [key: string]: any
+  }>
 }
 
 export function useSendMessage() {
@@ -31,6 +45,52 @@ export function useSendMessage() {
       return response.data
     }
   })
+}
+
+// 스트리밍 채팅 API
+export async function* sendMessageStream(data: ChatRequest): AsyncGenerator<any, void, unknown> {
+  const response = await fetch('/api/v1/chat/stream', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  })
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`)
+  }
+
+  const reader = response.body?.getReader()
+  if (!reader) {
+    throw new Error('Response body is not readable')
+  }
+
+  const decoder = new TextDecoder()
+  
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      
+      if (done) break
+      
+      const chunk = decoder.decode(value, { stream: true })
+      const lines = chunk.split('\n')
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6))
+            yield data
+          } catch (e) {
+            console.warn('Failed to parse SSE data:', line)
+          }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock()
+  }
 }
 
 // Places API
