@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Menu, Search, User, Settings } from 'lucide-react'
+import { Menu, Search, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -15,6 +15,7 @@ import { authService } from '@/lib/authService'
 import { toast } from 'react-hot-toast'
 import { LoginModal } from './LoginModal'
 import { useNavigate } from 'react-router-dom'
+import { cleanupLocalAuthArtifacts, clearChatHistoryStorage, clearNaverOAuthState } from '@/lib/bootCleanup'
 
 export function Header() {
   const [, setIsSearchOpen] = useState(false)
@@ -39,13 +40,20 @@ export function Header() {
       // ignore
     }
     clear()
+    try { cleanupLocalAuthArtifacts() } catch {}
+    try { clearChatHistoryStorage() } catch {}
+    try { clearNaverOAuthState() } catch {}
+  }
+
+  const handleMenuClick = () => {
+    navigate('/')
   }
 
   return (
     <header className="bg-white border-b border-border shadow-sm">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         {/* 로고 */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-4" onClick={handleMenuClick} style={{ cursor: 'pointer' }}>
           <Button
             variant="ghost"
             size="sm"
@@ -116,11 +124,7 @@ export function Header() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => navigate('/profile')}>
                   <User className="mr-2 h-4 w-4" />
-                  <span>프로필</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate('/settings')}>
-                  <Settings className="mr-2 h-4 w-4" />
-                  <span>설정</span>
+                  <span>프로필 설정</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="text-red-600" onClick={handleLogout}>

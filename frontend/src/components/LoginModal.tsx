@@ -25,6 +25,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
     const [isGoogleLoading, setIsGoogleLoading] = useState(false)
     const [isKakaoLoading, setIsKakaoLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [isNaverLoading, setIsNaverLoading] = useState(false)
     const setAuth = useAuthStore((s) => s.setAuth)
 
     const startGoogleAccessFlow = useGoogleLogin({
@@ -107,7 +108,27 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
             await loadKakaoSdk()
             const w = window as any
             await new Promise<void>((resolve, reject) => {
+                let finished = false
+                const cleanup = () => {
+                    finished = true
+                    try { window.removeEventListener('focus', onFocus) } catch { }
+                    try { clearTimeout(timeoutId) } catch { }
+                }
+                const cancel = () => {
+                    if (finished) return
+                    cleanup()
+                    // silently stop loading without showing error/toast
+                    resolve()
+                }
+                const onFocus = () => {
+                    // 사용자가 팝업을 닫고 부모 창으로 돌아온 경우로 간주
+                    if (!finished) cancel()
+                }
+                const timeoutId = setTimeout(() => {
+                    if (!finished) cancel()
+                }, 20000)
                 try {
+                    window.addEventListener('focus', onFocus)
                     w.Kakao.Auth.login({
                         scope: 'account_email profile_nickname profile_image',
                         success: async (authObj: any) => {
@@ -136,17 +157,20 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                                     email: backendUser?.email,
                                     profile_image: backendUser?.profile_image,
                                 })
+                                cleanup()
                                 toast.success(`안녕하세요 ${backendUser?.name || '사용자'}님!`)
                                 onOpenChange(false)
                                 resolve()
-                            } catch (err) { reject(err) }
+                            } catch (err) { cleanup(); reject(err as any) }
                         },
                         fail: (err: any) => {
                             console.error('[Auth] Kakao login fail', err)
-                            reject(err)
+                            // treat as user-cancel or silent fail → just stop loading
+                            cleanup()
+                            resolve()
                         },
                     })
-                } catch (e) { reject(e) }
+                } catch (e) { cleanup(); reject(e as any) }
             })
         } catch (e: any) {
             console.error('카카오 로그인 실패:', e)
@@ -233,14 +257,6 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                         </MuiButton>
                     </Box>
 
-                    {/* <Button
-                        variant="outline"
-                        type="button"
-                        className="w-full"
-                    >
-                        <span className="mr-2">🟢</span>
-                        Naver로 계속하기
-                    </Button> */}
                     {/* Naver Auth 버튼 */}
                     <Box sx={{ mb: 1, display: 'flex', justifyContent: 'center' }}>
                         <MuiButton
@@ -252,13 +268,78 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                                     toast.error('Naver Client ID가 설정되지 않았습니다. .env에 VITE_NAVER_CLIENT_ID를 추가하세요.')
                                     return
                                 }
+                                setIsNaverLoading(true)
+                                setError(null)
                                 const redirectUriRaw = `${window.location.origin}/auth/naver/callback`
                                 const redirectUri = encodeURIComponent(redirectUriRaw)
                                 const state = Math.random().toString(36).slice(2)
                                 try { sessionStorage.setItem('naver_oauth_state', state) } catch { }
                                 const authUrl = `https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&state=${state}`
-                                console.log('[Auth] Naver redirect', { authUrl, state, redirectUri: redirectUriRaw })
-                                window.location.href = authUrl
+                                console.log('[Auth] Naver popup start', { authUrl, state, redirectUri: redirectUriRaw })
+
+                                const width = 520
+                                const height = 500
+                                const left = window.screenX + Math.max(0, (window.outerWidth - width) / 2)
+                                const top = window.screenY + Math.max(0, (window.outerHeight - height) / 2)
+                                const popupName = `naver_oauth_popup_${state}`
+                                const features = `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,status=no,toolbar=no,menubar=no,location=no`
+                                const popup = window.open(
+                                    authUrl,
+                                    popupName,
+                                    features
+                                )
+
+                                if (!popup) {
+                                    // Popup blocked, fall back to full-page redirect
+                                    window.location.href = authUrl
+                                    return
+                                }
+
+                                // Attempt to enforce size/position even if the browser reused an existing window
+                                try {
+                                    if (popup) {
+                                        popup.resizeTo(width, height)
+                                        popup.moveTo(Math.round(left), Math.round(top))
+                                    }
+                                } catch {}
+
+                                const messageHandler = (event: MessageEvent) => {
+                                    try {
+                                        if (event.origin !== window.location.origin) return
+                                        const data: any = (event as any).data
+                                        if (!data || data.source !== 'naver_oauth') return
+                                        if (data.type === 'success') {
+                                            const user = data.user
+                                            const at = data.accessToken
+                                            const rt = data.refreshToken
+                                            if (user && at && rt) {
+                                                setAuth(user, at, rt)
+                                                toast.success(`안녕하세요 ${user?.name || '사용자'}님!`)
+                                                onOpenChange(false)
+                                            } else {
+                                                toast.error('네이버 로그인 정보가 올바르지 않습니다.')
+                                            }
+                                        } else if (data.type === 'error') {
+                                            const msg = data.message || '네이버 로그인에 실패했습니다.'
+                                            toast.error(msg)
+                                        }
+                                    } finally {
+                                        window.removeEventListener('message', messageHandler)
+                                        try { popup.close() } catch { }
+                                        setIsNaverLoading(false)
+                                    }
+                                }
+
+                                window.addEventListener('message', messageHandler)
+
+                                // Fallback: if user closes popup without completing
+                                const checkClosed = setInterval(() => {
+                                    if (popup.closed) {
+                                        clearInterval(checkClosed)
+                                        window.removeEventListener('message', messageHandler)
+                                        setIsNaverLoading(false)
+                                    }
+                                }, 500)
                             }}
                             startIcon={
                                 <Box
@@ -290,7 +371,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                                 '&:hover': { bgcolor: '#06be34', boxShadow: 'none' },
                             }}
                         >
-                            네이버로 로그인
+                            {isNaverLoading ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : '네이버로 로그인'}
                         </MuiButton>
                     </Box>
 

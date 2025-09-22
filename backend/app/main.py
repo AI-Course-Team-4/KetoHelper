@@ -2,24 +2,24 @@
 키토 식단 추천 웹앱 메인 애플리케이션
 대화형 키토 식단 레시피 추천 + 주변 키토 친화 식당 찾기
 """
+from dotenv import load_dotenv
+load_dotenv()
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 import uvicorn
-import os
+import os, re
 from dotenv import load_dotenv
 import asyncio
 
-from app.api import chat, places, plans
-from app.api import auth as auth_api
+from app.chat.api import chat
+from app.restaurant.api import places
+from app.meal.api import plans
+from app.shared.api import auth as auth_api
 from app.core.config import settings
 from app.core.database import init_db
-
-# 환경 변수 로드
-load_dotenv()
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
     print("🚀 키토 코치 API 서버 시작")
     
     # 데이터베이스 초기화
-    await init_db()
+    asyncio.create_task(init_db())
     
     yield
     
@@ -43,14 +43,31 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+origins =[
+    os.getenv("FRONTEND_DOMAIN", "").rstrip("/"),
+    "http://localhost:3000",    # next
+    "http://localhost:5173"     # vite
+]
+
+origins = list({o for o in origins if o})
+
+preview_regex = None
+project = os.getenv("VERCEL_PROJECT_NAME", "").strip()  # ex) keto-helper
+if project:
+    preview_regex = rf"^https://{re.escape(project)}-[a-z0-9-]+\.vercel\.app$"
+
 # CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],  # React dev server
+    allow_origins=origins,
+    allow_origin_regex=preview_regex,  # 프리뷰 자동 허용
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 환경 변수 로드
+load_dotenv()
 
 # 라우터 등록
 app.include_router(chat.router, prefix="/api/v1")

@@ -33,16 +33,13 @@ export default function NaverCallback() {
         const at = (result as any)?.accessToken
         const rt = (result as any)?.refreshToken
         if (!at || !rt) throw new Error('토큰 발급에 실패했습니다.')
-        setAuth(
-          {
-            id: backendUser?.id ?? 'unknown',
-            email: backendUser?.email ?? '',
-            name: backendUser?.name ?? '',
-            profileImage: backendUser?.profile_image ?? '',
-          },
-          at,
-          rt,
-        )
+        const authPayload = {
+          id: backendUser?.id ?? 'unknown',
+          email: backendUser?.email ?? '',
+          name: backendUser?.name ?? '',
+          profileImage: backendUser?.profile_image ?? '',
+        }
+        setAuth(authPayload, at, rt)
         console.log('[Naver] Login success', {
           id: backendUser?.id,
           name: backendUser?.name,
@@ -50,6 +47,29 @@ export default function NaverCallback() {
           profile_image: backendUser?.profile_image,
         })
         toast.success(`안녕하세요 ${backendUser?.name || '사용자'}님!`)
+
+        // If opened as a popup, post message back to opener and close
+        try {
+          if (window.opener && window.opener !== window) {
+            window.opener.postMessage(
+              {
+                source: 'naver_oauth',
+                type: 'success',
+                user: authPayload,
+                accessToken: at,
+                refreshToken: rt,
+              },
+              window.location.origin
+            )
+            try { sessionStorage.removeItem('naver_oauth_state') } catch {}
+            window.close()
+            return
+          }
+        } catch (e) {
+          console.warn('[Naver] postMessage to opener failed', e)
+        }
+
+        // Fallback: same-tab flow
         try {
           window.history.replaceState({}, document.title, '/')
           sessionStorage.removeItem('naver_oauth_state')
@@ -58,8 +78,21 @@ export default function NaverCallback() {
       } catch (e: any) {
         console.error('네이버 로그인 처리 실패:', e)
         toast.error(e?.message || '네이버 로그인에 실패했습니다.')
-        // 잠깐 대기 후 홈으로 이동 (로그 확인 시간 확보)
-        setTimeout(() => { window.location.href = '/' }, 200)
+        // If in popup, notify opener of error and close
+        try {
+          if (window.opener && window.opener !== window) {
+            window.opener.postMessage(
+              {
+                source: 'naver_oauth',
+                type: 'error',
+                message: e?.message || '네이버 로그인에 실패했습니다.'
+              },
+              window.location.origin
+            )
+            window.close()
+            return
+          }
+        } catch {}
       }
     }
     run()
