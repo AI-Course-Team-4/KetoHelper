@@ -4,21 +4,18 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Search, MapPin } from 'lucide-react'
 import { PlaceCard } from '@/components/PlaceCard'
-import { useSearchPlaces, useNearbyPlaces } from '@/hooks/useApi'
+import { useSearchPlaces } from '@/hooks/useApi'
 import KakaoMap from './KakaoMap'
+import TestPage from './KetoRestaurant'
+import { supabase } from '@/lib/supabaseClient'
 
 export function MapPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [selectedCategory, setSelectedCategory] = useState('')
+  const [mapRestaurants, setMapRestaurants] = useState<Array<{ id: string; name: string; address: string; lat?: number; lng?: number }>>([])
 
   const searchPlaces = useSearchPlaces()
-  const { data: nearbyPlaces, isLoading: nearbyLoading } = useNearbyPlaces(
-    userLocation?.lat || 0,
-    userLocation?.lng || 0,
-    1000,
-    70
-  )
 
   // 위치 정보 가져오기
   useEffect(() => {
@@ -40,6 +37,33 @@ export function MapPage() {
       // 기본 위치 (강남역)
       setUserLocation({ lat: 37.4979, lng: 127.0276 })
     }
+  }, [])
+
+  // Supabase 레스토랑 좌표를 지도에 표시할 데이터로 로드
+  useEffect(() => {
+    const loadRestaurants = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('restaurant')
+          .select('id,name,addr_road,addr_jibun,lat,lng')
+          .limit(200)
+        if (error) {
+          console.error('레스토랑 로드 실패:', error)
+          return
+        }
+        const mapped = (data || []).map((r: any) => ({
+          id: String(r.id),
+          name: r.name ?? '',
+          address: r.addr_road ?? r.addr_jibun ?? '',
+          lat: typeof r.lat === 'number' ? r.lat : undefined,
+          lng: typeof r.lng === 'number' ? r.lng : undefined,
+        }))
+        setMapRestaurants(mapped)
+      } catch (e) {
+        console.error('레스토랑 로드 중 에러:', e)
+      }
+    }
+    loadRestaurants()
   }, [])
 
   const handleSearch = async () => {
@@ -125,8 +149,9 @@ export function MapPage() {
               level={2}
               height="100%"
               markerSize={64}
-              onMarkerClick={() => {}}
+              onMarkerClick={() => { }}
               markers={[]}
+              restaurants={mapRestaurants}
             />
           </div>
         </CardContent>
@@ -145,27 +170,10 @@ export function MapPage() {
       )}
 
       {/* 주변 추천 식당 */}
-      {nearbyPlaces && (
-        <div>
-          <h2 className="text-xl font-semibold mb-4">주변 키토 친화 식당</h2>
-          {nearbyLoading ? (
-            <div className="text-center py-8">
-              <div className="loading-dots">
-                <div></div>
-                <div></div>
-                <div></div>
-              </div>
-              <p className="text-muted-foreground mt-2">주변 식당을 찾고 있습니다...</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {nearbyPlaces.places?.map((place: any) => (
-                <PlaceCard key={place.place_id} place={place} />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      <div>
+        <h2 className="text-xl font-semibold mb-4">주변 키토 친화 식당</h2>
+        <TestPage />
+      </div>
 
       {/* 위치 정보가 없는 경우 */}
       {!userLocation && (
