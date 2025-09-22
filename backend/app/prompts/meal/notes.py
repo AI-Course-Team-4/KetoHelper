@@ -1,0 +1,31 @@
+"""
+식단표 조언 생성 프롬프트
+생성된 키토 식단표에 대한 실용적인 조언 제공
+"""
+
+MEAL_PLAN_NOTES_PROMPT = """
+        다음 키토 식단표에 대한 실용적인 조언 3-5개를 생성하세요.
+        
+        제약 조건: {constraints}
+        
+        조언 내용:
+        - 식단 실행 팁
+        - 쇼핑 가이드
+        - 조리 준비 사항
+        - 키토 부작용 대처법
+        - 식단 유지 방법
+        
+        간결하고 실용적인 조언으로 작성하세요.
+        """
+
+# Meal Agent에서 분리된 기본 조언 프롬프트
+DEFAULT_NOTES_PROMPT = """
+키토 식단표에 대한 실용적인 조언을 생성하세요.
+제약 조건: {constraints}
+
+5가지 핵심 팁을 제공해주세요.
+"""
+
+# 다른 접근법들
+NOTES_PROMPT = MEAL_PLAN_NOTES_PROMPT
+PROMPT = MEAL_PLAN_NOTES_PROMPT
