@@ -13,6 +13,8 @@ import { useState } from 'react'
 import { useGoogleLogin } from '@react-oauth/google'
 import { authService } from '@/lib/authService'
 import { useAuthStore } from '@/store/authStore'
+import googleLogo from '@/public/logos/google.svg'
+import kakaoLogo from '@/public/logos/kakaotalk.svg'
 
 interface LoginModalProps {
     open: boolean
@@ -20,8 +22,7 @@ interface LoginModalProps {
 }
 
 export function LoginModal({ open, onOpenChange }: LoginModalProps) {
-    const googleLogoUrl = (import.meta as any).env.VITE_GOOGLE_LOGO_URL
-    const kakaoLogoUrl = (import.meta as any).env.VITE_KAKAO_LOGO_URL
+
     const [isGoogleLoading, setIsGoogleLoading] = useState(false)
     const [isKakaoLoading, setIsKakaoLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -195,7 +196,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                             onClick={() => startGoogleAccessFlow()}
                             variant="contained"
                             disableElevation
-                            startIcon={<Box component="img" src={googleLogoUrl} alt="Google" sx={{ width: 18, height: 18 }} aria-hidden />}
+                            startIcon={<Box component="img" src={googleLogo} alt="Google" sx={{ width: 18, height: 18 }} aria-hidden />}
                             sx={{
                                 maxWidth: 320,
                                 width: '100%',
@@ -218,31 +219,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                             disabled={isKakaoLoading}
                             variant="contained"
                             disableElevation
-                            startIcon={
-                                kakaoLogoUrl ? (
-                                    <Box component="img" src={kakaoLogoUrl} alt="Kakao" sx={{ width: 18, height: 18 }} aria-hidden />
-                                ) : (
-                                    <Box
-                                        component="span"
-                                        aria-hidden
-                                        sx={{
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            width: 20,
-                                            height: 20,
-                                            bgcolor: '#fff',
-                                            color: '#000',
-                                            borderRadius: 0.5,
-                                            fontWeight: 800,
-                                            fontSize: 12,
-                                            lineHeight: '20px',
-                                        }}
-                                    >
-                                        K
-                                    </Box>
-                                )
-                            }
+                            startIcon={<Box component="img" src={kakaoLogo} alt="Kakao" sx={{ width: 18, height: 18 }} aria-hidden />}
                             sx={{
                                 maxWidth: 320,
                                 width: '100%',
