@@ -14,9 +14,9 @@ import os, re
 from dotenv import load_dotenv
 import asyncio
 
-from app.chat.api import chat
-from app.restaurant.api import places
-from app.meal.api import plans
+from app.domains.chat.api import chat
+from app.domains.restaurant.api import places
+from app.domains.meal.api import plans
 from app.shared.api import auth as auth_api
 from app.core.config import settings
 from app.core.database import init_db

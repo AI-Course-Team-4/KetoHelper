@@ -8,7 +8,7 @@
 3. .gitignore에 .personal_config.py 추가하여 개인 설정 보호
 
 설정 구조:
-- agent_name: 에이전트 이름 (개인 브랜딩)
+- agent_name: AI가 자신을 소개할 때 사용할 이름 (예: "키토 마스터", "맛집 헌터") 프롬포트 적용된거 쉽게 확인하라고 해둔것
 - prompts: 프롬프트 파일명 매핑
 - tools: 도구 파일명 매핑
 """
@@ -22,34 +22,34 @@ USE_PERSONAL_CONFIG = False  # True로 변경하면 개인 설정 활성화
 
 # 밀 플래너 개인화 설정
 MEAL_PLANNER_CONFIG = {
-    "agent_name": "My Custom Meal Agent",
+    "agent_name": "수빈의 키토 식단 마스터",    #"안녕하세요! 수빈의 키토 식단 마스터입니다 😊"
     "prompts": {
-        "structure": "my_meal_plan_structure",     # backend/app/meal/prompts/my_meal_plan_structure.py
-        "generation": "my_meal_generation",       # backend/app/meal/prompts/my_meal_generation.py
-        "notes": "my_meal_notes"                  # backend/app/meal/prompts/my_meal_notes.py
+        "structure": "soobin_structure",     # 식단표 구조 계획 프롬프트
+        "generation": "soobin_generation",   # 개별 레시피 생성 프롬프트
+        "notes": "soobin_notes"              # 식단표 조언 프롬프트
     },
     "tools": {
-        "keto_score": "my_keto_score"            # backend/app/meal/tools/my_keto_score.py
+        "keto_score": "soobin_keto_score"    # 키토 친화도 점수 계산 도구
     }
 }
 
 # 식당 에이전트 개인화 설정
 RESTAURANT_AGENT_CONFIG = {
-    "agent_name": "My Custom Restaurant Agent", 
+    "agent_name": "수빈의 맛집 헌터", 
     "prompts": {
-        "search_improvement": "my_place_search_improvement",  # backend/app/restaurant/prompts/my_place_search_improvement.py
-        "search_failure": "my_search_failure",               # backend/app/restaurant/prompts/my_search_failure.py
-        "recommendation": "my_restaurant_recommendation"     # backend/app/restaurant/prompts/my_restaurant_recommendation.py
+        "search_improvement": "soobin_search_improvement",  # 검색 키워드 개선 프롬프트
+        "search_failure": "soobin_search_failure",          # 검색 실패 처리 프롬프트
+        "recommendation": "soobin_recommendation"           # 식당 추천 프롬프트
     },
     "tools": {
-        "place_search": "my_place_search"                    # backend/app/restaurant/tools/my_place_search.py
+        "place_search": "soobin_place_search"               # 장소 검색 도구
     }
 }
 
 # 채팅 에이전트 개인화 설정  
 CHAT_AGENT_CONFIG = {
-    "agent_name": "My Custom Keto Coach",
-    "prompt_file_name": "my_general_chat_prompt"            # backend/app/chat/prompts/my_general_chat_prompt.py
+    "agent_name": "수빈의 키토 코치",
+    "prompt_file_name": "soobin_general_chat"                   # 일반 채팅 프롬프트
 }
 
 # 전체 에이전트 설정 통합

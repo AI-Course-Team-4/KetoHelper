@@ -12,18 +12,18 @@ import json
 import re
 
 from app.core.config import settings
-from app.shared.tools.hybrid_search import hybrid_search_tool
-from app.restaurant.tools.place_search import PlaceSearchTool
-from app.meal.tools.keto_score import KetoScoreCalculator
-from app.meal.agents.meal_planner import MealPlannerAgent
-from app.chat.agents.simple_agent import SimpleKetoCoachAgent
+from app.tools.shared.hybrid_search import hybrid_search_tool
+from app.tools.restaurant.place_search import PlaceSearchTool
+from app.tools.meal.keto_score import KetoScoreCalculator
+from app.agents.meal_planner import MealPlannerAgent
+from app.agents.chat_agent import SimpleKetoCoachAgent
 
-# 프롬프트 모듈 import
-from app.chat.prompts.intent_classification import INTENT_CLASSIFICATION_PROMPT
-from app.chat.prompts.memory_update import MEMORY_UPDATE_PROMPT
-from app.chat.prompts.response_generation import RESPONSE_GENERATION_PROMPT
-from app.restaurant.prompts.place_search_improvement import PLACE_SEARCH_IMPROVEMENT_PROMPT
-from app.restaurant.prompts.search_failure import PLACE_SEARCH_FAILURE_PROMPT
+# 프롬프트 모듈 import (중앙집중화된 구조)
+from app.prompts.chat.intent_classification import INTENT_CLASSIFICATION_PROMPT
+from app.prompts.chat.memory_update import MEMORY_UPDATE_PROMPT
+from app.prompts.chat.response_generation import RESPONSE_GENERATION_PROMPT
+from app.prompts.restaurant.search_improvement import PLACE_SEARCH_IMPROVEMENT_PROMPT
+from app.prompts.restaurant.search_failure import PLACE_SEARCH_FAILURE_PROMPT
 
 from typing_extensions import TypedDict, NotRequired
 
