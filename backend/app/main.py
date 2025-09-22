@@ -70,10 +70,12 @@ app.add_middleware(
 load_dotenv()
 
 # 라우터 등록
+print("🔧 DEBUG: 라우터 등록 중...")
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(places.router, prefix="/api/v1") 
 app.include_router(plans.router, prefix="/api/v1")
 app.include_router(auth_api.router, prefix="/api/v1")
+print("✅ DEBUG: 모든 라우터 등록 완료")
 
 @app.get("/")
 async def root():

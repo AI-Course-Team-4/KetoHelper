@@ -125,6 +125,7 @@ class KetoCoachAgent:
                 # 디버깅: 의도 분류 결과 출력
                 print(f"🎯 의도 분류 결과: {state['intent']} (메시지: {message[:50]}...)")
                 print(f"   슬롯: {state['slots']}")
+                print(f"🔍 DEBUG: orchestrator._router_node 실행됨!")
             else:
                 state["intent"] = "other"
                 state["slots"] = {}
@@ -430,6 +431,7 @@ class KetoCoachAgent:
                 if state["intent"] == "recipe" and state["results"] and state["results"][0].get("source") == "ai_generated":
                     state["response"] = state["results"][0].get("content", "레시피 생성에 실패했습니다.")
                     return state
+                
                 # 검색 결과 기반 레시피 포맷팅
                 elif state["intent"] == "recipe":
                     context = "추천 레시피:\n"
@@ -447,7 +449,36 @@ class KetoCoachAgent:
                         if result.get('tips'):
                             context += f"   팁: {', '.join(result['tips'][:2])}\n"
                 elif state["intent"] == "mealplan":
-                    context = "생성된 식단표 요약"
+                    # 7일 식단표 간단 포맷팅 (메뉴 이름 위주) + 바로 응답 반환
+                    if state["results"] and len(state["results"]) > 0:
+                        meal_plan = state["results"][0]
+                        response_text = "## ✨ 7일 키토 식단표\n\n"
+                        
+                        # 각 날짜별 식단 간단 포맷팅
+                        for day_idx, day_meals in enumerate(meal_plan.get("days", []), 1):
+                            response_text += f"**{day_idx}일차:**\n"
+                            
+                            for slot in ['breakfast', 'lunch', 'dinner', 'snack']:
+                                if slot in day_meals and day_meals[slot]:
+                                    meal = day_meals[slot]
+                                    slot_name = {"breakfast": "🌅 아침", "lunch": "🌞 점심", "dinner": "🌙 저녁", "snack": "🍎 간식"}[slot]
+                                    response_text += f"- {slot_name}: {meal.get('title', '메뉴 없음')}\n"
+                            
+                            response_text += "\n"
+                        
+                        # 핵심 조언만 간단히
+                        notes = meal_plan.get("notes", [])
+                        if notes:
+                            response_text += "### 💡 키토 팁\n"
+                            for note in notes[:3]:  # 최대 3개만
+                                response_text += f"- {note}\n"
+                        
+                        # 바로 응답 반환 (LLM 재생성 건너뛰기)
+                        state["response"] = response_text
+                        return state
+                    else:
+                        state["response"] = "식단표 생성에 실패했습니다."
+                        return state
                 else:
                     context = json.dumps(state["results"][:3], ensure_ascii=False, indent=2)
                 

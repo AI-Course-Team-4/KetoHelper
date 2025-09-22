@@ -25,6 +25,7 @@ async def chat_endpoint(request: ChatMessage):
     - 식당 찾기: "역삼역 근처 키토 가능한 식당 알려줘"
     - 식단표 생성: "7일 식단표 만들어줘"
     """
+    print(f"🔥 DEBUG: chat_endpoint 진입! 메시지: '{request.message}'")
     try:
         # 세션 ID 생성
         session_id = str(uuid.uuid4())
@@ -41,6 +42,7 @@ async def chat_endpoint(request: ChatMessage):
         # TODO: Supabase에 메시지 저장 구현
         
         # 키토 코치 오케스트레이터 실행
+        print(f"🚀 DEBUG: chat API 요청 받음 - '{request.message}'")
         agent = KetoCoachAgent()
         result = await agent.process_message(
             message=request.message,
@@ -48,6 +50,7 @@ async def chat_endpoint(request: ChatMessage):
             radius_km=request.radius_km or 5.0,
             profile=request.profile
         )
+        print(f"✅ DEBUG: 오케스트레이터 결과 - intent: {result.get('intent', 'unknown')}")
         
         # AI 응답 저장 (Supabase)
         assistant_message_data = {
@@ -76,6 +79,7 @@ async def chat_stream(request: ChatMessage):
     스트리밍 채팅 엔드포인트
     실시간으로 응답을 스트리밍
     """
+    print(f"🌊 DEBUG: chat_stream 진입! 메시지: '{request.message}'")
     async def generate_response() -> AsyncGenerator[str, None]:
         try:
             session_id = str(uuid.uuid4())

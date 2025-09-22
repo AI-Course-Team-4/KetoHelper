@@ -183,28 +183,30 @@ class MealPlannerAgent:
                 kcal_target, carbs_max, allergies, dislikes
             )
             
-            # 1차: 전체 식단 구조 계획
+            # 1차: 전체 식단 구조 계획만 (간단 버전)
             meal_structure = await self._plan_meal_structure(days, constraints_text)
             
-            # 2차: 각 슬롯별 구체적 메뉴 생성
-            detailed_plan = await self._generate_detailed_meals(
-                meal_structure, constraints_text
-            )
+            # 간단한 형태로 변환 (메뉴 타입만)
+            simple_plan = []
+            for day_plan in meal_structure:
+                day_meals = {
+                    "breakfast": {"title": day_plan.get("breakfast_type", "아침 메뉴"), "type": "simple"},
+                    "lunch": {"title": day_plan.get("lunch_type", "점심 메뉴"), "type": "simple"},
+                    "dinner": {"title": day_plan.get("dinner_type", "저녁 메뉴"), "type": "simple"},
+                    "snack": {"title": day_plan.get("snack_type", "간식"), "type": "simple"}
+                }
+                simple_plan.append(day_meals)
             
-            # 3차: 검증 및 조정
-            validated_plan = await self._validate_and_adjust(
-                detailed_plan, carbs_max, kcal_target
-            )
-            
-            # 매크로 영양소 총합 계산
-            total_macros = self._calculate_total_macros(validated_plan)
-            
-            # 추가 조언 생성
-            notes = await self._generate_meal_notes(validated_plan, constraints_text)
+            # 기본 조언 생성
+            notes = [
+                "각 메뉴를 클릭하면 상세 레시피를 볼 수 있습니다",
+                "키토 식단의 핵심은 탄수화물 제한입니다",
+                "충분한 수분 섭취를 잊지 마세요"
+            ]
             
             return {
-                "days": validated_plan,
-                "total_macros": total_macros,
+                "days": simple_plan,
+                "total_macros": {"message": "간단 버전에서는 영양 계산이 제외됩니다"},
                 "notes": notes,
                 "constraints": {
                     "kcal_target": kcal_target,
