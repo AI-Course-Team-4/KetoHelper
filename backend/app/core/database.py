@@ -47,6 +47,7 @@ try:
     from supabase import create_client, Client
     supabase_url = settings.supabase_url
     supabase_key = settings.supabase_anon_key
+    service_role_key = settings.supabase_service_role_key
     
     if supabase_url and supabase_key and supabase_url.strip() and supabase_key.strip():
         supabase: Client = create_client(supabase_url, supabase_key)
@@ -56,9 +57,20 @@ try:
         print(f"   SUPABASE_URL: {repr(supabase_url)}")
         print(f"   SUPABASE_ANON_KEY: {repr(supabase_key)}")
         supabase = None
+
+    # 서비스 롤 클라이언트 (서버 사이드 쓰기용)
+    supabase_admin = None
+    if supabase_url and service_role_key and supabase_url.strip() and service_role_key.strip():
+        try:
+            supabase_admin = create_client(supabase_url, service_role_key)
+            print("✅ Supabase 서비스 롤 클라이언트 연결 성공")
+        except Exception as e:
+            print(f"⚠️ 서비스 롤 클라이언트 생성 실패: {e}")
+            supabase_admin = None
 except Exception as e:
     print(f"⚠️ Supabase 연결 실패: {e}")
     supabase = None
+    supabase_admin = None
 
 # 호환성을 위한 더미 객체들 (Supabase)
 class DummySupabase:
@@ -87,8 +99,8 @@ class DummyTable:
 # 더미 객체들 (Supabase가 없을 때)
 if supabase is None:
     supabase = DummySupabase()
-    supabase_admin = DummySupabase()
-else:
+if supabase_admin is None:
+    # 서비스 롤이 없으면 일반 클라이언트로 대체
     supabase_admin = supabase
 
 async def get_db() -> AsyncGenerator[object, None]:
