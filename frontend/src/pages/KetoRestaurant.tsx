@@ -39,7 +39,7 @@ function TestPage() {
       const { data, error } = await supabase
         .from('restaurant')
         .select('*')
-        .limit(100)
+        console.log(data)
       if (error) throw error
       setRestaurants((data || []) as Restaurant[])
     } catch (e: any) {
@@ -85,9 +85,9 @@ function TestPage() {
               <CardContent className="space-y-2">
                 <div className="text-sm text-muted-foreground truncate" title={address}>{address || '주소 정보 없음'}</div>
                 <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <Badge variant="outline">위도: {hasCoord ? r.lat : 'N/A'}</Badge>
-                  <Badge variant="outline">경도: {hasCoord ? r.lng : 'N/A'}</Badge>
-                  {r.phone && <Badge variant="secondary">{r.phone}</Badge>}
+                  {/* <Badge variant="outline">위도: {hasCoord ? r.lat : 'N/A'}</Badge>
+                  <Badge variant="outline">경도: {hasCoord ? r.lng : 'N/A'}</Badge> */}
+                  {r.phone && <div className="bg-secondary">{r.phone}</div>}
                 </div>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
                   {r.source_url && (
