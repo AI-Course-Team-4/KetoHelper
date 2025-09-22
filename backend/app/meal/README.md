@@ -14,26 +14,40 @@ meal/
 └── README.md       # 이 파일
 ```
 
-## 🤖 에이전트 개인화 가이드
+## 🤖 에이전트 개인화 가이드 (NEW!)
 
 ### MealPlannerAgent 커스터마이징
 
-`agents/meal_planner.py`의 `MealPlannerAgent` 클래스를 개인화하여 자신만의 식단 계획 에이전트를 만들 수 있습니다.
+이제 **개인 설정 파일**을 통해 코드 수정 없이 외부에서 에이전트를 개인화할 수 있습니다!
 
-#### 1. 기본 설정 변경
+#### 1. 개인 설정 파일 생성
+
+```bash
+# 1. 개인 설정 파일 복사
+cp backend/config/personal_config.py backend/config/.personal_config.py
+
+# 2. 개인 설정 활성화
+# .personal_config.py 파일에서 USE_PERSONAL_CONFIG = True로 변경
+```
+
+#### 2. 밀 플래너 설정 수정
 
 ```python
-class MealPlannerAgent:
-    # 개인화 설정 - 이 부분을 수정하세요
-    AGENT_NAME = "나만의 식단 플래너"
-    PROMPT_FILES = {
+# backend/config/.personal_config.py
+MEAL_PLANNER_CONFIG = {
+    "agent_name": "나만의 식단 플래너",
+    "prompts": {
         "structure": "my_meal_structure",      # 식단 구조 계획
         "generation": "my_meal_generation",    # 개별 메뉴 생성
         "notes": "my_meal_notes"              # 식단 조언 생성
-    }
-    TOOL_FILES = {
+    },
+    "tools": {
         "keto_score": "my_keto_calculator"    # 키토 점수 계산기
     }
+}
+
+# 전체 설정 활성화
+USE_PERSONAL_CONFIG = True
 ```
 
 #### 2. 개인 프롬프트 파일 생성
@@ -90,13 +104,13 @@ class MyKetoCalculator:
         }
 ```
 
-#### 4. 에이전트 인스턴스 생성
+#### 4. 에이전트 사용
 
 ```python
-# 기본 에이전트
+# 개인 설정이 자동으로 적용됩니다!
 agent = MealPlannerAgent()
 
-# 개인화된 에이전트
+# 또는 런타임에 설정 오버라이드
 my_agent = MealPlannerAgent(
     prompt_files={
         "structure": "my_meal_structure",
@@ -109,6 +123,13 @@ my_agent = MealPlannerAgent(
     agent_name="내 전용 식단 플래너"
 )
 ```
+
+### 🔥 NEW! 장점들
+
+1. **코드 수정 없음**: meal_planner.py 파일을 건드리지 않아도 됨
+2. **Git 안전성**: .personal_config.py는 .gitignore에 포함되어 개인 설정 보호
+3. **팀 협업**: 각자의 개인 설정을 가지면서 베이스 코드는 공유
+4. **쉬운 전환**: USE_PERSONAL_CONFIG = False로 언제든 기본 설정으로 복원
 
 ## 📝 프롬프트 작성 가이드
 
@@ -366,3 +387,4 @@ western_planner = MealPlannerAgent(
 ---
 
 💡 **식단 생성 품질 개선을 위한 아이디어나 새로운 프롬프트가 있다면 팀과 공유해주세요!**
+

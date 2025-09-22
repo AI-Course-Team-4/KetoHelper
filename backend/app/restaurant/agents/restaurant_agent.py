@@ -3,11 +3,10 @@
 키토 친화적 식당 검색과 개인화된 추천 시스템
 
 팀원 개인화 가이드:
-1. PROMPT_FILES 딕셔너리의 파일명을 변경하여 자신만의 프롬프트 사용
-2. AGENT_NAME을 변경하여 개인 브랜딩
-3. TOOL_FILES 딕셔너리의 파일명을 변경하여 자신만의 도구 사용
-4. 프롬프트 파일은 restaurant/prompts/ 폴더에 생성
-5. 도구 파일은 restaurant/tools/ 폴더에 생성
+1. config/personal_config.py에서 RESTAURANT_AGENT_CONFIG 수정
+2. 개인 프롬프트 파일을 restaurant/prompts/ 폴더에 생성
+3. 개인 도구 파일을 restaurant/tools/ 폴더에 생성
+4. USE_PERSONAL_CONFIG를 True로 설정하여 활성화
 """
 
 from typing import Dict, Any, List, Optional
@@ -16,26 +15,31 @@ from langchain.schema import HumanMessage
 import importlib
 
 from app.core.config import settings
+from config import get_personal_configs, get_agent_config
 
 class RestaurantAgent:
     """키토 친화적 식당 검색 및 추천 에이전트"""
     
-    # 개인화 설정 - 이 부분을 수정하여 자신만의 에이전트 만들기
-    AGENT_NAME = "Restaurant Agent"
-    PROMPT_FILES = {
+    # 기본 설정 (개인 설정이 없을 때 사용)
+    DEFAULT_AGENT_NAME = "Restaurant Agent"
+    DEFAULT_PROMPT_FILES = {
         "search_improvement": "place_search_improvement",  # restaurant/prompts/ 폴더의 파일명
         "search_failure": "search_failure",
         "recommendation": "restaurant_recommendation"
     }
-    TOOL_FILES = {
+    DEFAULT_TOOL_FILES = {
         "place_search": "place_search"  # restaurant/tools/ 폴더의 파일명
     }
     
     def __init__(self, prompt_files: Dict[str, str] = None, tool_files: Dict[str, str] = None, agent_name: str = None):
-        # 개인화된 설정 적용
-        self.prompt_files = prompt_files or self.PROMPT_FILES
-        self.tool_files = tool_files or self.TOOL_FILES
-        self.agent_name = agent_name or self.AGENT_NAME
+        # 개인 설정 로드
+        personal_configs = get_personal_configs()
+        agent_config = get_agent_config("restaurant_agent", personal_configs)
+        
+        # 개인화된 설정 적용 (우선순위: 매개변수 > 개인설정 > 기본설정)
+        self.prompt_files = prompt_files or agent_config.get("prompts", self.DEFAULT_PROMPT_FILES)
+        self.tool_files = tool_files or agent_config.get("tools", self.DEFAULT_TOOL_FILES)
+        self.agent_name = agent_name or agent_config.get("agent_name", self.DEFAULT_AGENT_NAME)
         
         # 동적 프롬프트 로딩
         self.prompts = self._load_prompts()

@@ -14,26 +14,40 @@ restaurant/
 └── README.md       # 이 파일
 ```
 
-## 🤖 에이전트 개인화 가이드
+## 🤖 에이전트 개인화 가이드 (NEW!)
 
 ### RestaurantAgent 커스터마이징
 
-`agents/restaurant_agent.py`의 `RestaurantAgent` 클래스를 개인화하여 자신만의 식당 검색 에이전트를 만들 수 있습니다.
+이제 **개인 설정 파일**을 통해 코드 수정 없이 외부에서 에이전트를 개인화할 수 있습니다!
 
-#### 1. 기본 설정 변경
+#### 1. 개인 설정 파일 생성
+
+```bash
+# 1. 개인 설정 파일 복사
+cp backend/config/personal_config.py backend/config/.personal_config.py
+
+# 2. 개인 설정 활성화
+# .personal_config.py 파일에서 USE_PERSONAL_CONFIG = True로 변경
+```
+
+#### 2. 식당 에이전트 설정 수정
 
 ```python
-class RestaurantAgent:
-    # 개인화 설정 - 이 부분을 수정하세요
-    AGENT_NAME = "나만의 식당 추천 전문가"
-    PROMPT_FILES = {
+# backend/config/.personal_config.py
+RESTAURANT_AGENT_CONFIG = {
+    "agent_name": "나만의 식당 추천 전문가",
+    "prompts": {
         "search_improvement": "my_search_optimization",    # 검색 쿼리 개선
         "search_failure": "my_search_failure",            # 검색 실패 시 응답
         "recommendation": "my_restaurant_recommendation"   # 추천 생성
-    }
-    TOOL_FILES = {
+    },
+    "tools": {
         "place_search": "my_place_search_tool"           # 장소 검색 도구
     }
+}
+
+# 전체 설정 활성화
+USE_PERSONAL_CONFIG = True
 ```
 
 #### 2. 개인 프롬프트 파일 생성
@@ -100,13 +114,13 @@ class MyPlaceSearchTool:
         ]
 ```
 
-#### 4. 에이전트 인스턴스 생성
+#### 4. 에이전트 사용
 
 ```python
-# 기본 에이전트
+# 개인 설정이 자동으로 적용됩니다!
 agent = RestaurantAgent()
 
-# 개인화된 에이전트
+# 또는 런타임에 설정 오버라이드
 my_agent = RestaurantAgent(
     prompt_files={
         "search_improvement": "my_search_optimization",
@@ -119,6 +133,13 @@ my_agent = RestaurantAgent(
     agent_name="내 전용 식당 가이드"
 )
 ```
+
+### 🔥 NEW! 장점들
+
+1. **코드 수정 없음**: restaurant_agent.py 파일을 건드리지 않아도 됨
+2. **Git 안전성**: .personal_config.py는 .gitignore에 포함되어 개인 설정 보호
+3. **팀 협업**: 각자의 개인 설정을 가지면서 베이스 코드는 공유
+4. **쉬운 전환**: USE_PERSONAL_CONFIG = False로 언제든 기본 설정으로 복원
 
 ## 📝 프롬프트 작성 가이드
 
@@ -518,3 +539,4 @@ hongdae_agent = RestaurantAgent(
 ---
 
 💡 **새로운 검색 API나 더 나은 추천 로직 아이디어가 있다면 팀과 공유해주세요!**
+

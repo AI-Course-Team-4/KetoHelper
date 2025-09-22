@@ -199,3 +199,11 @@ ketohelper-mirror.git/
 *.py[cod]
 *.pyo
 *.pyd
+
+# Personal configurations - 개인 설정 파일들
+.personal_config.py
+backend/.personal_config.py
+backend/config/.personal_config.py
+**/personal_config_*.py
+**/my_*.py
+**/*_custom.py

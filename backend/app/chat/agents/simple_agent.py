@@ -3,9 +3,9 @@
 레시피/식당 검색이 아닌 일반적인 키토 식단 상담 처리
 
 팀원 개인화 가이드:
-1. PROMPT_FILE_NAME을 변경하여 자신만의 프롬프트 파일 사용
-2. AGENT_NAME을 변경하여 개인 브랜딩
-3. 프롬프트 파일은 chat/prompts/ 폴더에 생성
+1. config/personal_config.py에서 CHAT_AGENT_CONFIG 수정
+2. 개인 프롬프트 파일을 chat/prompts/ 폴더에 생성
+3. USE_PERSONAL_CONFIG를 True로 설정하여 활성화
 """
 
 from typing import Dict, Any, Optional
@@ -14,18 +14,23 @@ from langchain.schema import HumanMessage
 import importlib
 
 from app.core.config import settings
+from config import get_personal_configs, get_agent_config
 
 class SimpleKetoCoachAgent:
     """일반 채팅 전용 키토 코치 에이전트"""
     
-    # 개인화 설정 - 이 부분을 수정하여 자신만의 에이전트 만들기
-    AGENT_NAME = "Simple Keto Coach"
-    PROMPT_FILE_NAME = "general_chat_prompt"  # chat/prompts/ 폴더의 파일명
+    # 기본 설정 (개인 설정이 없을 때 사용)
+    DEFAULT_AGENT_NAME = "Simple Keto Coach"
+    DEFAULT_PROMPT_FILE_NAME = "general_chat_prompt"  # chat/prompts/ 폴더의 파일명
     
     def __init__(self, prompt_file_name: str = None, agent_name: str = None):
-        # 개인화된 설정 적용
-        self.prompt_file_name = prompt_file_name or self.PROMPT_FILE_NAME
-        self.agent_name = agent_name or self.AGENT_NAME
+        # 개인 설정 로드
+        personal_configs = get_personal_configs()
+        agent_config = get_agent_config("chat_agent", personal_configs)
+        
+        # 개인화된 설정 적용 (우선순위: 매개변수 > 개인설정 > 기본설정)
+        self.prompt_file_name = prompt_file_name or agent_config.get("prompt_file_name", self.DEFAULT_PROMPT_FILE_NAME)
+        self.agent_name = agent_name or agent_config.get("agent_name", self.DEFAULT_AGENT_NAME)
         
         # 동적 프롬프트 로딩
         self.prompt_template = self._load_prompt_template()
