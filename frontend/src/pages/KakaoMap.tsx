@@ -23,7 +23,7 @@ type KakaoMapProps = {
 const KakaoMap: React.FC<KakaoMapProps> = ({
   lat,
   lng,
-  level = 2,
+  level = 3,
   height = '100%',
   markerSize = 64,
   onMarkerClick,

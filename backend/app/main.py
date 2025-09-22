@@ -51,16 +51,17 @@ origins =[
 
 origins = list({o for o in origins if o})
 
-preview_regex = None
 project = os.getenv("VERCEL_PROJECT_NAME", "").strip()  # ex) keto-helper
-if project:
-    preview_regex = rf"^https://{re.escape(project)}-[a-z0-9-]+\.vercel\.app$"
+preview_or_prod_regex = (
+    rf"^https://{re.escape(project)}(?:-[a-z0-9-]+)?\.vercel\.app$"
+    if project else None
+)
 
 # CORS 설정
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_origin_regex=preview_regex,  # 프리뷰 자동 허용
+    allow_origin_regex=preview_or_prod_regex,  # 프리뷰 자동 허용
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
