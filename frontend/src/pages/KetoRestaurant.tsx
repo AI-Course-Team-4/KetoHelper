@@ -70,7 +70,6 @@ function TestPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {restaurants.map((r) => {
           const address = r.addr_road || r.addr_jibun || ''
-          const hasCoord = typeof r.lat === 'number' && typeof r.lng === 'number'
           return (
             <Card key={r.id} className="overflow-hidden">
               <CardHeader className="pb-2">
