@@ -76,6 +76,11 @@ export interface MealData {
   lunch: string
   dinner: string
   snack?: string
+  // 체크 상태 추가
+  breakfastCompleted?: boolean
+  lunchCompleted?: boolean
+  dinnerCompleted?: boolean
+  snackCompleted?: boolean
 }
 
 // 랜덤 식단 생성 함수
