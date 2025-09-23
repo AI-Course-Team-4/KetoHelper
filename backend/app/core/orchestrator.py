@@ -121,11 +121,14 @@ class KetoCoachAgent:
             json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
             if json_match:
                 result = json.loads(json_match.group())
-                state["intent"] = result.get("intent", "other")
+                initial_intent = result.get("intent", "other")
                 state["slots"] = result.get("slots", {})
                 
+                # 의도 분류 검증 로직 추가
+                state["intent"] = self._validate_intent(message, initial_intent)
+                
                 # 디버깅: 의도 분류 결과 출력
-                print(f"🎯 의도 분류 결과: {state['intent']} (메시지: {message[:50]}...)")
+                print(f"🎯 의도 분류 결과: {state['intent']} (초기: {initial_intent}, 메시지: {message[:50]}...)")
                 print(f"   슬롯: {state['slots']}")
                 print(f"🔍 DEBUG: orchestrator._router_node 실행됨!")
             else:
@@ -145,6 +148,64 @@ class KetoCoachAgent:
         
         return state
     
+    def _validate_intent(self, message: str, initial_intent: str) -> str:
+        """의도 분류 검증 및 수정"""
+        
+        # 질문형 패턴 체크
+        question_patterns = [
+            r'뭐야\?', r'뭔가\?', r'뭐지\?', r'뭐야', r'뭔가', r'뭐지',
+            r'어떻게\?', r'어떤\?', r'어떤가\?', r'어떻게', r'어떤', r'어떤가',
+            r'왜\?', r'왜야\?', r'왜지\?', r'왜', r'왜야', r'왜지',
+            r'언제\?', r'언제야\?', r'언제지\?', r'언제', r'언제야', r'언제지',
+            r'어디서\?', r'어디\?', r'어디야\?', r'어디서', r'어디', r'어디야',
+            r'도움\?', r'도움이\?', r'될까\?', r'도움', r'도움이', r'될까',
+            r'대화', r'채팅', r'말해', r'알려줘', r'설명해', r'궁금해'
+        ]
+        
+        # 대화/질문 패턴이 있으면 other로 강제 변경
+        for pattern in question_patterns:
+            if re.search(pattern, message, re.IGNORECASE):
+                print(f"🔍 질문형 패턴 감지: '{pattern}' → other로 변경")
+                return "other"
+        
+        # mealplan 의도인데 구체적인 계획 요청이 아닌 경우
+        if initial_intent == "mealplan":
+            plan_patterns = [
+                r'식단표', r'메뉴.*계획', r'일주일.*계획', r'주간.*계획',
+                r'만들어.*줘', r'계획.*세워', r'계획.*만들어'
+            ]
+            
+            has_plan_request = any(re.search(pattern, message, re.IGNORECASE) for pattern in plan_patterns)
+            if not has_plan_request:
+                print(f"🔍 mealplan 의도이지만 구체적 계획 요청 아님 → other로 변경")
+                return "other"
+        
+        # recipe 의도인데 구체적인 요리 요청이 아닌 경우
+        if initial_intent == "recipe":
+            recipe_patterns = [
+                r'레시피', r'조리법', r'만드는.*법', r'어떻게.*만들어',
+                r'요리.*방법', r'만들어.*줘', r'만들어.*달라'
+            ]
+            
+            has_recipe_request = any(re.search(pattern, message, re.IGNORECASE) for pattern in recipe_patterns)
+            if not has_recipe_request:
+                print(f"🔍 recipe 의도이지만 구체적 요리 요청 아님 → other로 변경")
+                return "other"
+        
+        # place 의도인데 구체적인 장소 검색 요청이 아닌 경우
+        if initial_intent == "place":
+            place_patterns = [
+                r'식당.*찾아', r'식당.*추천', r'근처.*식당', r'어디.*있어',
+                r'위치.*알려', r'장소.*알려', r'검색.*해줘'
+            ]
+            
+            has_place_request = any(re.search(pattern, message, re.IGNORECASE) for pattern in place_patterns)
+            if not has_place_request:
+                print(f"🔍 place 의도이지만 구체적 장소 검색 요청 아님 → other로 변경")
+                return "other"
+        
+        return initial_intent
+
     def _route_condition(self, state: AgentState) -> str:
         """라우팅 조건 함수"""
         return state["intent"]
