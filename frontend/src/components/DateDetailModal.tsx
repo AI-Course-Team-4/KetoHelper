@@ -63,7 +63,7 @@ export function DateDetailModal({
     if (meal) {
       setSelectedMealForDetail({
         type: mealKey as 'breakfast' | 'lunch' | 'dinner' | 'snack',
-        content: mealData[mealKey as keyof MealData] || '',
+        content: String(mealData[mealKey as keyof MealData] || ''),
         info: {
           label: meal.label,
           icon: meal.icon,
@@ -223,7 +223,7 @@ export function DateDetailModal({
                     {isEditing ? (
                       <input
                         type="text"
-                        value={editedMealData[meal.key as keyof MealData] || ''}
+                        value={String(editedMealData[meal.key as keyof MealData] || '')}
                         onChange={(e) => setEditedMealData(prev => ({
                           ...prev,
                           [meal.key]: e.target.value
