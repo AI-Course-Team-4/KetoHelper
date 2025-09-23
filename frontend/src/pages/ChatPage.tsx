@@ -257,8 +257,8 @@ export function ChatPage() {
       const response = await sendMessage.mutateAsync({
         message: userMessage.content,
         profile: profile ? {
-          allergies: profile.allergies,
-          dislikes: profile.dislikes,
+          allergies: profile.allergy_names,
+          dislikes: profile.dislike_names,
           goals_kcal: profile.goals_kcal,
           goals_carbs_g: profile.goals_carbs_g
         } : undefined,
@@ -424,8 +424,8 @@ export function ChatPage() {
       const response = await sendMessage.mutateAsync({
         message: userMessage.content,
         profile: profile ? {
-          allergies: profile.allergies,
-          dislikes: profile.dislikes,
+          allergies: profile.allergy_names,
+          dislikes: profile.dislike_names,
           goals_kcal: profile.goals_kcal,
           goals_carbs_g: profile.goals_carbs_g
         } : undefined,
