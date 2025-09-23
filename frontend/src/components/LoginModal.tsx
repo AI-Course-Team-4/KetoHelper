@@ -13,8 +13,10 @@ import { useState } from 'react'
 import { useGoogleLogin } from '@react-oauth/google'
 import { authService } from '@/lib/authService'
 import { useAuthStore } from '@/store/authStore'
-import googleLogo from '@/public/logos/google.svg'
-import kakaoLogo from '@/public/logos/kakaotalk.svg'
+
+
+const googleLogo = "/google.svg";
+const kakaoLogo  = "/kakaotalk.svg";
 
 interface LoginModalProps {
     open: boolean
