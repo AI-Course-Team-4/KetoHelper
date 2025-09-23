@@ -37,6 +37,9 @@ python-dotenv==1.0.0
 python-multipart==0.0.6
 pydantic-settings>=2.4,<3
 
+# JWT
+PyJWT>=2.10.0,<3.0
+
 # Date/Time
 pytz==2023.3
 
