@@ -16,6 +16,7 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+        rewrite: (path) => path, // 경로를 그대로 유지
       }
     }
   },

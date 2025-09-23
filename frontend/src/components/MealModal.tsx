@@ -82,7 +82,7 @@ export function MealModal({ isOpen, onClose, selectedDate, mealData, onSave, sel
                 {meal.label}
               </label>
               <Input
-                value={formData[meal.key as keyof MealData] || ''}
+                value={String(formData[meal.key as keyof MealData] || '')}
                 onChange={(e) => handleInputChange(meal.key as keyof MealData, e.target.value)}
                 placeholder={meal.placeholder}
                 className="w-full"

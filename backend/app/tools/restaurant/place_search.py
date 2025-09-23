@@ -44,22 +44,26 @@ class PlaceSearchTool:
             장소 정보 리스트
         """
         try:
-            # 캐시 확인
-            cached_results = await self._get_cached_results(query, lat, lng, radius)
-            if cached_results:
-                return cached_results
+            # 캐시 확인 (임시 비활성화)
+            # cached_results = await self._get_cached_results(query, lat, lng, radius)
+            # if cached_results:
+            #     return cached_results
             
             # API 호출
             headers = {
                 "Authorization": f"KakaoAK {self.api_key}"
             }
             
+            # URL 인코딩을 위한 처리
+            import urllib.parse
+            encoded_query = urllib.parse.quote(query, safe='')
+            
             params = {
-                "query": query,
+                "query": query,  # httpx가 자동으로 인코딩
                 "x": lng,
                 "y": lat,
                 "radius": radius,
-                "size": 15,
+                "size": 10,  # 최대 10개로 제한
                 "sort": "distance"
             }
             
@@ -72,13 +76,39 @@ class PlaceSearchTool:
                     headers=headers,
                     params=params
                 )
+                
+                # 429 에러 시 Retry-After 헤더 확인
+                if response.status_code == 429:
+                    print(f"카카오 API 429 에러 발생 - 응답 헤더:")
+                    for key, value in response.headers.items():
+                        print(f"  {key}: {value}")
+                    
+                    retry_after = response.headers.get('Retry-After')
+                    if retry_after:
+                        print(f"Retry-After 헤더 발견: {retry_after}초")
+                        try:
+                            wait_seconds = int(retry_after)
+                        except ValueError:
+                            print(f"Retry-After 값 파싱 오류: {retry_after}, 60초로 설정")
+                            wait_seconds = 60
+                    else:
+                        print("카카오 API는 Retry-After 헤더를 제공하지 않음")
+                        print("카카오 API 특성상 1-2분 대기 권장, 120초 대기")
+                        wait_seconds = 120
+                    
+                    raise httpx.HTTPStatusError(
+                        f"429 Too Many Requests - Retry after {wait_seconds} seconds",
+                        request=response.request,
+                        response=response
+                    )
+                
                 response.raise_for_status()
                 
                 data = response.json()
                 places = self._parse_kakao_response(data)
                 
-                # 결과 캐싱
-                await self._cache_results(places, query, lat, lng, radius)
+                # 결과 캐싱 (임시 비활성화)
+                # await self._cache_results(places, query, lat, lng, radius)
                 
                 return places
         
@@ -283,7 +313,7 @@ class PlaceSearchTool:
         """주변 키토 친화적 장소 자동 검색"""
         
         keto_keywords = [
-            "구이", "샤브샤브", "샐러드", "스테이크", "회",
+            "저탄고지","다이어트","구이", "샤브샤브", "샐러드", "스테이크", "회",
             "치킨", "갈비", "삼겹살", "양식", "무한리필"
         ]
         

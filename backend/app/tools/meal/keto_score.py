@@ -65,8 +65,11 @@ class KetoScoreCalculator:
         reasons = []
         tips = []
         
-        # 텍스트 통합
-        full_text = f"{name} {category} {description}".lower()
+        # 텍스트 통합 (None 값 안전 처리)
+        safe_name = name or ""
+        safe_category = category or ""
+        safe_description = description or ""
+        full_text = f"{safe_name} {safe_category} {safe_description}".lower()
         
         # 1. 카테고리 기본 점수 적용
         category_bonus = self._get_category_score(category)
@@ -107,6 +110,9 @@ class KetoScoreCalculator:
     
     def _get_category_score(self, category: str) -> int:
         """카테고리별 기본 점수"""
+        
+        if not category:
+            return 0
         
         category_lower = category.lower()
         

@@ -171,10 +171,11 @@
   }
   
   .rdp-custom .rdp-cell {
-    @apply text-center relative p-1 h-24 bg-white;
+    @apply text-center relative p-1 min-h-24 bg-white;
     border-right: 1px solid #e2e8f0;
     border-bottom: 1px solid #e2e8f0;
     border-left: 1px solid #e2e8f0;
+    vertical-align: top;
   }
   
   .rdp-custom .rdp-cell:first-child {
@@ -186,10 +187,11 @@
   }
   
   .rdp-custom .rdp-day {
-    @apply w-full h-full flex items-center justify-center rounded-xl cursor-pointer transition-all duration-200 font-medium text-sm;
+    @apply w-full min-h-full flex flex-col items-center justify-start rounded-xl cursor-pointer transition-all duration-200 font-medium text-sm;
     @apply hover:bg-blue-50 hover:scale-105 hover:shadow-md;
     font-weight: 500;
     background: linear-gradient(135deg, transparent 0%, rgba(59, 130, 246, 0.05) 100%);
+    padding: 4px;
   }
   
   .rdp-custom .rdp-day_selected {
@@ -252,6 +254,24 @@
   .rdp-custom .rdp-cell:nth-child(1) .rdp-day:hover {
     @apply bg-gradient-to-br from-red-50 to-red-100;
     background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+  }
+  
+  /* 식단 정보 표시 스타일 */
+  .meal-info {
+    @apply text-xs text-gray-600 truncate mt-1;
+    line-height: 1.2;
+  }
+  
+  .meal-info:first-child {
+    @apply mt-2;
+  }
+  
+  .meal-info-container {
+    @apply flex-1 w-full px-1 pb-1 space-y-1;
+  }
+  
+  .date-number {
+    @apply text-sm font-medium text-left py-1 flex-shrink-0 pl-2;
   }
 }
 

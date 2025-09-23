@@ -1,104 +1,236 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-
-export interface UserProfile {
-  nickname?: string
-  goals_kcal?: number
-  goals_carbs_g?: number
-  allergies: string[]
-  dislikes: string[]
-}
+import { 
+  profileService,
+  UserProfile,
+  UserProfileUpdate,
+  AllergyMaster,
+  DislikeMaster
+} from '@/lib/profileService'
 
 interface ProfileState {
+  // 데이터
   profile: UserProfile | null
+  allergyMaster: AllergyMaster[]
+  dislikeMaster: DislikeMaster[]
   
-  // Actions
-  setProfile: (profile: UserProfile) => void
-  updateProfile: (updates: Partial<UserProfile>) => void
+  // 현재 로드된 프로필의 사용자 ID (캐시 무효화용)
+  currentUserId: string | null
+  
+  // 상태
+  isLoading: boolean
+  error: string | null
+  
+  // 마스터 데이터 로드
+  loadMasterData: () => Promise<void>
+  
+  // 프로필 관리
+  loadProfile: (userId: string) => Promise<void>
+  updateProfile: (userId: string, updates: UserProfileUpdate) => Promise<void>
   clearProfile: () => void
-  addAllergy: (allergy: string) => void
-  removeAllergy: (allergy: string) => void
-  addDislike: (dislike: string) => void
-  removeDislike: (dislike: string) => void
+  
+  // 알레르기 관리
+  addAllergy: (userId: string, allergyId: number) => Promise<void>
+  removeAllergy: (userId: string, allergyId: number) => Promise<void>
+  
+  // 비선호 재료 관리
+  addDislike: (userId: string, dislikeId: number) => Promise<void>
+  removeDislike: (userId: string, dislikeId: number) => Promise<void>
 }
 
 export const useProfileStore = create<ProfileState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
+      // 초기 상태
       profile: null,
+      allergyMaster: [],
+      dislikeMaster: [],
+      currentUserId: null,
+      isLoading: false,
+      error: null,
       
-      setProfile: (profile) => {
-        set({ profile })
+      // 마스터 데이터 로드
+      loadMasterData: async () => {
+        set({ isLoading: true, error: null })
+        try {
+          const [allergies, dislikes] = await Promise.all([
+            profileService.getAllergyMaster(),
+            profileService.getDislikeMaster()
+          ])
+          
+          set({ 
+            allergyMaster: allergies,
+            dislikeMaster: dislikes,
+            isLoading: false 
+          })
+        } catch (error) {
+          set({ 
+            error: error instanceof Error ? error.message : '마스터 데이터 로드 실패',
+            isLoading: false 
+          })
+        }
       },
       
-      updateProfile: (updates) => {
-        set((state) => ({
-          profile: state.profile ? { ...state.profile, ...updates } : updates as UserProfile
-        }))
+      // 프로필 로드
+      loadProfile: async (userId) => {
+        // 다른 사용자의 캐시된 데이터가 있으면 먼저 클리어
+        const currentState = get()
+        if (currentState.currentUserId && currentState.currentUserId !== userId) {
+          set({ profile: null, currentUserId: null })
+        }
+        
+        set({ isLoading: true, error: null })
+        try {
+          const profile = await profileService.getProfile(userId)
+          set({ profile, currentUserId: userId, isLoading: false })
+        } catch (error) {
+          set({ 
+            error: error instanceof Error ? error.message : '프로필 로드 실패',
+            isLoading: false 
+          })
+        }
       },
       
+      // 프로필 업데이트
+      updateProfile: async (userId, updates) => {
+        set({ isLoading: true, error: null })
+        try {
+          const updatedProfile = await profileService.updateProfile(userId, updates)
+          set({ profile: updatedProfile, isLoading: false })
+        } catch (error) {
+          set({ 
+            error: error instanceof Error ? error.message : '프로필 업데이트 실패',
+            isLoading: false 
+          })
+        }
+      },
+      
+      // 프로필 클리어
       clearProfile: () => {
-        set({ profile: null })
+        set({ profile: null, currentUserId: null, error: null })
       },
       
-      addAllergy: (allergy) => {
-        set((state) => {
-          if (!state.profile) return state
+      // 알레르기 추가
+      addAllergy: async (userId, allergyId) => {
+        set({ isLoading: true, error: null })
+        try {
+          await profileService.addAllergy(userId, allergyId)
           
-          const allergies = [...state.profile.allergies]
-          if (!allergies.includes(allergy)) {
-            allergies.push(allergy)
-          }
-          
-          return {
-            profile: { ...state.profile, allergies }
-          }
-        })
+          // 프로필 다시 로드
+          const updatedProfile = await profileService.getProfile(userId)
+          set({ profile: updatedProfile, isLoading: false })
+        } catch (error) {
+          set({ 
+            error: error instanceof Error ? error.message : '알레르기 추가 실패',
+            isLoading: false 
+          })
+        }
       },
       
-      removeAllergy: (allergy) => {
-        set((state) => {
-          if (!state.profile) return state
+      // 알레르기 제거
+      removeAllergy: async (userId, allergyId) => {
+        set({ isLoading: true, error: null })
+        try {
+          await profileService.removeAllergy(userId, allergyId)
           
-          return {
-            profile: {
-              ...state.profile,
-              allergies: state.profile.allergies.filter(a => a !== allergy)
-            }
-          }
-        })
+          // 프로필 다시 로드
+          const updatedProfile = await profileService.getProfile(userId)
+          set({ profile: updatedProfile, isLoading: false })
+        } catch (error) {
+          set({ 
+            error: error instanceof Error ? error.message : '알레르기 제거 실패',
+            isLoading: false 
+          })
+        }
       },
       
-      addDislike: (dislike) => {
-        set((state) => {
-          if (!state.profile) return state
+      // 비선호 재료 추가
+      addDislike: async (userId, dislikeId) => {
+        set({ isLoading: true, error: null })
+        try {
+          await profileService.addDislike(userId, dislikeId)
           
-          const dislikes = [...state.profile.dislikes]
-          if (!dislikes.includes(dislike)) {
-            dislikes.push(dislike)
-          }
-          
-          return {
-            profile: { ...state.profile, dislikes }
-          }
-        })
+          // 프로필 다시 로드
+          const updatedProfile = await profileService.getProfile(userId)
+          set({ profile: updatedProfile, isLoading: false })
+        } catch (error) {
+          set({ 
+            error: error instanceof Error ? error.message : '비선호 재료 추가 실패',
+            isLoading: false 
+          })
+        }
       },
       
-      removeDislike: (dislike) => {
-        set((state) => {
-          if (!state.profile) return state
+      // 비선호 재료 제거
+      removeDislike: async (userId, dislikeId) => {
+        set({ isLoading: true, error: null })
+        try {
+          await profileService.removeDislike(userId, dislikeId)
           
-          return {
-            profile: {
-              ...state.profile,
-              dislikes: state.profile.dislikes.filter(d => d !== dislike)
-            }
-          }
-        })
+          // 프로필 다시 로드
+          const updatedProfile = await profileService.getProfile(userId)
+          set({ profile: updatedProfile, isLoading: false })
+        } catch (error) {
+          set({ 
+            error: error instanceof Error ? error.message : '비선호 재료 제거 실패',
+            isLoading: false 
+          })
+        }
       }
     }),
     {
-      name: 'keto-coach-profile'
+      name: 'keto-coach-profile-v2',
+      partialize: (state) => ({ 
+        profile: state.profile,
+        currentUserId: state.currentUserId,
+        allergyMaster: state.allergyMaster,
+        dislikeMaster: state.dislikeMaster
+      })
     }
   )
 )
+
+// 헬퍼 함수들
+export const useProfileHelpers = () => {
+  const store = useProfileStore()
+  
+  return {
+    // 선택된 알레르기 이름들 가져오기
+    getSelectedAllergyNames: (): string[] => {
+      if (!store.profile || !store.allergyMaster.length) return []
+      
+      return store.allergyMaster
+        .filter(allergy => store.profile!.selected_allergy_ids.includes(allergy.id))
+        .map(allergy => allergy.name)
+    },
+    
+    // 선택된 비선호 재료 이름들 가져오기
+    getSelectedDislikeNames: (): string[] => {
+      if (!store.profile || !store.dislikeMaster.length) return []
+      
+      return store.dislikeMaster
+        .filter(dislike => store.profile!.selected_dislike_ids.includes(dislike.id))
+        .map(dislike => dislike.name)
+    },
+    
+    // 카테고리별 알레르기 그룹핑
+    getAllergiesByCategory: (): Record<string, AllergyMaster[]> => {
+      return store.allergyMaster.reduce((acc, allergy) => {
+        const category = allergy.category || '기타'
+        if (!acc[category]) acc[category] = []
+        acc[category].push(allergy)
+        return acc
+      }, {} as Record<string, AllergyMaster[]>)
+    },
+    
+    // 카테고리별 비선호 재료 그룹핑
+    getDislikesByCategory: (): Record<string, DislikeMaster[]> => {
+      return store.dislikeMaster.reduce((acc, dislike) => {
+        const category = dislike.category || '기타'
+        if (!acc[category]) acc[category] = []
+        acc[category].push(dislike)
+        return acc
+      }, {} as Record<string, DislikeMaster[]>)
+    }
+  }
+}

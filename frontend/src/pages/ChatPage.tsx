@@ -1,26 +1,24 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send, Bot, User, Loader2, Plus, MessageSquare, Trash2, Clock } from 'lucide-react'
+import { Send, User, Loader2, Plus, MessageSquare, Trash2, Clock, Calendar, Save } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { useChatStore } from '@/store/chatStore'
+import { useChatStore, ChatMessage, LLMParsedMeal } from '@/store/chatStore'
 import { useProfileStore } from '@/store/profileStore'
+import { useAuthStore } from '@/store/authStore'
 import { RecipeCard } from '@/components/RecipeCard'
 import { PlaceCard } from '@/components/PlaceCard'
 import { useSendMessage } from '@/hooks/useApi'
+import { MealParserService, MealService } from '@/lib/mealService'
+import { MealData } from '@/data/ketoMeals'
+import { format } from 'date-fns'
 
-interface Message {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  results?: any[]
-  timestamp: Date
-}
+// Message 타입을 ChatMessage로 대체
 
 interface ChatSession {
   id: string
   title: string
-  messages: Message[]
+  messages: ChatMessage[]
   createdAt: Date
 }
 
@@ -32,11 +30,13 @@ export function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
+  const [isSavingMeal, setIsSavingMeal] = useState<string | null>(null) // 저장 중인 메시지 ID
   
   const { messages, addMessage, clearMessages } = useChatStore()
   // hasStartedChatting을 메시지 존재 여부로 계산
   const hasStartedChatting = messages.length > 0
   const { profile } = useProfileStore()
+  const { user } = useAuthStore()
   const sendMessage = useSendMessage()
 
   // 시간 포맷팅 함수들
@@ -212,7 +212,7 @@ export function ChatPage() {
   }
 
   // 현재 세션에 메시지 추가
-  const addMessageToCurrentSession = (message: Message) => {
+  const addMessageToCurrentSession = (message: ChatMessage) => {
     if (currentSessionId) {
       setChatSessions(prev => prev.map(session =>
         session.id === currentSessionId
@@ -241,7 +241,7 @@ export function ChatPage() {
       sessionId = newSessionId
     }
 
-    const userMessage: Message = {
+    const userMessage: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
       content: message.trim(),
@@ -257,8 +257,8 @@ export function ChatPage() {
       const response = await sendMessage.mutateAsync({
         message: userMessage.content,
         profile: profile ? {
-          allergies: profile.allergies,
-          dislikes: profile.dislikes,
+          allergies: profile.allergy_names,
+          dislikes: profile.dislike_names,
           goals_kcal: profile.goals_kcal,
           goals_carbs_g: profile.goals_carbs_g
         } : undefined,
@@ -266,12 +266,33 @@ export function ChatPage() {
         radius_km: 5
       })
 
-      const assistantMessage: Message = {
+      // 백엔드 응답에서 식단 데이터 파싱
+      let parsedMeal = MealParserService.parseMealFromBackendResponse(response)
+      
+      // 테스트용: 식단 추천 관련 메시지인 경우 임시 데이터 생성
+      if (!parsedMeal && (
+        userMessage.content.includes('식단') || 
+        userMessage.content.includes('추천') ||
+        userMessage.content.includes('메뉴') ||
+        userMessage.content.includes('아침') ||
+        userMessage.content.includes('점심') ||
+        userMessage.content.includes('저녁')
+      )) {
+        parsedMeal = {
+          breakfast: '아보카도 토스트와 스크램블 에그',
+          lunch: '그릴 치킨 샐러드 (올리브오일 드레싱)',
+          dinner: '연어 스테이크와 구운 브로콜리',
+          snack: '아몬드 한 줌과 치즈 큐브'
+        }
+      }
+
+      const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: response.response,
         results: response.results,
-        timestamp: new Date()
+        timestamp: new Date(),
+        mealData: parsedMeal // 파싱된 식단 데이터 추가
       }
 
       addMessage(assistantMessage)
@@ -288,7 +309,7 @@ export function ChatPage() {
       }
     } catch (error) {
       console.error('메시지 전송 실패:', error)
-      const errorMessage: Message = {
+      const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: '죄송합니다. 메시지 처리 중 오류가 발생했습니다. 다시 시도해주세요.',
@@ -305,6 +326,66 @@ export function ChatPage() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSendMessage()
+    }
+  }
+
+  // 식단 캘린더에 저장
+  const handleSaveMealToCalendar = async (messageId: string, mealData: LLMParsedMeal, targetDate?: string) => {
+    if (!user?.id) {
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: '❌ 식단 저장을 위해 로그인이 필요합니다.',
+        timestamp: new Date()
+      }
+      addMessage(errorMessage)
+      addMessageToCurrentSession(errorMessage)
+      return
+    }
+
+    setIsSavingMeal(messageId)
+    
+    try {
+      const dateToSave = targetDate || format(new Date(), 'yyyy-MM-dd')
+      
+      const mealToSave: MealData = {
+        breakfast: mealData.breakfast || '',
+        lunch: mealData.lunch || '',
+        dinner: mealData.dinner || '',
+        snack: mealData.snack || ''
+      }
+      
+      const success = await MealService.saveMeal(dateToSave, mealToSave, user.id)
+      
+      if (success) {
+        // 성공 메시지 추가
+        const successMessage: ChatMessage = {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: `✅ 식단이 ${format(new Date(dateToSave), 'M월 d일')} 캘린더에 저장되었습니다! 캘린더 페이지에서 확인해보세요.`,
+          timestamp: new Date()
+        }
+        
+        addMessage(successMessage)
+        addMessageToCurrentSession(successMessage)
+      } else {
+        throw new Error('저장 실패')
+      }
+    } catch (error) {
+      console.error('식단 저장 실패:', error)
+      
+      // 실패 메시지 추가
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: '❌ 식단 저장에 실패했습니다. 다시 시도해주세요.',
+        timestamp: new Date()
+      }
+      
+      addMessage(errorMessage)
+      addMessageToCurrentSession(errorMessage)
+    } finally {
+      setIsSavingMeal(null)
     }
   }
 
@@ -328,7 +409,7 @@ export function ChatPage() {
       sessionId = newSessionId
     }
 
-    const userMessage: Message = {
+    const userMessage: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
       content: quickMessage.trim(),
@@ -343,8 +424,8 @@ export function ChatPage() {
       const response = await sendMessage.mutateAsync({
         message: userMessage.content,
         profile: profile ? {
-          allergies: profile.allergies,
-          dislikes: profile.dislikes,
+          allergies: profile.allergy_names,
+          dislikes: profile.dislike_names,
           goals_kcal: profile.goals_kcal,
           goals_carbs_g: profile.goals_carbs_g
         } : undefined,
@@ -352,12 +433,33 @@ export function ChatPage() {
         radius_km: 5
       })
 
-      const assistantMessage: Message = {
+      // 백엔드 응답에서 식단 데이터 파싱
+      let parsedMeal = MealParserService.parseMealFromBackendResponse(response)
+      
+      // 테스트용: 식단 추천 관련 메시지인 경우 임시 데이터 생성
+      if (!parsedMeal && (
+        userMessage.content.includes('식단') || 
+        userMessage.content.includes('추천') ||
+        userMessage.content.includes('메뉴') ||
+        userMessage.content.includes('아침') ||
+        userMessage.content.includes('점심') ||
+        userMessage.content.includes('저녁')
+      )) {
+        parsedMeal = {
+          breakfast: '아보카도 토스트와 스크램블 에그',
+          lunch: '그릴 치킨 샐러드 (올리브오일 드레싱)',
+          dinner: '연어 스테이크와 구운 브로콜리',
+          snack: '아몬드 한 줌과 치즈 큐브'
+        }
+      }
+
+      const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: response.response,
         results: response.results,
-        timestamp: new Date()
+        timestamp: new Date(),
+        mealData: parsedMeal // 파싱된 식단 데이터 추가
       }
 
       addMessage(assistantMessage)
@@ -374,7 +476,7 @@ export function ChatPage() {
       }
     } catch (error) {
       console.error('메시지 전송 실패:', error)
-      const errorMessage: Message = {
+      const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: '죄송합니다. 메시지 처리 중 오류가 발생했습니다. 다시 시도해주세요.',
@@ -388,23 +490,31 @@ export function ChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] bg-gradient-to-br from-background to-muted/20">
+    <div className="flex flex-col h-[calc(100vh-8rem)] bg-gradient-to-br from-green-50 via-white to-emerald-50">
       {/* 헤더 */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gradient">키토 코치</h1>
-        <p className="text-muted-foreground mt-1">건강한 키토 식단을 위한 AI 어시스턴트</p>
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-500 via-emerald-500 to-teal-600 text-white">
+          <div className="absolute inset-0 bg-white/10 backdrop-blur-sm" />
+          <div className="relative p-6">
+            <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
+              <span className="text-4xl">🥑</span>
+              키토 코치
+            </h1>
+            <p className="text-green-100 text-lg">건강한 키토 식단을 위한 AI 어시스턴트</p>
+          </div>
+        </div>
       </div>
 
       {/* 메인 콘텐츠 영역 */}
       <div className="flex flex-1 gap-4 lg:gap-6 px-4 lg:px-6 min-h-0">
         {/* 왼쪽 사이드바 - 데스크톱에서만 표시 */}
-        <div className="hidden lg:block w-80 bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl shadow-sm flex flex-col">
+        <div className="hidden lg:block w-80 bg-white/80 backdrop-blur-sm border-0 rounded-2xl shadow-xl flex flex-col">
           {/* 사이드바 헤더 */}
-          <div className="p-6 border-b border-border/50">
+          <div className="p-6 border-b border-gray-100">
             <Button 
               onClick={createNewChat}
               disabled={isLoading}
-              className={`w-full justify-center gap-3 h-12 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200 mb-4 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`w-full justify-center gap-3 h-14 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300 mb-4 rounded-xl ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
               variant="default"
             >
               <Plus className="h-5 w-5" />
@@ -427,9 +537,9 @@ export function ChatPage() {
                 {chatSessions.map((session) => (
                   <div
                     key={session.id}
-                    className={`group relative p-4 rounded-xl transition-all duration-200 ${currentSessionId === session.id
-                      ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg'
-                      : 'hover:bg-muted/50 hover:shadow-md'
+                    className={`group relative p-4 rounded-xl transition-all duration-300 ${currentSessionId === session.id
+                      ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg border border-green-300'
+                      : 'bg-gray-50 hover:bg-green-50 hover:shadow-md border border-gray-200 hover:border-green-200'
                       } ${isLoading ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'}`}
                     onClick={() => {
                       if (!isLoading) {
@@ -471,22 +581,29 @@ export function ChatPage() {
         </div>
 
         {/* 메인 채팅 영역 */}
-        <div className="flex-1 flex flex-col bg-card/30 backdrop-blur-sm border border-border/50 rounded-xl shadow-sm min-h-0 w-full lg:w-auto">
+        <div className="flex-1 flex flex-col bg-white/80 backdrop-blur-sm border-0 rounded-2xl shadow-xl min-h-0 w-full lg:w-auto">
           {!hasStartedChatting ? (
             // 채팅 시작 전 - 가운데 입력창
             <div className="flex-1 flex items-center justify-center p-8 overflow-hidden">
               <div className="w-full max-w-3xl">
                 <div className="text-center mb-8 lg:mb-12">
-                  <div className="w-24 h-24 lg:w-32 lg:h-32 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center mx-auto mb-4 lg:mb-6 shadow-lg">
-                    <Bot className="h-12 w-12 lg:h-16 lg:w-16 text-white" />
+                  <div className="w-28 h-28 lg:w-36 lg:h-36 rounded-full bg-gradient-to-br from-green-500 via-emerald-500 to-teal-500 flex items-center justify-center mx-auto mb-6 lg:mb-8 shadow-2xl ring-4 ring-green-100">
+                    <span className="text-5xl lg:text-6xl">🥑</span>
                   </div>
-                  <h3 className="text-2xl lg:text-3xl font-bold mb-3 lg:mb-4 bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                  <h3 className="text-3xl lg:text-4xl font-bold mb-4 lg:mb-6 bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 bg-clip-text text-transparent">
                     안녕하세요! 키토 코치입니다
                   </h3>
-                  <p className="text-muted-foreground text-lg lg:text-xl leading-relaxed px-4">
-                    건강한 키토 식단을 위한 모든 것을 도와드릴게요.<br />
-                    레시피 추천부터 식당 찾기까지 무엇이든 물어보세요!
-                  </p>
+                  {user ? (
+                    <p className="text-gray-600 text-lg lg:text-xl leading-relaxed px-4 max-w-2xl mx-auto">
+                      건강한 키토 식단을 위한 모든 것을 도와드릴게요.<br />
+                      <span className="font-semibold text-green-700">레시피 추천부터 식당 찾기까지</span> 무엇이든 물어보세요!
+                    </p>
+                  ) : (
+                    <p className="text-gray-600 text-lg lg:text-xl leading-relaxed px-4 max-w-2xl mx-auto">
+                      키토 식단 추천을 받으실 수 있습니다.<br />
+                      <span className="text-amber-600 font-semibold bg-amber-50 px-3 py-1 rounded-full">식단 저장 기능은 로그인 후 이용 가능합니다.</span>
+                    </p>
+                  )}
                 </div>
                 
                 {/* 가운데 입력창 */}
@@ -498,7 +615,7 @@ export function ChatPage() {
                         onChange={(e) => setMessage(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder="키토 식단에 대해 무엇이든 물어보세요..."
-                        className="h-12 lg:h-14 text-base lg:text-lg pl-4 lg:pl-6 pr-12 lg:pr-16 bg-background/80 border-border/50 rounded-xl lg:rounded-2xl shadow-lg focus:shadow-xl transition-all duration-200"
+                        className="h-14 lg:h-16 text-base lg:text-lg pl-6 lg:pl-8 pr-12 lg:pr-16 bg-white border-2 border-gray-200 focus:border-green-400 rounded-2xl shadow-lg focus:shadow-xl transition-all duration-300"
                         disabled={isLoading}
                       />
                       {isLoading && (
@@ -510,9 +627,9 @@ export function ChatPage() {
                     <Button 
                       onClick={handleSendMessage}
                       disabled={!message.trim() || isLoading}
-                      className="h-12 lg:h-14 px-4 lg:px-8 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-medium rounded-xl lg:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200"
+                      className="h-14 lg:h-16 px-6 lg:px-8 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300"
                     >
-                      <Send className="h-4 w-4 lg:h-5 lg:w-5" />
+                      <Send className="h-5 w-5 lg:h-6 lg:w-6" />
                     </Button>
                   </div>
                   
@@ -530,7 +647,7 @@ export function ChatPage() {
                         size="sm"
                         onClick={() => handleQuickMessage(quickMessage)}
                         disabled={isLoading}
-                        className="text-xs lg:text-sm px-3 lg:px-4 py-1 lg:py-2 rounded-lg lg:rounded-xl border-border/50 hover:bg-muted/50 hover:shadow-md transition-all duration-200"
+                        className="text-sm lg:text-base px-4 lg:px-6 py-2 lg:py-3 rounded-xl lg:rounded-2xl border-2 border-green-200 hover:bg-green-50 hover:border-green-300 hover:shadow-lg transition-all duration-300 font-medium text-green-700"
                       >
                         {quickMessage}
                       </Button>
@@ -565,22 +682,22 @@ export function ChatPage() {
                             msg.role === 'user' ? 'flex-row-reverse' : ''
                           }`}>
                             {/* 아바타 */}
-                            <div className={`flex-shrink-0 w-8 h-8 lg:w-10 lg:h-10 rounded-full flex items-center justify-center shadow-md ${
+                            <div className={`flex-shrink-0 w-10 h-10 lg:w-12 lg:h-12 rounded-full flex items-center justify-center shadow-lg ring-2 ${
                               msg.role === 'user' 
-                                ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white' 
-                                : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white'
+                                ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white ring-blue-200' 
+                                : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white ring-green-200'
                             }`}>
-                              {msg.role === 'user' ? <User className="h-4 w-4 lg:h-5 lg:w-5" /> : <span className="text-sm lg:text-lg">🥑</span>}
+                              {msg.role === 'user' ? <User className="h-5 w-5 lg:h-6 lg:w-6" /> : <span className="text-lg lg:text-xl">🥑</span>}
                             </div>
 
                             {/* 메시지 내용 */}
                             <div className={`flex-1 max-w-2xl ${msg.role === 'user' ? 'text-right' : ''}`}>
-                              <div className={`inline-block p-3 lg:p-4 rounded-xl lg:rounded-2xl shadow-sm ${
+                              <div className={`inline-block p-4 lg:p-5 rounded-2xl lg:rounded-3xl shadow-lg ${
                                 msg.role === 'user' 
-                                  ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white' 
-                                  : 'bg-card border border-border/50'
+                                  ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white' 
+                                  : 'bg-white border-2 border-gray-100'
                               }`}>
-                                <p className="text-sm lg:text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                                <p className="text-sm lg:text-base whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                               </div>
 
                               {/* 타임스탬프 */}
@@ -592,6 +709,62 @@ export function ChatPage() {
                                   >
                                     {formatMessageTime(msg.timestamp)}
                                   </span>
+                                </div>
+                              )}
+
+                              {/* 식단 저장 버튼 */}
+                              {msg.role === 'assistant' && msg.mealData && (
+                                <div className="mt-4 lg:mt-5 p-4 lg:p-5 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-2xl shadow-lg">
+                                  <div className="flex items-center justify-between mb-4">
+                                    <h4 className="text-base font-bold text-green-800 flex items-center gap-2">
+                                      <Calendar className="h-5 w-5" />
+                                      추천받은 식단
+                                    </h4>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleSaveMealToCalendar(msg.id, msg.mealData!)}
+                                      disabled={isSavingMeal === msg.id}
+                                      className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+                                    >
+                                      {isSavingMeal === msg.id ? (
+                                        <>
+                                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                          저장 중...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Save className="h-4 w-4 mr-2" />
+                                          캘린더에 저장
+                                        </>
+                                      )}
+                                    </Button>
+                                  </div>
+                                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 text-sm">
+                                    {msg.mealData.breakfast && (
+                                      <div className="bg-white/70 p-3 rounded-xl border border-green-100">
+                                        <span className="font-bold text-green-700 text-base">🌅 아침</span>
+                                        <p className="text-green-600 mt-1">{msg.mealData.breakfast}</p>
+                                      </div>
+                                    )}
+                                    {msg.mealData.lunch && (
+                                      <div className="bg-white/70 p-3 rounded-xl border border-green-100">
+                                        <span className="font-bold text-green-700 text-base">☀️ 점심</span>
+                                        <p className="text-green-600 mt-1">{msg.mealData.lunch}</p>
+                                      </div>
+                                    )}
+                                    {msg.mealData.dinner && (
+                                      <div className="bg-white/70 p-3 rounded-xl border border-green-100">
+                                        <span className="font-bold text-green-700 text-base">🌙 저녁</span>
+                                        <p className="text-green-600 mt-1">{msg.mealData.dinner}</p>
+                                      </div>
+                                    )}
+                                    {msg.mealData.snack && (
+                                      <div className="bg-white/70 p-3 rounded-xl border border-green-100">
+                                        <span className="font-bold text-green-700 text-base">🍎 간식</span>
+                                        <p className="text-green-600 mt-1">{msg.mealData.snack}</p>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               )}
 
@@ -636,16 +809,16 @@ export function ChatPage() {
               </div>
 
               {/* 입력 영역 - 고정 위치 */}
-              <div className="flex-shrink-0 border-t border-border/50 bg-background/50 backdrop-blur-sm p-4 lg:p-6">
+              <div className="flex-shrink-0 border-t-2 border-gray-100 bg-white/90 backdrop-blur-sm p-4 lg:p-6">
                 <div className="max-w-4xl mx-auto">
-                  <div className="flex gap-2 lg:gap-3">
+                  <div className="flex gap-3 lg:gap-4">
                     <div className="flex-1 relative">
                       <Input
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder="키토 식단에 대해 무엇이든 물어보세요..."
-                        className="h-10 lg:h-12 pl-3 lg:pl-4 pr-10 lg:pr-12 bg-background/80 border-border/50 rounded-lg lg:rounded-xl shadow-sm focus:shadow-md transition-all duration-200"
+                        className="h-12 lg:h-14 pl-4 lg:pl-6 pr-12 lg:pr-14 bg-white border-2 border-gray-200 focus:border-green-400 rounded-xl lg:rounded-2xl shadow-lg focus:shadow-xl transition-all duration-300"
                         disabled={isLoading}
                       />
                       {isLoading && (
@@ -657,9 +830,9 @@ export function ChatPage() {
                     <Button 
                       onClick={handleSendMessage}
                       disabled={!message.trim() || isLoading}
-                      className="h-10 lg:h-12 px-4 lg:px-6 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-lg lg:rounded-xl shadow-sm hover:shadow-md transition-all duration-200"
+                      className="h-12 lg:h-14 px-4 lg:px-6 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl lg:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300"
                     >
-                      <Send className="h-3 w-3 lg:h-4 lg:w-4" />
+                      <Send className="h-4 w-4 lg:h-5 lg:w-5" />
                     </Button>
                   </div>
                   
@@ -677,7 +850,7 @@ export function ChatPage() {
                         size="sm"
                         onClick={() => handleQuickMessage(quickMessage)}
                         disabled={isLoading}
-                        className="text-xs px-2 lg:px-3 py-1 rounded-md lg:rounded-lg border-border/50 hover:bg-muted/50 hover:shadow-sm transition-all duration-200"
+                        className="text-xs lg:text-sm px-3 lg:px-4 py-1 lg:py-2 rounded-lg lg:rounded-xl border-2 border-green-200 hover:bg-green-50 hover:border-green-300 hover:shadow-md transition-all duration-300 font-medium text-green-700"
                       >
                         {quickMessage}
                       </Button>

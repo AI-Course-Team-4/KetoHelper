@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Menu, Search, User } from 'lucide-react'
+import { Menu, Search, User, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -9,21 +9,23 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-// import { useProfileStore } from '@/store/profileStore'
 import { useAuthStore } from '@/store/authStore'
+import { useProfileStore } from '@/store/profileStore'
 import { authService } from '@/lib/authService'
 import { toast } from 'react-hot-toast'
 import { LoginModal } from './LoginModal'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { cleanupLocalAuthArtifacts, clearChatHistoryStorage, clearNaverOAuthState } from '@/lib/bootCleanup'
+import { shouldRedirectOnTokenExpiry } from '@/lib/routeUtils'
 
 export function Header() {
   const [, setIsSearchOpen] = useState(false)
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const [avatarError, setAvatarError] = useState(false)
-  // const { profile } = useProfileStore()
   const { user, clear } = useAuthStore()
+  const { clearProfile } = useProfileStore()
   const navigate = useNavigate()
+  const location = useLocation()
   const avatarSrc = user?.profileImage
     ? user.profileImage.replace(/^http:/, 'https:')
     : undefined
@@ -39,10 +41,21 @@ export function Header() {
     } catch {
       // ignore
     }
-    clear()
+    
+    // 🧹 프로필 데이터 완전 클리어 (다른 사용자 데이터 잔여 방지)
+    clearProfile()
+    console.log('🗑️ 로그아웃: 프로필 스토어 클리어 완료')
+    
+    // 현재 경로에 따라 리다이렉트 여부 결정
+    const shouldRedirect = shouldRedirectOnTokenExpiry(location.pathname)
+    
+    clear(shouldRedirect)
     try { cleanupLocalAuthArtifacts() } catch {}
     try { clearChatHistoryStorage() } catch {}
     try { clearNaverOAuthState() } catch {}
+    
+    // 수동 로그아웃은 항상 메인 페이지로 (사용자가 의도한 행동)
+    navigate('/')
   }
 
   const handleMenuClick = () => {
@@ -128,7 +141,8 @@ export function Header() {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="text-red-600" onClick={handleLogout}>
-                  로그아웃
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>로그아웃</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
