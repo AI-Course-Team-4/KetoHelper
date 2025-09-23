@@ -47,7 +47,10 @@ app = FastAPI(
 origins =[
     os.getenv("FRONTEND_DOMAIN", "").rstrip("/"),
     "http://localhost:3000",    # next
-    "http://localhost:5173"     # vite
+    "http://localhost:5173",    # vite
+    "http://127.0.0.1:3000",    # next (alternative)
+    "http://127.0.0.1:5173",    # vite (alternative)
+    "null"                      # file:// protocol for local testing
 ]
 
 origins = list({o for o in origins if o})

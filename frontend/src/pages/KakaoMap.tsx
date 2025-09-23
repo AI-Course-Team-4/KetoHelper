@@ -17,18 +17,24 @@ type KakaoMapProps = {
     lat?: number;
     lng?: number;
   }>;
+  /** true면 마커/식당을 모두 화면에 보이도록 자동으로 맞춤 */
+  fitToBounds?: boolean;
+  /** 별도로 강조할 마커 (예: 강남역) */
+  specialMarker?: { lat: number; lng: number; title?: string };
 };
 
 
 const KakaoMap: React.FC<KakaoMapProps> = ({
   lat,
   lng,
-  level = 3,
+  level = 5,
   height = '100%',
   markerSize = 64,
   onMarkerClick,
   markers,
   restaurants,
+  fitToBounds = true,
+  specialMarker,
 }) => {
   const DEFAULT_LAT = lat;
   const DEFAULT_LNG = lng;
@@ -58,13 +64,21 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
         const map = new window.kakao.maps.Map(container, options);
 
 
-        // SVG 기반 커스텀 마커 이미지, 초록 핀 + 작은 중앙 점만 흰색
-        const svg = `<?xml version="1.0" encoding="UTF-8"?>
+        // SVG 기반 커스텀 마커 이미지
+        // 기본: 초록 핀
+        const svgGreen = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${markerSize}" height="${markerSize}" viewBox="0 0 24 24">
   <path fill="#4caf50" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/>
   <circle cx="12" cy="9.5" r="3" fill="#ffffff"/>
 </svg>`;
-        const dataUrl = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+        // 강남역 전용: 파란 핀
+        const svgBlue = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${markerSize}" height="${markerSize}" viewBox="0 0 24 24">
+  <path fill="#1e88e5" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/>
+  <circle cx="12" cy="9.5" r="3" fill="#ffffff"/>
+</svg>`;
+        const dataUrlGreen = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svgGreen);
+        const dataUrlBlue = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svgBlue);
 
 
         const imageSize = new window.kakao.maps.Size(markerSize, markerSize);
@@ -73,10 +87,9 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
         const imageOffset = new window.kakao.maps.Point(Math.floor(markerSize / 2), markerSize);
 
 
-        const markerImage = new window.kakao.maps.MarkerImage(dataUrl, imageSize, { offset: imageOffset });
+        const markerImageGreen = new window.kakao.maps.MarkerImage(dataUrlGreen, imageSize, { offset: imageOffset });
+        const markerImageBlue = new window.kakao.maps.MarkerImage(dataUrlBlue, imageSize, { offset: imageOffset });
 
-
-        // positions 계산: restaurants → lat/lng or geocode(address), 아니면 markers prop, 아니면 단일 기본 좌표
         let positions: Array<{ lat: number; lng: number; title?: string; address?: string; }> = [];
         if (restaurants && restaurants.length > 0) {
           const hasMissing = restaurants.some(r => typeof r.lat !== 'number' || typeof r.lng !== 'number');
@@ -124,8 +137,8 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
         }
 
 
-        // restaurants/markers가 있으면 화면에 모두 보이도록 bounds 적용
-        if (positions.length > 0 && (restaurants?.length || markers?.length)) {
+        // restaurants/markers가 있으면 화면에 모두 보이도록 bounds 적용 (옵션)
+        if (fitToBounds && positions.length > 0 && (restaurants?.length || markers?.length)) {
           const bounds = new window.kakao.maps.LatLngBounds();
           positions.forEach(p => bounds.extend(new window.kakao.maps.LatLng(p.lat, p.lng)));
           map.setBounds(bounds);
@@ -145,10 +158,11 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
 
 
         positions.forEach((pos, index) => {
+          const isGangnam = ((pos as any).title === '강남역');
           const marker = new window.kakao.maps.Marker({
             position: new window.kakao.maps.LatLng(pos.lat, pos.lng),
             title: (pos as any).title,
-            image: markerImage,
+            image: isGangnam ? markerImageBlue : markerImageGreen,
           });
           marker.setMap(map);
           createdMarkers.push(marker);
@@ -181,6 +195,35 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
             });
             labelOverlay.setMap(map);
             createdOverlays.push(labelOverlay);
+          }
+
+          // 강남역(파란 마커) 아래에 '현재 위치' 레이블 표시
+          if (isGangnam) {
+            const currentLabelHtml = `
+              <span
+                style="
+                  display: inline-block;
+                  pointer-events: none;
+                  white-space: nowrap;
+                  padding: 2px 6px;
+                  font-size: 11px;
+                  font-weight: 800;
+                  color: #1e88e5;
+                  text-shadow: -1px 0 white, 0 1px white, 1px 0 white, 0 -1px white;
+                  transform: translate(0, 10px);
+                "
+              >
+                현재 위치
+              </span>`;
+            const currentLabelOverlay = new window.kakao.maps.CustomOverlay({
+              position: new window.kakao.maps.LatLng(pos.lat, pos.lng),
+              content: currentLabelHtml,
+              yAnchor: 0,
+              xAnchor: 0.5,
+              zIndex: 2,
+            });
+            currentLabelOverlay.setMap(map);
+            createdOverlays.push(currentLabelOverlay);
           }
 
 
@@ -238,6 +281,49 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
             }
           });
         });
+
+        // 별도 강조 마커 표시 (중복 방지: 같은 좌표가 이미 있는 경우 생략)
+        if (specialMarker && typeof specialMarker.lat === 'number' && typeof specialMarker.lng === 'number') {
+          const exists = positions.some(p => Math.abs(p.lat - specialMarker.lat) < 1e-6 && Math.abs(p.lng - specialMarker.lng) < 1e-6);
+          if (!exists) {
+            const isGangnamTitle = specialMarker.title === '강남역';
+            const sm = new window.kakao.maps.Marker({
+              position: new window.kakao.maps.LatLng(specialMarker.lat, specialMarker.lng),
+              title: specialMarker.title,
+              image: isGangnamTitle ? markerImageBlue : markerImageGreen,
+            });
+            sm.setMap(map);
+            createdMarkers.push(sm);
+
+            // specialMarker가 강남역일 경우 '현재 위치' 레이블 표시
+            if (isGangnamTitle) {
+              const currentLabelHtml = `
+                <span
+                  style="
+                    display: inline-block;
+                    pointer-events: none;
+                    white-space: nowrap;
+                    padding: 2px 6px;
+                    font-size: 11px;
+                    font-weight: 800;
+                    color: #1e88e5;
+                    text-shadow: -1px 0 white, 0 1px white, 1px 0 white, 0 -1px white;
+                  "
+                >
+                  현재 위치
+                </span>`;
+              const currentLabelOverlay = new window.kakao.maps.CustomOverlay({
+                position: new window.kakao.maps.LatLng(specialMarker.lat, specialMarker.lng),
+                content: currentLabelHtml,
+                yAnchor: 0,
+                xAnchor: 0.5,
+                zIndex: 2,
+              });
+              currentLabelOverlay.setMap(map);
+              createdOverlays.push(currentLabelOverlay);
+            }
+          }
+        }
       });
     };
 
@@ -266,7 +352,7 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
       createdMarkers.forEach((m) => m.setMap(null));
       createdOverlays.forEach((o) => o.setMap(null));
     };
-  }, [lat, lng, level, markers, markerSize, onMarkerClick, restaurants]);
+  }, [lat, lng, level, markers, markerSize, onMarkerClick, restaurants, fitToBounds]);
 
 
   const resolvedHeight = typeof height === 'number' ? `${height}px` : height;

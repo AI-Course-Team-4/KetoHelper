@@ -3,10 +3,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { X, Plus, Edit, Calendar, Clock, Utensils, Target, TrendingUp } from 'lucide-react'
+import { Edit, Calendar, Clock, Utensils, Target } from 'lucide-react'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { MealData } from '@/data/ketoMeals'
+import { MealDetailModal } from './MealDetailModal'
 
 interface DateDetailModalProps {
   isOpen: boolean
@@ -14,6 +15,8 @@ interface DateDetailModalProps {
   selectedDate: Date
   mealData: MealData | null
   onSaveMeal: (date: Date, mealData: MealData) => void
+  onToggleComplete?: (date: Date, mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack') => void
+  isMealChecked?: (date: Date, mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack') => boolean
 }
 
 export function DateDetailModal({ 
@@ -21,7 +24,9 @@ export function DateDetailModal({
   onClose, 
   selectedDate, 
   mealData, 
-  onSaveMeal 
+  onSaveMeal,
+  onToggleComplete,
+  isMealChecked
 }: DateDetailModalProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editedMealData, setEditedMealData] = useState<MealData>({
@@ -30,6 +35,11 @@ export function DateDetailModal({
     dinner: mealData?.dinner || '',
     snack: mealData?.snack || ''
   })
+  const [selectedMealForDetail, setSelectedMealForDetail] = useState<{
+    type: 'breakfast' | 'lunch' | 'dinner' | 'snack'
+    content: string
+    info: { label: string; icon: string; time: string }
+  } | null>(null)
 
   const handleSave = () => {
     onSaveMeal(selectedDate, editedMealData)
@@ -44,6 +54,23 @@ export function DateDetailModal({
       snack: mealData?.snack || ''
     })
     setIsEditing(false)
+  }
+
+  const handleMealClick = (mealKey: string) => {
+    if (!mealData || !mealData[mealKey as keyof MealData]) return
+    
+    const meal = meals.find(m => m.key === mealKey)
+    if (meal) {
+      setSelectedMealForDetail({
+        type: mealKey as 'breakfast' | 'lunch' | 'dinner' | 'snack',
+        content: String(mealData[mealKey as keyof MealData] || ''),
+        info: {
+          label: meal.label,
+          icon: meal.icon,
+          time: meal.time
+        }
+      })
+    }
   }
 
   const meals = [
@@ -65,14 +92,11 @@ export function DateDetailModal({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="flex flex-row items-center justify-between">
+        <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
             {format(selectedDate, 'yyyy년 M월 d일 (E)', { locale: ko })}
           </DialogTitle>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
         </DialogHeader>
 
         <div className="space-y-6">
@@ -117,47 +141,111 @@ export function DateDetailModal({
               </Button>
             </CardHeader>
             <CardContent className="space-y-4">
-              {meals.map((meal) => (
-                <div key={meal.key} className="border rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">{meal.icon}</span>
-                      <div>
-                        <h4 className="font-medium">{meal.label}</h4>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <Clock className="h-3 w-3" />
-                          {meal.time}
+              {meals.map((meal) => {
+                const hasMealData = mealData && mealData[meal.key as keyof MealData]
+                const currentHour = new Date().getHours()
+                const mealHour = parseInt(meal.time.split(':')[0])
+                const today = new Date()
+                const selectedDateOnly = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate())
+                const todayDateOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+                
+                // 지난 날짜이거나, 오늘 날짜인데 식사 시간이 지났으면 true
+                const isPastMeal = selectedDateOnly < todayDateOnly || 
+                  (selectedDateOnly.getTime() === todayDateOnly.getTime() && currentHour > mealHour + 2)
+                
+                const isCompletedMeal = isMealChecked ? isMealChecked(selectedDate, meal.key as 'breakfast' | 'lunch' | 'dinner' | 'snack') : false
+                
+                return (
+                  <div 
+                    key={meal.key} 
+                    className={`border rounded-lg p-4 transition-all duration-200 ${
+                      hasMealData && !isEditing ? 'cursor-pointer hover:bg-gray-50 hover:shadow-md' : ''
+                    } ${
+                      isCompletedMeal ? 'bg-green-50 border-green-200' : 
+                      isPastMeal && !isCompletedMeal && !isEditing ? 'bg-gray-50 border-gray-200 opacity-60' : ''
+                    }`}
+                    onClick={() => hasMealData && !isEditing ? handleMealClick(meal.key) : undefined}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{meal.icon}</span>
+                        <div>
+                          <h4 className={`font-medium flex items-center gap-2 ${
+                            isPastMeal && !isCompletedMeal && !isEditing ? 'text-gray-500' : ''
+                          }`}>
+                            {meal.label}
+                            {isCompletedMeal && (
+                              <span className="text-green-600">✓</span>
+                            )}
+                            {isPastMeal && !isCompletedMeal && !isEditing && (
+                              <span className="text-gray-400 text-xs">(지난 시간)</span>
+                            )}
+                          </h4>
+                          <div className={`flex items-center gap-1 text-sm ${
+                            isPastMeal && !isCompletedMeal && !isEditing ? 'text-gray-400' : 'text-muted-foreground'
+                          }`}>
+                            <Clock className="h-3 w-3" />
+                            {meal.time}
+                          </div>
                         </div>
                       </div>
+                      <div className="flex items-center gap-2">
+                        {hasMealData && !isEditing && (
+                          <>
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (onToggleComplete) {
+                                  onToggleComplete(selectedDate, meal.key as 'breakfast' | 'lunch' | 'dinner' | 'snack')
+                                }
+                              }}
+                              className="cursor-pointer"
+                            >
+                              {isCompletedMeal ? (
+                                <span className="text-green-500 text-lg">✅</span>
+                              ) : (
+                                <span className="text-gray-400 text-lg">⭕</span>
+                              )}
+                            </div>
+                            <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                              클릭해서 상세보기
+                            </div>
+                          </>
+                        )}
+                        {ketoScore > 75 && (
+                          <Badge variant="secondary" className="bg-green-100 text-green-800">
+                            키토 친화적
+                          </Badge>
+                        )}
+                      </div>
                     </div>
-                    {ketoScore > 75 && (
-                      <Badge variant="secondary" className="bg-green-100 text-green-800">
-                        키토 친화적
-                      </Badge>
+                    
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={String(editedMealData[meal.key as keyof MealData] || '')}
+                        onChange={(e) => setEditedMealData(prev => ({
+                          ...prev,
+                          [meal.key]: e.target.value
+                        }))}
+                        placeholder={`${meal.label} 메뉴를 입력하세요`}
+                        className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                      />
+                    ) : (
+                      <div className={`text-sm ${
+                        isCompletedMeal ? 'text-green-700' : 
+                        isPastMeal && !isCompletedMeal && !isEditing ? 'text-gray-400' : 
+                        'text-muted-foreground'
+                      }`}>
+                        {hasMealData 
+                          ? mealData[meal.key as keyof MealData]
+                          : '계획된 식단이 없습니다'
+                        }
+                      </div>
                     )}
                   </div>
-                  
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={editedMealData[meal.key as keyof MealData] || ''}
-                      onChange={(e) => setEditedMealData(prev => ({
-                        ...prev,
-                        [meal.key]: e.target.value
-                      }))}
-                      placeholder={`${meal.label} 메뉴를 입력하세요`}
-                      className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                    />
-                  ) : (
-                    <div className="text-sm text-muted-foreground">
-                      {mealData && mealData[meal.key as keyof MealData] 
-                        ? mealData[meal.key as keyof MealData]
-                        : '계획된 식단이 없습니다'
-                      }
-                    </div>
-                  )}
-                </div>
-              ))}
+                )
+              })}
 
               {isEditing && (
                 <div className="flex gap-2 pt-4">
@@ -222,19 +310,19 @@ export function DateDetailModal({
             </CardContent>
           </Card>
 
-          {/* 액션 버튼들 */}
-          <div className="flex gap-2">
-            <Button className="flex-1" onClick={() => {/* AI 식단 추천 */}}>
-              <TrendingUp className="h-4 w-4 mr-2" />
-              AI 식단 추천
-            </Button>
-            <Button variant="outline" className="flex-1">
-              <Plus className="h-4 w-4 mr-2" />
-              식단 추가
-            </Button>
-          </div>
         </div>
       </DialogContent>
+
+      {/* 식단 상세정보 모달 */}
+      {selectedMealForDetail && (
+        <MealDetailModal
+          isOpen={!!selectedMealForDetail}
+          onClose={() => setSelectedMealForDetail(null)}
+          mealType={selectedMealForDetail.type}
+          mealContent={selectedMealForDetail.content}
+          mealInfo={selectedMealForDetail.info}
+        />
+      )}
     </Dialog>
   )
 }

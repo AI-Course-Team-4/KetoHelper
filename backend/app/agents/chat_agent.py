@@ -21,7 +21,7 @@ class SimpleKetoCoachAgent:
     
     # 기본 설정 (개인 설정이 없을 때 사용)
     DEFAULT_AGENT_NAME = "Simple Keto Coach"
-    DEFAULT_PROMPT_FILE_NAME = "general_chat_prompt"  # chat/prompts/ 폴더의 파일명
+    DEFAULT_PROMPT_FILE_NAME = "general_chat"  # chat/prompts/ 폴더의 파일명
     
     def __init__(self, prompt_file_name: str = None, agent_name: str = None):
         # 개인 설정 로드
