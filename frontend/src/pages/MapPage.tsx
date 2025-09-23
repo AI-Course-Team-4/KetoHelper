@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Search, MapPin } from 'lucide-react'
+import { Search, MapPin, Utensils } from 'lucide-react'
 import { PlaceCard } from '@/components/PlaceCard'
 import { useSearchPlaces } from '@/hooks/useApi'
 import KakaoMap from './KakaoMap'
-import TestPage from './KetoRestaurant'
+import KetoRestaurant from './KetoRestaurant'
 import { supabase } from '@/lib/supabaseClient'
 
 export function MapPage() {
@@ -14,6 +14,9 @@ export function MapPage() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [selectedCategory, setSelectedCategory] = useState('')
   const [mapRestaurants, setMapRestaurants] = useState<Array<{ id: string; name: string; address: string; lat?: number; lng?: number }>>([])
+  const [nearbyCount, setNearbyCount] = useState<number>(0)
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
+  const listContainerRef = useRef<HTMLDivElement | null>(null)
 
   const searchPlaces = useSearchPlaces()
 
@@ -133,29 +136,52 @@ export function MapPage() {
         </CardContent>
       </Card>
 
-      {/* 지도 영역 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center">
-            <MapPin className="h-5 w-5 mr-2" />
-            지도
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-96 bg-muted rounded-lg flex items-center justify-center">
-            <KakaoMap
-              lat={userLocation?.lat}
-              lng={userLocation?.lng}
-              level={2}
-              height="100%"
-              markerSize={64}
-              onMarkerClick={() => { }}
-              markers={[]}
-              restaurants={mapRestaurants}
-            />
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <Card className="lg:col-span-8">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center">
+              <MapPin className="h-5 w-5 mr-2" />
+              지도
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[800px] bg-muted rounded-lg flex items-center justify-center">
+              <KakaoMap
+                lat={userLocation?.lat}
+                lng={userLocation?.lng}
+                level={2}
+                fitToBounds={false}
+                onMarkerClick={({ index }) => { setSelectedIndex(index) }}
+                markers={[]}
+                restaurants={mapRestaurants}
+                specialMarker={(!userLocation || (Math.abs(userLocation.lat - 37.4979) < 0.0007 && Math.abs(userLocation.lng - 127.0276) < 0.0007))
+                  ? { lat: 37.4979, lng: 127.0276, title: '강남역' }
+                  : undefined}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-4">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center">
+              <Utensils className="h-5 w-5 mr-2" />
+              주변 키토 친화 식당
+              <span className="ml-auto text-muted-foreground text-sm">{nearbyCount.toLocaleString()}개</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[800px] overflow-auto pr-4 md:pr-6" ref={listContainerRef}>
+              <KetoRestaurant
+                onCountChange={setNearbyCount}
+                restaurants={mapRestaurants}
+                activeIndex={selectedIndex ?? undefined}
+                scrollContainerRef={listContainerRef}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* 검색 결과 */}
       {searchPlaces.data && (
@@ -169,11 +195,7 @@ export function MapPage() {
         </div>
       )}
 
-      {/* 주변 추천 식당 */}
-      <div>
-        <h2 className="text-xl font-semibold mb-4">주변 키토 친화 식당</h2>
-        <TestPage />
-      </div>
+      
 
       {/* 위치 정보가 없는 경우 */}
       {!userLocation && (
