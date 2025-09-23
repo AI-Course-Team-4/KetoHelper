@@ -3,6 +3,8 @@ from typing import Any, Dict, Optional
 
 import os
 import jwt
+from fastapi import HTTPException, Depends, Request
+from fastapi.security import HTTPBearer
 
 
 JWT_SECRET = os.getenv("JWT_SECRET", "dev_secret_change_me")
@@ -41,4 +43,67 @@ def create_refresh_token(subject: str, claims: Optional[Dict[str, Any]] = None) 
 
 def decode_token(token: str) -> Dict[str, Any]:
     return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+
+
+# FastAPI security scheme
+security = HTTPBearer()
+
+
+def get_current_user(request: Request) -> Dict[str, Any]:
+    """
+    JWT 토큰에서 현재 사용자 정보를 추출합니다.
+    쿠키 또는 Authorization 헤더에서 토큰을 읽습니다.
+    """
+    token = None
+    
+    # 1. 쿠키에서 access_token 확인
+    token = request.cookies.get("access_token")
+    
+    # 2. Authorization 헤더에서 토큰 확인
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+    
+    if not token:
+        raise HTTPException(
+            status_code=401,
+            detail="인증 토큰이 없습니다"
+        )
+    
+    try:
+        payload = decode_token(token)
+        
+        # 토큰 타입 확인
+        if payload.get("type") != "access":
+            raise HTTPException(
+                status_code=401,
+                detail="잘못된 토큰 타입입니다"
+            )
+        
+        # 토큰 만료 확인
+        exp = payload.get("exp")
+        if exp and datetime.fromtimestamp(exp, tz=timezone.utc) < _now_utc():
+            raise HTTPException(
+                status_code=401,
+                detail="토큰이 만료되었습니다"
+            )
+        
+        # 사용자 정보 반환
+        return {
+            "id": payload.get("sub"),
+            "email": payload.get("email", ""),
+            "name": payload.get("name", "")
+        }
+        
+    except jwt.InvalidTokenError:
+        raise HTTPException(
+            status_code=401,
+            detail="유효하지 않은 토큰입니다"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=401,
+            detail=f"토큰 검증 실패: {str(e)}"
+        )
 

@@ -13,8 +13,9 @@ import { useAuthStore } from '@/store/authStore'
 import { authService } from '@/lib/authService'
 import { toast } from 'react-hot-toast'
 import { LoginModal } from './LoginModal'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { cleanupLocalAuthArtifacts, clearChatHistoryStorage, clearNaverOAuthState } from '@/lib/bootCleanup'
+import { shouldRedirectOnTokenExpiry } from '@/lib/routeUtils'
 
 export function Header() {
   const [, setIsSearchOpen] = useState(false)
@@ -22,6 +23,7 @@ export function Header() {
   const [avatarError, setAvatarError] = useState(false)
   const { user, clear } = useAuthStore()
   const navigate = useNavigate()
+  const location = useLocation()
   const avatarSrc = user?.profileImage
     ? user.profileImage.replace(/^http:/, 'https:')
     : undefined
@@ -37,10 +39,17 @@ export function Header() {
     } catch {
       // ignore
     }
-    clear()
+    
+    // 현재 경로에 따라 리다이렉트 여부 결정
+    const shouldRedirect = shouldRedirectOnTokenExpiry(location.pathname)
+    
+    clear(shouldRedirect)
     try { cleanupLocalAuthArtifacts() } catch {}
     try { clearChatHistoryStorage() } catch {}
     try { clearNaverOAuthState() } catch {}
+    
+    // 수동 로그아웃은 항상 메인 페이지로 (사용자가 의도한 행동)
+    navigate('/')
   }
 
   const handleMenuClick = () => {

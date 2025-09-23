@@ -2,21 +2,44 @@ import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Search, MapPin, Utensils } from 'lucide-react'
+import { Search, MapPin, Utensils, Loader2 } from 'lucide-react'
 import { PlaceCard } from '@/components/PlaceCard'
-import { useSearchPlaces } from '@/hooks/useApi'
+import { useSearchPlaces, api } from '@/hooks/useApi'
 import KakaoMap from './KakaoMap'
-import KetoRestaurant from './KetoRestaurant'
-import { supabase } from '@/lib/supabaseClient'
 
 export function MapPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [selectedCategory, setSelectedCategory] = useState('')
-  const [mapRestaurants, setMapRestaurants] = useState<Array<{ id: string; name: string; address: string; lat?: number; lng?: number }>>([])
+  const [mapRestaurants, setMapRestaurants] = useState<Array<{ 
+    id: string; 
+    name: string; 
+    address: string; 
+    lat?: number; 
+    lng?: number; 
+    source_url?: string;
+    keto_score?: number;
+    why?: string[];
+    tips?: string[];
+    category?: string;
+  }>>([])
+  const [listRestaurants, setListRestaurants] = useState<Array<{ 
+    id: string; 
+    name: string; 
+    address: string; 
+    lat?: number; 
+    lng?: number; 
+    source_url?: string;
+    keto_score?: number;
+    why?: string[];
+    tips?: string[];
+    category?: string;
+  }>>([])
   const [nearbyCount, setNearbyCount] = useState<number>(0)
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
   const listContainerRef = useRef<HTMLDivElement | null>(null)
+  const itemRefs = useRef<Array<HTMLDivElement | null>>([])
 
   const searchPlaces = useSearchPlaces()
 
@@ -42,43 +65,98 @@ export function MapPage() {
     }
   }, [])
 
-  // Supabase 레스토랑 좌표를 지도에 표시할 데이터로 로드
+  // 백엔드에서 키토 식당 데이터 로드
   useEffect(() => {
     const loadRestaurants = async () => {
+      if (!userLocation) return
+      setIsLoading(true)
       try {
-        const { data, error } = await supabase
-          .from('restaurant')
-          .select('id,name,addr_road,addr_jibun,lat,lng')
-          .limit(200)
-        if (error) {
-          console.error('레스토랑 로드 실패:', error)
-          return
-        }
-        const mapped = (data || []).map((r: any) => ({
-          id: String(r.id),
-          name: r.name ?? '',
-          address: r.addr_road ?? r.addr_jibun ?? '',
-          lat: typeof r.lat === 'number' ? r.lat : undefined,
-          lng: typeof r.lng === 'number' ? r.lng : undefined,
+        const res = await api.get('/places/high-keto-score', {
+          params: {
+            lat: userLocation.lat,
+            lng: userLocation.lng,
+            radius: 2000,
+            min_score: 30,
+            max_results: 50,
+          },
+        })
+        console.log('백엔드 응답:', res.data)
+        const places = res.data?.places || []
+        console.log('places 배열:', places)
+        const mapped = places.map((p: any) => ({
+          id: String(p.place_id || ''),
+          name: p.name || '',
+          address: p.address || '',
+          lat: typeof p.lat === 'number' ? p.lat : undefined,
+          lng: typeof p.lng === 'number' ? p.lng : undefined,
+          source_url: p.source_url || undefined,
+          keto_score: typeof p.keto_score === 'number' ? p.keto_score : undefined,
+          why: Array.isArray(p.why) ? p.why : undefined,
+          tips: Array.isArray(p.tips) ? p.tips : undefined,
+          category: p.category || undefined,
         }))
+        console.log('매핑된 데이터:', mapped)
         setMapRestaurants(mapped)
+        setListRestaurants(mapped)
+        setNearbyCount(mapped.length)
       } catch (e) {
-        console.error('레스토랑 로드 중 에러:', e)
+        console.error('백엔드 식당 로드 중 에러:', e)
+      } finally {
+        setIsLoading(false)
       }
     }
     loadRestaurants()
-  }, [])
+  }, [userLocation])
+
+  // 마커 선택 시 리스트 자동 스크롤
+  useEffect(() => {
+    if (typeof selectedIndex === 'number' && selectedIndex >= 0) {
+      const el = itemRefs.current[selectedIndex]
+      const container = listContainerRef?.current || (el?.parentElement?.parentElement as HTMLElement | null)
+      if (el && container) {
+        const containerRect = container.getBoundingClientRect()
+        const elRect = el.getBoundingClientRect()
+        const offset = elRect.top - containerRect.top + container.scrollTop - containerRect.height / 2 + elRect.height / 2
+        container.scrollTo({ top: offset, behavior: 'smooth' })
+      }
+    }
+  }, [selectedIndex, listContainerRef])
 
   const handleSearch = async () => {
-    if (!searchQuery.trim() || !userLocation) return
-
-    await searchPlaces.mutateAsync({
-      q: searchQuery,
-      lat: userLocation.lat,
-      lng: userLocation.lng,
-      radius: 1000,
-      category: selectedCategory || undefined
-    })
+    if (!userLocation) return
+    setIsLoading(true)
+    try {
+      const res = await api.get('/places/high-keto-score', {
+        params: {
+          lat: userLocation.lat,
+          lng: userLocation.lng,
+          radius: 2000,
+          min_score: 30,
+          max_results: 50,
+        },
+      })
+      const places = res.data?.places || []
+      const mapped = places.map((p: any) => ({
+        id: String(p.place_id || ''),
+        name: p.name || '',
+        address: p.address || '',
+        lat: typeof p.lat === 'number' ? p.lat : undefined,
+        lng: typeof p.lng === 'number' ? p.lng : undefined,
+        source_url: p.source_url || undefined,
+        keto_score: typeof p.keto_score === 'number' ? p.keto_score : undefined,
+        why: Array.isArray(p.why) ? p.why : undefined,
+        tips: Array.isArray(p.tips) ? p.tips : undefined,
+        category: p.category || undefined,
+      }))
+      setMapRestaurants(mapped)
+      setListRestaurants(mapped)
+      setNearbyCount(mapped.length)
+      setSelectedIndex(null)
+    } catch (e) {
+      console.error('검색 중 에러:', e)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const categories = [
@@ -114,9 +192,18 @@ export function MapPage() {
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
               className="flex-1"
             />
-            <Button onClick={handleSearch} disabled={!userLocation}>
-              <Search className="h-4 w-4 mr-2" />
-              검색
+            <Button onClick={handleSearch} disabled={!userLocation || isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  검색 중...
+                </>
+              ) : (
+                <>
+                  <Search className="h-4 w-4 mr-2" />
+                  검색
+                </>
+              )}
             </Button>
           </div>
 
@@ -153,10 +240,10 @@ export function MapPage() {
                 fitToBounds={false}
                 onMarkerClick={({ index }) => { setSelectedIndex(index) }}
                 markers={[]}
-                restaurants={mapRestaurants}
-                specialMarker={(!userLocation || (Math.abs(userLocation.lat - 37.4979) < 0.0007 && Math.abs(userLocation.lng - 127.0276) < 0.0007))
-                  ? { lat: 37.4979, lng: 127.0276, title: '강남역' }
-                  : undefined}
+                restaurants={listRestaurants.length ? listRestaurants : mapRestaurants}
+                specialMarker={userLocation
+                  ? { lat: userLocation.lat, lng: userLocation.lng, title: '현재 위치' }
+                  : { lat: 37.4979, lng: 127.0276, title: '강남역' }}
               />
             </div>
           </CardContent>
@@ -172,12 +259,104 @@ export function MapPage() {
           </CardHeader>
           <CardContent>
             <div className="h-[800px] overflow-auto pr-4 md:pr-6" ref={listContainerRef}>
-              <KetoRestaurant
-                onCountChange={setNearbyCount}
-                restaurants={mapRestaurants}
-                activeIndex={selectedIndex ?? undefined}
-                scrollContainerRef={listContainerRef}
-              />
+              {isLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                  <span className="ml-2">로딩 중...</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4">
+                  {(listRestaurants.length ? listRestaurants : mapRestaurants).map((r, index) => {
+                    const address = (r as any).addr_road || (r as any).address || (r as any).addr_jibun || ''
+                    const active = typeof selectedIndex === 'number' && selectedIndex === index
+                    let url = (r as any).source_url || ''
+                    const ketoScore = (r as any).keto_score
+                    const why = (r as any).why || []
+                    const tips = (r as any).tips || []
+                    const category = (r as any).category
+                    
+                    return (
+                      <div key={(r as any).id} ref={(el) => (itemRefs.current[index] = el)}>
+                        <Card className={`overflow-hidden transition-[box-shadow,background-color] ${active ? 'ring-2 ring-inset ring-primary/60 bg-primary/5' : ''}`}>
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-base flex items-center justify-between gap-2">
+                              <span className="truncate" title={(r as any).name || undefined}>{(r as any).name || '이름 없음'}</span>
+                              <div className="flex items-center gap-2">
+                                {ketoScore && (
+                                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                    ketoScore >= 80 ? 'bg-green-100 text-green-800' :
+                                    ketoScore >= 60 ? 'bg-blue-100 text-blue-800' :
+                                    ketoScore >= 40 ? 'bg-yellow-100 text-yellow-800' :
+                                    'bg-red-100 text-red-800'
+                                  }`}>
+                                    키토 {ketoScore}점
+                                  </span>
+                                )}
+                                {category && (
+                                  <span className="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded-full">
+                                    {category}
+                                  </span>
+                                )}
+                              </div>
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            <div className="text-sm text-muted-foreground truncate" title={address}>{address || '주소 정보 없음'}</div>
+                            
+                            {why.length > 0 && (
+                              <div className="space-y-1">
+                                <div className="text-xs font-medium text-gray-700">키토 친화 이유:</div>
+                                <ul className="text-xs text-gray-600 space-y-1">
+                                  {why.map((reason: string, idx: number) => (
+                                    <li key={idx} className="flex items-start">
+                                      <span className="text-green-500 mr-1">•</span>
+                                      <span>{reason}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            
+                            {tips.length > 0 && (
+                              <div className="space-y-1">
+                                <div className="text-xs font-medium text-gray-700">팁:</div>
+                                <ul className="text-xs text-gray-600 space-y-1">
+                                  {tips.map((tip: string, idx: number) => (
+                                    <li key={idx} className="flex items-start">
+                                      <span className="text-blue-500 mr-1">💡</span>
+                                      <span>{tip}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                              {url ? (
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="underline hover:text-foreground"
+                                >
+                                  링크 열기
+                                </a>
+                              ) : (
+                                <span className="text-gray-400">
+                                  링크 없음
+                                </span>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )
+                  })}
+                  {(listRestaurants.length ? listRestaurants : mapRestaurants).length === 0 && (
+                    <div className="text-sm text-muted-foreground">표시할 식당이 없습니다.</div>
+                  )}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
