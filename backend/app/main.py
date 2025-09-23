@@ -17,6 +17,7 @@ import asyncio
 from app.domains.chat.api import chat
 from app.domains.restaurant.api import places
 from app.domains.meal.api import plans
+from app.domains.profile.api import profile
 from app.shared.api import auth as auth_api
 from app.core.config import settings
 from app.core.database import init_db
@@ -78,6 +79,7 @@ print("🔧 DEBUG: 라우터 등록 중...")
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(places.router, prefix="/api/v1") 
 app.include_router(plans.router, prefix="/api/v1")
+app.include_router(profile.router, prefix="/api/v1")
 app.include_router(auth_api.router, prefix="/api/v1")
 print("✅ DEBUG: 모든 라우터 등록 완료")
 

@@ -4,6 +4,7 @@ from fastapi import Response, Request
 from pydantic import BaseModel
 import httpx
 import os
+import jwt
 from app.core.jwt_utils import (
     create_access_token,
     create_refresh_token,
@@ -40,12 +41,31 @@ async def _upsert_user(profile: dict) -> dict:
     except Exception:
         fixed_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{provider}:{raw_id}"))
 
-    user_data = {
-        "id": fixed_id,
-        "email": profile.get("email", ""),
-        "nickname": profile.get("name") or profile.get("nickname") or "",
-        "profile_image_url": profile.get("picture") or profile.get("profile_image") or "",
-    }
+    # 먼저 기존 사용자 확인
+    try:
+        existing_resp = supabase_admin.table("users").select("*").eq("id", fixed_id).execute()
+        existing_user = getattr(existing_resp, "data", None)
+        existing_user = existing_user[0] if existing_user else None
+    except Exception:
+        existing_user = None
+
+    # 기존 사용자가 있다면 nickname 보존, 없다면 소셜 로그인 정보 사용
+    if existing_user:
+        user_data = {
+            "id": fixed_id,
+            "email": profile.get("email", ""),
+            # 기존 nickname이 있으면 보존, 없으면 소셜 로그인 정보 사용
+            "nickname": existing_user.get("nickname") or profile.get("name") or profile.get("nickname") or "",
+            "profile_image_url": profile.get("picture") or profile.get("profile_image") or "",
+        }
+    else:
+        # 신규 사용자는 소셜 로그인 정보 사용
+        user_data = {
+            "id": fixed_id,
+            "email": profile.get("email", ""),
+            "nickname": profile.get("name") or profile.get("nickname") or "",
+            "profile_image_url": profile.get("picture") or profile.get("profile_image") or "",
+        }
 
     try:
         resp = supabase_admin.table("users").upsert([user_data], on_conflict="id").execute()
@@ -203,18 +223,93 @@ async def refresh_token(payload: RefreshRequest, request: Request, response: Res
         token = payload.refresh_token or request.cookies.get("refresh_token")
         if not token:
             raise HTTPException(status_code=401, detail="Missing refresh token")
+        
+        # 토큰 디코딩 및 검증
         data = decode_token(token)
         if data.get("type") != "refresh":
             raise HTTPException(status_code=400, detail="Invalid token type")
+        
         user_id = data.get("sub")
-        access = create_access_token(user_id)
-        # 업데이트된 액세스 토큰을 쿠키에도 반영
-        # 기존 리프레시 토큰은 그대로 유지
-        _set_auth_cookies(response, access, request.cookies.get("refresh_token", ""))
-        return {"accessToken": access}
-    except Exception:
+        if not user_id:
+            raise HTTPException(status_code=400, detail="Invalid token payload")
+        
+        # 사용자 정보 조회 (토큰에 포함할 claims 준비)
+        user_response = supabase_admin.table("users").select("email, nickname").eq("id", user_id).execute()
+        user_claims = {}
+        if user_response.data:
+            user_data = user_response.data[0]
+            user_claims = {
+                "email": user_data.get("email"),
+                "name": user_data.get("nickname") or user_data.get("email", "").split("@")[0]
+            }
+        
+        # 새로운 토큰들 생성
+        access = create_access_token(user_id, user_claims)
+        refresh = create_refresh_token(user_id)
+        
+        # 쿠키에 새로운 토큰들 설정
+        _set_auth_cookies(response, access, refresh)
+        
+        # 응답 본문으로도 반환 (프론트엔드 호환성)
+        return {"accessToken": access, "refreshToken": refresh}
+        
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Refresh token expired")
+    except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
+    except Exception as e:
+        print(f"Refresh token error: {e}")
+        raise HTTPException(status_code=401, detail="Token refresh failed")
 
+
+@router.post("/test-token")
+async def test_token(request: Request):
+    """토큰 상태 테스트용 엔드포인트"""
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+    auth_header = request.headers.get("Authorization")
+    
+    result = {
+        "cookies": {
+            "access_token": bool(access_token),
+            "refresh_token": bool(refresh_token),
+            "access_length": len(access_token) if access_token else 0,
+            "refresh_length": len(refresh_token) if refresh_token else 0
+        },
+        "headers": {
+            "authorization": bool(auth_header),
+            "auth_length": len(auth_header) if auth_header else 0
+        }
+    }
+    
+    # 토큰 디코딩 시도
+    try:
+        if refresh_token:
+            refresh_data = decode_token(refresh_token)
+            result["refresh_valid"] = True
+            result["refresh_exp"] = refresh_data.get("exp")
+            result["refresh_type"] = refresh_data.get("type")
+            result["refresh_user_id"] = refresh_data.get("sub")
+        else:
+            result["refresh_valid"] = False
+    except Exception as e:
+        result["refresh_valid"] = False
+        result["refresh_error"] = str(e)
+    
+    try:
+        if access_token:
+            access_data = decode_token(access_token)
+            result["access_valid"] = True
+            result["access_exp"] = access_data.get("exp")
+            result["access_type"] = access_data.get("type")
+            result["access_user_id"] = access_data.get("sub")
+        else:
+            result["access_valid"] = False
+    except Exception as e:
+        result["access_valid"] = False
+        result["access_error"] = str(e)
+    
+    return result
 
 @router.post("/logout")
 async def logout(response: Response):
