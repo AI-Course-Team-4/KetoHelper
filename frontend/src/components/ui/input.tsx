@@ -117,7 +117,31 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     }
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      // 조합 중에는 값을 건드리지 않음 (조합중 보호)
+      // 조합 중에는 값 정규화하지 않음 (한글 입력 보호)
+      if (isComposing) {
+        onChange?.(e)
+        return
+      }
+      
+      // 조합이 아닐 때만 실시간 정규화 (영문, 숫자 등)
+      if (numericOnly) {
+        const target = e.target as HTMLInputElement
+        const normalizedValue = normalize(target.value, false) // 실시간에는 콤마 없이
+        
+        if (target.value !== normalizedValue) {
+          target.value = normalizedValue
+          
+          // 정규화된 값으로 새 이벤트 생성
+          const syntheticEvent = {
+            target: target,
+            currentTarget: e.currentTarget,
+            type: 'change',
+          } as React.ChangeEvent<HTMLInputElement>
+          onChange?.(syntheticEvent)
+          return
+        }
+      }
+      
       onChange?.(e)
     }
 
