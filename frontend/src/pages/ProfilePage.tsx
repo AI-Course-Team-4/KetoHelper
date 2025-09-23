@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/common'
-import { User, Target, AlertTriangle, Trash2, Plus, Loader2 } from 'lucide-react'
+import { User, Target, AlertTriangle, Trash2, Plus, Loader2, ThumbsDown } from 'lucide-react'
 import { useProfileStore, useProfileHelpers } from '@/store/profileStore'
 import { useAuthStore } from '@/store/authStore'
 import { toast } from 'react-hot-toast'
@@ -117,7 +117,7 @@ export function ProfilePage() {
     setIsBasicInfoLoading(true)
     try {
       await updateProfile(user.id, {
-        nickname: nickname || undefined,
+      nickname: nickname || undefined,
       })
       
       // 저장 성공 시 원본 데이터 업데이트
@@ -291,19 +291,19 @@ export function ProfilePage() {
   return (
     <div className="space-y-6">
       {/* 헤더 */}
-          <div>
-            <h1 className="text-2xl font-bold text-gradient">프로필 설정</h1>
-            <p className="text-muted-foreground mt-1">
-              개인 정보와 키토 다이어트 목표를 설정하세요
-            </p>
-          </div>
+      <div>
+        <h1 className="text-2xl font-bold text-gradient">프로필 설정</h1>
+        <p className="text-muted-foreground mt-1">
+          개인 정보와 키토 다이어트 목표를 설정하세요
+        </p>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* 기본 정보 */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
-              <User className="h-5 w-5 mr-2" />
+              <User className="h-5 w-5 mr-2 text-gray-800" />
               기본 정보
             </CardTitle>
           </CardHeader>
@@ -353,7 +353,7 @@ export function ProfilePage() {
                   ) : (
                     '저장'
                   )}
-                </Button>
+            </Button>
           </CardContent>
         </Card>
 
@@ -361,45 +361,45 @@ export function ProfilePage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
-              <Target className="h-5 w-5 mr-2" />
+              <Target className="h-5 w-5 mr-2 text-green-600" />
               키토 목표
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium">일일 목표 칼로리</label>
-                  <Input
+            <div>
+              <label className="text-sm font-medium">일일 목표 칼로리</label>
+              <Input
                     type="text"
                     numericOnly
                     min={0}
                     max={3000}
                     useComma
-                    value={goalsKcal}
-                    onChange={(e) => setGoalsKcal(e.target.value)}
-                    placeholder="1500"
-                    className="mt-1"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
+                value={goalsKcal}
+                onChange={(e) => setGoalsKcal(e.target.value)}
+                placeholder="1500"
+                className="mt-1"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
                     개인의 기초대사율과 활동량을 고려하세요, 최대 3000kcal까지 입력 가능합니다.
-                  </p>
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium">일일 최대 탄수화물 (g)</label>
-                  <Input
+              </p>
+            </div>
+            
+            <div>
+              <label className="text-sm font-medium">일일 최대 탄수화물 (g)</label>
+              <Input
                     type="text"
                     numericOnly
                     min={0}
                     max={50}
-                    value={goalsCarbsG}
-                    onChange={(e) => setGoalsCarbsG(e.target.value)}
+                value={goalsCarbsG}
+                onChange={(e) => setGoalsCarbsG(e.target.value)}
                     placeholder="20"
-                    className="mt-1"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
+                className="mt-1"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
                     키토시스 유지를 위해 20-30g 권장, 최대 50g까지 입력 가능합니다.
-                  </p>
-                </div>
+              </p>
+            </div>
             
             <Button 
               onClick={handleSaveKetoGoals} 
@@ -425,12 +425,12 @@ export function ProfilePage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
-              <AlertTriangle className="h-5 w-5 mr-2" />
+              <AlertTriangle className="h-5 w-5 mr-2 text-red-600" />
               알레르기
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-                <div className="flex gap-2">
+            <div className="flex gap-2">
                   <Select value={selectedAllergyId} onValueChange={setSelectedAllergyId}>
                     <SelectTrigger className="flex-1" size="lg">
                       <SelectValue placeholder="알레르기를 선택하세요" />
@@ -477,27 +477,27 @@ export function ProfilePage() {
                     {isAllergyLoading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <Plus className="h-4 w-4" />
+                <Plus className="h-4 w-4" />
                     )}
-                  </Button>
-                </div>
+              </Button>
+            </div>
             
                 <div className="space-y-3">
-                  <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
                     {profile?.allergy_names?.map((allergyName, index) => {
                       const allergyId = profile.selected_allergy_ids[index]
                       return (
-                        <Badge 
+                <Badge 
                           key={allergyId} 
                           variant="outline" 
                           className="flex items-center gap-1 bg-red-100 text-red-800 border-red-300 hover:bg-red-200"
                         >
                           {allergyName}
-                          <Trash2 
-                            className="h-3 w-3 cursor-pointer" 
+                  <Trash2 
+                    className="h-3 w-3 cursor-pointer" 
                             onClick={() => handleRemoveAllergy(allergyId)}
-                          />
-                        </Badge>
+                  />
+                </Badge>
                       )
                     })}
                   </div>
@@ -514,7 +514,7 @@ export function ProfilePage() {
                       전체 삭제 ({profile.allergy_names.length}개)
                     </Button>
                   )}
-                </div>
+            </div>
             
             {(!profile?.allergy_names || profile.allergy_names.length === 0) && (
               <p className="text-sm text-muted-foreground">
@@ -527,10 +527,13 @@ export function ProfilePage() {
         {/* 비선호 재료 */}
         <Card>
           <CardHeader>
-            <CardTitle>비선호 재료</CardTitle>
+            <CardTitle className="flex items-center">
+              <ThumbsDown className="h-5 w-5 mr-2 text-orange-600" />
+              비선호 재료
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-                <div className="flex gap-2">
+            <div className="flex gap-2">
                   <Select value={selectedDislikeId} onValueChange={setSelectedDislikeId}>
                     <SelectTrigger className="flex-1" size="lg">
                       <SelectValue placeholder="비선호 재료를 선택하세요" />
@@ -577,27 +580,27 @@ export function ProfilePage() {
                     {isDislikeLoading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <Plus className="h-4 w-4" />
+                <Plus className="h-4 w-4" />
                     )}
-                  </Button>
-                </div>
+              </Button>
+            </div>
             
                 <div className="space-y-3">
-                  <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
                     {profile?.dislike_names?.map((dislikeName, index) => {
                       const dislikeId = profile.selected_dislike_ids[index]
                       return (
-                        <Badge 
+                <Badge 
                           key={dislikeId} 
-                          variant="outline" 
+                  variant="outline" 
                           className="flex items-center gap-1 bg-orange-100 text-orange-800 border-orange-300 hover:bg-orange-200"
-                        >
+                >
                           {dislikeName}
-                          <Trash2 
-                            className="h-3 w-3 cursor-pointer" 
+                  <Trash2 
+                    className="h-3 w-3 cursor-pointer" 
                             onClick={() => handleRemoveDislike(dislikeId)}
-                          />
-                        </Badge>
+                  />
+                </Badge>
                       )
                     })}
                   </div>
@@ -614,7 +617,7 @@ export function ProfilePage() {
                       전체 삭제 ({profile.dislike_names.length}개)
                     </Button>
                   )}
-                </div>
+            </div>
             
             {(!profile?.dislike_names || profile.dislike_names.length === 0) && (
               <p className="text-sm text-muted-foreground">
