@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useAuthStore } from '@/store/authStore'
+import { useProfileStore } from '@/store/profileStore'
 import { authService } from '@/lib/authService'
 import { toast } from 'react-hot-toast'
 import { LoginModal } from './LoginModal'
@@ -22,6 +23,7 @@ export function Header() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const [avatarError, setAvatarError] = useState(false)
   const { user, clear } = useAuthStore()
+  const { clearProfile } = useProfileStore()
   const navigate = useNavigate()
   const location = useLocation()
   const avatarSrc = user?.profileImage
@@ -39,6 +41,10 @@ export function Header() {
     } catch {
       // ignore
     }
+    
+    // 🧹 프로필 데이터 완전 클리어 (다른 사용자 데이터 잔여 방지)
+    clearProfile()
+    console.log('🗑️ 로그아웃: 프로필 스토어 클리어 완료')
     
     // 현재 경로에 따라 리다이렉트 여부 결정
     const shouldRedirect = shouldRedirectOnTokenExpiry(location.pathname)

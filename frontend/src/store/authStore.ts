@@ -42,7 +42,16 @@ export const useAuthStore = create<AuthState>()(
         }
       },
       clear: (shouldRedirect = false) => {
+        console.log('🚪 authStore.clear() 호출')
         set({ user: null, accessToken: undefined, refreshToken: undefined })
+        
+        // ProfileStore도 함께 클리어 (다른 사용자 프로필 데이터 방지)
+        if (typeof window !== 'undefined') {
+          // Zustand persist 스토리지에서 프로필 데이터 클리어
+          localStorage.removeItem('keto-coach-profile-v2')
+          console.log('🗑️ 프로필 캐시 삭제 완료')
+        }
+        
         // 권한 필요 페이지에서만 리다이렉트
         if (shouldRedirect && typeof window !== 'undefined') {
           window.location.href = '/'
