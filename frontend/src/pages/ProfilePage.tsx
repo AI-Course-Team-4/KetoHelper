@@ -29,16 +29,16 @@ export function ProfilePage() {
     getDislikesByCategory 
   } = useProfileHelpers()
 
-  const [nickname, setNickname] = useState(profile?.nickname ?? user?.name ?? '')
-  const [goalsKcal, setGoalsKcal] = useState(profile?.goals_kcal ? profile.goals_kcal.toLocaleString() : '')
-  const [goalsCarbsG, setGoalsCarbsG] = useState(profile?.goals_carbs_g ? String(profile.goals_carbs_g) : '')
+  const [nickname, setNickname] = useState('')
+  const [goalsKcal, setGoalsKcal] = useState('')
+  const [goalsCarbsG, setGoalsCarbsG] = useState('')
   const [selectedAllergyId, setSelectedAllergyId] = useState<string>('')
   const [selectedDislikeId, setSelectedDislikeId] = useState<string>('')
 
-  // 원본 데이터 저장 (변경 감지용)
-  const [originalNickname, setOriginalNickname] = useState(profile?.nickname ?? user?.name ?? '')
-  const [originalGoalsKcal, setOriginalGoalsKcal] = useState(profile?.goals_kcal ? profile.goals_kcal.toLocaleString() : '')
-  const [originalGoalsCarbsG, setOriginalGoalsCarbsG] = useState(profile?.goals_carbs_g ? String(profile.goals_carbs_g) : '')
+  // 저장된 데이터 (변경 감지용)
+  const [savedNickname, setSavedNickname] = useState('')
+  const [savedGoalsKcal, setSavedGoalsKcal] = useState('')
+  const [savedGoalsCarbsG, setSavedGoalsCarbsG] = useState('')
 
   // 마스터 데이터 및 프로필 로드
   useEffect(() => {
@@ -51,21 +51,30 @@ export function ProfilePage() {
 
   // 프로필 데이터가 변경되면 로컬 상태 업데이트
   useEffect(() => {
-    if (profile) {
+    if (profile && user?.id) {
       const newNickname = profile.nickname ?? user?.name ?? ''
       const newGoalsKcal = profile.goals_kcal ? profile.goals_kcal.toLocaleString() : ''
       const newGoalsCarbsG = profile.goals_carbs_g ? String(profile.goals_carbs_g) : ''
+      
       
       setNickname(newNickname)
       setGoalsKcal(newGoalsKcal)
       setGoalsCarbsG(newGoalsCarbsG)
       
-      // 원본 데이터도 업데이트
-      setOriginalNickname(newNickname)
-      setOriginalGoalsKcal(newGoalsKcal)
-      setOriginalGoalsCarbsG(newGoalsCarbsG)
+      // 저장된 데이터도 업데이트
+      setSavedNickname(newNickname)
+      setSavedGoalsKcal(newGoalsKcal)
+      setSavedGoalsCarbsG(newGoalsCarbsG)
+    } else if (!user) {
+      // 로그아웃 시 상태 클리어
+      setNickname('')
+      setGoalsKcal('')
+      setGoalsCarbsG('')
+      setSavedNickname('')
+      setSavedGoalsKcal('')
+      setSavedGoalsCarbsG('')
     }
-  }, [profile, user?.name])
+  }, [profile, user?.name, user?.id])
 
   // 로그인 상태 확인 - 로그인하지 않은 경우 메인 페이지로 리다이렉트
   useEffect(() => {
@@ -99,8 +108,8 @@ export function ProfilePage() {
   const [isDislikeLoading, setIsDislikeLoading] = useState(false)
 
   // 변경 감지 로직
-  const hasBasicInfoChanged = nickname !== originalNickname
-  const hasKetoGoalsChanged = goalsKcal !== originalGoalsKcal || goalsCarbsG !== originalGoalsCarbsG
+  const hasBasicInfoChanged = nickname !== savedNickname
+  const hasKetoGoalsChanged = goalsKcal !== savedGoalsKcal || goalsCarbsG !== savedGoalsCarbsG
 
   const handleSaveBasicInfo = async () => {
     if (!user?.id) {
@@ -120,8 +129,8 @@ export function ProfilePage() {
       nickname: nickname || undefined,
       })
       
-      // 저장 성공 시 원본 데이터 업데이트
-      setOriginalNickname(nickname)
+      // 저장 성공 시 저장된 데이터 업데이트
+      setSavedNickname(nickname)
       
       // authStore의 사용자 이름도 업데이트 (헤더에서 표시되는 이름)
       updateUser({ name: nickname || user.name })
@@ -161,9 +170,9 @@ export function ProfilePage() {
         goals_carbs_g: carbsValue,
       })
       
-      // 저장 성공 시 원본 데이터 업데이트
-      setOriginalGoalsKcal(goalsKcal)
-      setOriginalGoalsCarbsG(goalsCarbsG)
+      // 저장 성공 시 저장된 데이터 업데이트
+      setSavedGoalsKcal(goalsKcal)
+      setSavedGoalsCarbsG(goalsCarbsG)
       
       toast.success("키토 목표가 저장되었습니다")
     } catch (error) {

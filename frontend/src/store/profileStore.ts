@@ -14,6 +14,9 @@ interface ProfileState {
   allergyMaster: AllergyMaster[]
   dislikeMaster: DislikeMaster[]
   
+  // 현재 로드된 프로필의 사용자 ID (캐시 무효화용)
+  currentUserId: string | null
+  
   // 상태
   isLoading: boolean
   error: string | null
@@ -37,11 +40,12 @@ interface ProfileState {
 
 export const useProfileStore = create<ProfileState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       // 초기 상태
       profile: null,
       allergyMaster: [],
       dislikeMaster: [],
+      currentUserId: null,
       isLoading: false,
       error: null,
       
@@ -69,10 +73,16 @@ export const useProfileStore = create<ProfileState>()(
       
       // 프로필 로드
       loadProfile: async (userId) => {
+        // 다른 사용자의 캐시된 데이터가 있으면 먼저 클리어
+        const currentState = get()
+        if (currentState.currentUserId && currentState.currentUserId !== userId) {
+          set({ profile: null, currentUserId: null })
+        }
+        
         set({ isLoading: true, error: null })
         try {
           const profile = await profileService.getProfile(userId)
-          set({ profile, isLoading: false })
+          set({ profile, currentUserId: userId, isLoading: false })
         } catch (error) {
           set({ 
             error: error instanceof Error ? error.message : '프로필 로드 실패',
@@ -97,7 +107,7 @@ export const useProfileStore = create<ProfileState>()(
       
       // 프로필 클리어
       clearProfile: () => {
-        set({ profile: null, error: null })
+        set({ profile: null, currentUserId: null, error: null })
       },
       
       // 알레르기 추가
@@ -172,6 +182,7 @@ export const useProfileStore = create<ProfileState>()(
       name: 'keto-coach-profile-v2',
       partialize: (state) => ({ 
         profile: state.profile,
+        currentUserId: state.currentUserId,
         allergyMaster: state.allergyMaster,
         dislikeMaster: state.dislikeMaster
       })
