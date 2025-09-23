@@ -63,7 +63,8 @@ class RestaurantHybridSearchTool:
         unique_results = []
         
         for result in results:
-            result_id = result.get('id')
+            # restaurant_id와 menu_id를 조합해서 고유 ID 생성
+            result_id = f"{result.get('restaurant_id', '')}_{result.get('menu_id', '')}"
             if result_id and result_id not in seen_ids:
                 seen_ids.add(result_id)
                 unique_results.append(result)
@@ -80,7 +81,7 @@ class RestaurantHybridSearchTool:
             results = self.supabase.rpc('restaurant_menu_vector_search', {
                 'query_embedding': query_embedding,
                 'match_count': k,
-                'similarity_threshold': 0.7
+                'similarity_threshold': 0.1  # 임계값을 낮춤
             }).execute()
             
             if results.data:
@@ -98,22 +99,28 @@ class RestaurantHybridSearchTool:
         """실제 스키마 기반 키워드 검색"""
         try:
             if isinstance(self.supabase, type(None)) or hasattr(self.supabase, '__class__') and 'DummySupabase' in str(self.supabase.__class__):
+                print("  ⚠️ Supabase 클라이언트 없음")
                 return []
             
             keywords = self._extract_keywords(query)
+            print(f"  🔍 추출된 키워드: {keywords}")
             if not keywords:
+                print("  ⚠️ 키워드 없음")
                 return []
             
             all_results = []
             
             for keyword in keywords[:3]:  # 상위 3개 키워드만 사용
                 try:
+                    print(f"  🔍 키워드 '{keyword}' 검색 중...")
+                    
                     # ILIKE 검색
                     ilike_results = self.supabase.rpc('restaurant_ilike_search', {
                         'query_text': keyword,
                         'match_count': k
                     }).execute()
                     
+                    print(f"    ILIKE 결과: {len(ilike_results.data) if ilike_results.data else 0}개")
                     if ilike_results.data:
                         all_results.extend(ilike_results.data)
                     
@@ -124,6 +131,7 @@ class RestaurantHybridSearchTool:
                         'similarity_threshold': 0.3
                     }).execute()
                     
+                    print(f"    Trigram 결과: {len(trgm_results.data) if trgm_results.data else 0}개")
                     if trgm_results.data:
                         all_results.extend(trgm_results.data)
                         
@@ -131,7 +139,10 @@ class RestaurantHybridSearchTool:
                     print(f"키워드 검색 오류 for '{keyword}': {e}")
                     continue
             
-            return self._deduplicate_results(all_results)[:k]
+            print(f"  📊 총 결과: {len(all_results)}개 (중복 제거 전)")
+            deduplicated = self._deduplicate_results(all_results)
+            print(f"  📊 중복 제거 후: {len(deduplicated)}개")
+            return deduplicated[:k]
             
         except Exception as e:
             print(f"식당 키워드 검색 오류: {e}")

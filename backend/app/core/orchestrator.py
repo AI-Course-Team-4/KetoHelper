@@ -276,6 +276,8 @@ class KetoCoachAgent:
                 llm_response = await self.llm.ainvoke([HumanMessage(content=query_improvement_prompt)])
                 search_keywords = llm_response.content.strip().split(", ")
                 
+                print(f"  🔍 LLM 생성 키워드: {search_keywords[:3]}")
+                
                 all_places = []
                 
                 # 각 키워드로 검색
@@ -539,7 +541,8 @@ class KetoCoachAgent:
                             context += f"   키토추천이유: RAG 데이터 기반\n"
                     
                     # 식당 전용 응답 생성 프롬프트 사용
-                    location_info = f"위도: {state.get('location', {}).get('lat', '정보없음')}, 경도: {state.get('location', {}).get('lng', '정보없음')}"
+                    location = state.get('location') or {}
+                    location_info = f"위도: {location.get('lat', '정보없음')}, 경도: {location.get('lng', '정보없음')}"
                     answer_prompt = RESTAURANT_RESPONSE_GENERATION_PROMPT.format(
                         message=message,
                         location=location_info,
@@ -599,7 +602,10 @@ class KetoCoachAgent:
             state["response"] = response.content
             
         except Exception as e:
-            print(f"Answer generation error: {e}")
+            print(f"❌ Answer generation error: {e}")
+            print(f"❌ Error type: {type(e)}")
+            import traceback
+            print(f"❌ Traceback: {traceback.format_exc()}")
             state["response"] = "죄송합니다. 답변 생성 중 오류가 발생했습니다. 다시 시도해주세요."
         
         return state
