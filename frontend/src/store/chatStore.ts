@@ -1,6 +1,14 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+export interface LLMParsedMeal {
+  breakfast: string
+  lunch: string
+  dinner: string
+  snack?: string
+  date?: string
+}
+
 export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
@@ -8,6 +16,7 @@ export interface ChatMessage {
   results?: any[]
   timestamp: Date
   sessionId?: string
+  mealData?: LLMParsedMeal | null  // 식단 데이터 추가
 }
 
 interface ChatState {

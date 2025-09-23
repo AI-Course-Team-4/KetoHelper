@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Calendar, Plus, BarChart, ChevronLeft, ChevronRight } from 'lucide-react'
@@ -13,15 +13,42 @@ import { DateDetailModal } from '@/components/DateDetailModal'
 export function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [currentMonth, setCurrentMonth] = useState(new Date())
-  const [mealData, setMealData] = useState<Record<string, MealData>>({
-    '2024-01-15': { breakfast: '아보카도 토스트', lunch: '그릴 치킨 샐러드', dinner: '연어 스테이크' },
-    '2024-01-16': { breakfast: '계란 스크램블', lunch: '불고기', dinner: '새우볶음밥' },
-    '2024-01-17': { breakfast: '베이컨 에그', lunch: '스테이크', dinner: '생선구이' },
-  })
+  const [mealData, setMealData] = useState<Record<string, MealData>>({})
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedMealType, setSelectedMealType] = useState<string | null>(null)
   const [isDateDetailModalOpen, setIsDateDetailModalOpen] = useState(false)
   const [clickedDate, setClickedDate] = useState<Date | null>(null)
+  // 체크 상태만을 위한 로컬 state (UI용)
+  const [mealCheckState, setMealCheckState] = useState<Record<string, {
+    breakfastCompleted?: boolean
+    lunchCompleted?: boolean
+    dinnerCompleted?: boolean
+    snackCompleted?: boolean
+  }>>({})
+
+  // 컴포넌트 마운트 시 샘플 데이터 로드
+  useEffect(() => {
+    loadSampleMealData(currentMonth)
+  }, [currentMonth])
+
+  // 샘플 데이터 생성 (UI 테스트용)
+  const loadSampleMealData = (month: Date) => {
+    console.log('🎨 샘플 데이터 로드 (UI 테스트용)')
+    
+    // 간단한 샘플 데이터 생성
+    const sampleData: Record<string, MealData> = {}
+    
+    // 현재 월의 몇 개 날짜에 샘플 식단 추가
+    for (let day = 1; day <= 10; day++) {
+      const sampleDate = new Date(month.getFullYear(), month.getMonth(), day)
+      const dateKey = formatDateKey(sampleDate)
+      
+      sampleData[dateKey] = generateRandomMeal()
+    }
+    
+    setMealData(sampleData)
+    console.log('✅ 샘플 데이터 로드 완료')
+  }
 
   const handleDateSelect = (date: Date | undefined) => {
     setSelectedDate(date)
@@ -84,89 +111,171 @@ export function CalendarPage() {
     setClickedDate(null)
   }
 
-  // 식단 저장 핸들러
+  // 간단한 체크 토글 함수 (로컬 UI만)
+  const toggleMealCheck = (date: Date, mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack') => {
+    const dateKey = formatDateKey(date)
+    
+    setMealCheckState(prev => {
+      const currentState = prev[dateKey] || {}
+      const newState = { ...currentState }
+      
+      if (mealType === 'breakfast') newState.breakfastCompleted = !currentState.breakfastCompleted
+      else if (mealType === 'lunch') newState.lunchCompleted = !currentState.lunchCompleted
+      else if (mealType === 'dinner') newState.dinnerCompleted = !currentState.dinnerCompleted
+      else if (mealType === 'snack') newState.snackCompleted = !currentState.snackCompleted
+      
+      return {
+        ...prev,
+        [dateKey]: newState
+      }
+    })
+    
+    console.log(`✅ ${mealType} 체크 토글 (로컬 UI)`)
+  }
+
+  // 체크 상태 확인 함수
+  const isMealChecked = (date: Date, mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack') => {
+    const dateKey = formatDateKey(date)
+    const checkState = mealCheckState[dateKey]
+    
+    if (!checkState) return false
+    
+    if (mealType === 'breakfast') return checkState.breakfastCompleted || false
+    else if (mealType === 'lunch') return checkState.lunchCompleted || false
+    else if (mealType === 'dinner') return checkState.dinnerCompleted || false
+    else if (mealType === 'snack') return checkState.snackCompleted || false
+    
+    return false
+  }
+
+  // 간단한 로컬 저장 (UI 테스트용)
   const handleSaveMeal = (date: Date, newMealData: MealData) => {
+    console.log('💾 로컬 저장:', { date, newMealData })
+    
     const dateKey = formatDateKey(date)
     setMealData(prev => ({
       ...prev,
       [dateKey]: newMealData
     }))
+    
+    console.log('✅ 로컬 저장 완료!')
   }
 
+  // UI 테스트 모드 (로그인 불필요)
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* 헤더 */}
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-2xl font-bold text-gradient">식단 캘린더</h1>
-          <p className="text-muted-foreground mt-1">
-            키토 식단 계획을 관리하고 기록하세요
-          </p>
-        </div>
-        
-        <div className="flex gap-2">
-          <Button onClick={handleGenerateMealPlan}>
-            <Plus className="h-4 w-4 mr-2" />
-            식단표 생성
-          </Button>
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-500 via-emerald-500 to-teal-600 text-white">
+        <div className="absolute inset-0 bg-white/10 backdrop-blur-sm" />
+        <div className="relative p-8">
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-4xl font-bold mb-2">🥑 식단 캘린더</h1>
+              <p className="text-green-100 text-lg">
+                키토 식단 계획을 스마트하게 관리하고 기록하세요
+              </p>
+            </div>
+            
+            <div className="flex gap-3">
+              <Button 
+                onClick={handleGenerateMealPlan}
+                className="bg-white/20 hover:bg-white/30 text-white border-white/30 backdrop-blur-sm shadow-lg"
+                variant="outline"
+              >
+                <Plus className="h-5 w-5 mr-2" />
+                AI 식단표 생성
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* 주간 통계 */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-green-600">85%</div>
-            <div className="text-sm text-muted-foreground">이행률</div>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-green-50 to-emerald-50 hover:shadow-xl transition-all duration-300">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-3xl font-bold text-green-600">85%</div>
+                <div className="text-sm font-medium text-green-700 mt-1">이행률</div>
+              </div>
+              <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
+                <BarChart className="h-6 w-6 text-white" />
+              </div>
+            </div>
           </CardContent>
         </Card>
         
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-orange-600">22g</div>
-            <div className="text-sm text-muted-foreground">평균 탄수화물</div>
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-orange-50 to-amber-50 hover:shadow-xl transition-all duration-300">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-3xl font-bold text-orange-600">22g</div>
+                <div className="text-sm font-medium text-orange-700 mt-1">평균 탄수화물</div>
+              </div>
+              <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center">
+                <span className="text-white font-bold text-lg">C</span>
+              </div>
+            </div>
           </CardContent>
         </Card>
         
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-blue-600">1,650</div>
-            <div className="text-sm text-muted-foreground">평균 칼로리</div>
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-cyan-50 hover:shadow-xl transition-all duration-300">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-3xl font-bold text-blue-600">1,650</div>
+                <div className="text-sm font-medium text-blue-700 mt-1">평균 칼로리</div>
+              </div>
+              <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center">
+                <span className="text-white text-2xl">🔥</span>
+              </div>
+            </div>
           </CardContent>
         </Card>
         
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-purple-600">30%</div>
-            <div className="text-sm text-muted-foreground">외식 비중</div>
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-50 to-violet-50 hover:shadow-xl transition-all duration-300">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-3xl font-bold text-purple-600">30%</div>
+                <div className="text-sm font-medium text-purple-700 mt-1">외식 비중</div>
+              </div>
+              <div className="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center">
+                <span className="text-white text-2xl">🍽️</span>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 캘린더 */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
+        <Card className="lg:col-span-2 border-0 shadow-xl bg-white/80 backdrop-blur-sm">
+          <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center">
-                <Calendar className="h-5 w-5 mr-2" />
+              <CardTitle className="flex items-center text-xl font-bold">
+                <Calendar className="h-6 w-6 mr-3 text-green-600" />
                 월간 캘린더
               </CardTitle>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
+                  className="hover:bg-green-50 hover:border-green-300 transition-colors"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="text-sm font-medium min-w-[120px] text-center">
+                <span className="text-lg font-bold min-w-[140px] text-center bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
                   {format(currentMonth, 'yyyy년 M월', { locale: ko })}
                 </span>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
+                  className="hover:bg-green-50 hover:border-green-300 transition-colors"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -175,7 +284,7 @@ export function CalendarPage() {
           </CardHeader>
           <CardContent className="p-6 pt-0">
             <div className="calendar-container w-full flex items-start justify-center">
-              <DayPicker
+                <DayPicker
                 mode="single"
                 selected={selectedDate}
                 onSelect={handleDateSelect}
@@ -184,21 +293,56 @@ export function CalendarPage() {
                 locale={ko}
                 className="rdp-custom w-full"
                 modifiers={{
-                  hasMeal: Object.keys(mealData).map(date => new Date(date))
+                  hasMeal: Object.keys(mealData).map(date => new Date(date)),
+                  hasPartialMeal: Object.keys(mealData).filter(date => {
+                    const meal = mealData[date]
+                    const mealCount = [meal.breakfast, meal.lunch, meal.dinner].filter(Boolean).length
+                    return mealCount > 0 && mealCount < 3
+                  }).map(date => new Date(date)),
+                  hasCompleteMeal: Object.keys(mealData).filter(date => {
+                    const meal = mealData[date]
+                    return meal.breakfast && meal.lunch && meal.dinner
+                  }).map(date => new Date(date)),
+                  today: new Date() // 오늘 날짜 추가
                 }}
                 modifiersStyles={{
-                  hasMeal: {
+                  hasPartialMeal: {
+                    backgroundColor: '#f59e0b',
+                    color: 'white',
+                    fontWeight: 'bold',
+                    borderRadius: '12px',
+                    boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)'
+                  },
+                  hasCompleteMeal: {
                     backgroundColor: '#10b981',
                     color: 'white',
                     fontWeight: 'bold',
                     borderRadius: '12px',
                     boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)'
+                  },
+                  today: {
+                    backgroundColor: '#3b82f6',
+                    color: 'white',
+                    fontWeight: 'bold',
+                    borderRadius: '12px',
+                    boxShadow: '0 2px 8px rgba(59, 130, 246, 0.4)',
+                    border: '2px solid #1d4ed8'
                   }
                 }}
                 components={{
                   Day: ({ date, displayMonth }) => {
                     const meal = getMealForDate(date)
                     const isCurrentMonth = date.getMonth() === displayMonth.getMonth()
+                    
+                    
+                    
+                    // 체크된 식사 개수 계산 (로컬 상태에서)
+                    const checkedCount = [
+                      isMealChecked(date, 'breakfast'),
+                      isMealChecked(date, 'lunch'),
+                      isMealChecked(date, 'dinner'),
+                      isMealChecked(date, 'snack')
+                    ].filter(Boolean).length
                     
                     return (
                       <div 
@@ -207,21 +351,98 @@ export function CalendarPage() {
                         style={{ minHeight: '80px' }}
                       >
                         {isCurrentMonth && (
-                          <div className="date-number w-full">
-                            {date.getDate()}
+                          <div className="date-number w-full flex items-center justify-between px-1">
+                            <span>{date.getDate()}</span>
+                            {/* 체크된 식사가 있으면 체크 아이콘 표시 */}
+                            {checkedCount > 0 && (
+                              <div className="absolute -top-1 -right-1 bg-green-500 rounded-full w-4 h-4 flex items-center justify-center">
+                                <span className="text-white text-xs font-bold">✓</span>
+                              </div>
+                            )}
                           </div>
                         )}
                         {meal && isCurrentMonth && (
-                          <div className="meal-info-container">
-                            <div className="meal-info" title={meal.breakfast}>
-                              🌅 {meal.breakfast}
-                            </div>
-                            <div className="meal-info" title={meal.lunch}>
-                              ☀️ {meal.lunch}
-                            </div>
-                            <div className="meal-info" title={meal.dinner}>
-                              🌙 {meal.dinner}
-                            </div>
+                          <div className="meal-info-container flex-1 p-1">
+                            {meal.breakfast && (
+                              <div className="meal-info text-xs flex items-center justify-between group">
+                                <span className="truncate mr-1" title={meal.breakfast}>
+                                  🌅 {meal.breakfast}
+                                </span>
+                                <div
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    toggleMealCheck(date, 'breakfast')
+                                  }}
+                                  className="cursor-pointer opacity-60 group-hover:opacity-100 transition-opacity"
+                                >
+                                  {isMealChecked(date, 'breakfast') ? (
+                                    <span className="text-green-500 text-sm">✅</span>
+                                  ) : (
+                                    <span className="text-gray-400 text-sm">⭕</span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            {meal.lunch && (
+                              <div className="meal-info text-xs flex items-center justify-between group">
+                                <span className="truncate mr-1" title={meal.lunch}>
+                                  ☀️ {meal.lunch}
+                                </span>
+                                <div
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    toggleMealCheck(date, 'lunch')
+                                  }}
+                                  className="cursor-pointer opacity-60 group-hover:opacity-100 transition-opacity"
+                                >
+                                  {isMealChecked(date, 'lunch') ? (
+                                    <span className="text-green-500 text-sm">✅</span>
+                                  ) : (
+                                    <span className="text-gray-400 text-sm">⭕</span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            {meal.dinner && (
+                              <div className="meal-info text-xs flex items-center justify-between group">
+                                <span className="truncate mr-1" title={meal.dinner}>
+                                  🌙 {meal.dinner}
+                                </span>
+                                <div
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    toggleMealCheck(date, 'dinner')
+                                  }}
+                                  className="cursor-pointer opacity-60 group-hover:opacity-100 transition-opacity"
+                                >
+                                  {isMealChecked(date, 'dinner') ? (
+                                    <span className="text-green-500 text-sm">✅</span>
+                                  ) : (
+                                    <span className="text-gray-400 text-sm">⭕</span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            {meal.snack && (
+                              <div className="meal-info text-xs flex items-center justify-between group text-purple-600">
+                                <span className="truncate mr-1" title={meal.snack}>
+                                  🍎 {meal.snack}
+                                </span>
+                                <div
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    toggleMealCheck(date, 'snack')
+                                  }}
+                                  className="cursor-pointer opacity-60 group-hover:opacity-100 transition-opacity"
+                                >
+                                  {isMealChecked(date, 'snack') ? (
+                                    <span className="text-green-500 text-sm">✅</span>
+                                  ) : (
+                                    <span className="text-gray-400 text-sm">⭕</span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -299,13 +520,49 @@ export function CalendarPage() {
                  }}
               />
             </div>
+            
+            {/* 캘린더 범례 */}
+            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+              <h4 className="text-sm font-medium mb-3 text-gray-700">캘린더 사용법</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-blue-500 rounded border-2 border-blue-700" />
+                  <span>오늘 날짜</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-green-500 rounded" />
+                  <span>완전한 식단 (아침, 점심, 저녁)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-amber-500 rounded" />
+                  <span>부분적 식단 (1-2끼)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="bg-green-500 rounded-full w-4 h-4 flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">✓</span>
+                  </div>
+                  <span>섭취 완료된 식단이 있음</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full border-2 border-green-500 bg-green-500 flex items-center justify-center">
+                    <span className="text-white font-bold text-xs">✓</span>
+                  </div>
+                  <span>음식 옆 호버 시 체크 표시</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-purple-600">🍎</span>
+                  <span>간식 (완전한 식단 시에만 표시)</span>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
         {/* 선택된 날짜의 식단 */}
-        <Card>
-          <CardHeader>
-            <CardTitle>
+        <Card className="border-0 shadow-xl bg-gradient-to-br from-white to-green-50/30">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-xl font-bold flex items-center gap-2">
+              <span className="text-2xl">📅</span>
               {selectedDate ? format(selectedDate, 'M월 d일', { locale: ko }) : '오늘의'} 식단
             </CardTitle>
           </CardHeader>
@@ -322,23 +579,19 @@ export function CalendarPage() {
               return meals.map((meal) => (
                 <div 
                   key={meal.key} 
-                  className="border rounded-lg p-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                  className="border-0 rounded-xl p-4 cursor-pointer bg-gradient-to-r from-white to-gray-50 hover:from-green-50 hover:to-emerald-50 hover:shadow-md transition-all duration-300 shadow-sm"
                   onClick={() => handleOpenModal(meal.key)}
                 >
                   <div className="flex justify-between items-center">
-                    <h4 className="font-medium flex items-center gap-2">
-                      <span>{meal.icon}</span>
+                    <h4 className="font-semibold flex items-center gap-3 text-gray-800">
+                      <span className="text-2xl">{meal.icon}</span>
                       {meal.label}
                     </h4>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      className="pointer-events-none"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
+                    <div className="w-8 h-8 rounded-full bg-green-100 hover:bg-green-200 flex items-center justify-center transition-colors">
+                      <Plus className="h-4 w-4 text-green-600" />
+                    </div>
                   </div>
-                  <div className="text-sm text-muted-foreground mt-1">
+                  <div className="text-sm text-gray-600 mt-2 ml-11">
                     {selectedMeal && selectedMeal[meal.key as keyof MealData] 
                       ? selectedMeal[meal.key as keyof MealData]
                       : '계획된 식단이 없습니다'
@@ -352,7 +605,11 @@ export function CalendarPage() {
               </div>
             )}
             
-            <Button className="w-full" onClick={handleGenerateMealPlan}>
+            <Button 
+              className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300" 
+              onClick={handleGenerateMealPlan}
+            >
+              <span className="mr-2">🤖</span>
               AI 식단표 생성
             </Button>
           </CardContent>
@@ -360,29 +617,34 @@ export function CalendarPage() {
       </div>
 
       {/* 최근 활동 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <BarChart className="h-5 w-5 mr-2" />
+      <Card className="border-0 shadow-xl bg-gradient-to-br from-white to-blue-50/30">
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center text-xl font-bold">
+            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mr-3">
+              <BarChart className="h-5 w-5 text-white" />
+            </div>
             최근 활동
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {[
-              { date: '오늘', action: '점심 식단 완료', status: 'completed' },
-              { date: '어제', action: '저녁 식단 스킵', status: 'skipped' },
-              { date: '2일 전', action: '7일 식단표 생성', status: 'planned' },
+              { date: '오늘', action: '점심 식단 완료', status: 'completed', icon: '✅' },
+              { date: '어제', action: '저녁 식단 스킵', status: 'skipped', icon: '⏭️' },
+              { date: '2일 전', action: '7일 식단표 생성', status: 'planned', icon: '📋' },
             ].map((activity, index) => (
-              <div key={index} className="flex items-center justify-between py-2 border-b">
-                <div>
-                  <div className="font-medium">{activity.action}</div>
-                  <div className="text-sm text-muted-foreground">{activity.date}</div>
+              <div key={index} className="flex items-center justify-between p-4 rounded-xl bg-white/60 border border-gray-100 hover:shadow-md transition-all duration-300">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">{activity.icon}</span>
+                  <div>
+                    <div className="font-semibold text-gray-800">{activity.action}</div>
+                    <div className="text-sm text-gray-500">{activity.date}</div>
+                  </div>
                 </div>
-                <div className={`text-sm px-2 py-1 rounded ${
-                  activity.status === 'completed' ? 'bg-green-100 text-green-800' :
-                  activity.status === 'skipped' ? 'bg-red-100 text-red-800' :
-                  'bg-blue-100 text-blue-800'
+                <div className={`text-sm px-3 py-1 rounded-full font-medium ${
+                  activity.status === 'completed' ? 'bg-green-100 text-green-700 border border-green-200' :
+                  activity.status === 'skipped' ? 'bg-red-100 text-red-700 border border-red-200' :
+                  'bg-blue-100 text-blue-700 border border-blue-200'
                 }`}>
                   {activity.status === 'completed' ? '완료' :
                    activity.status === 'skipped' ? '스킵' : '계획'}
@@ -413,6 +675,8 @@ export function CalendarPage() {
           selectedDate={clickedDate}
           mealData={getMealForDate(clickedDate)}
           onSaveMeal={handleSaveMeal}
+          onToggleComplete={toggleMealCheck}
+          isMealChecked={isMealChecked}
         />
       )}
     </div>
