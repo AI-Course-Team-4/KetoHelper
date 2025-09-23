@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Menu, Search, User } from 'lucide-react'
+import { Menu, Search, User, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -9,7 +9,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-// import { useProfileStore } from '@/store/profileStore'
 import { useAuthStore } from '@/store/authStore'
 import { authService } from '@/lib/authService'
 import { toast } from 'react-hot-toast'
@@ -21,7 +20,6 @@ export function Header() {
   const [, setIsSearchOpen] = useState(false)
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const [avatarError, setAvatarError] = useState(false)
-  // const { profile } = useProfileStore()
   const { user, clear } = useAuthStore()
   const navigate = useNavigate()
   const avatarSrc = user?.profileImage
@@ -128,7 +126,8 @@ export function Header() {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="text-red-600" onClick={handleLogout}>
-                  로그아웃
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>로그아웃</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
