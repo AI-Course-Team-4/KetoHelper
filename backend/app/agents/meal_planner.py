@@ -28,9 +28,9 @@ class MealPlannerAgent:
     # 기본 설정 (개인 설정이 없을 때 사용)
     DEFAULT_AGENT_NAME = "Meal Planner Agent"
     DEFAULT_PROMPT_FILES = {
-        "structure": "meal_plan_structure",  # meal/prompts/ 폴더의 파일명
-        "generation": "meal_generation",
-        "notes": "meal_plan_notes"
+        "structure": "structure",  # meal/prompts/ 폴더의 파일명
+        "generation": "generation",
+        "notes": "notes"
     }
     DEFAULT_TOOL_FILES = {
         "keto_score": "keto_score"  # meal/tools/ 폴더의 파일명

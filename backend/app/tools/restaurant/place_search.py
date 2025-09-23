@@ -44,18 +44,22 @@ class PlaceSearchTool:
             장소 정보 리스트
         """
         try:
-            # 캐시 확인
-            cached_results = await self._get_cached_results(query, lat, lng, radius)
-            if cached_results:
-                return cached_results
+            # 캐시 확인 (임시 비활성화)
+            # cached_results = await self._get_cached_results(query, lat, lng, radius)
+            # if cached_results:
+            #     return cached_results
             
             # API 호출
             headers = {
                 "Authorization": f"KakaoAK {self.api_key}"
             }
             
+            # URL 인코딩을 위한 처리
+            import urllib.parse
+            encoded_query = urllib.parse.quote(query, safe='')
+            
             params = {
-                "query": query,
+                "query": query,  # httpx가 자동으로 인코딩
                 "x": lng,
                 "y": lat,
                 "radius": radius,
@@ -77,8 +81,8 @@ class PlaceSearchTool:
                 data = response.json()
                 places = self._parse_kakao_response(data)
                 
-                # 결과 캐싱
-                await self._cache_results(places, query, lat, lng, radius)
+                # 결과 캐싱 (임시 비활성화)
+                # await self._cache_results(places, query, lat, lng, radius)
                 
                 return places
         
@@ -283,7 +287,7 @@ class PlaceSearchTool:
         """주변 키토 친화적 장소 자동 검색"""
         
         keto_keywords = [
-            "구이", "샤브샤브", "샐러드", "스테이크", "회",
+            "저탄고지","다이어트","구이", "샤브샤브", "샐러드", "스테이크", "회",
             "치킨", "갈비", "삼겹살", "양식", "무한리필"
         ]
         
