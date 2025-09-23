@@ -63,7 +63,7 @@ class PlaceSearchTool:
                 "x": lng,
                 "y": lat,
                 "radius": radius,
-                "size": 15,
+                "size": 10,  # 최대 10개로 제한
                 "sort": "distance"
             }
             
@@ -76,6 +76,32 @@ class PlaceSearchTool:
                     headers=headers,
                     params=params
                 )
+                
+                # 429 에러 시 Retry-After 헤더 확인
+                if response.status_code == 429:
+                    print(f"카카오 API 429 에러 발생 - 응답 헤더:")
+                    for key, value in response.headers.items():
+                        print(f"  {key}: {value}")
+                    
+                    retry_after = response.headers.get('Retry-After')
+                    if retry_after:
+                        print(f"Retry-After 헤더 발견: {retry_after}초")
+                        try:
+                            wait_seconds = int(retry_after)
+                        except ValueError:
+                            print(f"Retry-After 값 파싱 오류: {retry_after}, 60초로 설정")
+                            wait_seconds = 60
+                    else:
+                        print("카카오 API는 Retry-After 헤더를 제공하지 않음")
+                        print("카카오 API 특성상 1-2분 대기 권장, 120초 대기")
+                        wait_seconds = 120
+                    
+                    raise httpx.HTTPStatusError(
+                        f"429 Too Many Requests - Retry after {wait_seconds} seconds",
+                        request=response.request,
+                        response=response
+                    )
+                
                 response.raise_for_status()
                 
                 data = response.json()
