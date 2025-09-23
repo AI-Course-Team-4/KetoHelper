@@ -51,8 +51,9 @@ function KetoRestaurant({ onCountChange, restaurants: restaurantsProp, activeInd
       const { data, error } = await supabase
         .from('restaurant')
         .select('*')
-        console.log(data)
+      
       if (error) throw error
+      console.log(data)
       const list = (data || []) as Restaurant[]
       setRestaurants(list)
       try { onCountChange?.(list.length) } catch {}

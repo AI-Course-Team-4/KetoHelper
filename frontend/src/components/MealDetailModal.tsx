@@ -47,7 +47,7 @@ const estimateNutrition = (mealContent: string) => {
 }
 
 // 키토 팁 생성
-const generateKetoTips = (mealType: string, mealContent: string): string[] => {
+const generateKetoTips = (mealType: string): string[] => {
   const tips = {
     breakfast: [
       "아침에는 탄수화물을 최소화하고 건강한 지방을 충분히 섭취하세요",
@@ -83,7 +83,7 @@ export function MealDetailModal({
 }: MealDetailModalProps) {
   const ketoScore = calculateMealKetoScore(mealContent)
   const nutrition = estimateNutrition(mealContent)
-  const tips = generateKetoTips(mealType, mealContent)
+  const tips = generateKetoTips(mealType)
   
   const getScoreColor = (score: number) => {
     if (score >= 80) return 'text-green-600'
