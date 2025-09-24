@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Search, MapPin, Utensils, Loader2 } from 'lucide-react'
+import { Search, LocationOn, Restaurant } from '@mui/icons-material'
+import { CircularProgress } from '@mui/material'
 import { PlaceCard } from '@/components/PlaceCard'
 import { useSearchPlaces, api } from '@/hooks/useApi'
 import KakaoMap from './KakaoMap'
@@ -195,12 +196,12 @@ export function MapPage() {
             <Button onClick={handleSearch} disabled={!userLocation || isLoading}>
               {isLoading ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <CircularProgress size={16} sx={{ mr: 1 }} />
                   검색 중...
                 </>
               ) : (
                 <>
-                  <Search className="h-4 w-4 mr-2" />
+                  <Search sx={{ fontSize: 16, mr: 1 }} />
                   검색
                 </>
               )}
@@ -227,7 +228,7 @@ export function MapPage() {
         <Card className="lg:col-span-8">
           <CardHeader>
             <CardTitle className="text-lg flex items-center">
-              <MapPin className="h-5 w-5 mr-2" />
+              <LocationOn sx={{ fontSize: 20, mr: 1 }} />
               지도
             </CardTitle>
           </CardHeader>
@@ -252,7 +253,7 @@ export function MapPage() {
         <Card className="lg:col-span-4">
           <CardHeader>
             <CardTitle className="text-lg flex items-center">
-              <Utensils className="h-5 w-5 mr-2" />
+              <Restaurant sx={{ fontSize: 20, mr: 1 }} />
               주변 키토 친화 식당
               <span className="ml-auto text-muted-foreground text-sm">{nearbyCount.toLocaleString()}개</span>
             </CardTitle>
@@ -261,7 +262,7 @@ export function MapPage() {
             <div className="h-[800px] overflow-auto pr-4 md:pr-6" ref={listContainerRef}>
               {isLoading ? (
                 <div className="flex items-center justify-center h-full">
-                  <Loader2 className="h-8 w-8 animate-spin" />
+                  <CircularProgress size={32} />
                   <span className="ml-2">로딩 중...</span>
                 </div>
               ) : (
@@ -380,7 +381,7 @@ export function MapPage() {
       {!userLocation && (
         <Card>
           <CardContent className="text-center py-8">
-            <MapPin className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <LocationOn sx={{ fontSize: 48, color: 'text.secondary', mx: 'auto', mb: 2 }} />
             <h3 className="text-lg font-semibold mb-2">위치 정보 필요</h3>
             <p className="text-muted-foreground">
               주변 식당을 찾기 위해 위치 정보 접근을 허용해주세요.

@@ -19,6 +19,7 @@ import importlib
 
 from app.core.config import settings
 from app.tools.shared.hybrid_search import hybrid_search_tool
+from app.tools.shared.profile_tool import user_profile_tool
 from app.tools.restaurant.place_search import PlaceSearchTool
 from config import get_personal_configs, get_agent_config
 
@@ -30,7 +31,10 @@ class MealPlannerAgent:
     DEFAULT_PROMPT_FILES = {
         "structure": "structure",  # meal/prompts/ 폴더의 파일명
         "generation": "generation",
-        "notes": "notes"
+        "notes": "notes",
+        "embedding_based": "embedding_based",  # 임베딩 데이터 기반 프롬프트
+        "search_query": "embedding_based",  # AI 검색 쿼리 생성 프롬프트
+        "search_strategy": "embedding_based"  # AI 검색 전략 생성 프롬프트
     }
     DEFAULT_TOOL_FILES = {
         "keto_score": "keto_score"  # meal/tools/ 폴더의 파일명
@@ -134,6 +138,15 @@ class MealPlannerAgent:
             elif key == "notes":
                 from app.prompts.meal.notes import DEFAULT_NOTES_PROMPT
                 return DEFAULT_NOTES_PROMPT
+            elif key == "embedding_based":
+                from app.prompts.meal.embedding_based import EMBEDDING_MEAL_PLAN_PROMPT
+                return EMBEDDING_MEAL_PLAN_PROMPT
+            elif key == "search_query":
+                from app.prompts.meal.embedding_based import AI_SEARCH_QUERY_GENERATION_PROMPT
+                return AI_SEARCH_QUERY_GENERATION_PROMPT
+            elif key == "search_strategy":
+                from app.prompts.meal.embedding_based import AI_MEAL_SEARCH_STRATEGY_PROMPT
+                return AI_MEAL_SEARCH_STRATEGY_PROMPT
         except ImportError:
             pass
         
@@ -148,14 +161,23 @@ class MealPlannerAgent:
             fallback_defaults = {
                 "structure": FALLBACK_STRUCTURE_PROMPT,
                 "generation": FALLBACK_GENERATION_PROMPT,
-                "notes": FALLBACK_NOTES_PROMPT
+                "notes": FALLBACK_NOTES_PROMPT,
+                "embedding_based": FALLBACK_STRUCTURE_PROMPT  # 임베딩 기반은 구조 프롬프트 사용
             }
             
-            return fallback_defaults.get(key, "프롬프트를 찾을 수 없습니다.")
+            try:
+                from app.prompts.meal.fallback import PROMPT_NOT_FOUND_MESSAGE
+                return fallback_defaults.get(key, PROMPT_NOT_FOUND_MESSAGE)
+            except ImportError:
+                return fallback_defaults.get(key, "프롬프트를 찾을 수 없습니다.")
             
         except ImportError:
             # 정말 마지막 폴백
-            return f"키토 {key} 작업을 수행하세요."
+            try:
+                from app.prompts.meal.fallback import FINAL_FALLBACK_PROMPT
+                return FINAL_FALLBACK_PROMPT.format(key=key)
+            except ImportError:
+                return f"키토 {key} 작업을 수행하세요."
     
     async def generate_meal_plan(
         self,
@@ -164,10 +186,11 @@ class MealPlannerAgent:
         carbs_max: int = 30,
         allergies: List[str] = None,
         dislikes: List[str] = None,
-        user_id: Optional[str] = None
+        user_id: Optional[str] = None,
+        fast_mode: bool = True  # 빠른 모드 기본 활성화
     ) -> Dict[str, Any]:
         """
-        7일 키토 식단표 생성
+        7일 키토 식단표 생성 (임베딩 데이터 우선 → AI 생성 폴백)
         
         Args:
             days: 생성할 일수 (기본 7일)
@@ -175,22 +198,64 @@ class MealPlannerAgent:
             carbs_max: 최대 탄수화물 (일일, g)
             allergies: 알레르기 목록
             dislikes: 비선호 음식 목록
-            user_id: 사용자 ID
+            user_id: 사용자 ID (제공되면 자동으로 프로필에서 선호도 정보 가져옴)
+            fast_mode: 빠른 모드 (AI 호출 최소화, 기본 True)
         
         Returns:
             생성된 식단표 데이터
         """
         
         try:
+            # 사용자 ID가 제공되면 프로필에서 선호도 정보 가져오기
+            if user_id:
+                profile_result = await user_profile_tool.get_user_preferences(user_id)
+                if profile_result["success"]:
+                    prefs = profile_result["preferences"]
+                    
+                    # 프로필에서 가져온 정보가 매개변수보다 우선하지 않음 (매개변수가 우선)
+                    if kcal_target is None and prefs.get("goals_kcal"):
+                        kcal_target = prefs["goals_kcal"]
+                    
+                    if carbs_max == 30 and prefs.get("goals_carbs_g"):  # 기본값일 때만 덮어씀
+                        carbs_max = prefs["goals_carbs_g"]
+                    
+                    if allergies is None and prefs.get("allergies"):
+                        allergies = prefs["allergies"]
+                    
+                    if dislikes is None and prefs.get("dislikes"):
+                        dislikes = prefs["dislikes"]
+                    
+                    print(f"🔧 사용자 프로필 적용 완료: 목표 {kcal_target}kcal, 탄수화물 {carbs_max}g, 알레르기 {len(allergies or [])}개, 비선호 {len(dislikes or [])}개")
+                else:
+                    print(f"⚠️ 사용자 프로필 조회 실패: {profile_result.get('error', '알 수 없는 오류')}")
+            
             # 제약 조건 텍스트 생성
             constraints_text = self._build_constraints_text(
                 kcal_target, carbs_max, allergies, dislikes
             )
             
-            # 1차: 전체 식단 구조 계획만 (간단 버전)
+            # 1단계: 임베딩된 데이터에서 식단표 생성 시도
+            print("🔍 1단계: 임베딩된 레시피 데이터에서 식단표 생성 시도")
+            embedded_plan = await self._generate_meal_plan_from_embeddings(days, constraints_text, user_id, fast_mode)
+            
+            if embedded_plan and len(embedded_plan.get("days", [])) > 0:
+                print(f"✅ 임베딩 데이터로 식단표 생성 성공: {len(embedded_plan['days'])}일")
+                return embedded_plan
+            
+            # 2단계: 임베딩 데이터로 부족하면 AI 생성
+            print("🤖 2단계: AI로 식단표 구조 생성")
             meal_structure = await self._plan_meal_structure(days, constraints_text)
             
-            # 간단한 형태로 변환 (메뉴 타입만)
+            # 3단계: AI 구조를 바탕으로 임베딩 데이터에서 구체적 메뉴 검색
+            print("🔍 3단계: AI 구조 + 임베딩 데이터로 구체적 메뉴 생성")
+            detailed_plan = await self._generate_detailed_meals_from_embeddings(meal_structure, constraints_text, user_id, fast_mode)
+            
+            if detailed_plan and len(detailed_plan.get("days", [])) > 0:
+                print(f"✅ AI + 임베딩 데이터로 식단표 생성 성공: {len(detailed_plan['days'])}일")
+                return detailed_plan
+            
+            # 4단계: 최종 폴백 - 간단한 AI 생성
+            print("🔄 4단계: 최종 폴백 - 간단한 AI 생성")
             simple_plan = []
             for day_plan in meal_structure:
                 day_meals = {
@@ -247,6 +312,433 @@ class MealPlannerAgent:
             constraints.append(f"비선호 음식: {', '.join(dislikes)}")
         
         return " | ".join(constraints)
+    
+    async def _search_with_diversity(
+        self, 
+        search_query: str, 
+        constraints: str, 
+        user_id: Optional[str], 
+        used_recipes: set, 
+        max_results: int = 5
+    ) -> List[Dict[str, Any]]:
+        """
+        다양성을 고려한 레시피 검색 (중복 방지)
+        
+        Args:
+            search_query: 검색 쿼리
+            constraints: 제약 조건
+            user_id: 사용자 ID
+            used_recipes: 이미 사용된 레시피 ID 집합
+            max_results: 최대 결과 수
+            
+        Returns:
+            중복되지 않은 레시피 목록
+        """
+        try:
+            # 하이브리드 검색 실행 (결과 수 제한)
+            search_results = await hybrid_search_tool.search(
+                query=search_query,
+                profile=constraints,
+                max_results=min(max_results * 2, 10),  # 최대 10개로 제한
+                user_id=user_id
+            )
+            
+            if not search_results:
+                return []
+            
+            # 중복되지 않은 레시피만 필터링
+            unique_results = []
+            for result in search_results:
+                recipe_id = result.get('id', '')
+                if recipe_id and recipe_id not in used_recipes:
+                    unique_results.append(result)
+                    if len(unique_results) >= max_results:
+                        break
+            
+            return unique_results
+            
+        except Exception as e:
+            print(f"❌ 다양성 검색 실패: {e}")
+            return []
+    
+    async def _generate_ai_search_query(
+        self, 
+        meal_slot: str, 
+        meal_type: str, 
+        constraints: str, 
+        used_recipes: set, 
+        search_strategy: str = "기본 키워드 조합"
+    ) -> Dict[str, Any]:
+        """
+        AI를 사용해서 최적의 검색 쿼리 생성
+        
+        Args:
+            meal_slot: 식사 슬롯 (breakfast, lunch, dinner, snack)
+            meal_type: 식사 타입 (계란 요리, 샐러드 등)
+            constraints: 제약 조건
+            used_recipes: 이미 사용된 레시피 ID 집합
+            search_strategy: 검색 전략
+            
+        Returns:
+            생성된 검색 쿼리 정보
+        """
+        try:
+            if not self.llm:
+                # LLM이 없으면 기본 쿼리 반환
+                return {
+                    "primary_query": f"{meal_type} 키토 {meal_slot}",
+                    "alternative_queries": [f"{meal_type} 키토", f"키토 {meal_slot}"],
+                    "excluded_keywords": [],
+                    "search_strategy": "기본",
+                    "reasoning": "LLM 없음"
+                }
+            
+            # AI 검색 쿼리 생성 프롬프트 사용
+            search_prompt = self.prompts.get("search_query", "").format(
+                meal_slot=meal_slot,
+                meal_type=meal_type,
+                constraints=constraints,
+                used_recipes=list(used_recipes)[:5],  # 최근 5개만 표시
+                search_strategy=search_strategy
+            )
+            
+            response = await self.llm.ainvoke([HumanMessage(content=search_prompt)])
+            
+            # JSON 파싱
+            import re
+            json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group())
+            
+        except Exception as e:
+            print(f"❌ AI 검색 쿼리 생성 실패: {e}")
+        
+        # 폴백: 기본 쿼리
+        return {
+            "primary_query": f"{meal_type} 키토 {meal_slot}",
+            "alternative_queries": [f"{meal_type} 키토", f"키토 {meal_slot}"],
+            "excluded_keywords": [],
+            "search_strategy": "폴백",
+            "reasoning": "AI 생성 실패"
+        }
+    
+    async def _generate_ai_meal_strategies(self, days: int, constraints: str) -> Dict[str, Any]:
+        """
+        AI를 사용해서 식사별 검색 전략 생성
+        
+        Args:
+            days: 생성할 일수
+            constraints: 제약 조건
+            
+        Returns:
+            생성된 검색 전략
+        """
+        try:
+            if not self.llm:
+                # LLM이 없으면 기본 전략 반환
+                return self._get_default_meal_strategies()
+            
+            # AI 검색 전략 생성 프롬프트 사용
+            strategy_prompt = self.prompts.get("search_strategy", "").format(
+                days=days,
+                constraints=constraints
+            )
+            
+            response = await self.llm.ainvoke([HumanMessage(content=strategy_prompt)])
+            
+            # JSON 파싱
+            import re
+            json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group())
+            
+        except Exception as e:
+            print(f"❌ AI 검색 전략 생성 실패: {e}")
+        
+        # 폴백: 기본 전략
+        return self._get_default_meal_strategies()
+    
+    def _get_default_meal_strategies(self) -> Dict[str, Any]:
+        """기본 식사별 검색 전략"""
+        return {
+            "meal_strategies": {
+                "breakfast": {
+                    "primary_keywords": ["아침", "브런치", "계란"],
+                    "secondary_keywords": ["베이컨", "아보카도", "치즈", "버터"],
+                    "cooking_methods": ["스크램블", "구이", "볶음", "오믈렛"],
+                    "time_keywords": ["아침", "브런치", "모닝"]
+                },
+                "lunch": {
+                    "primary_keywords": ["점심", "샐러드", "구이"],
+                    "secondary_keywords": ["스테이크", "생선", "고기", "볶음"],
+                    "cooking_methods": ["그릴", "찜", "스튜", "볶음"],
+                    "time_keywords": ["점심", "런치", "미들데이"]
+                },
+                "dinner": {
+                    "primary_keywords": ["저녁", "고기", "생선"],
+                    "secondary_keywords": ["삼겹살", "연어", "찜", "구이"],
+                    "cooking_methods": ["구이", "찜", "스튜", "그릴"],
+                    "time_keywords": ["저녁", "디너", "이브닝"]
+                },
+                "snack": {
+                    "primary_keywords": ["간식", "견과류", "치즈"],
+                    "secondary_keywords": ["아몬드", "호두", "올리브", "베리"],
+                    "cooking_methods": ["구이", "볶음"],
+                    "time_keywords": ["간식", "스낵", "애프터눈"]
+                }
+            },
+            "diversity_strategy": "매일 다른 키워드 조합 사용",
+            "search_priority": ["primary_keywords", "cooking_methods", "secondary_keywords"]
+        }
+    
+    async def _generate_meal_plan_from_embeddings(self, days: int, constraints: str, user_id: Optional[str] = None, fast_mode: bool = True) -> Optional[Dict[str, Any]]:
+        """
+        1단계: 임베딩된 레시피 데이터에서 직접 식단표 생성
+        
+        Args:
+            days: 생성할 일수
+            constraints: 제약 조건
+            user_id: 사용자 ID
+            
+        Returns:
+            생성된 식단표 또는 None
+        """
+        try:
+            print(f"🔍 임베딩 데이터에서 {days}일 식단표 생성 시도")
+            
+            # 임베딩 기반 프롬프트 사용
+            embedding_prompt = self.prompts.get("embedding_based", "").format(
+                days=days,
+                constraints=constraints
+            )
+            
+            # 빠른 모드에 따른 전략 선택
+            if fast_mode:
+                print("⚡ 빠른 검색 모드: 기본 전략 사용")
+                meal_strategies = self._get_default_meal_strategies()["meal_strategies"]
+            else:
+                print("🤖 AI 검색 모드: AI 전략 생성")
+                ai_strategies = await self._generate_ai_meal_strategies(days, constraints)
+                meal_strategies = ai_strategies.get("meal_strategies", self._get_default_meal_strategies()["meal_strategies"])
+            
+            # 효율적인 검색: 식사별로 한 번에 여러 개 검색
+            meal_plan_days = []
+            used_recipes = set()  # 중복 방지용
+            
+            # 각 식사별로 한 번에 여러 개 검색
+            meal_collections = {}
+            
+            for slot, strategy in meal_strategies.items():
+                print(f"🔍 {slot} 레시피 {days}개 검색 중...")
+                
+                # 기본 키워드로 한 번에 여러 개 검색
+                search_query = f"{' '.join(strategy['primary_keywords'])} 키토"
+                search_results = await self._search_with_diversity(
+                    search_query, constraints, user_id, used_recipes, max_results=days * 2
+                )
+                
+                if search_results:
+                    # 중복 제거하고 필요한 개수만큼 선택
+                    unique_results = []
+                    for result in search_results:
+                        recipe_id = result.get('id', '')
+                        if recipe_id and recipe_id not in used_recipes:
+                            unique_results.append(result)
+                            used_recipes.add(recipe_id)
+                            if len(unique_results) >= days:
+                                break
+                    
+                    meal_collections[slot] = unique_results
+                    print(f"✅ {slot} 레시피 {len(unique_results)}개 수집 완료")
+                else:
+                    meal_collections[slot] = []
+                    print(f"❌ {slot} 레시피 검색 실패")
+            
+            # 7일 식단표 구성
+            for day in range(days):
+                day_meals = {}
+                
+                for slot in meal_strategies.keys():
+                    if slot in meal_collections and len(meal_collections[slot]) > day:
+                        selected_recipe = meal_collections[slot][day]
+                        recipe_id = selected_recipe.get('id', f"embedded_{slot}_{day}")
+                        used_recipes.add(recipe_id)
+                        
+                        day_meals[slot] = {
+                            "type": "recipe",
+                            "id": recipe_id,
+                            "title": selected_recipe.get('title', f"키토 {slot}"),
+                            "content": selected_recipe.get('content', ''),
+                            "similarity": selected_recipe.get('similarity', 0.0),
+                            "metadata": selected_recipe.get('metadata', {}),
+                            "allergens": selected_recipe.get('allergens', []),
+                            "ingredients": selected_recipe.get('ingredients', [])
+                        }
+                        
+                        print(f"✅ {slot}: {selected_recipe.get('title', 'Unknown')} (유사도: {selected_recipe.get('similarity', 0.0):.2f})")
+                    else:
+                        print(f"⚠️ {slot}: 검색 결과 없음, AI 생성으로 넘어감")
+                        return None  # AI 생성 단계로 넘어가기
+                
+                meal_plan_days.append(day_meals)
+            
+            # 성공적으로 모든 슬롯에 레시피를 찾았으면
+            if len(meal_plan_days) == days:
+                print(f"✅ 임베딩 데이터로 {days}일 식단표 생성 성공")
+                
+                # 총 매크로 계산
+                total_macros = self._calculate_total_macros(meal_plan_days)
+                
+                # 조언 생성
+                notes = [
+                    "임베딩된 레시피 데이터에서 생성된 식단표입니다",
+                    "각 메뉴를 클릭하면 상세 레시피를 볼 수 있습니다",
+                    "키토 식단의 핵심은 탄수화물 제한입니다"
+                ]
+                
+                return {
+                    "days": meal_plan_days,
+                    "total_macros": total_macros,
+                    "notes": notes,
+                    "source": "embeddings",
+                    "constraints": {
+                        "kcal_target": None,  # 임베딩 데이터에서는 정확한 목표 설정 어려움
+                        "carbs_max": None,
+                        "allergies": [],
+                        "dislikes": []
+                    }
+                }
+            
+            return None
+            
+        except Exception as e:
+            print(f"❌ 임베딩 데이터 식단표 생성 실패: {e}")
+            return None
+    
+    async def _generate_detailed_meals_from_embeddings(self, structure: List[Dict[str, str]], constraints: str, user_id: Optional[str] = None, fast_mode: bool = True) -> Optional[Dict[str, Any]]:
+        """
+        3단계: AI 구조를 바탕으로 임베딩 데이터에서 구체적 메뉴 생성
+        
+        Args:
+            structure: AI가 생성한 식단 구조
+            constraints: 제약 조건
+            user_id: 사용자 ID
+            
+        Returns:
+            생성된 식단표 또는 None
+        """
+        try:
+            print(f"🔍 AI 구조 + 임베딩 데이터로 구체적 메뉴 생성")
+            
+            # 효율적인 검색: 식사별로 한 번에 여러 개 검색
+            detailed_days = []
+            used_recipes = set()  # 중복 방지용
+            
+            # 각 식사별로 한 번에 여러 개 검색
+            meal_collections = {}
+            days_count = len(structure)
+            
+            for slot in ['breakfast', 'lunch', 'dinner']:
+                print(f"🔍 {slot} 레시피 {days_count}개 검색 중...")
+                
+                # AI 구조에서 가장 많이 나온 키워드 추출
+                slot_keywords = []
+                for day_plan in structure:
+                    meal_type = day_plan.get(f"{slot}_type", "")
+                    if meal_type:
+                        slot_keywords.append(meal_type)
+                
+                # 가장 많이 나온 키워드로 검색
+                if slot_keywords:
+                    # 가장 많이 나온 키워드 선택
+                    from collections import Counter
+                    most_common = Counter(slot_keywords).most_common(1)[0][0]
+                    search_query = f"{most_common} 키토 {slot}"
+                else:
+                    search_query = f"키토 {slot}"
+                
+                search_results = await self._search_with_diversity(
+                    search_query, constraints, user_id, used_recipes, max_results=days_count * 2
+                )
+                
+                if search_results:
+                    # 중복 제거하고 필요한 개수만큼 선택
+                    unique_results = []
+                    for result in search_results:
+                        recipe_id = result.get('id', '')
+                        if recipe_id and recipe_id not in used_recipes:
+                            unique_results.append(result)
+                            used_recipes.add(recipe_id)
+                            if len(unique_results) >= days_count:
+                                break
+                    
+                    meal_collections[slot] = unique_results
+                    print(f"✅ {slot} 레시피 {len(unique_results)}개 수집 완료")
+                else:
+                    meal_collections[slot] = []
+                    print(f"❌ {slot} 레시피 검색 실패")
+            
+            # 7일 식단표 구성
+            for day_idx, day_plan in enumerate(structure):
+                day_meals = {}
+                
+                for slot in ['breakfast', 'lunch', 'dinner', 'snack']:
+                    if slot == 'snack':
+                        # 간식은 간단하게 처리
+                        meal_type = day_plan.get(f"{slot}_type", "")
+                        day_meals[slot] = await self._generate_simple_snack(meal_type)
+                    else:
+                        if slot in meal_collections and len(meal_collections[slot]) > day_idx:
+                            selected_recipe = meal_collections[slot][day_idx]
+                            recipe_id = selected_recipe.get('id', f"embedded_{slot}_{day_idx}")
+                            used_recipes.add(recipe_id)
+                            
+                            day_meals[slot] = {
+                                "type": "recipe",
+                                "id": recipe_id,
+                                "title": selected_recipe.get('title', f"키토 {slot}"),
+                                "content": selected_recipe.get('content', ''),
+                                "similarity": selected_recipe.get('similarity', 0.0),
+                                "metadata": selected_recipe.get('metadata', {}),
+                                "allergens": selected_recipe.get('allergens', []),
+                                "ingredients": selected_recipe.get('ingredients', [])
+                            }
+                            
+                            print(f"✅ {slot}: {selected_recipe.get('title', 'Unknown')} (유사도: {selected_recipe.get('similarity', 0.0):.2f})")
+                        else:
+                            print(f"⚠️ {slot}: 검색 결과 없음, AI 생성으로 넘어감")
+                            return None  # AI 생성 단계로 넘어가기
+                
+                detailed_days.append(day_meals)
+            
+            # 성공적으로 모든 슬롯에 레시피를 찾았으면
+            if len(detailed_days) == days_count:
+                print(f"✅ AI + 임베딩 데이터로 {days_count}일 식단표 생성 성공")
+                
+                # 총 매크로 계산
+                total_macros = self._calculate_total_macros(detailed_days)
+                
+                # 조언 생성
+                notes = [
+                    "AI 구조 + 임베딩된 레시피 데이터에서 생성된 식단표입니다",
+                    "각 메뉴를 클릭하면 상세 레시피를 볼 수 있습니다",
+                    "키토 식단의 핵심은 탄수화물 제한입니다"
+                ]
+                
+                return {
+                    "type": "meal_plan",
+                    "days": detailed_days,
+                    "total_macros": total_macros,
+                    "notes": notes,
+                    "source": "ai_structure_plus_embeddings"
+                }
+            else:
+                print(f"❌ AI + 임베딩 데이터로 식단표 생성 실패")
+                return None
+            
+        except Exception as e:
+            print(f"❌ AI 구조 + 임베딩 데이터 식단표 생성 실패: {e}")
+            return None
     
     async def _plan_meal_structure(self, days: int, constraints: str) -> List[Dict[str, str]]:
         """전체 식단 구조 계획"""
@@ -316,12 +808,13 @@ class MealPlannerAgent:
     ) -> Dict[str, Any]:
         """메인 식사 메뉴 생성"""
         
-        # 하이브리드 검색 시도
+        # 하이브리드 검색 시도 (사용자 프로필 필터링 포함)
         search_query = f"{meal_type} 키토 {slot}"
         rag_results = await hybrid_search_tool.search(
             query=search_query,
             profile=constraints,
-            max_results=1
+            max_results=1,
+            user_id=getattr(self, '_current_user_id', None)  # 현재 사용자 ID 전달
         )
         
         if rag_results:
@@ -616,4 +1109,126 @@ class MealPlannerAgent:
                 return FALLBACK_RECIPE_ERROR_PROMPT.format(message=message)
             except ImportError:
                 # 정말 마지막 폴백
-                return f"키토 레시피 '{message}' 생성에 실패했습니다. 키토 원칙에 맞는 재료로 직접 조리해보세요."
+                try:
+                    from app.prompts.meal.fallback import FINAL_RECIPE_FALLBACK_PROMPT
+                    return FINAL_RECIPE_FALLBACK_PROMPT.format(message=message)
+                except ImportError:
+                    return f"키토 레시피 '{message}' 생성에 실패했습니다. 키토 원칙에 맞는 재료로 직접 조리해보세요."
+
+    # ==========================================
+    # 프로필 통합 편의 함수들 
+    # ==========================================
+    
+    async def generate_personalized_meal_plan(self, user_id: str, days: int = 7, fast_mode: bool = True) -> Dict[str, Any]:
+        """
+        사용자 ID만으로 개인화된 식단 계획 생성
+        
+        Args:
+            user_id (str): 사용자 ID
+            days (int): 생성할 일수 (기본 7일)
+            fast_mode (bool): 빠른 모드 (기본 True)
+            
+        Returns:
+            Dict[str, Any]: 생성된 개인화 식단표 데이터
+        """
+        print(f"🔧 개인화 식단 계획 생성 시작: 사용자 {user_id}, {days}일")
+        
+        # 현재 사용자 ID 저장 (검색 시 프로필 필터링용)
+        self._current_user_id = user_id
+        
+        # 사용자 프로필 조회
+        profile_result = await user_profile_tool.get_user_preferences(user_id)
+        
+        if not profile_result["success"]:
+            print(f"⚠️ 프로필 조회 실패, 기본값으로 진행: {profile_result.get('error')}")
+            return await self.generate_meal_plan(days=days, user_id=user_id)
+        
+        prefs = profile_result["preferences"]
+        
+        # 프로필 정보로 식단 생성
+        return await self.generate_meal_plan(
+            days=days,
+            kcal_target=prefs.get("goals_kcal"),
+            carbs_max=prefs.get("goals_carbs_g", 30),
+            allergies=prefs.get("allergies"),
+            dislikes=prefs.get("dislikes"),
+            user_id=user_id,
+            fast_mode=fast_mode
+        )
+    
+    async def generate_recipe_with_profile(self, user_id: str, message: str) -> str:
+        """
+        사용자 프로필을 고려한 레시피 생성
+        
+        Args:
+            user_id (str): 사용자 ID
+            message (str): 레시피 요청 메시지
+            
+        Returns:
+            str: 생성된 레시피
+        """
+        print(f"🔧 개인화 레시피 생성 시작: 사용자 {user_id}, 요청 '{message}'")
+        
+        # 사용자 프로필 조회
+        profile_result = await user_profile_tool.get_user_preferences(user_id)
+        
+        if profile_result["success"]:
+            # 프로필 정보를 프롬프트용 텍스트로 포맷팅
+            profile_context = user_profile_tool.format_preferences_for_prompt(profile_result)
+            print(f"✅ 프로필 적용: {profile_context}")
+        else:
+            profile_context = "사용자 프로필 정보를 가져올 수 없습니다."
+            print(f"⚠️ 프로필 조회 실패: {profile_result.get('error')}")
+        
+        return await self.generate_single_recipe(message, profile_context)
+    
+    async def check_user_access_and_generate(self, user_id: str, request_type: str = "meal_plan", **kwargs) -> Dict[str, Any]:
+        """
+        사용자 접근 권한 확인 후 식단/레시피 생성
+        
+        Args:
+            user_id (str): 사용자 ID
+            request_type (str): 요청 타입 ("meal_plan" 또는 "recipe")
+            **kwargs: 추가 매개변수
+            
+        Returns:
+            Dict[str, Any]: 결과 또는 접근 제한 메시지
+        """
+        print(f"🔧 사용자 접근 권한 확인: {user_id}")
+        
+        # 접근 권한 확인
+        access_result = await user_profile_tool.check_user_access(user_id)
+        
+        if not access_result["success"]:
+            return {
+                "success": False,
+                "error": f"접근 권한 확인 실패: {access_result.get('error')}"
+            }
+        
+        access_info = access_result["access"]
+        
+        if not access_info["has_access"]:
+            return {
+                "success": False,
+                "error": f"접근 권한이 없습니다. 현재 상태: {access_info['state']}",
+                "access_info": access_info
+            }
+        
+        print(f"✅ 접근 권한 확인 완료: {access_info['state']}")
+        
+        # 요청 타입에 따라 처리
+        if request_type == "meal_plan":
+            days = kwargs.get("days", 7)
+            result = await self.generate_personalized_meal_plan(user_id, days)
+            return {"success": True, "data": result, "access_info": access_info}
+        
+        elif request_type == "recipe":
+            message = kwargs.get("message", "키토 레시피")
+            result = await self.generate_recipe_with_profile(user_id, message)
+            return {"success": True, "data": result, "access_info": access_info}
+        
+        else:
+            return {
+                "success": False,
+                "error": f"지원하지 않는 요청 타입: {request_type}"
+            }

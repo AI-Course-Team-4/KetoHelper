@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send, User, Loader2, Plus, MessageSquare, Trash2, Clock, Calendar, Save } from 'lucide-react'
+import { Send, Message, Delete, AccessTime, CalendarToday, Save, Add, Person } from '@mui/icons-material'
+import { CircularProgress } from '@mui/material'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
+// ScrollArea는 MUI Box로 대체 예정
 import { useChatStore, ChatMessage, LLMParsedMeal } from '@/store/chatStore'
 import { useProfileStore } from '@/store/profileStore'
 import { useAuthStore } from '@/store/authStore'
@@ -517,17 +518,17 @@ export function ChatPage() {
               className={`w-full justify-center gap-3 h-14 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300 mb-4 rounded-xl ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
               variant="default"
             >
-              <Plus className="h-5 w-5" />
+              <Add sx={{ fontSize: 20 }} />
               새 채팅 시작
             </Button>
 
             {/* 채팅 히스토리 */}
-            <ScrollArea className="max-h-[60vh]">
+            <div className="max-h-[60vh] overflow-y-auto">
               <div className="space-y-3">
                 {chatSessions.length === 0 && (
                   <div className="text-center py-12 text-muted-foreground">
                     <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-4">
-                      <MessageSquare className="h-8 w-8" />
+                      <Message sx={{ fontSize: 32 }} />
                     </div>
                     <p className="text-sm font-medium mb-1">아직 채팅이 없습니다</p>
                     <p className="text-xs opacity-70">새 채팅을 시작해보세요!</p>
@@ -570,13 +571,13 @@ export function ChatPage() {
                           }
                         }}
                       >
-                        <Trash2 className="h-3 w-3" />
+                        <Delete sx={{ fontSize: 12 }} />
                       </Button>
                     </div>
                   </div>
                 ))}
               </div>
-            </ScrollArea>
+            </div>
           </div>
         </div>
 
@@ -620,7 +621,7 @@ export function ChatPage() {
                       />
                       {isLoading && (
                         <div className="absolute right-3 lg:right-4 top-1/2 -translate-y-1/2">
-                          <Loader2 className="h-4 w-4 lg:h-5 lg:w-5 animate-spin text-muted-foreground" />
+                          <CircularProgress size={20} sx={{ color: 'text.secondary' }} />
                         </div>
                       )}
                     </div>
@@ -661,7 +662,7 @@ export function ChatPage() {
             <>
               {/* 메시지 영역 - 고정 높이와 스크롤 */}
               <div className="flex-1 min-h-0 flex flex-col">
-                <ScrollArea ref={scrollAreaRef} className="flex-1 p-4 lg:p-6">
+                <div ref={scrollAreaRef} className="flex-1 p-4 lg:p-6 overflow-y-auto">
                   <div className="max-w-4xl mx-auto">
                     <div className="space-y-4 lg:space-y-6">
                       {messages.map((msg, index) => (
@@ -670,7 +671,7 @@ export function ChatPage() {
                           {shouldShowDateSeparator(index) && (
                             <div className="flex items-center justify-center my-6">
                               <div className="flex items-center gap-3 px-4 py-2 bg-muted/30 rounded-full border border-border/50">
-                                <Clock className="h-3 w-3 text-muted-foreground" />
+                                <AccessTime sx={{ fontSize: 12, color: 'text.secondary' }} />
                                 <span className="text-xs font-medium text-muted-foreground">
                                   {formatDateSeparator(msg.timestamp)}
                                 </span>
@@ -687,7 +688,7 @@ export function ChatPage() {
                                 ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white ring-blue-200' 
                                 : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white ring-green-200'
                             }`}>
-                              {msg.role === 'user' ? <User className="h-5 w-5 lg:h-6 lg:w-6" /> : <span className="text-lg lg:text-xl">🥑</span>}
+                              {msg.role === 'user' ? <Person sx={{ fontSize: { xs: 20, lg: 24 } }} /> : <span className="text-lg lg:text-xl">🥑</span>}
                             </div>
 
                             {/* 메시지 내용 */}
@@ -717,7 +718,7 @@ export function ChatPage() {
                                 <div className="mt-4 lg:mt-5 p-4 lg:p-5 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-2xl shadow-lg">
                                   <div className="flex items-center justify-between mb-4">
                                     <h4 className="text-base font-bold text-green-800 flex items-center gap-2">
-                                      <Calendar className="h-5 w-5" />
+                                      <CalendarToday sx={{ fontSize: 20 }} />
                                       추천받은 식단
                                     </h4>
                                     <Button
@@ -728,12 +729,12 @@ export function ChatPage() {
                                     >
                                       {isSavingMeal === msg.id ? (
                                         <>
-                                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                          <CircularProgress size={16} sx={{ mr: 1 }} />
                                           저장 중...
                                         </>
                                       ) : (
                                         <>
-                                          <Save className="h-4 w-4 mr-2" />
+                                          <Save sx={{ fontSize: 16, mr: 1 }} />
                                           캘린더에 저장
                                         </>
                                       )}
@@ -795,7 +796,7 @@ export function ChatPage() {
                           </div>
                           <div className="bg-card border border-border/50 p-3 lg:p-4 rounded-xl lg:rounded-2xl shadow-sm">
                             <div className="flex items-center gap-2 lg:gap-3">
-                              <Loader2 className="h-3 w-3 lg:h-4 lg:w-4 animate-spin text-green-500" />
+                              <CircularProgress size={16} sx={{ color: 'green.500' }} />
                               <span className="text-xs lg:text-sm text-muted-foreground">키토 코치가 생각하고 있어요...</span>
                             </div>
                           </div>
@@ -805,7 +806,7 @@ export function ChatPage() {
                       <div ref={messagesEndRef} />
                     </div>
                   </div>
-                </ScrollArea>
+                </div>
               </div>
 
               {/* 입력 영역 - 고정 위치 */}
@@ -823,7 +824,7 @@ export function ChatPage() {
                       />
                       {isLoading && (
                         <div className="absolute right-2 lg:right-3 top-1/2 -translate-y-1/2">
-                          <Loader2 className="h-3 w-3 lg:h-4 lg:w-4 animate-spin text-muted-foreground" />
+                          <CircularProgress size={16} sx={{ color: 'text.secondary' }} />
                         </div>
                       )}
                     </div>

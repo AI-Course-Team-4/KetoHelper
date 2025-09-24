@@ -1,15 +1,10 @@
 import { useState } from 'react'
-import { Menu, Search, User, LogOut } from 'lucide-react'
+import { Menu, Search, Person, Logout } from '@mui/icons-material'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+// DropdownMenu는 MUI Menu로 대체 예정
 import { useAuthStore } from '@/store/authStore'
+import { useProfileStore } from '@/store/profileStore'
 import { authService } from '@/lib/authService'
 import { toast } from 'react-hot-toast'
 import { LoginModal } from './LoginModal'
@@ -22,6 +17,7 @@ export function Header() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const [avatarError, setAvatarError] = useState(false)
   const { user, clear } = useAuthStore()
+  const { clearProfile } = useProfileStore()
   const navigate = useNavigate()
   const location = useLocation()
   const avatarSrc = user?.profileImage
@@ -39,6 +35,10 @@ export function Header() {
     } catch {
       // ignore
     }
+    
+    // 🧹 프로필 데이터 완전 클리어 (다른 사용자 데이터 잔여 방지)
+    clearProfile()
+    console.log('🗑️ 로그아웃: 프로필 스토어 클리어 완료')
     
     // 현재 경로에 따라 리다이렉트 여부 결정
     const shouldRedirect = shouldRedirectOnTokenExpiry(location.pathname)
@@ -66,7 +66,7 @@ export function Header() {
             size="sm"
             className="lg:hidden"
           >
-            <Menu className="h-5 w-5" />
+            <Menu sx={{ fontSize: 20 }} />
           </Button>
           
           <div className="flex items-center space-x-2">
@@ -80,7 +80,7 @@ export function Header() {
         {/* 검색바 */}
         <div className="flex-1 max-w-md mx-4">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search sx={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 16, color: 'text.secondary' }} />
             <Input
               placeholder="레시피나 식당을 검색해보세요..."
               className="pl-10"
@@ -93,53 +93,24 @@ export function Header() {
         {/* 사용자 메뉴 */}
         <div className="flex items-center space-x-2">
           {user ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="relative">
-                  {avatarSrc && !avatarError ? (
-                    <img
-                      src={avatarSrc}
-                      alt="profile"
-                      loading="lazy"
-                      onError={() => setAvatarError(true)}
-                      className="h-7 w-7 rounded-full object-cover"
-                    />
-                  ) : (
-                    <User className="h-7 w-7" />
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                {/* 사용자 정보 요약 */}
-                <div className="px-3 py-2 flex items-center gap-2">
-                  {avatarSrc && !avatarError ? (
-                    <img
-                      src={avatarSrc}
-                      alt="profile"
-                      className="h-8 w-8 rounded-full object-cover"
-                    />
-                  ) : (
-                    <User className="h-8 w-8" />
-                  )}
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium truncate">{user?.name || '사용자'}</div>
-                    {user?.email && (
-                      <div className="text-xs text-muted-foreground truncate">{user.email}</div>
-                    )}
-                  </div>
-                </div>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate('/profile')}>
-                  <User className="mr-2 h-4 w-4" />
-                  <span>프로필 설정</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-red-600" onClick={handleLogout}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>로그아웃</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={() => navigate('/profile')}>
+                {avatarSrc && !avatarError ? (
+                  <img
+                    src={avatarSrc}
+                    alt="profile"
+                    loading="lazy"
+                    onError={() => setAvatarError(true)}
+                    className="h-7 w-7 rounded-full object-cover"
+                  />
+                ) : (
+                  <Person sx={{ fontSize: 28 }} />
+                )}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={handleLogout}>
+                <Logout sx={{ fontSize: 16 }} />
+              </Button>
+            </div>
           ) : (
             <Button variant="default" size="sm" onClick={handleLogin}>
               로그인
