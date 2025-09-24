@@ -78,7 +78,7 @@ export function MapPage() {
             lng: userLocation.lng,
             radius: 2000,
             min_score: 30,
-            max_results: 50,
+            max_results: 20,
           },
         })
         console.log('백엔드 응답:', res.data)
