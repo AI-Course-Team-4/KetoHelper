@@ -47,6 +47,26 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
   const openedOverlayKeyRef = useRef<string | null>(null);
   const overlayByKeyRef = useRef<Map<string, any>>(new Map());
 
+  // 위/경도로 주소 역지오코딩
+  const reverseGeocode = (plat: number, plng: number): Promise<string | null> => {
+    return new Promise((resolve) => {
+      if (!(window as any).kakao?.maps?.services?.Geocoder) {
+        resolve(null);
+        return;
+      }
+      const geocoder = new window.kakao.maps.services.Geocoder();
+      geocoder.coord2Address(plng, plat, (result: any[], status: string) => {
+        if (status === window.kakao.maps.services.Status.OK && result[0]) {
+          const road = result[0].road_address?.address_name;
+          const jibun = result[0].address?.address_name;
+          resolve(road || jibun || null);
+        } else {
+          resolve(null);
+        }
+      });
+    });
+  };
+
   // 마커/오버레이 재구성 함수: 지도는 재생성하지 않고 현재 데이터만 반영
   const rebuildMarkers = async () => {
     const map = mapRef.current;
@@ -178,34 +198,6 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
         createdOverlaysRef.current.push(labelOverlay);
       }
 
-      if (isSpecial) {
-        const currentLabelHtml = `
-          <span
-            style="
-              display: inline-block;
-              pointer-events: none;
-              white-space: nowrap;
-              padding: 2px 6px;
-              font-size: 11px;
-              font-weight: 800;
-              color: #1e88e5;
-              text-shadow: -1px 0 white, 0 1px white, 1px 0 white, 0 -1px white;
-              transform: translate(0, 10px);
-            "
-          >
-            현재 위치
-          </span>`;
-        const currentLabelOverlay = new window.kakao.maps.CustomOverlay({
-          position: new window.kakao.maps.LatLng(pos.lat, pos.lng),
-          content: currentLabelHtml,
-          yAnchor: 0,
-          xAnchor: 0.5,
-          zIndex: 2,
-        });
-        currentLabelOverlay.setMap(map);
-        createdOverlaysRef.current.push(currentLabelOverlay);
-      }
-
       const contentHtml = `
         <div style="position:relative;pointer-events:auto;">
           <div style="
@@ -288,7 +280,7 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
       }
     }
 
-    // 별도 강조 마커 처리 (중복 좌표 제외)
+    // 별도 강조 마커 처리
     if (specialMarker && typeof specialMarker.lat === 'number' && typeof specialMarker.lng === 'number') {
       // 기본 위치(특별 마커)는 항상 파란색으로 유지하고, 목록 마커와 겹치더라도 별도로 표시
       const sm = new window.kakao.maps.Marker({
@@ -300,33 +292,95 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
       sm.setMap(map);
       createdMarkersRef.current.push(sm);
 
-      // '현재 위치' 레이블도 함께 표시 (중복 방지 위해 항상 특별 마커와 같이 렌더)
-      const currentLabelHtml = `
-        <span
-          style="
-            display: inline-block;
-            pointer-events: none;
-            white-space: nowrap;
-            padding: 2px 6px;
-            font-size: 11px;
-            font-weight: 800;
-            color: #1e88e5;
-            text-shadow: -1px 0 white, 0 1px white, 1px 0 white, 0 -1px white;
-          "
-        >
-          현재 위치
-        </span>`;
-      const currentLabelOverlay = new window.kakao.maps.CustomOverlay({
+      // 기본 위치 제목 라벨 (예: 강남역) - 마커 위 ("현재 위치" 텍스트는 제외)
+      if (specialMarker.title && specialMarker.title !== '현재 위치') {
+        const titleLabelHtml = `
+          <span
+            style="
+              display: inline-block;
+              pointer-events: none;
+              white-space: nowrap;
+              padding: 2px 6px;
+              font-size: 11px;
+              font-weight: 800;
+              color: #000000;
+              text-shadow: -1px 0 white, 0 1px white, 1px 0 white, 0 -1px white;
+              transform: translate(0, -12px);
+            "
+          >
+            ${specialMarker.title}
+          </span>`;
+        const titleLabelOverlay = new window.kakao.maps.CustomOverlay({
+          position: new window.kakao.maps.LatLng(specialMarker.lat, specialMarker.lng),
+          content: titleLabelHtml,
+          yAnchor: 0,
+          xAnchor: 0.5,
+          zIndex: 1002,
+        });
+        titleLabelOverlay.setMap(map);
+        createdOverlaysRef.current.push(titleLabelOverlay);
+      }
+
+      // 기본 위치 클릭 시 주소 말풍선과 동일한 오버레이 열기 (역지오코딩 포함)
+      const specialOverlay = new window.kakao.maps.CustomOverlay({
         position: new window.kakao.maps.LatLng(specialMarker.lat, specialMarker.lng),
-        content: currentLabelHtml,
-        yAnchor: 0,
+        content: '',
+        yAnchor: 1.8,
         xAnchor: 0.5,
-        zIndex: 1001,
+        zIndex: 1003,
       });
-      currentLabelOverlay.setMap(map);
-      createdOverlaysRef.current.push(currentLabelOverlay);
+
+      window.kakao.maps.event.addListener(sm, 'click', async () => {
+        isMarkerClickRef.current = true;
+
+        const addr = await reverseGeocode(specialMarker.lat, specialMarker.lng);
+        const html = `
+          <div style="position:relative;pointer-events:auto;">
+            <div style="
+              background:#ffffff;
+              border-radius:12px;
+              box-shadow:0 12px 32px rgba(0,0,0,0.3);
+              border:1px solid #ddd;
+              white-space:nowrap;
+              min-width:200px;
+              overflow:hidden;
+            ">
+              <div style="padding:12px 14px;font-size:13px;color:#212121;">
+                <div style="font-weight:700;margin-bottom:6px;">
+                  ${specialMarker.title || ''}
+                </div>
+                <div style="color:#616161;">${addr ?? `위도: ${(specialMarker.lat).toFixed(6)}, 경도: ${(specialMarker.lng).toFixed(6)}`}</div>
+              </div>
+            </div>
+            <div style="
+              position:absolute;left:50%;bottom:-7px;transform:translateX(-50%);
+              width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-top:10px solid #fff;
+              z-index:10;
+            "></div>
+            <div style="
+              position:absolute;left:50%;bottom:-5px;transform:translateX(-50%);
+              width:0;height:0;border-left:9px solid transparent;border-right:9px solid transparent;border-top:9px solid #ffffff;
+              z-index:11;
+            "></div>
+          </div>`;
+
+        // 다른 오버레이 닫기
+        if (openedOverlayRef.current && openedOverlayKeyRef.current !== 'special') {
+          openedOverlayRef.current.setMap(null);
+          openedOverlayRef.current = null;
+          openedOverlayKeyRef.current = null;
+        }
+        // 콘텐츠 설정 및 열기
+        specialOverlay.setContent(html);
+        specialOverlay.setMap(map);
+        openedOverlayRef.current = specialOverlay;
+        openedOverlayKeyRef.current = 'special';
+
+        setTimeout(() => { isMarkerClickRef.current = false; }, 150);
+      });
     }
   };
+
   useEffect(() => {
     if (!import.meta.env.VITE_KAKAO_MAP_JSKEY) {
       console.error("VITE_KAKAO_MAP_JSKEY 가 설정되지 않았습니다.");
