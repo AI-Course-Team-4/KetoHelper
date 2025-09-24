@@ -23,6 +23,7 @@ from app.agents.chat_agent import SimpleKetoCoachAgent
 from app.prompts.chat.intent_classification import INTENT_CLASSIFICATION_PROMPT
 from app.prompts.chat.memory_update import MEMORY_UPDATE_PROMPT
 from app.prompts.chat.response_generation import RESPONSE_GENERATION_PROMPT, RESTAURANT_RESPONSE_GENERATION_PROMPT
+from app.prompts.meal.recipe_response import RECIPE_RESPONSE_GENERATION_PROMPT
 from app.prompts.restaurant.search_improvement import PLACE_SEARCH_IMPROVEMENT_PROMPT
 from app.prompts.restaurant.search_failure import PLACE_SEARCH_FAILURE_PROMPT
 
@@ -252,8 +253,8 @@ class KetoCoachAgent:
                 should_generate_ai = len(matching_results) == 0
             else:
                 # 일반적인 조건: 결과 없음 또는 점수가 낮음
-                max_score = max([r.get('final_score', 0) for r in valid_results]) if valid_results else 0
-                should_generate_ai = not search_results or len(valid_results) == 0 or max_score < 0.2
+                max_score = max([r.get('similarity', 0) for r in valid_results]) if valid_results else 0
+                should_generate_ai = not search_results or len(valid_results) == 0 or max_score < 0.1
             
             if should_generate_ai:
                 print(f"  🤖 검색 결과 없음, AI 레시피 생성 실행...")
@@ -472,7 +473,8 @@ class KetoCoachAgent:
                 kcal_target=kcal_target,
                 carbs_max=carbs_max,
                 allergies=allergies,
-                dislikes=dislikes
+                dislikes=dislikes,
+                fast_mode=True  # 빠른 모드 활성화
             )
             
             state["results"] = [meal_plan]
@@ -572,11 +574,19 @@ class KetoCoachAgent:
                 elif state["intent"] == "recipe":
                     context = "추천 레시피:\n"
                     for idx, result in enumerate(state["results"][:3], 1):
-                        context += f"{idx}. {result.get('name', '이름 없음')}\n"
+                        context += f"{idx}. {result.get('title', result.get('name', '이름 없음'))}\n"
+                        if result.get('content'):
+                            context += f"   내용: {result['content'][:200]}...\n"
                         if result.get('ingredients'):
                             context += f"   재료: {result['ingredients']}\n"
                         if result.get('carbs'):
                             context += f"   탄수화물: {result['carbs']}g\n"
+                    
+                    # 레시피 전용 응답 생성 프롬프트 사용
+                    answer_prompt = RECIPE_RESPONSE_GENERATION_PROMPT.format(
+                        message=message,
+                        context=context
+                    )
                 elif state["intent"] == "place":
                     context = "추천 식당:\n"
                     for idx, result in enumerate(state["results"][:5], 1):
