@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { MapPin, Phone, ExternalLink, Calendar } from 'lucide-react'
+import { LocationOn, Phone, OpenInNew, CalendarToday } from '@mui/icons-material'
 import { getKetoScoreColor, getKetoScoreText } from '@/lib/utils'
 
 interface PlaceCardProps {
@@ -38,7 +38,7 @@ export function PlaceCard({ place, onAddToPlan }: PlaceCardProps) {
         </div>
         
         <div className="flex items-center text-sm text-muted-foreground">
-          <MapPin className="h-4 w-4 mr-1" />
+          <LocationOn sx={{ fontSize: 16, mr: 0.5 }} />
           {place.address}
         </div>
 
@@ -88,7 +88,7 @@ export function PlaceCard({ place, onAddToPlan }: PlaceCardProps) {
         {/* 액션 버튼 */}
         <div className="flex gap-2">
           <Button variant="outline" size="sm" className="flex-1">
-            <MapPin className="h-4 w-4 mr-1" />
+            <LocationOn sx={{ fontSize: 16, mr: 0.5 }} />
             지도에서 보기
           </Button>
           
@@ -98,7 +98,7 @@ export function PlaceCard({ place, onAddToPlan }: PlaceCardProps) {
               onClick={() => onAddToPlan(place)}
               className="flex items-center"
             >
-              <Calendar className="h-4 w-4 mr-1" />
+              <CalendarToday sx={{ fontSize: 16, mr: 0.5 }} />
               일정 추가
             </Button>
           )}
@@ -112,7 +112,7 @@ export function PlaceCard({ place, onAddToPlan }: PlaceCardProps) {
             className="flex-1 text-xs"
             onClick={() => window.open(`https://map.kakao.com/link/map/${place.place_id}`, '_blank')}
           >
-            <ExternalLink className="h-3 w-3 mr-1" />
+            <OpenInNew sx={{ fontSize: 12, mr: 0.5 }} />
             카카오맵
           </Button>
           
@@ -123,7 +123,7 @@ export function PlaceCard({ place, onAddToPlan }: PlaceCardProps) {
               className="flex-1 text-xs"
               onClick={() => window.open(`tel:${place.phone}`)}
             >
-              <Phone className="h-3 w-3 mr-1" />
+              <Phone sx={{ fontSize: 12, mr: 0.5 }} />
               전화걸기
             </Button>
           )}

@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
-import { Box } from '@mui/material'
-import CircularProgress from '@mui/material/CircularProgress'
+import { Box, CircularProgress } from '@mui/material'
 import { toast } from 'react-hot-toast'
 import { authService } from '@/lib/authService'
 import { useAuthStore } from '@/store/authStore'
