@@ -1,6 +1,7 @@
 """
 LangGraph 기반 키토 코치 에이전트 오케스트레이터
 의도 분류 → 도구 실행 → 응답 생성의 전체 플로우 관리
+하이브리드 방식: IntentClassifier(키워드) + LLM 병합
 """
 
 import asyncio
@@ -12,6 +13,7 @@ import json
 import re
 
 from app.core.config import settings
+from app.core.intent_classifier import IntentClassifier, Intent  # 추가
 from app.tools.shared.hybrid_search import hybrid_search_tool
 from app.tools.restaurant.place_search import PlaceSearchTool
 from app.tools.restaurant.restaurant_hybrid_search import restaurant_hybrid_search_tool
@@ -21,7 +23,7 @@ from app.agents.meal_planner import MealPlannerAgent
 from app.agents.chat_agent import SimpleKetoCoachAgent
 
 # 프롬프트 모듈 import (중앙집중화된 구조)
-from app.prompts.chat.intent_classification import INTENT_CLASSIFICATION_PROMPT
+from app.prompts.chat.intent_classification import INTENT_CLASSIFICATION_PROMPT, get_intent_prompt
 from app.prompts.chat.memory_update import MEMORY_UPDATE_PROMPT
 from app.prompts.chat.response_generation import RESPONSE_GENERATION_PROMPT, RESTAURANT_RESPONSE_GENERATION_PROMPT
 from app.prompts.meal.recipe_response import RECIPE_RESPONSE_GENERATION_PROMPT
@@ -41,6 +43,7 @@ class AgentState(TypedDict):
     profile: NotRequired[Optional[Dict[str, Any]]]
     location: NotRequired[Optional[Dict[str, float]]]
     radius_km: NotRequired[float]
+    meal_plan_days: NotRequired[int]  # 추가
 
 class KetoCoachAgent:
     """키토 코치 메인 에이전트 (LangGraph 오케스트레이터)"""
@@ -57,6 +60,14 @@ class KetoCoachAgent:
         except Exception as e:
             print(f"Gemini AI 초기화 실패: {e}")
             self.llm = None
+        
+        # IntentClassifier 초기화 (하이브리드 방식용)
+        try:
+            self.intent_classifier = IntentClassifier()
+            print("✅ IntentClassifier 초기화 성공")
+        except Exception as e:
+            print(f"⚠️ IntentClassifier 초기화 실패: {e}")
+            self.intent_classifier = None
         
         # 도구들 초기화
         self.hybrid_search = hybrid_search_tool  # 이미 초기화된 인스턴스 사용
@@ -109,66 +120,262 @@ class KetoCoachAgent:
         
         return workflow.compile()
     
+    def _map_intent_to_route(self, intent_enum: Intent, message: str, slots: Dict[str, Any]) -> str:
+        """IntentClassifier의 Intent enum을 orchestrator 라우팅 키로 변환
+        
+        IntentClassifier Intent -> Orchestrator Route 매핑:
+        - MEAL_PLANNING -> recipe 또는 mealplan (세분화 필요)
+        - RESTAURANT_SEARCH -> place
+        - BOTH -> 우선순위에 따라 결정
+        - GENERAL -> other
+        """
+        
+        if intent_enum == Intent.MEAL_PLANNING:
+            # 식단표 관련 키워드로 세분화
+            mealplan_keywords = [
+                "식단표", "식단 만들", "식단 생성", "식단 짜",
+                "일주일", "하루치", "이틀치", "3일치", "사흘치",
+                "주간", "일주일치", "메뉴 계획", "한주", "한 주",
+                "이번주", "다음주", "meal plan", "weekly"
+            ]
+            
+            recipe_keywords = [
+                "레시피", "조리법", "만드는 법", "어떻게 만들",
+                "요리 방법", "조리 방법", "recipe", "how to make"
+            ]
+            
+            # 메시지에서 키워드 확인
+            message_lower = message.lower()
+            
+            # 명확한 식단표 요청
+            if any(keyword in message_lower for keyword in mealplan_keywords):
+                print(f"  🗓️ 식단표 키워드 감지 → mealplan")
+                return "mealplan"
+            
+            # 명확한 레시피 요청
+            if any(keyword in message_lower for keyword in recipe_keywords):
+                print(f"  🍳 레시피 키워드 감지 → recipe")
+                return "recipe"
+            
+            # 슬롯에 days가 있으면 식단표
+            if slots.get("days") or slots.get("meal_time"):
+                print(f"  📅 days 슬롯 감지 → mealplan")
+                return "mealplan"
+            
+            # 기본값은 recipe
+            print(f"  🍴 기본값 → recipe")
+            return "recipe"
+        
+        elif intent_enum == Intent.RESTAURANT_SEARCH:
+            return "place"
+        
+        elif intent_enum == Intent.BOTH:
+            # 식당 키워드가 더 강하면 place, 아니면 recipe
+            restaurant_keywords = ["식당", "맛집", "음식점", "카페", "레스토랑", "근처", "주변"]
+            if any(keyword in message for keyword in restaurant_keywords):
+                print(f"  🏪 BOTH → 식당 우선")
+                return "place"
+            print(f"  🍳 BOTH → 레시피 우선")
+            return "recipe"
+        
+        else:  # Intent.GENERAL
+            return "other"
+    
     async def _router_node(self, state: AgentState) -> AgentState:
-        """의도 분류 노드"""
+        """하이브리드 의도 분류 노드
+        
+        1. IntentClassifier로 빠른 키워드 기반 분류
+        2. 높은 확신도(0.8+) → 바로 사용
+        3. 낮은 확신도 → LLM 분류로 폴백
+        4. 두 결과를 병합하여 최종 결정
+        """
         
         message = state["messages"][-1].content if state["messages"] else ""
         
-        router_prompt = INTENT_CLASSIFICATION_PROMPT.format(message=message)
-        
         try:
-            response = await self.llm.ainvoke([HumanMessage(content=router_prompt)])
+            print(f"\n🎯 하이브리드 의도 분류 시작: '{message[:50]}...'")
             
-            # JSON 파싱
-            json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
-            if json_match:
-                result = json.loads(json_match.group())
-                initial_intent = result.get("intent", "other")
-                state["slots"] = result.get("slots", {})
+            # IntentClassifier 사용 가능 여부 확인
+            if self.intent_classifier:
+                # 1단계: IntentClassifier로 빠른 분류
+                quick_result = await self.intent_classifier.classify_intent(
+                    user_input=message,
+                    context=""
+                )
                 
-                # 의도 분류 검증 로직 추가
-                state["intent"] = self._validate_intent(message, initial_intent)
+                quick_intent = quick_result["intent"]
+                quick_confidence = quick_result["confidence"]
+                quick_method = quick_result.get("method", "unknown")
                 
-                # 디버깅: 의도 분류 결과 출력
-                print(f"🎯 의도 분류 결과: {state['intent']} (초기: {initial_intent}, 메시지: {message[:50]}...)")
-                print(f"   슬롯: {state['slots']}")
-                print(f"🔍 DEBUG: orchestrator._router_node 실행됨!")
+                # 슬롯 추출
+                quick_slots = self.intent_classifier.extract_slots(message, quick_intent)
+                
+                print(f"  📊 키워드 분류: {quick_intent.value} (확신도: {quick_confidence:.2f}, 방법: {quick_method})")
+                print(f"  📦 추출된 슬롯: {quick_slots}")
+                
+                # 2단계: 높은 확신도면 바로 사용
+                if quick_confidence >= 0.8:
+                    print(f"  ✅ 높은 확신도 → 키워드 분류 채택")
+                    
+                    # Intent enum을 라우팅 키로 변환
+                    mapped_intent = self._map_intent_to_route(quick_intent, message, quick_slots)
+                    state["intent"] = mapped_intent
+                    state["slots"] = quick_slots
+                    
+                    # 추가 검증 (기존 로직 유지)
+                    state["intent"] = self._validate_intent(message, state["intent"])
+                    
+                    print(f"  🎯 최종 의도: {state['intent']}")
+                    
+                    state["tool_calls"].append({
+                        "tool": "router",
+                        "method": "keyword_based",
+                        "intent": state["intent"],
+                        "slots": state["slots"],
+                        "confidence": quick_confidence
+                    })
+                    
+                    return state
+                
+                else:
+                    # 3단계: 낮은 확신도 → LLM 분류
+                    print(f"  🤖 낮은 확신도 → LLM 분류 실행")
+                    
+                    # 향상된 프롬프트 사용 (키워드 힌트 포함)
+                    enhanced_prompt = get_intent_prompt(
+                        message=message,
+                        keyword_intent=quick_intent.value,
+                        confidence=quick_confidence
+                    )
+                    
+                    response = await self.llm.ainvoke([HumanMessage(content=enhanced_prompt)])
+                    
+                    # JSON 파싱
+                    json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
+                    if json_match:
+                        result = json.loads(json_match.group())
+                        llm_intent = result.get("intent", "other")
+                        llm_slots = result.get("slots", {})
+                        
+                        print(f"  🤖 LLM 분류: {llm_intent}")
+                        
+                        # 4단계: 결과 병합
+                        # LLM 결과를 우선하되, 슬롯은 병합
+                        state["intent"] = llm_intent
+                        state["slots"] = {**quick_slots, **llm_slots}  # 병합
+                        
+                        # 추가 검증
+                        state["intent"] = self._validate_intent(message, state["intent"])
+                        
+                        print(f"  🎯 최종 의도: {state['intent']} (LLM 기반)")
+                        
+                        state["tool_calls"].append({
+                            "tool": "router",
+                            "method": "hybrid_llm",
+                            "intent": state["intent"],
+                            "slots": state["slots"],
+                            "keyword_hint": quick_intent.value,
+                            "keyword_confidence": quick_confidence
+                        })
+                    else:
+                        # JSON 파싱 실패 시 키워드 결과 사용
+                        mapped_intent = self._map_intent_to_route(quick_intent, message, quick_slots)
+                        state["intent"] = mapped_intent
+                        state["slots"] = quick_slots
+                        state["intent"] = self._validate_intent(message, state["intent"])
+                        
+                        state["tool_calls"].append({
+                            "tool": "router",
+                            "method": "keyword_fallback",
+                            "intent": state["intent"],
+                            "slots": state["slots"]
+                        })
+            
             else:
-                state["intent"] = "other"
-                state["slots"] = {}
+                # IntentClassifier 없으면 기존 LLM 방식 사용
+                print("  ⚠️ IntentClassifier 사용 불가 → 기존 LLM 방식")
+                
+                # 기본 프롬프트 사용 (키워드 힌트 없음)
+                router_prompt = get_intent_prompt(message=message)
+                response = await self.llm.ainvoke([HumanMessage(content=router_prompt)])
+                
+                json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
+                if json_match:
+                    result = json.loads(json_match.group())
+                    initial_intent = result.get("intent", "other")
+                    state["slots"] = result.get("slots", {})
+                    state["intent"] = self._validate_intent(message, initial_intent)
+                    
+                    state["tool_calls"].append({
+                        "tool": "router",
+                        "method": "llm_only",
+                        "intent": state["intent"],
+                        "slots": state["slots"]
+                    })
+                else:
+                    state["intent"] = "other"
+                    state["slots"] = {}
+                    
+                    state["tool_calls"].append({
+                        "tool": "router",
+                        "method": "default",
+                        "intent": "other",
+                        "slots": {}
+                    })
+            
+        except Exception as e:
+            print(f"  ❌ Router error: {e}")
+            state["intent"] = "other"
+            state["slots"] = {}
             
             state["tool_calls"].append({
                 "tool": "router",
-                "intent": state["intent"],
-                "slots": state["slots"]
+                "method": "error",
+                "intent": "other",
+                "error": str(e)
             })
-            
-        except Exception as e:
-            print(f"Router error: {e}")
-            state["intent"] = "other"
-            state["slots"] = {}
+        
+        print(f"  📍 라우팅 결정: {state['intent']} → {self._route_condition(state)}")
         
         return state
     
     def _validate_intent(self, message: str, initial_intent: str) -> str:
-        """의도 분류 검증 및 수정"""
+        """의도 분류 검증 및 수정 (기존 로직 유지 + 개선)"""
+        
+        # 식단표 관련 명확한 키워드 우선 체크
+        if any(keyword in message for keyword in [
+            "하루치", "일주일치", "이틀치", "3일치", "사흘치",
+            "식단표", "식단 만들", "식단 생성", "식단 짜",
+            "메뉴 계획", "일주일 식단", "주간 식단", "다음주 식단",
+            "이번주 식단", "한주 식단", "한 주 식단"
+        ]):
+            print(f"    🔍 검증: 식단표 키워드 감지 → mealplan 강제")
+            return "mealplan"
+        
+        # 레시피 관련 명확한 키워드 체크
+        if any(keyword in message for keyword in [
+            "레시피", "조리법", "만드는 법", "어떻게 만들",
+            "요리 방법", "조리 방법", "만들어줘", "만들어 줘"
+        ]) and "식단" not in message:
+            print(f"    🔍 검증: 레시피 키워드 감지 → recipe 강제")
+            return "recipe"
         
         # 질문형 패턴 체크
         question_patterns = [
             r'뭐야\?', r'뭔가\?', r'뭐지\?', r'뭐야', r'뭔가', r'뭐지',
             r'어떻게\?', r'어떤\?', r'어떤가\?', r'어떻게', r'어떤', r'어떤가',
             r'왜\?', r'왜야\?', r'왜지\?', r'왜', r'왜야', r'왜지',
-            r'언제\?', r'언제야\?', r'언제지\?', r'언제', r'언제야', r'언제지',
-            r'어디서\?', r'어디\?', r'어디야\?', r'어디서', r'어디', r'어디야',
             r'도움\?', r'도움이\?', r'될까\?', r'도움', r'도움이', r'될까',
             r'대화', r'채팅', r'말해', r'알려줘', r'설명해', r'궁금해'
         ]
         
-        # 대화/질문 패턴이 있으면 other로 강제 변경
-        for pattern in question_patterns:
-            if re.search(pattern, message, re.IGNORECASE):
-                print(f"🔍 질문형 패턴 감지: '{pattern}' → other로 변경")
-                return "other"
+        # 대화/질문 패턴이 있으면 other로 변경 (단, 레시피/식단표 키워드가 없을 때만)
+        has_question_pattern = any(re.search(pattern, message, re.IGNORECASE) for pattern in question_patterns)
+        has_action_keyword = any(word in message for word in ["레시피", "식단", "만들", "찾아", "추천"])
+        
+        if has_question_pattern and not has_action_keyword:
+            print(f"    🔍 검증: 질문형 패턴 감지 → other로 변경")
+            return "other"
         
         # mealplan 의도인데 구체적인 계획 요청이 아닌 경우
         if initial_intent == "mealplan":
@@ -181,7 +388,7 @@ class KetoCoachAgent:
             
             has_plan_request = any(re.search(pattern, message, re.IGNORECASE) for pattern in plan_patterns)
             if not has_plan_request:
-                print(f"🔍 mealplan 의도이지만 구체적 계획 요청 아님 → other로 변경")
+                print(f"    🔍 검증: mealplan이지만 구체적 요청 없음 → other로 변경")
                 return "other"
         
         # recipe 의도인데 구체적인 요리 요청이 아닌 경우
@@ -193,7 +400,7 @@ class KetoCoachAgent:
             
             has_recipe_request = any(re.search(pattern, message, re.IGNORECASE) for pattern in recipe_patterns)
             if not has_recipe_request:
-                print(f"🔍 recipe 의도이지만 구체적 요리 요청 아님 → other로 변경")
+                print(f"    🔍 검증: recipe이지만 구체적 요청 없음 → other로 변경")
                 return "other"
         
         # place 의도인데 구체적인 장소 검색 요청이 아닌 경우
@@ -205,7 +412,7 @@ class KetoCoachAgent:
             
             has_place_request = any(re.search(pattern, message, re.IGNORECASE) for pattern in place_patterns)
             if not has_place_request:
-                print(f"🔍 place 의도이지만 구체적 장소 검색 요청 아님 → other로 변경")
+                print(f"    🔍 검증: place이지만 구체적 요청 없음 → other로 변경")
                 return "other"
         
         return initial_intent
