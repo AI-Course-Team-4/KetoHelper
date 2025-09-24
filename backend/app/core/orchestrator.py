@@ -16,6 +16,7 @@ from app.tools.shared.hybrid_search import hybrid_search_tool
 from app.tools.restaurant.place_search import PlaceSearchTool
 from app.tools.restaurant.restaurant_hybrid_search import restaurant_hybrid_search_tool
 from app.tools.meal.keto_score import KetoScoreCalculator
+from app.tools.shared.temporary_dislikes_extractor import temp_dislikes_extractor
 from app.agents.meal_planner import MealPlannerAgent
 from app.agents.chat_agent import SimpleKetoCoachAgent
 
@@ -217,15 +218,30 @@ class KetoCoachAgent:
         try:
             message = state["messages"][-1].content if state["messages"] else ""
             
+            # 채팅에서 임시 불호 식재료 추출
+            temp_dislikes = temp_dislikes_extractor.extract_from_message(message)
+            
             # 프로필 정보 반영
             profile_context = ""
+            allergies = []
+            dislikes = []
+            
             if state["profile"]:
                 allergies = state["profile"].get("allergies", [])
-                dislikes = state["profile"].get("dislikes", [])
-                if allergies:
-                    profile_context += f"알레르기: {', '.join(allergies)}. "
-                if dislikes:
-                    profile_context += f"싫어하는 음식: {', '.join(dislikes)}. "
+                profile_dislikes = state["profile"].get("dislikes", [])
+                
+                # 임시 불호 식재료와 프로필 불호 식재료 합치기
+                dislikes = temp_dislikes_extractor.combine_with_profile_dislikes(
+                    temp_dislikes, profile_dislikes
+                )
+            else:
+                # 프로필이 없는 경우 임시 불호 식재료만 사용
+                dislikes = temp_dislikes
+            
+            if allergies:
+                profile_context += f"알레르기: {', '.join(allergies)}. "
+            if dislikes:
+                profile_context += f"싫어하는 음식: {', '.join(dislikes)}. "
             
             # 하이브리드 검색 실행
             full_query = f"{message} {profile_context}".strip()
@@ -259,21 +275,17 @@ class KetoCoachAgent:
             if should_generate_ai:
                 print(f"  🤖 검색 결과 없음, AI 레시피 생성 실행...")
                 
-                # 프로필 정보를 문자열로 변환
-                profile_context = ""
-                if state.get("profile"):
-                    profile = state["profile"]
-                    allergies = profile.get("allergies", [])
-                    dislikes = profile.get("dislikes", [])
-                    if allergies:
-                        profile_context += f"알레르기: {', '.join(allergies)}. "
-                    if dislikes:
-                        profile_context += f"싫어하는 음식: {', '.join(dislikes)}. "
+                # AI 레시피 생성 시에도 합쳐진 불호 식재료 사용
+                ai_profile_context = ""
+                if allergies:
+                    ai_profile_context += f"알레르기: {', '.join(allergies)}. "
+                if dislikes:
+                    ai_profile_context += f"싫어하는 음식: {', '.join(dislikes)}. "
                 
                 # AI 레시피 생성 (MealPlannerAgent 사용)
                 ai_recipe = await self.meal_planner.generate_single_recipe(
                     message=message,
-                    profile_context=profile_context
+                    profile_context=ai_profile_context
                 )
                 
                 # AI 생성 레시피를 결과로 설정
@@ -452,6 +464,11 @@ class KetoCoachAgent:
         """식단표 생성 노드"""
         
         try:
+            message = state["messages"][-1].content if state["messages"] else ""
+            
+            # 채팅에서 임시 불호 식재료 추출
+            temp_dislikes = temp_dislikes_extractor.extract_from_message(message)
+            
             # 슬롯에서 매개변수 추출
             days = int(state["slots"].get("days", 7)) if state["slots"].get("days") else 7
             
@@ -465,7 +482,15 @@ class KetoCoachAgent:
                 kcal_target = state["profile"].get("goals_kcal")
                 carbs_max = state["profile"].get("goals_carbs_g", 30)
                 allergies = state["profile"].get("allergies", [])
-                dislikes = state["profile"].get("dislikes", [])
+                profile_dislikes = state["profile"].get("dislikes", [])
+                
+                # 임시 불호 식재료와 프로필 불호 식재료 합치기
+                dislikes = temp_dislikes_extractor.combine_with_profile_dislikes(
+                    temp_dislikes, profile_dislikes
+                )
+            else:
+                # 프로필이 없는 경우 임시 불호 식재료만 사용
+                dislikes = temp_dislikes
             
             # 식단표 생성
             meal_plan = await self.meal_planner.generate_meal_plan(
