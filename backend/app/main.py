@@ -18,6 +18,7 @@ from app.domains.chat.api import chat
 from app.domains.restaurant.api import places
 from app.domains.meal.api import plans
 from app.domains.profile.api import profile
+from app.domains.admin.api import metrics as admin_metrics
 from app.shared.api import auth as auth_api
 from app.core.config import settings
 from app.core.database import init_db
@@ -61,6 +62,16 @@ preview_or_prod_regex = (
     if project else None
 )
 
+# 가드레일 미들웨어 추가 (CORS보다 먼저)
+from app.core.guard_middleware import GuardMiddleware
+app.add_middleware(
+    GuardMiddleware,
+    whitelist_paths={
+        "/health", "/docs", "/openapi.json", "/redoc",
+        "/admin/guard-metrics", "/favicon.ico", "/"
+    }
+)
+
 # CORS 설정
 app.add_middleware(
     CORSMiddleware,
@@ -80,6 +91,7 @@ app.include_router(chat.router, prefix="/api/v1")
 app.include_router(places.router, prefix="/api/v1") 
 app.include_router(plans.router, prefix="/api/v1")
 app.include_router(profile.router, prefix="/api/v1")
+app.include_router(admin_metrics.router, prefix="/api/v1")
 app.include_router(auth_api.router, prefix="/api/v1")
 print("✅ DEBUG: 모든 라우터 등록 완료")
 

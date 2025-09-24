@@ -7,12 +7,13 @@ import { Input } from '@/components/ui/input'
 import { useChatStore, ChatMessage, LLMParsedMeal } from '@/store/chatStore'
 import { useProfileStore } from '@/store/profileStore'
 import { useAuthStore } from '@/store/authStore'
-import { RecipeCard } from '@/components/RecipeCard'
+// import { RecipeCard } from '@/components/RecipeCard'
 import { PlaceCard } from '@/components/PlaceCard'
 import { useSendMessage } from '@/hooks/useApi'
 import { MealParserService, MealService } from '@/lib/mealService'
 import { MealData } from '@/data/ketoMeals'
 import { format } from 'date-fns'
+import KakaoMap from './KakaoMap'
 
 // Message 타입을 ChatMessage로 대체
 
@@ -32,7 +33,9 @@ export function ChatPage() {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
   const [isSavingMeal, setIsSavingMeal] = useState<string | null>(null) // 저장 중인 메시지 ID
-  
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [selectedPlaceIndexByMsg, setSelectedPlaceIndexByMsg] = useState<Record<string, number | null>>({})
+
   const { messages, addMessage, clearMessages } = useChatStore()
   // hasStartedChatting을 메시지 존재 여부로 계산
   const hasStartedChatting = messages.length > 0
@@ -40,34 +43,49 @@ export function ChatPage() {
   const { user } = useAuthStore()
   const sendMessage = useSendMessage()
 
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({ lat: position.coords.latitude, lng: position.coords.longitude })
+        },
+        () => {
+          setUserLocation({ lat: 37.4979, lng: 127.0276 }) // 강남역 기본값
+        }
+      )
+    } else {
+      setUserLocation({ lat: 37.4979, lng: 127.0276 })
+    }
+  }, [])
+
   // 시간 포맷팅 함수들
   const formatMessageTime = (timestamp: Date) => {
     // timestamp가 Date 객체인지 확인하고 변환
     const date = timestamp instanceof Date ? timestamp : new Date(timestamp)
     const now = new Date()
     const diff = now.getTime() - date.getTime()
-    
+
     // 1분 미만
     if (diff < 60000) return '방금 전'
-    
+
     // 1시간 미만
     if (diff < 3600000) {
       const minutes = Math.floor(diff / 60000)
       return `${minutes}분 전`
     }
-    
+
     // 24시간 미만
     if (diff < 86400000) {
       const hours = Math.floor(diff / 3600000)
       return `${hours}시간 전`
     }
-    
+
     // 7일 미만
     if (diff < 604800000) {
       const days = Math.floor(diff / 86400000)
       return `${days}일 전`
     }
-    
+
     // 그 이상은 날짜로 표시
     return date.toLocaleDateString('ko-KR', {
       month: 'short',
@@ -92,49 +110,49 @@ export function ChatPage() {
 
   const shouldShowTimestamp = (currentIndex: number) => {
     if (currentIndex === 0) return true
-    
+
     const currentMessage = messages[currentIndex]
     const previousMessage = messages[currentIndex - 1]
-    
+
     if (!currentMessage || !previousMessage) return true
-    
+
     // timestamp가 Date 객체인지 확인하고 변환
     const currentTime = currentMessage.timestamp instanceof Date ? currentMessage.timestamp : new Date(currentMessage.timestamp)
     const previousTime = previousMessage.timestamp instanceof Date ? previousMessage.timestamp : new Date(previousMessage.timestamp)
-    
+
     const timeDiff = currentTime.getTime() - previousTime.getTime()
-    
+
     // 5분 이상 차이나면 타임스탬프 표시
     return timeDiff > 300000
   }
 
   const shouldShowDateSeparator = (currentIndex: number) => {
     if (currentIndex === 0) return true
-    
+
     const currentMessage = messages[currentIndex]
     const previousMessage = messages[currentIndex - 1]
-    
+
     if (!currentMessage || !previousMessage) return false
-    
+
     // timestamp가 Date 객체인지 확인하고 변환
     const currentTime = currentMessage.timestamp instanceof Date ? currentMessage.timestamp : new Date(currentMessage.timestamp)
     const previousTime = previousMessage.timestamp instanceof Date ? previousMessage.timestamp : new Date(previousMessage.timestamp)
-    
+
     const currentDate = currentTime.toDateString()
     const previousDate = previousTime.toDateString()
-    
+
     return currentDate !== previousDate
   }
 
   const formatDateSeparator = (timestamp: Date) => {
     // timestamp가 Date 객체인지 확인하고 변환
     const date = timestamp instanceof Date ? timestamp : new Date(timestamp)
-    
+
     const now = new Date()
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const yesterday = new Date(today.getTime() - 86400000)
     const messageDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-    
+
     if (messageDate.getTime() === today.getTime()) {
       return '오늘'
     } else if (messageDate.getTime() === yesterday.getTime()) {
@@ -149,32 +167,43 @@ export function ChatPage() {
   }
 
   const scrollToBottom = () => {
-    if (shouldAutoScroll && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
-    }
+    if (!shouldAutoScroll || !scrollAreaRef.current) return
+    const container = scrollAreaRef.current as HTMLDivElement
+    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
   }
 
   const handleScroll = () => {
-    const scrollElement = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
-    if (!scrollElement) return
-    
-    const { scrollTop, scrollHeight, clientHeight } = scrollElement
+    const container = scrollAreaRef.current
+    if (!container) return
+
+    const { scrollTop, scrollHeight, clientHeight } = container
     const isAtBottom = scrollHeight - scrollTop - clientHeight < 50
-    
+
     setShouldAutoScroll(isAtBottom)
   }
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages])
+  }, [messages, shouldAutoScroll])
 
   useEffect(() => {
-    const scrollElement = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
-    if (scrollElement) {
-      scrollElement.addEventListener('scroll', handleScroll)
-      return () => scrollElement.removeEventListener('scroll', handleScroll)
+    const container = scrollAreaRef.current
+    if (container) {
+      container.addEventListener('scroll', handleScroll)
+      return () => container.removeEventListener('scroll', handleScroll)
     }
   }, [hasStartedChatting])
+
+  useEffect(() => {
+    // 페이지 진입 시 채팅 컴포넌트 내부 스크롤을 부드럽게 맨 아래로 이동
+    const container = scrollAreaRef.current
+    if (container) {
+      requestAnimationFrame(() => {
+        container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
+      })
+    }
+    setShouldAutoScroll(true)
+  }, [])
 
   // 새 채팅 세션 생성
   const createNewChat = () => {
@@ -225,6 +254,7 @@ export function ChatPage() {
 
   const handleSendMessage = async () => {
     if (!message.trim() || isLoading) return
+    setShouldAutoScroll(true)
 
     // 현재 세션이 없으면 새 세션 생성
     let sessionId = currentSessionId
@@ -269,10 +299,10 @@ export function ChatPage() {
 
       // 백엔드 응답에서 식단 데이터 파싱
       let parsedMeal = MealParserService.parseMealFromBackendResponse(response)
-      
+
       // 테스트용: 식단 추천 관련 메시지인 경우 임시 데이터 생성
       if (!parsedMeal && (
-        userMessage.content.includes('식단') || 
+        userMessage.content.includes('식단') ||
         userMessage.content.includes('추천') ||
         userMessage.content.includes('메뉴') ||
         userMessage.content.includes('아침') ||
@@ -345,19 +375,19 @@ export function ChatPage() {
     }
 
     setIsSavingMeal(messageId)
-    
+
     try {
       const dateToSave = targetDate || format(new Date(), 'yyyy-MM-dd')
-      
+
       const mealToSave: MealData = {
         breakfast: mealData.breakfast || '',
         lunch: mealData.lunch || '',
         dinner: mealData.dinner || '',
         snack: mealData.snack || ''
       }
-      
+
       const success = await MealService.saveMeal(dateToSave, mealToSave, user.id)
-      
+
       if (success) {
         // 성공 메시지 추가
         const successMessage: ChatMessage = {
@@ -366,7 +396,7 @@ export function ChatPage() {
           content: `✅ 식단이 ${format(new Date(dateToSave), 'M월 d일')} 캘린더에 저장되었습니다! 캘린더 페이지에서 확인해보세요.`,
           timestamp: new Date()
         }
-        
+
         addMessage(successMessage)
         addMessageToCurrentSession(successMessage)
       } else {
@@ -374,7 +404,7 @@ export function ChatPage() {
       }
     } catch (error) {
       console.error('식단 저장 실패:', error)
-      
+
       // 실패 메시지 추가
       const errorMessage: ChatMessage = {
         id: Date.now().toString(),
@@ -382,7 +412,7 @@ export function ChatPage() {
         content: '❌ 식단 저장에 실패했습니다. 다시 시도해주세요.',
         timestamp: new Date()
       }
-      
+
       addMessage(errorMessage)
       addMessageToCurrentSession(errorMessage)
     } finally {
@@ -393,6 +423,7 @@ export function ChatPage() {
   // 빠른 질문 메시지 전송
   const handleQuickMessage = async (quickMessage: string) => {
     if (!quickMessage.trim() || isLoading) return
+    setShouldAutoScroll(true)
 
     // 현재 세션이 없으면 새 세션 생성
     let sessionId = currentSessionId
@@ -436,10 +467,10 @@ export function ChatPage() {
 
       // 백엔드 응답에서 식단 데이터 파싱
       let parsedMeal = MealParserService.parseMealFromBackendResponse(response)
-      
+
       // 테스트용: 식단 추천 관련 메시지인 경우 임시 데이터 생성
       if (!parsedMeal && (
-        userMessage.content.includes('식단') || 
+        userMessage.content.includes('식단') ||
         userMessage.content.includes('추천') ||
         userMessage.content.includes('메뉴') ||
         userMessage.content.includes('아침') ||
@@ -491,28 +522,22 @@ export function ChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] bg-gradient-to-br from-green-50 via-white to-emerald-50">
+    <div className="flex flex-col h-[calc(100vh-8rem)] overflow-hidden">
       {/* 헤더 */}
-      <div className="mb-6">
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-500 via-emerald-500 to-teal-600 text-white">
-          <div className="absolute inset-0 bg-white/10 backdrop-blur-sm" />
-          <div className="relative p-6">
-            <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
-              <span className="text-4xl">🥑</span>
-              키토 코치
-            </h1>
-            <p className="text-green-100 text-lg">건강한 키토 식단을 위한 AI 어시스턴트</p>
-          </div>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-gradient">키토 코치</h1>
+        <p className="text-muted-foreground mt-1">
+          건강한 키토 식단을 위한 AI 어시스턴트
+        </p>
       </div>
 
       {/* 메인 콘텐츠 영역 */}
-      <div className="flex flex-1 gap-4 lg:gap-6 px-4 lg:px-6 min-h-0">
+      <div className="flex flex-1 gap-4 lg:gap-6 px-4 lg:px-6 min-h-0 overflow-hidden">
         {/* 왼쪽 사이드바 - 데스크톱에서만 표시 */}
         <div className="hidden lg:block w-80 bg-white/80 backdrop-blur-sm border-0 rounded-2xl shadow-xl flex flex-col">
           {/* 사이드바 헤더 */}
           <div className="p-6 border-b border-gray-100">
-            <Button 
+            <Button
               onClick={createNewChat}
               disabled={isLoading}
               className={`w-full justify-center gap-3 h-14 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300 mb-4 rounded-xl ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -582,7 +607,7 @@ export function ChatPage() {
         </div>
 
         {/* 메인 채팅 영역 */}
-        <div className="flex-1 flex flex-col bg-white/80 backdrop-blur-sm border-0 rounded-2xl shadow-xl min-h-0 w-full lg:w-auto">
+        <div className="flex-1 flex flex-col bg-white/80 backdrop-blur-sm border-0 rounded-2xl shadow-xl min-h-0 w-full lg:w-auto overflow-hidden">
           {!hasStartedChatting ? (
             // 채팅 시작 전 - 가운데 입력창
             <div className="flex-1 flex items-center justify-center p-8 overflow-hidden">
@@ -606,7 +631,7 @@ export function ChatPage() {
                     </p>
                   )}
                 </div>
-                
+
                 {/* 가운데 입력창 */}
                 <div className="space-y-4 lg:space-y-6 px-4">
                   <div className="flex gap-2 lg:gap-3">
@@ -625,7 +650,7 @@ export function ChatPage() {
                         </div>
                       )}
                     </div>
-                    <Button 
+                    <Button
                       onClick={handleSendMessage}
                       disabled={!message.trim() || isLoading}
                       className="h-14 lg:h-16 px-6 lg:px-8 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300"
@@ -633,12 +658,12 @@ export function ChatPage() {
                       <Send className="h-5 w-5 lg:h-6 lg:w-6" />
                     </Button>
                   </div>
-                  
+
                   {/* 빠른 질문 버튼들 */}
                   <div className="flex flex-wrap gap-2 lg:gap-3 justify-center">
                     {[
                       "아침 키토 레시피 추천해줘",
-                      "강남역 근처 키토 식당 찾아줘", 
+                      "강남역 근처 키토 식당 찾아줘",
                       "7일 키토 식단표 만들어줘",
                       "키토 다이어트 방법 알려줘"
                     ].map((quickMessage) => (
@@ -661,8 +686,8 @@ export function ChatPage() {
             // 채팅 시작 후 - 일반 채팅 레이아웃
             <>
               {/* 메시지 영역 - 고정 높이와 스크롤 */}
-              <div className="flex-1 min-h-0 flex flex-col">
-                <div ref={scrollAreaRef} className="flex-1 p-4 lg:p-6 overflow-y-auto">
+              <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                <div ref={scrollAreaRef} className="flex-1 p-4 lg:p-6 overflow-y-auto scroll-smooth">
                   <div className="max-w-4xl mx-auto">
                     <div className="space-y-4 lg:space-y-6">
                       {messages.map((msg, index) => (
@@ -679,32 +704,29 @@ export function ChatPage() {
                             </div>
                           )}
 
-                          <div className={`flex items-start gap-3 lg:gap-4 ${
-                            msg.role === 'user' ? 'flex-row-reverse' : ''
-                          }`}>
-                            {/* 아바타 */}
-                            <div className={`flex-shrink-0 w-10 h-10 lg:w-12 lg:h-12 rounded-full flex items-center justify-center shadow-lg ring-2 ${
-                              msg.role === 'user' 
-                                ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white ring-blue-200' 
-                                : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white ring-green-200'
+                          <div className={`flex items-start gap-3 lg:gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''
                             }`}>
+                            {/* 아바타 */}
+                            <div className={`flex-shrink-0 w-10 h-10 lg:w-12 lg:h-12 rounded-full flex items-center justify-center shadow-lg ring-2 ${msg.role === 'user'
+                                ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white ring-blue-200'
+                                : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white ring-green-200'
+                              }`}>
                               {msg.role === 'user' ? <Person sx={{ fontSize: { xs: 20, lg: 24 } }} /> : <span className="text-lg lg:text-xl">🥑</span>}
                             </div>
 
                             {/* 메시지 내용 */}
                             <div className={`flex-1 max-w-2xl ${msg.role === 'user' ? 'text-right' : ''}`}>
-                              <div className={`inline-block p-4 lg:p-5 rounded-2xl lg:rounded-3xl shadow-lg ${
-                                msg.role === 'user' 
-                                  ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white' 
+                              <div className={`inline-block p-4 lg:p-5 rounded-2xl shadow-lg ${msg.role === 'user'
+                                  ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
                                   : 'bg-white border-2 border-gray-100'
-                              }`}>
+                                }`}>
                                 <p className="text-sm lg:text-base whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                               </div>
 
                               {/* 타임스탬프 */}
                               {shouldShowTimestamp(index) && (
                                 <div className={`mt-1 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
-                                  <span 
+                                  <span
                                     className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                                     title={formatDetailedTime(msg.timestamp)}
                                   >
@@ -770,17 +792,64 @@ export function ChatPage() {
                               )}
 
                               {/* 결과 카드들 */}
-                              {msg.results && msg.results.length > 0 && (
+                              {/* {msg.results && msg.results.length > 0 && (
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4 mt-3 lg:mt-4">
                                   {msg.results.map((result, index) => (
                                     <div key={index}>
                                       {result.title && result.ingredients ? (
                                         <RecipeCard recipe={result} />
-                                      ) : result.name && result.address ? (
-                                        <PlaceCard place={result} />
                                       ) : null}
                                     </div>
                                   ))}
+                                </div>
+                              )} */}
+
+                              {/* 결과에 좌표가 포함된 장소가 있으면 작은 지도를 표시 */}
+                              {msg.results && msg.results.some((r: any) => typeof r.lat === 'number' && typeof r.lng === 'number') && (
+                                <div className="mt-4 lg:mt-5">
+                                  <div className="rounded-2xl overflow-hidden border border-gray-200">
+                                    <div className="h-[460px]">
+                                      {(() => {
+                                        const placeResults = msg.results!.filter((r: any) => typeof r.lat === 'number' && typeof r.lng === 'number')
+                                        const restaurants = placeResults.map((r: any, i: number) => ({
+                                          id: r.place_id || String(i),
+                                          name: r.name || '',
+                                          address: r.address || '',
+                                          lat: r.lat,
+                                          lng: r.lng,
+                                        }))
+                                        return (
+                                          <KakaoMap
+                                            lat={userLocation?.lat}
+                                            lng={userLocation?.lng}
+                                            level={1}
+                                            fitToBounds={true}
+                                            restaurants={restaurants}
+                                            activeIndex={typeof selectedPlaceIndexByMsg[msg.id] === 'number' ? selectedPlaceIndexByMsg[msg.id]! : null}
+                                            specialMarker={userLocation ? { lat: userLocation.lat, lng: userLocation.lng, title: '현재 위치' } : undefined}
+                                            onMarkerClick={({ index }) => {
+                                              setSelectedPlaceIndexByMsg(prev => ({ ...prev, [msg.id]: index }))
+                                            }}
+                                          />
+                                        )
+                                      })()}
+                                    </div>
+                                  </div>
+
+                                  {/* 마커 클릭 시에만 해당 장소 카드 보여주기 */}
+                                  {(() => {
+                                    const placeResults = msg.results!.filter((r: any) => typeof r.lat === 'number' && typeof r.lng === 'number')
+                                    const sel = selectedPlaceIndexByMsg[msg.id]
+                                    if (typeof sel === 'number' && sel >= 0 && sel < placeResults.length) {
+                                      const place = placeResults[sel]
+                                      return (
+                                        <div className="mt-3">
+                                          <PlaceCard place={place} />
+                                        </div>
+                                      )
+                                    }
+                                    return null
+                                  })()}
                                 </div>
                               )}
                             </div>
@@ -794,7 +863,7 @@ export function ChatPage() {
                           <div className="flex-shrink-0 w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 text-white flex items-center justify-center shadow-md">
                             <span className="text-sm lg:text-lg">🥑</span>
                           </div>
-                          <div className="bg-card border border-border/50 p-3 lg:p-4 rounded-xl lg:rounded-2xl shadow-sm">
+                          <div className="bg-card border border-border/50 p-3 lg:p-4 rounded-2xl shadow-sm">
                             <div className="flex items-center gap-2 lg:gap-3">
                               <CircularProgress size={16} sx={{ color: 'green.500' }} />
                               <span className="text-xs lg:text-sm text-muted-foreground">키토 코치가 생각하고 있어요...</span>
@@ -828,7 +897,7 @@ export function ChatPage() {
                         </div>
                       )}
                     </div>
-                    <Button 
+                    <Button
                       onClick={handleSendMessage}
                       disabled={!message.trim() || isLoading}
                       className="h-12 lg:h-14 px-4 lg:px-6 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl lg:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300"
@@ -836,12 +905,12 @@ export function ChatPage() {
                       <Send className="h-4 w-4 lg:h-5 lg:w-5" />
                     </Button>
                   </div>
-                  
+
                   {/* 빠른 질문 버튼들 */}
                   <div className="flex flex-wrap gap-1 lg:gap-2 mt-3 lg:mt-4">
                     {[
                       "아침 키토 레시피 추천해줘",
-                      "강남역 근처 키토 식당 찾아줘", 
+                      "강남역 근처 키토 식당 찾아줘",
                       "7일 키토 식단표 만들어줘",
                       "키토 다이어트 방법 알려줘"
                     ].map((quickMessage) => (
@@ -866,3 +935,4 @@ export function ChatPage() {
     </div>
   )
 }
+

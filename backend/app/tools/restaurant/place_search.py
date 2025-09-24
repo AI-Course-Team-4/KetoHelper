@@ -63,7 +63,7 @@ class PlaceSearchTool:
                 "x": lng,
                 "y": lat,
                 "radius": radius,
-                "size": 10,  # 최대 10개로 제한
+                "size": 15,  # 카카오 API 최대 15개로 제한
                 "sort": "distance"
             }
             
