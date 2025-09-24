@@ -70,6 +70,22 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
     });
   };
 
+  // 거리 계산 (haversine)
+  const toRad = (v: number) => (v * Math.PI) / 180;
+  const distanceMeters = (aLat: number, aLng: number, bLat: number, bLng: number): number => {
+    const R = 6371000; // meters
+    const dLat = toRad(bLat - aLat);
+    const dLng = toRad(bLng - aLng);
+    const lat1 = toRad(aLat);
+    const lat2 = toRad(bLat);
+    const sinDLat = Math.sin(dLat / 2);
+    const sinDLng = Math.sin(dLng / 2);
+    const a = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLng * sinDLng;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+  const formatDistance = (m: number): string => (m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`);
+
   // 마커/오버레이 재구성 함수: 지도는 재생성하지 않고 현재 데이터만 반영
   const rebuildMarkers = async () => {
     const map = mapRef.current;
@@ -202,6 +218,13 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
         createdOverlaysRef.current.push(labelOverlay);
       }
 
+      // 거리 계산 (특별 마커 = 현재 위치 기준)
+      let distanceHtml = '';
+      if (specialMarker && typeof specialMarker.lat === 'number' && typeof specialMarker.lng === 'number') {
+        const d = distanceMeters(specialMarker.lat, specialMarker.lng, pos.lat, pos.lng);
+        distanceHtml = `<div style="color:#616161;">거리: ${formatDistance(d)}</div>`;
+      }
+
       const contentHtml = `
         <div style="position:relative;pointer-events:auto;">
           <div style="
@@ -218,6 +241,7 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
                 ${(pos as any).title || ''}
               </div>
               ${`<div style=\"color:#616161;\">${(pos as any).address}</div>`}
+              <b>${distanceHtml}</b>
             </div>
           </div>
           <div style="
