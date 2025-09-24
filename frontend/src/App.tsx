@@ -4,7 +4,7 @@ import { ChatPage } from '@/pages/ChatPage'
 import { MapPage } from '@/pages/MapPage'
 import { CalendarPage } from '@/pages/CalendarPage'
 import { ProfilePage } from '@/pages/ProfilePage'
-import { Toaster } from '@/components/ui/toaster'
+// Toaster는 react-hot-toast로 대체됨
 import NaverCallback from '@/pages/NaverCallback'
 import { Toaster as HotToaster } from 'react-hot-toast'
 import { MainPage } from '@/pages/MainPage'
@@ -24,7 +24,6 @@ function App() {
           <Route path="/subscribe" element={<SubscribePage />} />
         </Routes>
       </Layout>
-      <Toaster />
       <HotToaster position="top-center" />
     </div>
   )

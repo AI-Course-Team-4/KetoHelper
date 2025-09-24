@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Calendar, BarChart3, Heart, ShieldCheck } from 'lucide-react'
+import { CalendarToday, BarChart, Favorite, Security } from '@mui/icons-material'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
@@ -108,19 +108,19 @@ export function SubscribePage() {
                 <CardContent className="pt-0">
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
                         <div className="flex items-center gap-3 p-3 border border-border rounded-lg">
-                            <Calendar className="h-5 w-5 text-green-600" />
+                            <CalendarToday sx={{ fontSize: 20, color: 'green.600' }} />
                             <div className="text-sm">식단 캘린더 & 주간 계획</div>
                         </div>
                         <div className="flex items-center gap-3 p-3 border border-border rounded-lg">
-                            <BarChart3 className="h-5 w-5 text-green-600" />
+                            <BarChart sx={{ fontSize: 20, color: 'green.600' }} />
                             <div className="text-sm">섭취/진행 통계</div>
                         </div>
                         <div className="flex items-center gap-3 p-3 border border-border rounded-lg">
-                            <Heart className="h-5 w-5 text-green-600" />
+                            <Favorite sx={{ fontSize: 20, color: 'green.600' }} />
                             <div className="text-sm">즐겨찾기 & 기록 보관</div>
                         </div>
                         <div className="flex items-center gap-3 p-3 border border-border rounded-lg">
-                            <ShieldCheck className="h-5 w-5 text-green-600" />
+                            <Security sx={{ fontSize: 20, color: 'green.600' }} />
                             <div className="text-sm">보안 결제 & 환불 보장</div>
                         </div>
                     </div>

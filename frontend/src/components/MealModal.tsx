@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { X, Save } from 'lucide-react'
+import { Close, Save } from '@mui/icons-material'
 import { MealData } from '@/data/ketoMeals'
 
 interface MealModalProps {
@@ -70,7 +70,7 @@ export function MealModal({ isOpen, onClose, selectedDate, mealData, onSave, sel
             })} {selectedMealType ? allMeals.find(m => m.key === selectedMealType)?.label : '식단'}
           </CardTitle>
           <Button variant="ghost" size="sm" onClick={handleClose}>
-            <X className="h-4 w-4" />
+            <Close sx={{ fontSize: 16 }} />
           </Button>
         </CardHeader>
         

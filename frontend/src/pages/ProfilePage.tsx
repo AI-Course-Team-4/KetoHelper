@@ -4,8 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/common'
-import { User, Target, AlertTriangle, Trash2, Plus, Loader2, ThumbsDown } from 'lucide-react'
+import { Select } from '@/components/common'
+import { Person, GpsFixed, Warning, Delete, Add, ThumbDown } from '@mui/icons-material'
+import { CircularProgress, Box, Typography, Stack } from '@mui/material'
 import { useProfileStore, useProfileHelpers } from '@/store/profileStore'
 import { useAuthStore } from '@/store/authStore'
 import { toast } from 'react-hot-toast'
@@ -298,25 +299,41 @@ export function ProfilePage() {
   }
 
   return (
-    <div className="space-y-6">
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       {/* 헤더 */}
-      <div>
-        <h1 className="text-2xl font-bold text-gradient">프로필 설정</h1>
-        <p className="text-muted-foreground mt-1">
+      <Box>
+        <Typography 
+          variant="h4" 
+          sx={{ 
+            fontWeight: 700, 
+            background: 'linear-gradient(45deg, #3b82f6, #10b981)',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            mb: 0.5
+          }}
+        >
+          프로필 설정
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
           개인 정보와 키토 다이어트 목표를 설정하세요
-        </p>
-      </div>
+        </Typography>
+      </Box>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 3 }}>
         {/* 기본 정보 */}
-        <Card>
+        <Box>
+          <Card>
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <User className="h-5 w-5 mr-2 text-gray-800" />
-              기본 정보
+            <CardTitle>
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <Person sx={{ fontSize: 20, color: 'text.primary' }} />
+                <Typography variant="h6">기본 정보</Typography>
+              </Stack>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent>
+            <Stack spacing={2}>
             {user?.profileImage && (
               <div className="flex items-center gap-3">
                 <img
@@ -356,25 +373,31 @@ export function ProfilePage() {
                 >
                   {isBasicInfoLoading ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <CircularProgress size={16} sx={{ mr: 1 }} />
                       저장 중...
                     </>
                   ) : (
                     '저장'
                   )}
             </Button>
+            </Stack>
           </CardContent>
         </Card>
+        </Box>
 
         {/* 키토 목표 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Target className="h-5 w-5 mr-2 text-green-600" />
-              키토 목표
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <Box>
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <GpsFixed sx={{ fontSize: 20, color: 'success.main' }} />
+                  <Typography variant="h6">키토 목표</Typography>
+                </Stack>
+              </CardTitle>
+            </CardHeader>
+          <CardContent>
+            <Stack spacing={2}>
             <div>
               <label className="text-sm font-medium">일일 목표 칼로리</label>
               <Input
@@ -418,80 +441,61 @@ export function ProfilePage() {
             >
               {isKetoGoalsLoading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <CircularProgress size={16} sx={{ mr: 1 }} />
                   저장 중...
                 </>
               ) : (
                 '목표 저장'
               )}
             </Button>
+            </Stack>
           </CardContent>
         </Card>
-      </div>
+        </Box>
+      </Box>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 3, mt: 3 }}>
         {/* 알레르기 */}
-        <Card>
+        <Box>
+          <Card>
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <AlertTriangle className="h-5 w-5 mr-2 text-red-600" />
-              알레르기
+            <CardTitle>
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <Warning sx={{ fontSize: 20, color: 'error.main' }} />
+                <Typography variant="h6">알레르기</Typography>
+              </Stack>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-2">
-                  <Select value={selectedAllergyId} onValueChange={setSelectedAllergyId}>
-                    <SelectTrigger className="flex-1" size="lg">
-                      <SelectValue placeholder="알레르기를 선택하세요" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(getAllergiesByCategory()).map(([category, allergies]) => (
-                        <div key={category}>
-                          <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
-                            {category}
-                          </div>
-                          {allergies.map((allergy) => {
-                            const isAlreadySelected = profile?.selected_allergy_ids.includes(allergy.id)
-                            return (
-                              <SelectItem 
-                                key={allergy.id} 
-                                value={allergy.id.toString()}
-                                disabled={isAlreadySelected}
-                              >
-                                <div className="flex flex-col">
-                                  <div className="flex items-center justify-between">
-                                    <span className="font-medium">{allergy.name}</span>
-                                    {isAlreadySelected && (
-                                      <span className="text-xs text-green-600 ml-2">✓ 이미 추가됨</span>
-                                    )}
-                                  </div>
-                                  {allergy.description && (
-                                    <span className="text-xs text-muted-foreground mt-0.5">
-                                      {allergy.description}
-                                    </span>
-                                  )}
-                                </div>
-                              </SelectItem>
-                            )
-                          })}
-                        </div>
-                      ))}
-                    </SelectContent>
-                  </Select>
+          <CardContent>
+            <Stack spacing={2}>
+            <Stack direction="row" spacing={2}>
+                  <Select 
+                    value={selectedAllergyId} 
+                    onChange={setSelectedAllergyId}
+                    options={Object.entries(getAllergiesByCategory()).flatMap(([category, allergies]) => 
+                      allergies.map(allergy => ({
+                        value: allergy.id.toString(),
+                        label: `${category} - ${allergy.name}`,
+                        disabled: profile?.selected_allergy_ids.includes(allergy.id)
+                      }))
+                    )}
+                    placeholder="알레르기를 선택하세요"
+                    size="medium"
+                  />
                   <Button 
                     onClick={handleAddAllergy} 
                     className="h-12 w-12 flex-shrink-0"
                     disabled={isAllergyLoading || !selectedAllergyId}
                   >
                     {isAllergyLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <CircularProgress size={16} />
                     ) : (
-                <Plus className="h-4 w-4" />
+                <Add sx={{ fontSize: 16 }} />
                     )}
               </Button>
-            </div>
+            </Stack>
             
-                <div className="space-y-3">
+            <Stack spacing={1.5}>
             <div className="flex flex-wrap gap-2">
                     {profile?.allergy_names?.map((allergyName, index) => {
                       const allergyId = profile.selected_allergy_ids[index]
@@ -502,8 +506,8 @@ export function ProfilePage() {
                           className="flex items-center gap-1 bg-red-100 text-red-800 border-red-300 hover:bg-red-200"
                         >
                           {allergyName}
-                  <Trash2 
-                    className="h-3 w-3 cursor-pointer" 
+                  <Delete 
+                    sx={{ fontSize: 12, cursor: 'pointer' }} 
                             onClick={() => handleRemoveAllergy(allergyId)}
                   />
                 </Badge>
@@ -519,82 +523,63 @@ export function ProfilePage() {
                       size="sm"
                       className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-300"
                     >
-                      <Trash2 className="h-4 w-4 mr-1" />
+                      <Delete sx={{ fontSize: 16, mr: 0.5 }} />
                       전체 삭제 ({profile.allergy_names.length}개)
                     </Button>
                   )}
-            </div>
+            </Stack>
             
             {(!profile?.allergy_names || profile.allergy_names.length === 0) && (
-              <p className="text-sm text-muted-foreground">
+              <Typography variant="body2" color="text.secondary">
                 등록된 알레르기가 없습니다
-              </p>
+              </Typography>
             )}
+            </Stack>
           </CardContent>
         </Card>
+        </Box>
 
         {/* 비선호 재료 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <ThumbsDown className="h-5 w-5 mr-2 text-orange-600" />
-              비선호 재료
+        <Box>
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <ThumbDown sx={{ fontSize: 20, color: 'warning.main' }} />
+                  <Typography variant="h6">비선호 재료</Typography>
+                </Stack>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-2">
-                  <Select value={selectedDislikeId} onValueChange={setSelectedDislikeId}>
-                    <SelectTrigger className="flex-1" size="lg">
-                      <SelectValue placeholder="비선호 재료를 선택하세요" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(getDislikesByCategory()).map(([category, dislikes]) => (
-                        <div key={category}>
-                          <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
-                            {category}
-                          </div>
-                          {dislikes.map((dislike) => {
-                            const isAlreadySelected = profile?.selected_dislike_ids.includes(dislike.id)
-                            return (
-                              <SelectItem 
-                                key={dislike.id} 
-                                value={dislike.id.toString()}
-                                disabled={isAlreadySelected}
-                              >
-                                <div className="flex flex-col">
-                                  <div className="flex items-center justify-between">
-                                    <span className="font-medium">{dislike.name}</span>
-                                    {isAlreadySelected && (
-                                      <span className="text-xs text-green-600 ml-2">✓ 이미 추가됨</span>
-                                    )}
-                                  </div>
-                                  {dislike.description && (
-                                    <span className="text-xs text-muted-foreground mt-0.5">
-                                      {dislike.description}
-                                    </span>
-                                  )}
-                                </div>
-                              </SelectItem>
-                            )
-                          })}
-                        </div>
-                      ))}
-                    </SelectContent>
-                  </Select>
+          <CardContent>
+            <Stack spacing={2}>
+            <Stack direction="row" spacing={2}>
+                  <Select 
+                    value={selectedDislikeId} 
+                    onChange={setSelectedDislikeId}
+                    options={Object.entries(getDislikesByCategory()).flatMap(([category, dislikes]) => 
+                      dislikes.map(dislike => ({
+                        value: dislike.id.toString(),
+                        label: `${category} - ${dislike.name}`,
+                        disabled: profile?.selected_dislike_ids.includes(dislike.id)
+                      }))
+                    )}
+                    placeholder="비선호 재료를 선택하세요"
+                    size="medium"
+                  />
                   <Button 
                     onClick={handleAddDislike} 
                     className="h-12 w-12 flex-shrink-0"
                     disabled={isDislikeLoading || !selectedDislikeId}
                   >
                     {isDislikeLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <CircularProgress size={16} />
                     ) : (
-                <Plus className="h-4 w-4" />
+                <Add sx={{ fontSize: 16 }} />
                     )}
               </Button>
-            </div>
+            </Stack>
             
-                <div className="space-y-3">
+            <Stack spacing={1.5}>
             <div className="flex flex-wrap gap-2">
                     {profile?.dislike_names?.map((dislikeName, index) => {
                       const dislikeId = profile.selected_dislike_ids[index]
@@ -605,8 +590,8 @@ export function ProfilePage() {
                           className="flex items-center gap-1 bg-orange-100 text-orange-800 border-orange-300 hover:bg-orange-200"
                 >
                           {dislikeName}
-                  <Trash2 
-                    className="h-3 w-3 cursor-pointer" 
+                  <Delete 
+                    sx={{ fontSize: 12, cursor: 'pointer' }} 
                             onClick={() => handleRemoveDislike(dislikeId)}
                   />
                 </Badge>
@@ -622,65 +607,120 @@ export function ProfilePage() {
                       size="sm"
                       className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 border-orange-300"
                     >
-                      <Trash2 className="h-4 w-4 mr-1" />
+                      <Delete sx={{ fontSize: 16, mr: 0.5 }} />
                       전체 삭제 ({profile.dislike_names.length}개)
                     </Button>
                   )}
-            </div>
+            </Stack>
             
             {(!profile?.dislike_names || profile.dislike_names.length === 0) && (
-              <p className="text-sm text-muted-foreground">
+              <Typography variant="body2" color="text.secondary">
                 등록된 비선호 재료가 없습니다
-              </p>
+              </Typography>
             )}
+            </Stack>
           </CardContent>
         </Card>
-      </div>
+        </Box>
+      </Box>
 
       {/* 키토 가이드 */}
       <Card>
         <CardHeader>
-          <CardTitle>키토 다이어트 가이드</CardTitle>
+          <CardTitle>
+            <Typography variant="h6">키토 다이어트 가이드</Typography>
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <div className="text-2xl font-bold text-green-600">70-80%</div>
-              <div className="text-sm text-green-700">지방</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                주 에너지원
-              </div>
-            </div>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 2 }}>
+            <Box>
+              <Box 
+                sx={{ 
+                  textAlign: 'center', 
+                  p: 2, 
+                  bgcolor: 'success.50', 
+                  borderRadius: 2 
+                }}
+              >
+                <Typography variant="h4" sx={{ fontWeight: 700, color: 'success.main' }}>
+                  70-80%
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'success.dark' }}>
+                  지방
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                  주 에너지원
+                </Typography>
+              </Box>
+            </Box>
             
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600">15-25%</div>
-              <div className="text-sm text-blue-700">단백질</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                근육 유지
-              </div>
-            </div>
+            <Box>
+              <Box 
+                sx={{ 
+                  textAlign: 'center', 
+                  p: 2, 
+                  bgcolor: 'primary.50', 
+                  borderRadius: 2 
+                }}
+              >
+                <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                  15-25%
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'primary.dark' }}>
+                  단백질
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                  근육 유지
+                </Typography>
+              </Box>
+            </Box>
             
-            <div className="text-center p-4 bg-orange-50 rounded-lg">
-              <div className="text-2xl font-bold text-orange-600">5-10%</div>
-              <div className="text-sm text-orange-700">탄수화물</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                최소 섭취
-              </div>
-            </div>
-          </div>
+            <Box>
+              <Box 
+                sx={{ 
+                  textAlign: 'center', 
+                  p: 2, 
+                  bgcolor: 'warning.50', 
+                  borderRadius: 2 
+                }}
+              >
+                <Typography variant="h4" sx={{ fontWeight: 700, color: 'warning.main' }}>
+                  5-10%
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'warning.dark' }}>
+                  탄수화물
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                  최소 섭취
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
           
-          <div className="mt-6 space-y-2">
-            <h4 className="font-medium">💡 키토 성공 팁</h4>
-            <ul className="text-sm text-muted-foreground space-y-1">
-              <li>• 충분한 물 섭취 (하루 2-3L)</li>
-              <li>• 전해질 보충 (나트륨, 칼륨, 마그네슘)</li>
-              <li>• 점진적 탄수화물 감소</li>
-              <li>• 규칙적인 식사 시간</li>
-              <li>• 스트레스 관리와 충분한 수면</li>
-            </ul>
-          </div>
+          <Box sx={{ mt: 3 }}>
+            <Typography variant="h6" sx={{ fontWeight: 500, mb: 1 }}>
+              💡 키토 성공 팁
+            </Typography>
+            <Stack spacing={0.5}>
+              <Typography variant="body2" color="text.secondary">
+                • 충분한 물 섭취 (하루 2-3L)
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                • 전해질 보충 (나트륨, 칼륨, 마그네슘)
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                • 점진적 탄수화물 감소
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                • 규칙적인 식사 시간
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                • 스트레스 관리와 충분한 수면
+              </Typography>
+            </Stack>
+          </Box>
         </CardContent>
       </Card>
-    </div>
+    </Box>
   )
 }
