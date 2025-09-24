@@ -19,6 +19,7 @@ import importlib
 
 from app.core.config import settings
 from app.tools.shared.hybrid_search import hybrid_search_tool
+from app.tools.shared.profile_tool import user_profile_tool
 from app.tools.restaurant.place_search import PlaceSearchTool
 from config import get_personal_configs, get_agent_config
 
@@ -175,13 +176,36 @@ class MealPlannerAgent:
             carbs_max: 최대 탄수화물 (일일, g)
             allergies: 알레르기 목록
             dislikes: 비선호 음식 목록
-            user_id: 사용자 ID
+            user_id: 사용자 ID (제공되면 자동으로 프로필에서 선호도 정보 가져옴)
         
         Returns:
             생성된 식단표 데이터
         """
         
         try:
+            # 사용자 ID가 제공되면 프로필에서 선호도 정보 가져오기
+            if user_id:
+                profile_result = await user_profile_tool.get_user_preferences(user_id)
+                if profile_result["success"]:
+                    prefs = profile_result["preferences"]
+                    
+                    # 프로필에서 가져온 정보가 매개변수보다 우선하지 않음 (매개변수가 우선)
+                    if kcal_target is None and prefs.get("goals_kcal"):
+                        kcal_target = prefs["goals_kcal"]
+                    
+                    if carbs_max == 30 and prefs.get("goals_carbs_g"):  # 기본값일 때만 덮어씀
+                        carbs_max = prefs["goals_carbs_g"]
+                    
+                    if allergies is None and prefs.get("allergies"):
+                        allergies = prefs["allergies"]
+                    
+                    if dislikes is None and prefs.get("dislikes"):
+                        dislikes = prefs["dislikes"]
+                    
+                    print(f"🔧 사용자 프로필 적용 완료: 목표 {kcal_target}kcal, 탄수화물 {carbs_max}g, 알레르기 {len(allergies or [])}개, 비선호 {len(dislikes or [])}개")
+                else:
+                    print(f"⚠️ 사용자 프로필 조회 실패: {profile_result.get('error', '알 수 없는 오류')}")
+            
             # 제약 조건 텍스트 생성
             constraints_text = self._build_constraints_text(
                 kcal_target, carbs_max, allergies, dislikes
@@ -316,12 +340,13 @@ class MealPlannerAgent:
     ) -> Dict[str, Any]:
         """메인 식사 메뉴 생성"""
         
-        # 하이브리드 검색 시도
+        # 하이브리드 검색 시도 (사용자 프로필 필터링 포함)
         search_query = f"{meal_type} 키토 {slot}"
         rag_results = await hybrid_search_tool.search(
             query=search_query,
             profile=constraints,
-            max_results=1
+            max_results=1,
+            user_id=getattr(self, '_current_user_id', None)  # 현재 사용자 ID 전달
         )
         
         if rag_results:
@@ -617,3 +642,119 @@ class MealPlannerAgent:
             except ImportError:
                 # 정말 마지막 폴백
                 return f"키토 레시피 '{message}' 생성에 실패했습니다. 키토 원칙에 맞는 재료로 직접 조리해보세요."
+
+    # ==========================================
+    # 프로필 통합 편의 함수들 
+    # ==========================================
+    
+    async def generate_personalized_meal_plan(self, user_id: str, days: int = 7) -> Dict[str, Any]:
+        """
+        사용자 ID만으로 개인화된 식단 계획 생성
+        
+        Args:
+            user_id (str): 사용자 ID
+            days (int): 생성할 일수 (기본 7일)
+            
+        Returns:
+            Dict[str, Any]: 생성된 개인화 식단표 데이터
+        """
+        print(f"🔧 개인화 식단 계획 생성 시작: 사용자 {user_id}, {days}일")
+        
+        # 현재 사용자 ID 저장 (검색 시 프로필 필터링용)
+        self._current_user_id = user_id
+        
+        # 사용자 프로필 조회
+        profile_result = await user_profile_tool.get_user_preferences(user_id)
+        
+        if not profile_result["success"]:
+            print(f"⚠️ 프로필 조회 실패, 기본값으로 진행: {profile_result.get('error')}")
+            return await self.generate_meal_plan(days=days, user_id=user_id)
+        
+        prefs = profile_result["preferences"]
+        
+        # 프로필 정보로 식단 생성
+        return await self.generate_meal_plan(
+            days=days,
+            kcal_target=prefs.get("goals_kcal"),
+            carbs_max=prefs.get("goals_carbs_g", 30),
+            allergies=prefs.get("allergies"),
+            dislikes=prefs.get("dislikes"),
+            user_id=user_id
+        )
+    
+    async def generate_recipe_with_profile(self, user_id: str, message: str) -> str:
+        """
+        사용자 프로필을 고려한 레시피 생성
+        
+        Args:
+            user_id (str): 사용자 ID
+            message (str): 레시피 요청 메시지
+            
+        Returns:
+            str: 생성된 레시피
+        """
+        print(f"🔧 개인화 레시피 생성 시작: 사용자 {user_id}, 요청 '{message}'")
+        
+        # 사용자 프로필 조회
+        profile_result = await user_profile_tool.get_user_preferences(user_id)
+        
+        if profile_result["success"]:
+            # 프로필 정보를 프롬프트용 텍스트로 포맷팅
+            profile_context = user_profile_tool.format_preferences_for_prompt(profile_result)
+            print(f"✅ 프로필 적용: {profile_context}")
+        else:
+            profile_context = "사용자 프로필 정보를 가져올 수 없습니다."
+            print(f"⚠️ 프로필 조회 실패: {profile_result.get('error')}")
+        
+        return await self.generate_single_recipe(message, profile_context)
+    
+    async def check_user_access_and_generate(self, user_id: str, request_type: str = "meal_plan", **kwargs) -> Dict[str, Any]:
+        """
+        사용자 접근 권한 확인 후 식단/레시피 생성
+        
+        Args:
+            user_id (str): 사용자 ID
+            request_type (str): 요청 타입 ("meal_plan" 또는 "recipe")
+            **kwargs: 추가 매개변수
+            
+        Returns:
+            Dict[str, Any]: 결과 또는 접근 제한 메시지
+        """
+        print(f"🔧 사용자 접근 권한 확인: {user_id}")
+        
+        # 접근 권한 확인
+        access_result = await user_profile_tool.check_user_access(user_id)
+        
+        if not access_result["success"]:
+            return {
+                "success": False,
+                "error": f"접근 권한 확인 실패: {access_result.get('error')}"
+            }
+        
+        access_info = access_result["access"]
+        
+        if not access_info["has_access"]:
+            return {
+                "success": False,
+                "error": f"접근 권한이 없습니다. 현재 상태: {access_info['state']}",
+                "access_info": access_info
+            }
+        
+        print(f"✅ 접근 권한 확인 완료: {access_info['state']}")
+        
+        # 요청 타입에 따라 처리
+        if request_type == "meal_plan":
+            days = kwargs.get("days", 7)
+            result = await self.generate_personalized_meal_plan(user_id, days)
+            return {"success": True, "data": result, "access_info": access_info}
+        
+        elif request_type == "recipe":
+            message = kwargs.get("message", "키토 레시피")
+            result = await self.generate_recipe_with_profile(user_id, message)
+            return {"success": True, "data": result, "access_info": access_info}
+        
+        else:
+            return {
+                "success": False,
+                "error": f"지원하지 않는 요청 타입: {request_type}"
+            }
