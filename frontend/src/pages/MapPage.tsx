@@ -83,7 +83,7 @@ export function MapPage() {
     }
   }, [])
 
-  // 백엔드에서 키토 식당 데이터 로드
+  // 백엔드에서 키토 식당 데이터 로드 (20개로 제한했는데 키토 점수 90점대가 안 나옴)
   useEffect(() => {
     const loadRestaurants = async () => {
       if (!userLocation) return
@@ -294,7 +294,7 @@ export function MapPage() {
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <Card className="lg:col-span-8">
+        <Card className="lg:col-span-8 rounded-2xl overflow-hidden">
           <CardHeader>
             <CardTitle className="text-lg flex items-center">
               <LocationOn sx={{ fontSize: 20, mr: 1 }} />
@@ -325,7 +325,7 @@ export function MapPage() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-4">
+        <Card className="lg:col-span-4 rounded-2xl overflow-hidden">
           <CardHeader>
             <CardTitle className="text-lg flex items-center">
               <Restaurant sx={{ fontSize: 20, mr: 1 }} />
@@ -352,7 +352,7 @@ export function MapPage() {
                     
                     return (
                       <div key={(r as any).id} ref={(el) => (itemRefs.current[index] = el)}>
-                        <Card onClick={() => setSelectedIndex(index)} className={`overflow-hidden transition-[box-shadow,background-color] ${active ? 'ring-2 ring-inset ring-primary/60 bg-primary/5' : ''}`}>
+                        <Card onClick={() => setSelectedIndex(index)} className={`rounded-2xl overflow-hidden transition-[box-shadow,background-color] ${active ? 'ring-2 ring-inset ring-primary/60 bg-primary/5' : ''}`}>
                           <CardHeader className="pb-2">
                             <CardTitle className="text-base flex items-center justify-between gap-2">
                               <span className="truncate" title={(r as any).name || undefined}>{(r as any).name || '이름 없음'}</span>
