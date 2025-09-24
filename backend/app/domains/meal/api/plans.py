@@ -20,6 +20,7 @@ from app.shared.models.schemas import (
 )
 from app.shared.models.database_models import Plan, Recipe
 from app.agents.meal_planner import MealPlannerAgent
+from app.tools.shared.profile_tool import user_profile_tool
 
 router = APIRouter(prefix="/plans", tags=["plans"])
 
@@ -214,6 +215,73 @@ async def generate_meal_plan(
         raise HTTPException(
             status_code=500,
             detail=f"식단표 생성 중 오류 발생: {str(e)}"
+        )
+
+@router.post("/generate/personalized", response_model=MealPlanResponse)
+async def generate_personalized_meal_plan(
+    user_id: str = Query(..., description="사용자 ID"),
+    days: int = Query(7, description="생성할 일수"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    개인화된 7일 식단표 자동 생성
+    사용자 프로필(알레르기, 비선호, 목표)을 자동으로 반영
+    """
+    try:
+        meal_planner = MealPlannerAgent()
+        
+        # 개인화된 식단표 생성 (프로필 자동 적용)
+        meal_plan = await meal_planner.generate_personalized_meal_plan(
+            user_id=user_id,
+            days=days
+        )
+        
+        return MealPlanResponse(**meal_plan)
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"개인화 식단표 생성 중 오류 발생: {str(e)}"
+        )
+
+@router.post("/generate/with-access-check", response_model=dict)
+async def generate_meal_plan_with_access_check(
+    user_id: str = Query(..., description="사용자 ID"),
+    days: int = Query(7, description="생성할 일수"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    접근 권한 확인 후 개인화된 식단표 생성
+    구독/체험 상태를 확인하고 권한이 있는 경우에만 생성
+    """
+    try:
+        meal_planner = MealPlannerAgent()
+        
+        # 접근 권한 확인 및 식단표 생성
+        result = await meal_planner.check_user_access_and_generate(
+            user_id=user_id,
+            request_type="meal_plan",
+            days=days
+        )
+        
+        if not result["success"]:
+            raise HTTPException(
+                status_code=403,
+                detail=result["error"]
+            )
+        
+        return {
+            "success": True,
+            "meal_plan": result["data"],
+            "access_info": result["access_info"]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"권한 확인 식단표 생성 중 오류 발생: {str(e)}"
         )
 
 @router.post("/commit")
