@@ -49,6 +49,8 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
   const openedOverlayRef = useRef<any>(null);
   const openedOverlayKeyRef = useRef<string | null>(null);
   const overlayByKeyRef = useRef<Map<string, any>>(new Map());
+  const markerByKeyRef = useRef<Map<string, any>>(new Map());
+  const selectedMarkerKeyRef = useRef<string | null>(null);
 
   // 위/경도로 주소 역지오코딩
   const reverseGeocode = (plat: number, plng: number): Promise<string | null> => {
@@ -71,20 +73,20 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
   };
 
   // 거리 계산 (haversine)
-  const toRad = (v: number) => (v * Math.PI) / 180;
-  const distanceMeters = (aLat: number, aLng: number, bLat: number, bLng: number): number => {
-    const R = 6371000; // meters
-    const dLat = toRad(bLat - aLat);
-    const dLng = toRad(bLng - aLng);
-    const lat1 = toRad(aLat);
-    const lat2 = toRad(bLat);
-    const sinDLat = Math.sin(dLat / 2);
-    const sinDLng = Math.sin(dLng / 2);
-    const a = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLng * sinDLng;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
-  const formatDistance = (m: number): string => (m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`);
+  // const toRad = (v: number) => (v * Math.PI) / 180;
+  // const distanceMeters = (aLat: number, aLng: number, bLat: number, bLng: number): number => {
+  //   const R = 6371000; // meters
+  //   const dLat = toRad(bLat - aLat);
+  //   const dLng = toRad(bLng - aLng);
+  //   const lat1 = toRad(aLat);
+  //   const lat2 = toRad(bLat);
+  //   const sinDLat = Math.sin(dLat / 2);
+  //   const sinDLng = Math.sin(dLng / 2);
+  //   const a = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLng * sinDLng;
+  //   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  //   return R * c;
+  // };
+  // const formatDistance = (m: number): string => (m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`);
 
   // 마커/오버레이 재구성 함수: 지도는 재생성하지 않고 현재 데이터만 반영
   const rebuildMarkers = async () => {
@@ -104,6 +106,8 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
     createdMarkersRef.current = [];
     createdOverlaysRef.current = [];
     overlayByKeyRef.current.clear();
+    markerByKeyRef.current.clear();
+    selectedMarkerKeyRef.current = null;
 
     const imageSize = new window.kakao.maps.Size(markerSize, markerSize);
     const imageOffset = new window.kakao.maps.Point(Math.floor(markerSize / 2), markerSize);
@@ -123,11 +127,11 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
     );
 
     // 포지션 수집 (레스토랑/마커)
-    let positions: Array<{ lat: number; lng: number; title?: string; address?: string; originalIndex?: number; }> = [];
+    let positions: Array<{ lat: number; lng: number; title?: string; address?: string; originalIndex?: number; distanceKm?: number; }> = [];
     if (restaurants && restaurants.length > 0) {
       const hasMissing = restaurants.some(r => typeof r.lat !== 'number' || typeof r.lng !== 'number');
       if (!hasMissing) {
-        positions = restaurants.map((r, i) => ({ lat: r.lat as number, lng: r.lng as number, title: r.name, address: r.address, originalIndex: i }));
+        positions = restaurants.map((r: any, i) => ({ lat: r.lat as number, lng: r.lng as number, title: r.name, address: r.address, originalIndex: i, distanceKm: typeof r.distance_km === 'number' ? r.distance_km : undefined }));
       } else if ((window as any).kakao?.maps?.services?.Geocoder) {
         const geocoder = new window.kakao.maps.services.Geocoder();
         const geocodeOne = (addr: string) => new Promise<{ lat?: number; lng?: number }>((resolve) => {
@@ -140,20 +144,20 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
           });
         });
         for (let i = 0; i < restaurants.length; i++) {
-          const r = restaurants[i];
+          const r: any = restaurants[i];
           let coord = { lat: r.lat, lng: r.lng } as { lat?: number; lng?: number };
           if (typeof coord.lat !== 'number' || typeof coord.lng !== 'number') {
             const geo = await geocodeOne(r.address);
             coord = geo;
           }
           if (typeof coord.lat === 'number' && typeof coord.lng === 'number') {
-            positions.push({ lat: coord.lat!, lng: coord.lng!, title: r.name, address: r.address, originalIndex: i });
+            positions.push({ lat: coord.lat!, lng: coord.lng!, title: r.name, address: r.address, originalIndex: i, distanceKm: typeof r.distance_km === 'number' ? r.distance_km : undefined });
           }
         }
       } else {
-        positions = restaurants
+        positions = (restaurants as any[])
           .filter(r => typeof r.lat === 'number' && typeof r.lng === 'number')
-          .map((r, i) => ({ lat: r.lat as number, lng: r.lng as number, title: r.name, address: r.address, originalIndex: i }));
+          .map((r, i) => ({ lat: r.lat as number, lng: r.lng as number, title: r.name, address: r.address, originalIndex: i, distanceKm: typeof r.distance_km === 'number' ? r.distance_km : undefined }));
       }
     } else if (Array.isArray(markers) && markers.length > 0) {
       positions = markers.map(m => ({ lat: m.lat, lng: m.lng, title: m.title }));
@@ -174,8 +178,6 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
       return true;
     });
 
-    // 맵 클릭 시 열린 말풍선 닫기 로직은 초기화 훅에서만 세팅됨
-
     // 마커/오버레이 생성
     positions.forEach((pos) => {
       const key = `${pos.lat.toFixed(6)},${pos.lng.toFixed(6)}`;
@@ -189,6 +191,7 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
       });
       marker.setMap(map);
       createdMarkersRef.current.push(marker);
+      markerByKeyRef.current.set(key, marker);
 
       if ((pos as any).title) {
         const labelHtml = `
@@ -218,12 +221,16 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
         createdOverlaysRef.current.push(labelOverlay);
       }
 
-      // 거리 계산 (특별 마커 = 현재 위치 기준)
+      // 거리 표기 비활성화 (프런트 계산/표기 주석 처리)
       let distanceHtml = '';
-      if (specialMarker && typeof specialMarker.lat === 'number' && typeof specialMarker.lng === 'number') {
-        const d = distanceMeters(specialMarker.lat, specialMarker.lng, pos.lat, pos.lng);
-        distanceHtml = `<div style="color:#616161;">거리: ${formatDistance(d)}</div>`;
-      }
+      // if (typeof (pos as any).distanceKm === 'number') {
+      //   const km = (pos as any).distanceKm as number
+      //   const text = km < 1 ? `${Math.round(km * 1000)}m` : `${km.toFixed(1)}km`
+      //   distanceHtml = `<div style=\"color:#616161;\">거리: ${text}</div>`
+      // } else if (specialMarker && typeof specialMarker.lat === 'number' && typeof specialMarker.lng === 'number') {
+      //   const d = distanceMeters(specialMarker.lat, specialMarker.lng, pos.lat, pos.lng)
+      //   distanceHtml = `<div style=\"color:#616161;\">거리: ${formatDistance(d)}</div>`
+      // }
 
       const contentHtml = `
         <div style="position:relative;pointer-events:auto;">
@@ -261,7 +268,7 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
         content: contentHtml,
         yAnchor: 1.8,
         xAnchor: 0.5,
-        zIndex: 4,
+        zIndex: 10000,
       });
       overlayByKeyRef.current.set(key, overlay);
 
@@ -356,7 +363,7 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
         content: '',
         yAnchor: 1.8,
         xAnchor: 0.5,
-        zIndex: 1003,
+        zIndex: 10020,
       });
 
       window.kakao.maps.event.addListener(sm, 'click', async () => {
@@ -480,8 +487,10 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
       createdMarkersRef.current.forEach((m) => m.setMap(null));
       createdOverlaysRef.current.forEach((o) => o.setMap(null));
       overlayByKeyRef.current.clear();
+      markerByKeyRef.current.clear();
       openedOverlayRef.current = null;
       openedOverlayKeyRef.current = null;
+      selectedMarkerKeyRef.current = null;
     };
     // 데이터 변경 시 마커/오버레이만 갱신
   }, [lat, lng, level]);
@@ -493,7 +502,7 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [markers, markerSize, restaurants, fitToBounds, specialMarker]);
 
-  // 외부에서 선택된 인덱스를 받아 해당 말풍선을 열기
+  // 외부에서 선택된 인덱스를 받아 해당 말풍선을 열고 마커 색상을 노란색으로 변경
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
@@ -511,7 +520,50 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
     openedOverlayKeyRef.current = key
     // 선택된 아이템 위치로 지도 부드럽게 이동
     map.panTo(new window.kakao.maps.LatLng(r.lat, r.lng))
-  }, [activeIndex, restaurants])
+
+    // 마커 색상 업데이트: 이전 선택 마커 원복, 현재 선택 마커는 노란색
+    const specialKey = specialMarker ? `${specialMarker.lat.toFixed(6)},${specialMarker.lng.toFixed(6)}` : null
+    const prevKey = selectedMarkerKeyRef.current
+    if (prevKey && markerByKeyRef.current.has(prevKey)) {
+      const prevMarker = markerByKeyRef.current.get(prevKey)
+      if (specialKey && prevKey === specialKey) {
+        // 이전이 특별 마커였으면 파란색 복원
+        // 파란 마커 이미지는 rebuildMarkers 스코프 내에 있으므로, 동일 로직으로 대체 불가 -> 간단히 녹색으로 복원 후 특별 마커는 별도 분기에서 항상 파란색 생성됨
+        // 안전하게 녹색으로 복원
+        prevMarker.setImage(markerByKeyRef.current.get(prevKey)?.getImage() || null)
+      }
+    }
+    // 모든 마커의 기본 이미지 복원 대신, 이전 선택만 복원
+    if (prevKey && markerByKeyRef.current.has(prevKey)) {
+      const prevMarker = markerByKeyRef.current.get(prevKey)
+      if (specialKey && prevKey === specialKey) {
+        // 특별 마커는 파란색
+        prevMarker.setImage(new window.kakao.maps.MarkerImage(
+          'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${markerSize}\" height=\"${markerSize}\" viewBox=\"0 0 24 24\">\n  <path fill=\"#1e88e5\" d=\"M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z\"/>\n  <circle cx=\"12\" cy=\"9.5\" r=\"3\" fill=\"#ffffff\"/>\n</svg>`),
+          new window.kakao.maps.Size(markerSize, markerSize),
+          { offset: new window.kakao.maps.Point(Math.floor(markerSize / 2), markerSize) }
+        ))
+      } else {
+        // 일반 마커는 녹색
+        prevMarker.setImage(new window.kakao.maps.MarkerImage(
+          'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${markerSize}\" height=\"${markerSize}\" viewBox=\"0 0 24 24\">\n  <path fill=\"#4caf50\" d=\"M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z\"/>\n  <circle cx=\"12\" cy=\"9.5\" r=\"3\" fill=\"#ffffff\"/>\n</svg>`),
+          new window.kakao.maps.Size(markerSize, markerSize),
+          { offset: new window.kakao.maps.Point(Math.floor(markerSize / 2), markerSize) }
+        ))
+      }
+    }
+
+    // 현재 선택 마커를 노란색으로 설정
+    const curMarker = markerByKeyRef.current.get(key)
+    if (curMarker) {
+      curMarker.setImage(new window.kakao.maps.MarkerImage(
+        'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${markerSize}\" height=\"${markerSize}\" viewBox=\"0 0 24 24\">\n  <path fill=\"#fbc02d\" d=\"M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z\"/>\n  <circle cx=\"12\" cy=\"9.5\" r=\"3\" fill=\"#ffffff\"/>\n</svg>`),
+        new window.kakao.maps.Size(markerSize, markerSize),
+        { offset: new window.kakao.maps.Point(Math.floor(markerSize / 2), markerSize) }
+      ))
+      selectedMarkerKeyRef.current = key
+    }
+  }, [activeIndex, restaurants, specialMarker, markerSize])
 
 
   const resolvedHeight = typeof height === 'number' ? `${height}px` : height;

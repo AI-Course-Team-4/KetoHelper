@@ -26,7 +26,7 @@ export function PlaceCard({ place, onAddToPlan }: PlaceCardProps) {
   const scoreText = place.keto_score ? getKetoScoreText(place.keto_score) : '정보 없음'
 
   return (
-    <Card className="place-card">
+    <Card className="place-card rounded-2xl overflow-hidden">
       <CardHeader>
         <div className="flex items-start justify-between">
           <CardTitle className="text-lg">{place.name}</CardTitle>
