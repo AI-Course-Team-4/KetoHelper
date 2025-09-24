@@ -306,10 +306,7 @@ export function ProfilePage() {
           variant="h4" 
           sx={{ 
             fontWeight: 700, 
-            background: 'linear-gradient(45deg, #10b981, #34d399)',
-            backgroundClip: 'text',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
+            color: 'primary.main',
             mb: 0.5
           }}
         >

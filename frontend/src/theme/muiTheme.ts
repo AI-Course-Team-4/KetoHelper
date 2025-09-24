@@ -4,9 +4,9 @@ import { createTheme } from '@mui/material/styles';
 export const muiTheme = createTheme({
   palette: {
     primary: {
-      main: '#10b981', // emerald-500 (키토 브랜드 컬러)
-      light: '#34d399', // emerald-400
-      dark: '#059669', // emerald-600
+      main: 'hsl(142, 76%, 36%)', // CSS 변수와 동일한 값
+      light: 'hsl(142, 76%, 46%)', // 더 밝은 버전
+      dark: 'hsl(142, 76%, 26%)', // 더 어두운 버전
       contrastText: '#ffffff',
     },
     secondary: {
@@ -128,8 +128,20 @@ export const muiTheme = createTheme({
           },
         },
         contained: {
+          backgroundColor: 'primary.main',
+          color: 'primary.contrastText',
           '&:hover': {
+            backgroundColor: 'primary.dark',
             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+          },
+        },
+        outlined: {
+          borderColor: 'primary.main',
+          color: 'primary.main',
+          '&:hover': {
+            backgroundColor: 'primary.main',
+            color: 'primary.contrastText',
+            borderColor: 'primary.main',
           },
         },
       },
