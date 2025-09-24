@@ -54,16 +54,16 @@ async def _upsert_user(profile: dict) -> dict:
         user_data = {
             "id": fixed_id,
             "email": profile.get("email", ""),
-            # 기존 nickname이 있으면 보존, 없으면 소셜 로그인 정보 사용
             "nickname": existing_user.get("nickname") or profile.get("name") or profile.get("nickname") or "",
+            "social_nickname": existing_user.get("social_nickname") or profile.get("name") or profile.get("nickname") or "",
             "profile_image_url": profile.get("picture") or profile.get("profile_image") or "",
         }
     else:
-        # 신규 사용자는 소셜 로그인 정보 사용
         user_data = {
             "id": fixed_id,
             "email": profile.get("email", ""),
             "nickname": profile.get("name") or profile.get("nickname") or "",
+            "social_nickname": profile.get("name") or profile.get("nickname") or "",
             "profile_image_url": profile.get("picture") or profile.get("profile_image") or "",
         }
 

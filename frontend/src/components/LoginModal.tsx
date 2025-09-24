@@ -25,14 +25,26 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
 
     const startGoogleAccessFlow = useGoogleLogin({
         flow: 'implicit',
+        scope: 'openid profile email',
         onSuccess: async (tokenResponse: any) => {
             try {
                 setIsGoogleLoading(true)
                 const accessToken = tokenResponse?.access_token
                 if (!accessToken) throw new Error('Google 액세스 토큰을 가져오지 못했습니다.')
-                console.log('[Auth] Google login success', { tokenResponse, accessToken })
+                console.log('[Auth] Google login success - raw tokenResponse:', tokenResponse)
+                // 원본 구글 유저 정보 조회 (sh k 등 프로필 이름 확인)
+                let googleProfile: any = null
+                try {
+                    const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                        headers: { Authorization: `Bearer ${accessToken}` },
+                    })
+                    googleProfile = await resp.json().catch(() => null)
+                } catch {}
+                console.log('[Auth] Google userinfo:', googleProfile)
+                // 로컬 스토리지 저장은 불필요하므로 제거
                 const result = await authService.googleAccessLogin(accessToken)
                 const backendUser = (result as any)?.user
+                console.log('Google login 원래 정보:', result)
                 const at = (result as any)?.accessToken
                 const rt = (result as any)?.refreshToken
                 if (!at || !rt) throw new Error('토큰 발급에 실패했습니다.')
@@ -42,6 +54,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                         email: backendUser?.email ?? '',
                         name: backendUser?.name ?? '',
                         profileImage: backendUser?.profile_image ?? '',
+                        socialNickname: googleProfile.name ?? '',
                     },
                     at,
                     rt,
@@ -142,6 +155,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                                         email: backendUser?.email ?? '',
                                         name: backendUser?.name ?? '',
                                         profileImage: backendUser?.profile_image ?? '',
+                                        socialNickname: backendUser?.name ?? '',
                                     },
                                     at,
                                     rt,
@@ -308,11 +322,22 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                                         const data: any = (event as any).data
                                         if (!data || data.source !== 'naver_oauth') return
                                         if (data.type === 'success') {
-                                            const user = data.user
+                                            const user = data.user as any
                                             const at = data.accessToken
                                             const rt = data.refreshToken
                                             if (user && at && rt) {
-                                                setAuth(user, at, rt)
+                                                // Naver도 socialNickname을 함께 저장
+                                                setAuth(
+                                                    {
+                                                        id: user?.id ?? 'unknown',
+                                                        email: user?.email ?? '',
+                                                        name: user?.name ?? '',
+                                                        profileImage: user?.profile_image ?? user?.profileImage ?? '',
+                                                        socialNickname: user?.name ?? '',
+                                                    },
+                                                    at,
+                                                    rt,
+                                                )
                                                 toast.success(`안녕하세요 ${user?.name || '사용자'}님!`)
                                                 onOpenChange(false)
                                             } else {
