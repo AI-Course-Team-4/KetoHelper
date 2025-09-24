@@ -21,6 +21,8 @@ type KakaoMapProps = {
   fitToBounds?: boolean;
   /** 별도로 강조할 마커 (예: 강남역) */
   specialMarker?: { lat: number; lng: number; title?: string };
+  /** 외부(리스트)에서 선택된 인덱스가 바뀌면 해당 마커 말풍선을 열어줌 */
+  activeIndex?: number | null;
 };
 
 
@@ -35,6 +37,7 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
   restaurants,
   fitToBounds = true,
   specialMarker,
+  activeIndex,
 }) => {
   const DEFAULT_LAT = lat;
   const DEFAULT_LNG = lng;
@@ -104,11 +107,11 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
     );
 
     // 포지션 수집 (레스토랑/마커)
-    let positions: Array<{ lat: number; lng: number; title?: string; address?: string; }> = [];
+    let positions: Array<{ lat: number; lng: number; title?: string; address?: string; originalIndex?: number; }> = [];
     if (restaurants && restaurants.length > 0) {
       const hasMissing = restaurants.some(r => typeof r.lat !== 'number' || typeof r.lng !== 'number');
       if (!hasMissing) {
-        positions = restaurants.map(r => ({ lat: r.lat as number, lng: r.lng as number, title: r.name, address: r.address }));
+        positions = restaurants.map((r, i) => ({ lat: r.lat as number, lng: r.lng as number, title: r.name, address: r.address, originalIndex: i }));
       } else if ((window as any).kakao?.maps?.services?.Geocoder) {
         const geocoder = new window.kakao.maps.services.Geocoder();
         const geocodeOne = (addr: string) => new Promise<{ lat?: number; lng?: number }>((resolve) => {
@@ -120,20 +123,21 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
             }
           });
         });
-        for (const r of restaurants) {
+        for (let i = 0; i < restaurants.length; i++) {
+          const r = restaurants[i];
           let coord = { lat: r.lat, lng: r.lng } as { lat?: number; lng?: number };
           if (typeof coord.lat !== 'number' || typeof coord.lng !== 'number') {
             const geo = await geocodeOne(r.address);
             coord = geo;
           }
           if (typeof coord.lat === 'number' && typeof coord.lng === 'number') {
-            positions.push({ lat: coord.lat!, lng: coord.lng!, title: r.name, address: r.address });
+            positions.push({ lat: coord.lat!, lng: coord.lng!, title: r.name, address: r.address, originalIndex: i });
           }
         }
       } else {
         positions = restaurants
           .filter(r => typeof r.lat === 'number' && typeof r.lng === 'number')
-          .map(r => ({ lat: r.lat as number, lng: r.lng as number, title: r.name, address: r.address }));
+          .map((r, i) => ({ lat: r.lat as number, lng: r.lng as number, title: r.name, address: r.address, originalIndex: i }));
       }
     } else if (Array.isArray(markers) && markers.length > 0) {
       positions = markers.map(m => ({ lat: m.lat, lng: m.lng, title: m.title }));
@@ -157,7 +161,7 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
     // 맵 클릭 시 열린 말풍선 닫기 로직은 초기화 훅에서만 세팅됨
 
     // 마커/오버레이 생성
-    positions.forEach((pos, index) => {
+    positions.forEach((pos) => {
       const key = `${pos.lat.toFixed(6)},${pos.lng.toFixed(6)}`;
       const isSpecial = (
         !!specialMarker && Math.abs(pos.lat - specialMarker.lat) < 1e-6 && Math.abs(pos.lng - specialMarker.lng) < 1e-6
@@ -258,7 +262,8 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
         }, 150);
 
         if (onMarkerClick) {
-          onMarkerClick({ index, lat: pos.lat, lng: pos.lng, title: (pos as any).title });
+          const listIndex = typeof pos.originalIndex === 'number' ? pos.originalIndex : -1;
+          onMarkerClick({ index: listIndex, lat: pos.lat, lng: pos.lng, title: (pos as any).title });
         }
       });
     });
@@ -463,6 +468,26 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
     rebuildMarkers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [markers, markerSize, restaurants, fitToBounds, specialMarker]);
+
+  // 외부에서 선택된 인덱스를 받아 해당 말풍선을 열기
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (typeof activeIndex !== 'number' || !restaurants || activeIndex < 0 || activeIndex >= restaurants.length) return
+    const r = restaurants[activeIndex]
+    if (typeof r?.lat !== 'number' || typeof r?.lng !== 'number') return
+    const key = `${r.lat.toFixed(6)},${r.lng.toFixed(6)}`
+    const overlay = overlayByKeyRef.current.get(key)
+    if (!overlay) return
+    if (openedOverlayRef.current && openedOverlayKeyRef.current !== key) {
+      openedOverlayRef.current.setMap(null)
+    }
+    overlay.setMap(map)
+    openedOverlayRef.current = overlay
+    openedOverlayKeyRef.current = key
+    // 선택된 아이템 위치로 지도 부드럽게 이동
+    map.panTo(new window.kakao.maps.LatLng(r.lat, r.lng))
+  }, [activeIndex, restaurants])
 
 
   const resolvedHeight = typeof height === 'number' ? `${height}px` : height;
