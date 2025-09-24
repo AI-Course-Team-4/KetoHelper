@@ -174,7 +174,9 @@ class KetoCoachAgent:
         if initial_intent == "mealplan":
             plan_patterns = [
                 r'식단표', r'메뉴.*계획', r'일주일.*계획', r'주간.*계획',
-                r'만들어.*줘', r'계획.*세워', r'계획.*만들어'
+                r'만들어.*줘', r'계획.*세워', r'계획.*만들어', r'식단.*생성',
+                r'생성.*해줘', r'식단.*만들어', r'키토.*식단', r'추천.*해줘',
+                r'식단.*추천', r'.*식단.*'
             ]
             
             has_plan_request = any(re.search(pattern, message, re.IGNORECASE) for pattern in plan_patterns)
@@ -469,8 +471,31 @@ class KetoCoachAgent:
             # 채팅에서 임시 불호 식재료 추출
             temp_dislikes = temp_dislikes_extractor.extract_from_message(message)
             
-            # 슬롯에서 매개변수 추출
-            days = int(state["slots"].get("days", 7)) if state["slots"].get("days") else 7
+            # 먼저 메시지에서 직접 일수 파싱 (더 확실한 방법)
+            days = 7  # 기본값
+            
+            print(f"🔍 DEBUG: 메시지: {message}")
+            print(f"🔍 DEBUG: 전체 슬롯: {state['slots']}")
+            
+            # 메시지에서 직접 일수 파싱
+            if any(word in message for word in ["하루치", "하루", "1일", "오늘"]):
+                days = 1
+                print(f"🔍 DEBUG: 메시지에서 하루치 감지 → days = 1")
+            elif any(word in message for word in ["이틀", "2일"]):
+                days = 2
+                print(f"🔍 DEBUG: 메시지에서 이틀 감지 → days = 2")
+            elif any(word in message for word in ["3일", "사흘"]):
+                days = 3
+                print(f"🔍 DEBUG: 메시지에서 3일 감지 → days = 3")
+            elif any(word in message for word in ["이번주", "다음주", "일주일", "한주", "한 주"]):
+                days = 7
+                print(f"🔍 DEBUG: 메시지에서 주간 감지 → days = 7")
+            else:
+                # 슬롯에서 가져오기 (메시지 파싱이 실패한 경우)
+                days = int(state["slots"].get("days", 7)) if state["slots"].get("days") else 7
+                print(f"🔍 DEBUG: 슬롯에서 추출된 days: {days}")
+            
+            print(f"🔍 DEBUG: 최종 days: {days}")
             
             # 프로필에서 제약 조건 추출
             kcal_target = None
@@ -514,9 +539,16 @@ class KetoCoachAgent:
                 }
             })
             
+            # days 값을 state에 저장 (answer_node에서 사용하기 위해)
+            state["meal_plan_days"] = days
+            print(f"🔍 DEBUG: state에 meal_plan_days 저장: {days}")
+            
         except Exception as e:
             print(f"Meal plan error: {e}")
             state["results"] = []
+            # 에러 케이스에서도 days 값 저장
+            state["meal_plan_days"] = days
+            print(f"🔍 DEBUG: 에러 케이스에서도 state에 meal_plan_days 저장: {days}")
         
         return state
     
@@ -645,13 +677,26 @@ class KetoCoachAgent:
                         context=context
                     )
                 elif state["intent"] == "mealplan":
-                    # 7일 식단표 간단 포맷팅 (메뉴 이름 위주) + 바로 응답 반환
+                    # 식단표 간단 포맷팅 (메뉴 이름 위주) + 바로 응답 반환
                     if state["results"] and len(state["results"]) > 0:
                         meal_plan = state["results"][0]
-                        response_text = "## ✨ 7일 키토 식단표\n\n"
+                        # tool_calls에서 days 정보 추출 (state가 유지되지 않는 문제 해결)
+                        requested_days = 7  # 기본값
+                        for tool_call in state.get("tool_calls", []):
+                            if tool_call.get("tool") == "meal_planner":
+                                requested_days = tool_call.get("days", 7)
+                                break
+                        print(f"🔍 DEBUG: tool_calls에서 추출한 days: {requested_days}")
+                        print(f"🔍 DEBUG: state['meal_plan_days'] 조회: {state.get('meal_plan_days', 'NOT_FOUND')}")
+                        day_text = "일" if requested_days == 1 else f"{requested_days}일"
+                        response_text = f"## ✨ {day_text} 키토 식단표\n\n"
                         
                         # 각 날짜별 식단 간단 포맷팅
-                        for day_idx, day_meals in enumerate(meal_plan.get("days", []), 1):
+                        # 사용자가 요청한 일수만큼만 출력
+                        meal_days = meal_plan.get("days", [])[:requested_days]
+                        print(f"🔍 DEBUG: 요청 일수 {requested_days}, 생성된 일수 {len(meal_plan.get('days', []))}, 출력 일수 {len(meal_days)}")
+                        
+                        for day_idx, day_meals in enumerate(meal_days, 1):
                             response_text += f"**{day_idx}일차:**\n"
                             
                             for slot in ['breakfast', 'lunch', 'dinner', 'snack']:
@@ -673,7 +718,15 @@ class KetoCoachAgent:
                         state["response"] = response_text
                         return state
                     else:
-                        state["response"] = "식단표 생성에 실패했습니다."
+                        # tool_calls에서 days 정보 추출
+                        requested_days = 7  # 기본값
+                        for tool_call in state.get("tool_calls", []):
+                            if tool_call.get("tool") == "meal_planner":
+                                requested_days = tool_call.get("days", 7)
+                                break
+                        print(f"🔍 DEBUG: 식단표 생성 실패, tool_calls에서 추출한 요청 일수: {requested_days}")
+                        day_text = "일" if requested_days == 1 else f"{requested_days}일"
+                        state["response"] = f"{day_text} 식단표 생성에 실패했습니다."
                         return state
                 else:
                     context = json.dumps(state["results"][:3], ensure_ascii=False, indent=2)
