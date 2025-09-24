@@ -340,42 +340,14 @@ class KetoCoachAgent:
         return state
     
     def _validate_intent(self, message: str, initial_intent: str) -> str:
-        """의도 분류 검증 및 수정 (기존 로직 유지 + 개선)"""
+        """의도 분류 검증 및 수정 (간소화된 버전)
         
-        # 식단표 관련 명확한 키워드 우선 체크
-        if any(keyword in message for keyword in [
-            "하루치", "일주일치", "이틀치", "3일치", "사흘치",
-            "식단표", "식단 만들", "식단 생성", "식단 짜",
-            "메뉴 계획", "일주일 식단", "주간 식단", "다음주 식단",
-            "이번주 식단", "한주 식단", "한 주 식단"
-        ]):
-            print(f"    🔍 검증: 식단표 키워드 감지 → mealplan 강제")
-            return "mealplan"
+        IntentClassifier에서 이미 검증이 완료되었으므로,
+        여기서는 orchestrator 특화 검증만 수행
+        """
         
-        # 레시피 관련 명확한 키워드 체크
-        if any(keyword in message for keyword in [
-            "레시피", "조리법", "만드는 법", "어떻게 만들",
-            "요리 방법", "조리 방법", "만들어줘", "만들어 줘"
-        ]) and "식단" not in message:
-            print(f"    🔍 검증: 레시피 키워드 감지 → recipe 강제")
-            return "recipe"
-        
-        # 질문형 패턴 체크
-        question_patterns = [
-            r'뭐야\?', r'뭔가\?', r'뭐지\?', r'뭐야', r'뭔가', r'뭐지',
-            r'어떻게\?', r'어떤\?', r'어떤가\?', r'어떻게', r'어떤', r'어떤가',
-            r'왜\?', r'왜야\?', r'왜지\?', r'왜', r'왜야', r'왜지',
-            r'도움\?', r'도움이\?', r'될까\?', r'도움', r'도움이', r'될까',
-            r'대화', r'채팅', r'말해', r'알려줘', r'설명해', r'궁금해'
-        ]
-        
-        # 대화/질문 패턴이 있으면 other로 변경 (단, 레시피/식단표 키워드가 없을 때만)
-        has_question_pattern = any(re.search(pattern, message, re.IGNORECASE) for pattern in question_patterns)
-        has_action_keyword = any(word in message for word in ["레시피", "식단", "만들", "찾아", "추천"])
-        
-        if has_question_pattern and not has_action_keyword:
-            print(f"    🔍 검증: 질문형 패턴 감지 → other로 변경")
-            return "other"
+        # IntentClassifier에서 처리하지 못한 orchestrator 특화 검증
+        # 예: mealplan vs recipe 세분화 등
         
         # mealplan 의도인데 구체적인 계획 요청이 아닌 경우
         if initial_intent == "mealplan":

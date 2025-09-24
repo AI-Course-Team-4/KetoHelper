@@ -115,11 +115,17 @@ class IntentClassifier:
         # 1단계: 키워드 기반 빠른 분류
         quick_result = self._quick_classify(user_input)
         
+        # 2단계: 의도 검증 및 수정
+        validated_intent = self._validate_intent(user_input, quick_result["intent"])
+        if validated_intent != quick_result["intent"]:
+            quick_result["intent"] = validated_intent
+            quick_result["method"] = "validated"
+        
         # 높은 확신도면 바로 반환
         if quick_result["confidence"] >= 0.8:
             return quick_result
         
-        # 2단계: LLM이 없거나 중간 확신도일 때
+        # 3단계: LLM이 없거나 중간 확신도일 때
         if not self.llm:
             # LLM 없으면 키워드 결과 그대로 사용
             return quick_result
@@ -129,8 +135,14 @@ class IntentClassifier:
             print(f"  📊 중간 확신도 ({quick_result['confidence']:.2f}) → 키워드 결과 사용")
             return quick_result
         
-        # 3단계: 낮은 확신도일 때만 LLM 사용
+        # 4단계: 낮은 확신도일 때만 LLM 사용
         llm_result = await self._llm_classify(user_input, context)
+        
+        # LLM 결과도 검증
+        validated_llm_intent = self._validate_intent(user_input, llm_result["intent"])
+        if validated_llm_intent != llm_result["intent"]:
+            llm_result["intent"] = validated_llm_intent
+            llm_result["method"] = "llm_validated"
         
         # 결과 조합
         return self._combine_results(quick_result, llm_result)
@@ -233,6 +245,58 @@ class IntentClassifier:
         else:
             # 기본값은 recipe
             return "recipe"
+    
+    def _is_question_pattern(self, text: str) -> bool:
+        """질문형 패턴 감지"""
+        question_patterns = [
+            r'뭐야\?', r'뭔가\?', r'뭐지\?', r'뭐야', r'뭔가', r'뭐지',
+            r'어떻게\?', r'어떤\?', r'어떤가\?', r'어떻게', r'어떤', r'어떤가',
+            r'왜\?', r'왜야\?', r'왜지\?', r'왜', r'왜야', r'왜지',
+            r'도움\?', r'도움이\?', r'될까\?', r'도움', r'도움이', r'될까',
+            r'대화', r'채팅', r'말해', r'알려줘', r'설명해', r'궁금해'
+        ]
+        
+        return any(re.search(pattern, text, re.IGNORECASE) for pattern in question_patterns)
+    
+    def _has_action_keyword(self, text: str) -> bool:
+        """구체적인 액션 키워드 감지"""
+        action_keywords = ["레시피", "식단", "만들", "찾아", "추천", "식당", "맛집", "음식점"]
+        return any(word in text for word in action_keywords)
+    
+    def _validate_intent(self, text: str, initial_intent: Intent) -> Intent:
+        """의도 검증 및 수정"""
+        
+        # 질문형 패턴이 있지만 구체적인 액션 키워드가 없으면 GENERAL로 변경
+        if self._is_question_pattern(text) and not self._has_action_keyword(text):
+            print(f"    🔍 검증: 질문형 패턴 감지 → GENERAL로 변경")
+            return Intent.GENERAL
+        
+        # 식단표 관련 명확한 키워드 우선 체크
+        if any(keyword in text for keyword in [
+            "하루치", "일주일치", "이틀치", "3일치", "사흘치",
+            "식단표", "식단 만들", "식단 생성", "식단 짜",
+            "메뉴 계획", "일주일 식단", "주간 식단", "다음주 식단",
+            "이번주 식단", "한주 식단", "한 주 식단"
+        ]):
+            print(f"    🔍 검증: 식단표 키워드 감지 → MEAL_PLANNING 강제")
+            return Intent.MEAL_PLANNING
+        
+        # 레시피 관련 명확한 키워드 체크
+        if any(keyword in text for keyword in [
+            "레시피", "조리법", "만드는 법", "어떻게 만들",
+            "요리 방법", "조리 방법", "만들어줘", "만들어 줘"
+        ]) and "식단" not in text:
+            print(f"    🔍 검증: 레시피 키워드 감지 → MEAL_PLANNING 강제")
+            return Intent.MEAL_PLANNING
+        
+        # 식당 관련 명확한 키워드 체크
+        if any(keyword in text for keyword in [
+            "식당", "맛집", "음식점", "카페", "레스토랑", "근처", "주변"
+        ]):
+            print(f"    🔍 검증: 식당 키워드 감지 → RESTAURANT_SEARCH 강제")
+            return Intent.RESTAURANT_SEARCH
+        
+        return initial_intent
     
     async def _llm_classify(self, user_input: str, context: str = "") -> Dict[str, Any]:
         """LLM 기반 정확한 분류"""
