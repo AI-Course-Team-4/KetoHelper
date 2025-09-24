@@ -4,9 +4,9 @@ import { createTheme } from '@mui/material/styles';
 export const muiTheme = createTheme({
   palette: {
     primary: {
-      main: '#3b82f6', // blue-500
-      light: '#60a5fa', // blue-400
-      dark: '#1d4ed8', // blue-700
+      main: '#10b981', // emerald-500 (키토 브랜드 컬러)
+      light: '#34d399', // emerald-400
+      dark: '#059669', // emerald-600
       contrastText: '#ffffff',
     },
     secondary: {
@@ -26,9 +26,9 @@ export const muiTheme = createTheme({
       dark: '#d97706', // amber-600
     },
     success: {
-      main: '#10b981', // emerald-500
-      light: '#34d399', // emerald-400
-      dark: '#059669', // emerald-600
+      main: '#22c55e', // green-500
+      light: '#4ade80', // green-400
+      dark: '#16a34a', // green-600
     },
     info: {
       main: '#06b6d4', // cyan-500
