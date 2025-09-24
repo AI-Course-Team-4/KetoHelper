@@ -23,5 +23,16 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-scroll-area', '@radix-ui/react-select', '@radix-ui/react-slot', '@radix-ui/react-tabs', '@radix-ui/react-toast'],
+          mui: ['@mui/material', '@emotion/react', '@emotion/styled'],
+          utils: ['axios', 'date-fns', 'zod', 'zustand']
+        }
+      }
+    },
+    chunkSizeWarningLimit: 1000
   }
 })
