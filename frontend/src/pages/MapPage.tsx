@@ -169,6 +169,18 @@ export function MapPage() {
     { code: 'western', name: '양식' }
   ]
 
+  // 전체 페이지 로딩 화면: 위치 획득 중 또는 리스트 로딩 중
+  if (!userLocation || isLoading) {
+    return (
+      <div className="min-h-[80vh] flex flex-col items-center justify-center gap-3">
+        <CircularProgress size={40} />
+        <div className="text-sm text-muted-foreground">
+          {!userLocation ? '위치 정보를 가져오는 중...' : '식당 목록을 불러오는 중...'}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* 헤더 */}
