@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Edit, Calendar, Clock, Utensils, Target } from 'lucide-react'
+import { Edit, CalendarToday, AccessTime, Restaurant, GpsFixed } from '@mui/icons-material'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { MealData } from '@/data/ketoMeals'
@@ -90,11 +90,11 @@ export function DateDetailModal({
   const ketoScore = calculateKetoScore()
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onClose={onClose} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
+            <CalendarToday sx={{ fontSize: 20 }} />
             {format(selectedDate, 'yyyy년 M월 d일 (E)', { locale: ko })}
           </DialogTitle>
         </DialogHeader>
@@ -128,7 +128,7 @@ export function DateDetailModal({
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="flex items-center gap-2">
-                <Utensils className="h-5 w-5" />
+                <Restaurant sx={{ fontSize: 20 }} />
                 식단 계획
               </CardTitle>
               <Button 
@@ -184,7 +184,7 @@ export function DateDetailModal({
                           <div className={`flex items-center gap-1 text-sm ${
                             isPastMeal && !isCompletedMeal && !isEditing ? 'text-gray-400' : 'text-muted-foreground'
                           }`}>
-                            <Clock className="h-3 w-3" />
+                            <AccessTime sx={{ fontSize: 12 }} />
                             {meal.time}
                           </div>
                         </div>
@@ -264,7 +264,7 @@ export function DateDetailModal({
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Target className="h-5 w-5" />
+                <GpsFixed sx={{ fontSize: 20 }} />
                 키토 목표
               </CardTitle>
             </CardHeader>

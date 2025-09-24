@@ -3,6 +3,7 @@ import { api } from '@/hooks/useApi';
 export const authService = {
   async googleAccessLogin(accessToken: string) {
     const res = await api.post('/auth/google', { access_token: accessToken })
+    console.log('Google login authService:', res)
     return res.data
   },
   async kakaoLogin(accessToken: string) {

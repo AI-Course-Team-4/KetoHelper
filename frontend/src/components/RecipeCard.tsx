@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Calendar, ChefHat } from 'lucide-react'
+import { CalendarToday, Restaurant } from '@mui/icons-material'
 import { formatMacros } from '@/lib/utils'
 
 interface RecipeCardProps {
@@ -71,7 +71,7 @@ export function RecipeCard({ recipe, onAddToPlan }: RecipeCardProps) {
         {recipe.ingredients && recipe.ingredients.length > 0 && (
           <div>
             <h4 className="text-sm font-medium mb-2 flex items-center">
-              <ChefHat className="h-4 w-4 mr-1" />
+              <Restaurant sx={{ fontSize: 16, mr: 0.5 }} />
               주요 재료
             </h4>
             <div className="text-sm text-muted-foreground">
@@ -102,7 +102,7 @@ export function RecipeCard({ recipe, onAddToPlan }: RecipeCardProps) {
               onClick={() => onAddToPlan(recipe)}
               className="flex items-center"
             >
-              <Calendar className="h-4 w-4 mr-1" />
+              <CalendarToday sx={{ fontSize: 16, mr: 0.5 }} />
               일정 추가
             </Button>
           )}

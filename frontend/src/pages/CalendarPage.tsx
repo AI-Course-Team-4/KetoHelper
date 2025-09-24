@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Calendar, Plus, BarChart, ChevronLeft, ChevronRight } from 'lucide-react'
+import { CalendarToday, Add, BarChart, ChevronLeft, ChevronRight } from '@mui/icons-material'
 import { DayPicker } from 'react-day-picker'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
@@ -183,7 +183,7 @@ export function CalendarPage() {
                 className="bg-white/20 hover:bg-white/30 text-white border-white/30 backdrop-blur-sm shadow-lg"
                 variant="outline"
               >
-                <Plus className="h-5 w-5 mr-2" />
+                <Add sx={{ fontSize: 20, mr: 1 }} />
                 AI 식단표 생성
               </Button>
             </div>
@@ -256,7 +256,7 @@ export function CalendarPage() {
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center text-xl font-bold">
-                <Calendar className="h-6 w-6 mr-3 text-green-600" />
+                <CalendarToday sx={{ fontSize: 24, mr: 1.5, color: 'green.600' }} />
                 월간 캘린더
               </CardTitle>
               <div className="flex items-center gap-3">
@@ -588,7 +588,7 @@ export function CalendarPage() {
                       {meal.label}
                     </h4>
                     <div className="w-8 h-8 rounded-full bg-green-100 hover:bg-green-200 flex items-center justify-center transition-colors">
-                      <Plus className="h-4 w-4 text-green-600" />
+                      <Add sx={{ fontSize: 16, color: 'green.600' }} />
                     </div>
                   </div>
                   <div className="text-sm text-gray-600 mt-2 ml-11">
