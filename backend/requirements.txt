@@ -46,6 +46,11 @@ pytz==2023.3
 # Calendar export
 icalendar==5.0.11
 
+# Testing
+pytest>=7.4.0,<8.0
+pytest-asyncio>=0.21.0,<1.0
+pytest-cov>=4.1.0,<5.0
+
 # 아래의 명령어를 실행하세요
 # python -m pip install --upgrade-strategy eager -r backend/requirements.txt
 # python -m pip check
