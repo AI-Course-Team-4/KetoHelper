@@ -319,6 +319,38 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                                     }
                                 } catch {}
 
+                                let handled = false
+                                let checkClosed: any = null
+
+                                const finalize = () => {
+                                    try { window.removeEventListener('message', messageHandler) } catch {}
+                                    try { window.removeEventListener('storage', storageHandler) } catch {}
+                                    try { if (checkClosed) clearInterval(checkClosed) } catch {}
+                                    try { popup.close() } catch {}
+                                    setIsNaverLoading(false)
+                                }
+
+                                const processResult = (user: any, at: string, rt: string) => {
+                                    if (handled) return
+                                    handled = true
+                                    setAuth(
+                                        {
+                                            id: user?.id ?? 'unknown',
+                                            email: user?.email ?? '',
+                                            name: user?.name ?? '',
+                                            profileImage: user?.profile_image ?? user?.profileImage ?? '',
+                                            socialNickname: user?.name ?? '',
+                                        },
+                                        at,
+                                        rt,
+                                    )
+                                    // 먼저 팝업/리스너를 정리하고
+                                    onOpenChange(false)
+                                    finalize()
+                                    // 그 다음 부모 창에서만 토스트 노출
+                                    toast.success(`안녕하세요 ${user?.name || '사용자'}님!`)
+                                }
+
                                 const messageHandler = (event: MessageEvent) => {
                                     try {
                                         const data: any = (event as any).data
@@ -328,20 +360,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                                             const at = data.accessToken
                                             const rt = data.refreshToken
                                             if (user && at && rt) {
-                                                // Naver도 socialNickname을 함께 저장
-                                                setAuth(
-                                                    {
-                                                        id: user?.id ?? 'unknown',
-                                                        email: user?.email ?? '',
-                                                        name: user?.name ?? '',
-                                                        profileImage: user?.profile_image ?? user?.profileImage ?? '',
-                                                        socialNickname: user?.name ?? '',
-                                                    },
-                                                    at,
-                                                    rt,
-                                                )
-                                                toast.success(`안녕하세요 ${user?.name || '사용자'}님!`)
-                                                onOpenChange(false)
+                                                processResult(user, at, rt)
                                             } else {
                                                 toast.error('네이버 로그인 정보가 올바르지 않습니다.')
                                             }
@@ -349,21 +368,32 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                                             const msg = data.message || '네이버 로그인에 실패했습니다.'
                                             toast.error(msg)
                                         }
-                                    } finally {
-                                        window.removeEventListener('message', messageHandler)
-                                        try { popup.close() } catch { }
-                                        setIsNaverLoading(false)
-                                    }
+                                    } finally {}
                                 }
 
                                 window.addEventListener('message', messageHandler)
 
+                                // storage 폴백 리스너 (프리뷰/기타 도메인에서 postMessage 실패 대비)
+                                const storageHandler = (e: StorageEvent) => {
+                                    if (e.key !== 'naver_oauth_result' || !e.newValue) return
+                                    try {
+                                        const data = JSON.parse(e.newValue)
+                                        if (!data || data.source !== 'naver_oauth') return
+                                        if (data.type === 'success') {
+                                            const user = data.user as any
+                                            const at = data.accessToken
+                                            const rt = data.refreshToken
+                                            if (user && at && rt) processResult(user, at, rt)
+                                        }
+                                    } finally {}
+                                }
+                                window.addEventListener('storage', storageHandler)
+
                                 // Fallback: if user closes popup without completing
-                                const checkClosed = setInterval(() => {
+                                checkClosed = setInterval(() => {
                                     if (popup.closed) {
                                         clearInterval(checkClosed)
-                                        window.removeEventListener('message', messageHandler)
-                                        setIsNaverLoading(false)
+                                        finalize()
                                     }
                                 }, 500)
                             }}

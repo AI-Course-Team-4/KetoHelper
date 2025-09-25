@@ -50,16 +50,26 @@ export default function NaverCallback() {
         // If opened as a popup, post message back to opener and close
         try {
           if (window.opener && window.opener !== window) {
+            const payload = {
+              source: 'naver_oauth',
+              type: 'success',
+              user: authPayload,
+              accessToken: at,
+              refreshToken: rt,
+            }
+            // 1) postMessage 시도
             window.opener.postMessage(
-              {
-                source: 'naver_oauth',
-                type: 'success',
-                user: authPayload,
-                accessToken: at,
-                refreshToken: rt,
-              },
+              payload,
               '*'
             )
+            // 2) storage 이벤트 폴백 (동일 오리진 탭 간 전달)
+            try {
+              localStorage.setItem('naver_oauth_result', JSON.stringify(payload))
+              // cleanup 지연 삭제
+              setTimeout(() => {
+                try { localStorage.removeItem('naver_oauth_result') } catch {}
+              }, 500)
+            } catch {}
             try { sessionStorage.removeItem('naver_oauth_state') } catch {}
             window.close()
             return
