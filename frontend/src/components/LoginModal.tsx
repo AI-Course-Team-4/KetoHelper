@@ -360,6 +360,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                                             const user = data.user as any
                                             const at = data.accessToken
                                             const rt = data.refreshToken
+                                            console.log('[Auth] Naver login success', { user, at, rt })
                                             if (user && at && rt) {
                                                 processResult(user, at, rt)
                                             } else {
