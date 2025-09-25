@@ -208,6 +208,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                             sx={{
                                 display: 'flex',
                                 alignItems: 'center',
+                                justifyContent: 'center',
                                 gap: 1,
                                 maxWidth: 320,
                                 width: '100%',
@@ -244,6 +245,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                             sx={{
                                 display: 'flex',
                                 alignItems: 'center',
+                                justifyContent: 'center',
                                 gap: 1,
                                 maxWidth: 320,
                                 width: '100%',
@@ -368,6 +370,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                             sx={{
                                 display: 'flex',
                                 alignItems: 'center',
+                                justifyContent: 'center',
                                 gap: 1,
                                 maxWidth: 320,
                                 width: '100%',
