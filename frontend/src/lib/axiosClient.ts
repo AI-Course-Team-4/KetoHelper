@@ -16,13 +16,10 @@ function decodeJWTPayload(token: string) {
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, ''); // 끝 슬래시 제거
 const isDev = import.meta.env.DEV;
 
-if (!isDev && !API_BASE) {
-  // 배포에서 값이 비어 있으면 바로 알 수 있게
-  throw new Error('VITE_API_BASE_URL is missing in production build');
-}
+// 배포에서도 상대경로(/api/v1)로 프록시 태우는 전략을 허용
 
 const client = axios.create({ 
-  baseURL: isDev ? "/api/v1" : `${API_BASE}/api/v1`, // dev는 상대경로로 프록시 태움
+  baseURL: (isDev || !API_BASE) ? "/api/v1" : `${API_BASE}/api/v1`, // 배포에서도 API_BASE 없으면 프록시 사용
   withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
   timeout: 30000,
