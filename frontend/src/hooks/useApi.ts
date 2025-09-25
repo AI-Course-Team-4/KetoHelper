@@ -3,6 +3,7 @@ import axiosClient from '@/lib/axiosClient'
 
 // axiosClient를 사용하여 토큰 갱신과 인증을 자동으로 처리
 export const api = axiosClient
+
 // Chat API
 export interface ChatRequest {
   message: string
@@ -68,7 +69,7 @@ export function useGetChatThreads(userId?: string, guestId?: string, limit = 20)
       const params: any = { limit }
       if (userId) params.user_id = userId
       if (guestId) params.guest_id = guestId
-      
+
       const response = await api.get('/chat/threads', { params })
       return response.data
     },
@@ -83,7 +84,7 @@ export function useGetChatHistory(threadId: string, limit = 20, before?: string)
     queryFn: async (): Promise<ChatHistory[]> => {
       const params: any = { limit }
       if (before) params.before = before
-      
+
       const response = await api.get(`/chat/history/${threadId}`, { params })
       return response.data
     },
@@ -98,7 +99,7 @@ export function useCreateNewThread() {
       const params: any = {}
       if (data.userId) params.user_id = data.userId
       if (data.guestId) params.guest_id = data.guestId
-      
+
       const response = await api.post('/chat/threads/new', {}, { params })
       return response.data
     }
@@ -135,16 +136,16 @@ export async function* sendMessageStream(data: ChatRequest): AsyncGenerator<any,
   }
 
   const decoder = new TextDecoder()
-  
+
   try {
     while (true) {
       const { done, value } = await reader.read()
-      
+
       if (done) break
-      
+
       const chunk = decoder.decode(value, { stream: true })
       const lines = chunk.split('\n')
-      
+
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           try {
@@ -197,10 +198,11 @@ export interface PlanCreateRequest {
   date: string
   slot: 'breakfast' | 'lunch' | 'dinner' | 'snack'
   type: 'recipe' | 'place'
-  refId: string
+  ref_id: string
   title: string
   macros?: any
   location?: any
+  notes?: string
 }
 
 export function useCreatePlan() {
@@ -229,7 +231,7 @@ export function usePlansRange(startDate: string, endDate: string, userId: string
 
 export function useUpdatePlan() {
   return useMutation({
-    mutationFn: async ({ planId, updates, userId }: { 
+    mutationFn: async ({ planId, updates, userId }: {
       planId: string
       updates: { status?: string; notes?: string }
       userId: string
@@ -264,11 +266,11 @@ export function useGenerateMealPlan() {
 
 export function useCommitMealPlan() {
   return useMutation({
-    mutationFn: async ({ 
-      mealPlan, 
-      userId, 
-      startDate 
-    }: { 
+    mutationFn: async ({
+      mealPlan,
+      userId,
+      startDate
+    }: {
       mealPlan: any
       userId: string
       startDate: string
@@ -303,7 +305,7 @@ export function useExportWeekICS() {
         params: { user_id: userId },
         responseType: 'blob'
       })
-      
+
       // 파일 다운로드
       const url = window.URL.createObjectURL(new Blob([response.data]))
       const link = document.createElement('a')
@@ -313,7 +315,7 @@ export function useExportWeekICS() {
       link.click()
       link.remove()
       window.URL.revokeObjectURL(url)
-      
+
       return response.data
     }
   })

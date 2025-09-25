@@ -51,7 +51,7 @@ try:
     
     if supabase_url and supabase_key and supabase_url.strip() and supabase_key.strip():
         supabase: Client = create_client(supabase_url, supabase_key)
-        print("✅ Supabase 클라이언트 연결 성공")
+        print("Supabase 클라이언트 연결 성공")
     else:
         print("⚠️ Supabase 환경변수 없음 또는 빈 값 - 키워드 검색 비활성화")
         print(f"   SUPABASE_URL: {repr(supabase_url)}")
