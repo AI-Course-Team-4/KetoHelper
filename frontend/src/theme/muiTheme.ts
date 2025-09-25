@@ -7,6 +7,7 @@ export const muiTheme = createTheme({
       main: 'hsl(142, 76%, 36%)', // CSS 변수와 동일한 값
       light: 'hsl(142, 76%, 46%)', // 더 밝은 버전
       dark: 'hsl(142, 76%, 26%)', // 더 어두운 버전
+      50: 'hsl(142, 76%, 95%)', // 매우 연한 초록색
       contrastText: '#ffffff',
     },
     secondary: {
@@ -184,21 +185,44 @@ export const muiTheme = createTheme({
         },
       },
     },
-    MuiAutocomplete: {
-      styleOverrides: {
-        root: {
-          '& .MuiOutlinedInput-root': {
-            borderRadius: '0.5rem', // rounded-lg
-          },
-        },
-      },
-    },
-    MuiChip: {
-      styleOverrides: {
-        root: {
-          borderRadius: '1rem', // rounded-full
-        },
-      },
-    },
+            MuiAutocomplete: {
+              styleOverrides: {
+                root: {
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: '0.5rem', // rounded-lg
+                  },
+                },
+              },
+            },
+            MuiChip: {
+              styleOverrides: {
+                root: {
+                  borderRadius: '1rem', // rounded-full
+                },
+              },
+            },
+            MuiCard: {
+              styleOverrides: {
+                root: {
+                  boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', // 아주 미세한 그림자
+                  border: '1px solid #e5e7eb', // gray-200 테두리
+                  '&:hover': {
+                    boxShadow: '0 2px 4px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)', // 호버 시 조금 더 강한 그림자
+                  },
+                },
+              },
+            },
+            MuiCardHeader: {
+              styleOverrides: {
+                root: {
+                  padding: '16px 24px', // 기본 패딩 유지
+                  '& .MuiCardHeader-title': {
+                    fontSize: '1.125rem', // text-lg
+                    fontWeight: 600,
+                    lineHeight: 1.4,
+                  },
+                },
+              },
+            },
   },
 });

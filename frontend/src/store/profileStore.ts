@@ -95,13 +95,24 @@ export const useProfileStore = create<ProfileState>()(
       updateProfile: async (userId, updates) => {
         set({ isLoading: true, error: null })
         try {
-          const updatedProfile = await profileService.updateProfile(userId, updates)
+          const current = get().profile
+          // 서버가 PUT 기반으로 전체 자원을 덮어쓰는 경우를 대비해 안전 병합
+          const payload: UserProfileUpdate = {
+            nickname: updates.nickname ?? current?.nickname,
+            goals_kcal: updates.goals_kcal ?? current?.goals_kcal,
+            goals_carbs_g: updates.goals_carbs_g ?? current?.goals_carbs_g,
+            selected_allergy_ids: updates.selected_allergy_ids ?? current?.selected_allergy_ids,
+            selected_dislike_ids: updates.selected_dislike_ids ?? current?.selected_dislike_ids,
+          }
+          const updatedProfile = await profileService.updateProfile(userId, payload)
           set({ profile: updatedProfile, isLoading: false })
         } catch (error) {
           set({ 
             error: error instanceof Error ? error.message : '프로필 업데이트 실패',
             isLoading: false 
           })
+          // 상위에서 실패를 감지할 수 있도록 에러 재발행
+          throw (error instanceof Error ? error : new Error('프로필 업데이트 실패'))
         }
       },
       

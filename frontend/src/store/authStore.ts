@@ -7,6 +7,7 @@ export interface AuthUser {
   email?: string
   name?: string
   profileImage?: string
+  socialNickname?: string
 }
 
 interface AuthState {
@@ -38,6 +39,15 @@ export const useAuthStore = create<AuthState>()(
           accessTokenLength: accessToken?.length,
           refreshTokenLength: refreshToken?.length
         });
+        // 저장되는 사용자 정보 확인용 상세 로그
+        try {
+          console.log('👤 setAuth user detail:', {
+            id: user?.id,
+            email: user?.email,
+            name: user?.name,
+            profileImage: user?.profileImage,
+          })
+        } catch {}
         set({ user, accessToken, refreshToken, isGuest: false });
       },
       setAccessToken: (accessToken) => set({ accessToken }),
