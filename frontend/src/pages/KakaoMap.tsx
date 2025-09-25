@@ -44,6 +44,7 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
   const isMarkerClickRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
+  const mapIdRef = useRef<string>(`map-${Math.random().toString(36).substr(2, 9)}`);
   const createdMarkersRef = useRef<any[]>([]);
   const createdOverlaysRef = useRef<any[]>([]);
   const openedOverlayRef = useRef<any>(null);
@@ -427,7 +428,7 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
     const initMap = () => {
       if (!(window as any).kakao?.maps?.load) return;
       window.kakao.maps.load(async () => {
-        const container = containerRef.current ?? document.getElementById("map");
+        const container = containerRef.current ?? document.getElementById(mapIdRef.current);
         if (!container) return;
 
 
@@ -569,7 +570,7 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
   const resolvedHeight = typeof height === 'number' ? `${height}px` : height;
 
 
-  return <div id="map" style={{ width: "100%", height: resolvedHeight }} />;
+  return <div ref={containerRef} id={mapIdRef.current} style={{ width: "100%", height: resolvedHeight }} />;
 };
 
 
