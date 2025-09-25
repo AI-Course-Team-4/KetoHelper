@@ -764,22 +764,58 @@ class KetoCoachAgent:
         return state
     
     async def _general_chat_node(self, state: AgentState) -> AgentState:
-        """일반 채팅 노드 (simple_agent 사용)"""
+        """일반 채팅 노드 (대화 맥락 고려)"""
         
         try:
-            message = state["messages"][-1].content if state["messages"] else ""
+            # 전체 대화 히스토리 가져오기
+            messages = state["messages"]
+            current_message = messages[-1].content if messages else ""
             
-            # simple_agent를 통한 일반 채팅 처리
-            result = await self.simple_agent.process_message(
-                message=message,
-                location=state.get("location"),
-                radius_km=state.get("radius_km", 5.0),
-                profile=state.get("profile")
-            )
+            print(f"💬 일반 채팅 처리: '{current_message}'")
+            print(f"📚 대화 히스토리 길이: {len(messages)}")
             
-            # 결과를 state에 저장
-            state["response"] = result.get("response", "")
-            state["tool_calls"].extend(result.get("tool_calls", []))
+            # 대화 맥락을 고려한 응답 생성
+            context_messages = []
+            
+            # 최근 5개 메시지만 컨텍스트로 사용 (너무 길면 토큰 낭비)
+            recent_messages = messages[-5:] if len(messages) > 5 else messages
+            
+            for msg in recent_messages:
+                context_messages.append(msg)
+            
+            # 대화 맥락을 고려한 프롬프트 생성
+            context_text = ""
+            if len(context_messages) > 1:
+                context_text = "이전 대화 내용:\n"
+                for i, msg in enumerate(context_messages[:-1], 1):
+                    role = "사용자" if isinstance(msg, HumanMessage) else "AI"
+                    context_text += f"{i}. {role}: {msg.content}\n"
+                context_text += f"\n현재 사용자 메시지: {current_message}\n"
+            else:
+                context_text = f"사용자 메시지: {current_message}\n"
+            
+            # 키토 코치로서 대화 맥락을 고려한 응답 생성
+            chat_prompt = f"""당신은 친근한 키토 다이어트 코치입니다. 사용자와의 대화를 자연스럽게 이어가세요.
+
+{context_text}
+
+다음 사항을 고려하여 응답해주세요:
+1. 이전 대화 내용을 참고하여 맥락에 맞는 답변을 하세요
+2. 사용자가 이름을 말했다면 기억하고 다음에 사용하세요
+3. 사용자가 이전에 말한 내용을 물어보면 정확히 답변하세요
+4. 키토 다이어트와 관련된 조언을 제공하세요
+5. 친근하고 도움이 되는 톤으로 대화하세요
+
+응답:"""
+            
+            response = await self.llm.ainvoke([HumanMessage(content=chat_prompt)])
+            state["response"] = response.content
+            
+            state["tool_calls"].append({
+                "tool": "general_chat",
+                "method": "context_aware",
+                "context_length": len(context_messages)
+            })
             
         except Exception as e:
             print(f"General chat error: {e}")
@@ -964,8 +1000,10 @@ class KetoCoachAgent:
             print(f"🔍 전달되는 메시지 수: {len(messages)}")
             for i, msg in enumerate(messages):
                 print(f"  {i+1}. {type(msg).__name__}: {msg.content[:50]}...")
+        else:
+            print("⚠️ 오케스트레이터: chat_history가 비어있습니다!")
         
-        # 현재 메시지 추가
+        # 현재 메시지 추가 (히스토리와 함께)
         messages.append(HumanMessage(content=message))
         
         # 초기 상태 설정

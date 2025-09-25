@@ -19,11 +19,18 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 async def ensure_thread(user_id: Optional[str], guest_id: Optional[str], thread_id: Optional[str] = None) -> dict:
     """스레드가 존재하는지 확인하고, 없으면 생성"""
     try:
+        print(f"🔍 ensure_thread 호출: user_id={user_id}, guest_id={guest_id}, thread_id={thread_id}")
+        
         # thread_id가 제공된 경우 해당 스레드 조회
         if thread_id:
+            print(f"🔍 기존 스레드 조회 중: {thread_id}")
             response = supabase.table("chat_thread").select("*").eq("id", thread_id).execute()
+            print(f"🔍 스레드 조회 결과: {response.data}")
             if response.data:
+                print(f"✅ 기존 스레드 발견: {response.data[0]}")
                 return response.data[0]
+            else:
+                print("⚠️ 해당 스레드가 존재하지 않음, 새로 생성")
         
         # user_id와 guest_id가 모두 없으면 게스트로 처리
         if not user_id and not guest_id:
@@ -31,8 +38,9 @@ async def ensure_thread(user_id: Optional[str], guest_id: Optional[str], thread_
             print(f"🎭 게스트 ID 자동 생성: {guest_id}")
         
         # 새 스레드 생성
+        new_thread_id = str(uuid.uuid4())
         new_thread = {
-            "id": str(uuid.uuid4()),
+            "id": new_thread_id,
             "title": "새 채팅",
             "user_id": user_id,
             "guest_id": guest_id,
@@ -41,8 +49,13 @@ async def ensure_thread(user_id: Optional[str], guest_id: Optional[str], thread_
             "updated_at": datetime.utcnow().isoformat()
         }
         
+        print(f"🆕 새 스레드 생성 중: {new_thread}")
         result = supabase.table("chat_thread").insert(new_thread).execute()
-        return result.data[0] if result.data else new_thread
+        print(f"🔍 스레드 생성 결과: {result.data}")
+        
+        created_thread = result.data[0] if result.data else new_thread
+        print(f"✅ 스레드 생성 완료: {created_thread}")
+        return created_thread
         
     except Exception as e:
         print(f"❌ 스레드 생성/조회 실패: {e}")
@@ -51,6 +64,9 @@ async def ensure_thread(user_id: Optional[str], guest_id: Optional[str], thread_
 async def insert_chat_message(thread_id: str, role: str, message: str, user_id: Optional[str] = None, guest_id: Optional[str] = None) -> dict:
     """채팅 메시지를 데이터베이스에 저장"""
     try:
+        print(f"💾 메시지 저장 시작: thread_id={thread_id}, role={role}, message={message[:50]}...")
+        print(f"💾 사용자 정보: user_id={user_id}, guest_id={guest_id}")
+        
         # user_id와 guest_id가 모두 없으면 게스트로 처리
         if not user_id and not guest_id:
             guest_id = str(uuid.uuid4())
@@ -67,7 +83,9 @@ async def insert_chat_message(thread_id: str, role: str, message: str, user_id: 
             "updated_at": datetime.utcnow().isoformat()
         }
         
+        print(f"💾 저장할 데이터: {chat_data}")
         result = supabase.table("chat").insert(chat_data).execute()
+        print(f"💾 저장 결과: {result.data}")
         return result.data[0] if result.data else chat_data
         
     except Exception as e:
@@ -103,7 +121,23 @@ async def chat_endpoint(request: ChatMessage):
         thread_user_id = thread.get("user_id")
         thread_guest_id = thread.get("guest_id")
         
-        # 사용자 메시지 저장
+        # 먼저 이전 대화 내용 가져오기 (현재 메시지 저장 전)
+        print(f"📚 이전 대화 내용 조회 중... (thread_id: {thread_id})")
+        print(f"🔍 thread_id 타입: {type(thread_id)}, 값: {repr(thread_id)}")
+        
+        if thread_id:
+            history_response = supabase.table("chat").select("*").eq("thread_id", thread_id).order("created_at", desc=True).limit(10).execute()
+            print(f"🔍 Supabase 응답: {history_response}")
+            print(f"🔍 응답 데이터: {history_response.data}")
+        else:
+            print("⚠️ thread_id가 None이므로 대화 히스토리 조회 건너뜀")
+            history_response = type('obj', (object,), {'data': []})()
+        
+        # 대화 히스토리를 역순으로 정렬 (오래된 것부터)
+        chat_history = list(reversed(history_response.data)) if history_response.data else []
+        print(f"📖 조회된 대화 히스토리: {len(chat_history)}개 메시지")
+        
+        # 사용자 메시지 저장 (히스토리 조회 후)
         await insert_chat_message(
             thread_id=thread_id,
             role="user",
@@ -112,13 +146,23 @@ async def chat_endpoint(request: ChatMessage):
             guest_id=thread_guest_id
         )
         
-        # 이전 대화 내용 가져오기 (최근 10개 메시지)
-        print(f"📚 이전 대화 내용 조회 중... (thread_id: {thread_id})")
-        history_response = supabase.table("chat").select("*").eq("thread_id", thread_id).order("created_at", desc=True).limit(10).execute()
+        # 디버그: 실제 조회된 데이터 확인
+        if chat_history:
+            print(f"🔍 첫 번째 메시지: {chat_history[0]}")
+            print(f"🔍 마지막 메시지: {chat_history[-1]}")
+        else:
+            print("⚠️ 대화 히스토리가 비어있습니다!")
         
-        # 대화 히스토리를 역순으로 정렬 (오래된 것부터)
-        chat_history = list(reversed(history_response.data)) if history_response.data else []
-        print(f"📖 조회된 대화 히스토리: {len(chat_history)}개 메시지")
+        # 현재 사용자 메시지를 히스토리에 추가
+        current_message = {
+            "role": "user",
+            "message": request.message,
+            "thread_id": thread_id,
+            "user_id": thread_user_id,
+            "guest_id": thread_guest_id
+        }
+        chat_history.append(current_message)
+        print(f"📝 현재 메시지를 히스토리에 추가: {len(chat_history)}개 메시지")
         
         # 키토 코치 오케스트레이터 실행
         print(f"🚀 DEBUG: chat API 요청 받음 - '{request.message}'")
