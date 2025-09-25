@@ -305,8 +305,9 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                                 )
 
                                 if (!popup) {
-                                    // Popup blocked, fall back to full-page redirect
-                                    window.location.href = authUrl
+                                    // 팝업 차단 시 전체 리다이렉트 대신 안내만 하고 중지
+                                    toast.error('팝업이 차단되었습니다. 브라우저 팝업을 허용하고 다시 시도하세요.')
+                                    setIsNaverLoading(false)
                                     return
                                 }
 
