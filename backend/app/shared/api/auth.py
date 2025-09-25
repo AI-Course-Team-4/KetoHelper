@@ -239,6 +239,75 @@ async def kakao_login(payload: KakaoAccessRequest, response: Response):
     return HTMLResponse(content=html, media_type="text/html")
 
 
+@router.get("/naver/callback")
+async def naver_callback(code: str, state: str, request: Request, response: Response):
+    client_id = os.getenv("NAVER_CLIENT_ID") or os.getenv("VITE_NAVER_CLIENT_ID", "")
+    client_secret = os.getenv("NAVER_CLIENT_SECRET") or os.getenv("VITE_NAVER_CLIENT_SECRET", "")
+    if not client_id or not client_secret:
+        raise HTTPException(status_code=500, detail="Naver OAuth not configured")
+
+    # 토큰 교환
+    async with httpx.AsyncClient(timeout=10) as client:
+        token_res = await client.post(
+            "https://nid.naver.com/oauth2.0/token",
+            params={
+                "grant_type": "authorization_code",
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "code": code,
+                "state": state,
+                "redirect_uri": str(request.url)
+            },
+        )
+        token_data = token_res.json()
+        access_token = token_data.get("access_token")
+        if not access_token:
+            raise HTTPException(status_code=400, detail={"message": "Invalid Naver code/state", "naver": token_data})
+
+        # 프로필 조회
+        profile_res = await client.get(
+            "https://openapi.naver.com/v1/nid/me",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        resp = profile_res.json().get("response", {})
+        profile = {
+            "id": resp.get("id"),
+            "email": resp.get("email", ""),
+            "name": resp.get("name") or resp.get("nickname") or "",
+            "picture": resp.get("profile_image", ""),
+            "provider": "naver",
+        }
+
+    # 사용자 upsert 및 토큰/쿠키
+    user = await _upsert_user(profile)
+    access = create_access_token(user["id"], {"email": user["email"], "name": user["name"]})
+    refresh = create_refresh_token(user["id"])
+    _set_auth_cookies(response, access, refresh)
+
+    # 브릿지 HTML: 메인 창에 알리고 닫기
+    target_origin = os.getenv("FRONTEND_DOMAIN", "").rstrip("/") or "*"
+    payload = {"provider": "naver", "ok": True}
+    html = f"""
+<!doctype html><meta charset=\"utf-8\"><title>Naver Login</title>
+<script>
+(function() {{
+  try {{
+    var target = {json.dumps(target_origin)};
+    var payload = {json.dumps(payload)};
+    if (window.opener && window.opener !== window) {{
+      window.opener.postMessage(payload, target === '' ? '*' : target);
+      try {{
+        if (target && target !== '*') window.opener.location.replace(target + '/login/success');
+      }} catch(e) {{}}
+    }}
+  }} catch(e) {{}}
+  try {{ window.close(); }} catch(e) {{}}
+}})();
+</script>
+"""
+    return HTMLResponse(content=html, media_type="text/html")
+
+
 @router.post("/naver")
 async def naver_login(payload: NaverCodeRequest, response: Response):
     # Support both backend and Vite-style env names
