@@ -153,6 +153,7 @@ async def kakao_login(payload: KakaoAccessRequest, response: Response):
             "email": kakao_account.get("email", ""),
             "name": kakao_account.get("profile", {}).get("nickname", ""),
             "picture": kakao_account.get("profile", {}).get("profile_image_url", ""),
+            "provider": "kakao",
         }
 
     user = await _upsert_user(profile)
@@ -204,6 +205,7 @@ async def naver_login(payload: NaverCodeRequest, response: Response):
             "email": resp.get("email", ""),
             "name": resp.get("name") or resp.get("nickname") or "",
             "picture": resp.get("profile_image", ""),
+            "provider": "naver",
         }
 
     user = await _upsert_user(profile)
