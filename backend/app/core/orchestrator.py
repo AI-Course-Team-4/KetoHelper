@@ -774,33 +774,56 @@ class KetoCoachAgent:
             print(f"💬 일반 채팅 처리: '{current_message}'")
             print(f"📚 대화 히스토리 길이: {len(messages)}")
             
+            # 디버깅: 모든 메시지 내용 출력
+            for i, msg in enumerate(messages):
+                role = "사용자" if isinstance(msg, HumanMessage) else "AI"
+                print(f"   {i+1}. {role}: {msg.content[:50]}{'...' if len(msg.content) > 50 else ''}")
+            
             # 대화 맥락을 고려한 응답 생성
             context_messages = []
             
-            # 최근 5개 메시지만 컨텍스트로 사용 (너무 길면 토큰 낭비)
-            recent_messages = messages[-5:] if len(messages) > 5 else messages
+            # 토큰 수에 맞게 최근 메시지들 선택 (너무 길면 토큰 낭비)
+            recent_messages = self._truncate_messages_for_context(messages, max_tokens=2000)
             
             for msg in recent_messages:
                 context_messages.append(msg)
             
             # 대화 맥락을 고려한 프롬프트 생성
             context_text = ""
-            if len(context_messages) > 1:
+            # 현재 메시지를 제외한 실제 이전 대화만 고려
+            previous_messages = context_messages[:-1] if len(context_messages) > 1 else []
+            
+            # 새로운 대화인지 더 정확히 판단
+            # 1. 이전 메시지가 없거나
+            # 2. 이전 메시지가 모두 AI 메시지인 경우 (사용자가 아직 메시지를 보내지 않은 경우)
+            is_new_conversation = True
+            if previous_messages:
+                # 이전 메시지 중에 사용자 메시지가 있는지 확인
+                has_user_message = any(isinstance(msg, HumanMessage) for msg in previous_messages)
+                is_new_conversation = not has_user_message
+            
+            if len(previous_messages) > 0 and not is_new_conversation:
                 context_text = "이전 대화 내용:\n"
-                for i, msg in enumerate(context_messages[:-1], 1):
+                for i, msg in enumerate(previous_messages, 1):
                     role = "사용자" if isinstance(msg, HumanMessage) else "AI"
                     context_text += f"{i}. {role}: {msg.content}\n"
                 context_text += f"\n현재 사용자 메시지: {current_message}\n"
+                print(f"📚 실제 이전 대화 개수: {len(previous_messages)}")
             else:
                 context_text = f"사용자 메시지: {current_message}\n"
+                print(f"🆕 새로운 대화 시작 (이전 사용자 대화 없음)")
             
             # 키토 코치로서 대화 맥락을 고려한 응답 생성
+            conversation_context = "새로운 대화입니다." if is_new_conversation else f"이전 대화 {len(previous_messages)}개가 있습니다."
+            
             chat_prompt = f"""당신은 친근한 키토 다이어트 코치입니다. 사용자와의 대화를 자연스럽게 이어가세요.
+
+대화 상황: {conversation_context}
 
 {context_text}
 
 다음 사항을 고려하여 응답해주세요:
-1. 이전 대화 내용을 참고하여 맥락에 맞는 답변을 하세요
+1. {'새로운 대화이므로 이전 내용을 언급하지 말고, 처음 만나는 것처럼 인사하세요.' if is_new_conversation else '이전 대화 내용을 참고하여 맥락에 맞는 답변을 하세요.'}
 2. 사용자가 이름을 말했다면 기억하고 다음에 사용하세요
 3. 사용자가 이전에 말한 내용을 물어보면 정확히 답변하세요
 4. 키토 다이어트와 관련된 조언을 제공하세요
@@ -974,6 +997,67 @@ class KetoCoachAgent:
         
         return state
     
+    def _truncate_messages_for_context(self, messages: List[BaseMessage], max_tokens: int = 4000) -> List[BaseMessage]:
+        """메시지 리스트를 토큰 수에 맞게 자르기 (일반 채팅용)"""
+        if not messages:
+            return []
+        
+        # 대략적인 토큰 계산 (한국어 기준: 1토큰 ≈ 1.5글자)
+        def estimate_tokens(text: str) -> int:
+            return len(text) // 1.5
+        
+        truncated_messages = []
+        current_tokens = 0
+        
+        # 최근 메시지부터 역순으로 처리
+        for msg in reversed(messages):
+            msg_text = msg.content if hasattr(msg, 'content') else str(msg)
+            msg_tokens = estimate_tokens(msg_text)
+            
+            # 현재 메시지 + 기존 토큰이 제한을 초과하면 중단
+            if current_tokens + msg_tokens > max_tokens:
+                break
+                
+            truncated_messages.insert(0, msg)  # 원래 순서 유지
+            current_tokens += msg_tokens
+        
+        print(f"✂️ 컨텍스트 메시지 자르기: {len(messages)}개 → {len(truncated_messages)}개 (예상 토큰: {current_tokens})")
+        return truncated_messages
+
+    def _truncate_chat_history(self, chat_history: List[Any], max_tokens: int = 8000) -> List[Any]:
+        """채팅 히스토리를 토큰 수에 맞게 자르기"""
+        if not chat_history:
+            return []
+        
+        # 대략적인 토큰 계산 (한국어 기준: 1토큰 ≈ 1.5글자)
+        def estimate_tokens(text: str) -> int:
+            return len(text) // 1.5
+        
+        truncated_history = []
+        current_tokens = 0
+        
+        # 최근 메시지부터 역순으로 처리
+        for msg in reversed(chat_history):
+            # ChatHistory 객체 또는 딕셔너리 모두 처리
+            if hasattr(msg, 'message'):
+                msg_text = msg.message
+            elif isinstance(msg, dict):
+                msg_text = msg.get("message", "")
+            else:
+                msg_text = str(msg)
+            
+            msg_tokens = estimate_tokens(msg_text)
+            
+            # 현재 메시지 + 기존 토큰이 제한을 초과하면 중단
+            if current_tokens + msg_tokens > max_tokens:
+                break
+                
+            truncated_history.insert(0, msg)  # 원래 순서 유지
+            current_tokens += msg_tokens
+        
+        print(f"✂️ 히스토리 자르기: {len(chat_history)}개 → {len(truncated_history)}개 (예상 토큰: {current_tokens})")
+        return truncated_history
+
     async def process_message(
         self,
         message: str,
@@ -987,14 +1071,17 @@ class KetoCoachAgent:
         # 대화 히스토리를 메시지에 포함
         messages = []
         
-        # 이전 대화 내용 추가 (최근 10개 메시지)
+        # 이전 대화 내용 추가 (토큰 수 제한 적용)
         if chat_history:
-            print(f"📚 대화 히스토리 {len(chat_history)}개 메시지를 컨텍스트에 포함")
-            for msg in chat_history:
-                if msg.get("role") == "user":
-                    messages.append(HumanMessage(content=msg.get("message", "")))
-                elif msg.get("role") == "assistant":
-                    messages.append(AIMessage(content=msg.get("message", "")))
+            # 토큰 수에 맞게 히스토리 자르기
+            truncated_history = self._truncate_chat_history(chat_history, max_tokens=3000)
+            
+            print(f"📚 대화 히스토리 {len(truncated_history)}개 메시지를 컨텍스트에 포함")
+            for msg in truncated_history:
+                if msg.role == "user":
+                    messages.append(HumanMessage(content=msg.message))
+                elif msg.role == "assistant":
+                    messages.append(AIMessage(content=msg.message))
             
             # 디버그: 실제 전달되는 메시지 내용 확인
             print(f"🔍 전달되는 메시지 수: {len(messages)}")
@@ -1003,8 +1090,8 @@ class KetoCoachAgent:
         else:
             print("⚠️ 오케스트레이터: chat_history가 비어있습니다!")
         
-        # 현재 메시지 추가 (히스토리와 함께)
-        messages.append(HumanMessage(content=message))
+        # 현재 메시지는 이미 히스토리에 포함되어 있으므로 추가하지 않음
+        # (chat.py에서 DB 저장 후 히스토리에 포함됨)
         
         # 초기 상태 설정
         initial_state: AgentState = {
