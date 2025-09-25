@@ -4,53 +4,67 @@
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
 from typing import List, Optional
 from datetime import date, timedelta
 from icalendar import Calendar, Event
 from fastapi.responses import Response
 import pytz
 from datetime import datetime
+from supabase import create_client, Client
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.shared.models.schemas import (
     PlanCreate, PlanUpdate, PlanResponse, MealPlanRequest, 
     MealPlanResponse, StatsSummary
 )
-from app.shared.models.database_models import Plan, Recipe
+# database_models.py 삭제로 인해 직접 Supabase 테이블 사용
 from app.agents.meal_planner import MealPlannerAgent
 from app.tools.shared.profile_tool import user_profile_tool
 
 router = APIRouter(prefix="/plans", tags=["plans"])
 
+# Supabase 클라이언트 초기화
+supabase: Client = create_client(settings.supabase_url, settings.supabase_service_role_key)
+
 @router.get("/range", response_model=List[PlanResponse])
 async def get_plans_range(
     start: date = Query(..., description="시작 날짜 (YYYY-MM-DD)"),
     end: date = Query(..., description="종료 날짜 (YYYY-MM-DD)"),
-    user_id: str = Query(..., description="사용자 ID"),
-    db: AsyncSession = Depends(get_db)
+    user_id: str = Query(..., description="사용자 ID")
 ):
     """
-    특정 기간의 식단 계획 조회
+    특정 기간의 식단 계획 조회 (meal_log 테이블 사용)
     캘린더 UI에서 사용
     """
     try:
-        result = await db.execute(
-            select(Plan)
-            .where(
-                and_(
-                    Plan.user_id == user_id,
-                    Plan.date >= start,
-                    Plan.date <= end
-                )
-            )
-            .order_by(Plan.date, Plan.slot)
-        )
-        plans = result.scalars().all()
-        
-        return [PlanResponse.from_orm(plan) for plan in plans]
-        
+        response = supabase.table('meal_log').select('*').eq('user_id', str(user_id)).gte('date', start.isoformat()).lte('date', end.isoformat()).order('date').execute()
+
+        meal_logs = response.data
+
+        # meal_log 데이터를 PlanResponse 형태로 변환
+        plans = []
+        for log in meal_logs:
+            plan = {
+                "id": str(log["id"]),
+                "user_id": log["user_id"],
+                "date": log["date"],
+                "slot": log["meal_type"],  # meal_type을 slot으로 매핑
+                "type": "recipe",  # 기본값
+                "ref_id": str(log.get("mealplan_id", "")),
+                "title": log.get("note", "식단 기록"),
+                "location": None,
+                "macros": None,
+                "notes": log.get("note"),
+                "status": "done" if log["eaten"] else "planned",
+                "created_at": log["created_at"],
+                "updated_at": log["updated_at"]
+            }
+            plans.append(plan)
+
+        return plans
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -60,49 +74,56 @@ async def get_plans_range(
 @router.post("/item", response_model=PlanResponse)
 async def create_or_update_plan(
     plan: PlanCreate,
-    user_id: str = Query(..., description="사용자 ID"),
-    db: AsyncSession = Depends(get_db)
+    user_id: str = Query(..., description="사용자 ID")
 ):
     """
-    식단 계획 추가/수정
+    식단 계획 추가/수정 (meal_log 테이블 사용)
     동일한 날짜/슬롯이 있으면 업데이트 (upsert)
     """
     try:
         # 기존 계획 확인
-        existing_result = await db.execute(
-            select(Plan)
-            .where(
-                and_(
-                    Plan.user_id == user_id,
-                    Plan.date == plan.date,
-                    Plan.slot == plan.slot
-                )
-            )
-        )
-        existing_plan = existing_result.scalar_one_or_none()
-        
-        if existing_plan:
+        existing_response = supabase.table('meal_log').select('*').eq('user_id', str(user_id)).eq('date', plan.date.isoformat()).eq('meal_type', plan.slot).execute()
+
+        meal_log_data = {
+            "user_id": str(user_id),
+            "date": plan.date.isoformat(),
+            "meal_type": plan.slot,
+            "eaten": False,  # 기본값
+            "note": plan.title or plan.notes,
+            "updated_at": datetime.utcnow().isoformat()
+        }
+
+        if existing_response.data:
             # 업데이트
-            for field, value in plan.dict(exclude_unset=True).items():
-                setattr(existing_plan, field, value)
-            existing_plan.updated_at = datetime.now()
-            
-            await db.commit()
-            await db.refresh(existing_plan)
-            return PlanResponse.from_orm(existing_plan)
+            existing_id = existing_response.data[0]["id"]
+            response = supabase.table('meal_log').update(meal_log_data).eq('id', existing_id).execute()
+            updated_log = response.data[0]
         else:
             # 새로 생성
-            new_plan = Plan(
-                user_id=user_id,
-                **plan.dict()
-            )
-            db.add(new_plan)
-            await db.commit()
-            await db.refresh(new_plan)
-            return PlanResponse.from_orm(new_plan)
-        
+            meal_log_data["created_at"] = datetime.utcnow().isoformat()
+            response = supabase.table('meal_log').insert(meal_log_data).execute()
+            updated_log = response.data[0]
+
+        # PlanResponse 형태로 변환
+        plan_response = {
+            "id": str(updated_log["id"]),
+            "user_id": updated_log["user_id"],
+            "date": updated_log["date"],
+            "slot": updated_log["meal_type"],
+            "type": "recipe",
+            "ref_id": str(updated_log.get("mealplan_id", "")),
+            "title": updated_log.get("note", "식단 기록"),
+            "location": None,
+            "macros": None,
+            "notes": updated_log.get("note"),
+            "status": "done" if updated_log["eaten"] else "planned",
+            "created_at": updated_log["created_at"],
+            "updated_at": updated_log["updated_at"]
+        }
+
+        return plan_response
+
     except Exception as e:
-        await db.rollback()
         raise HTTPException(
             status_code=500,
             detail=f"식단 계획 저장 중 오류 발생: {str(e)}"
@@ -112,41 +133,54 @@ async def create_or_update_plan(
 async def update_plan_item(
     plan_id: str = Path(..., description="계획 ID"),
     update_data: PlanUpdate = None,
-    user_id: str = Query(..., description="사용자 ID"),
-    db: AsyncSession = Depends(get_db)
+    user_id: str = Query(..., description="사용자 ID")
 ):
     """
-    식단 계획 부분 업데이트
+    식단 계획 부분 업데이트 (meal_log 테이블 사용)
     주로 완료/스킵 상태 변경에 사용
     """
     try:
-        result = await db.execute(
-            select(Plan)
-            .where(
-                and_(
-                    Plan.id == plan_id,
-                    Plan.user_id == user_id
-                )
-            )
-        )
-        plan = result.scalar_one_or_none()
-        
-        if not plan:
+        # 기존 기록 확인
+        existing_response = supabase.table('meal_log').select('*').eq('id', plan_id).eq('user_id', str(user_id)).execute()
+
+        if not existing_response.data:
             raise HTTPException(status_code=404, detail="식단 계획을 찾을 수 없습니다")
-        
-        # 업데이트할 필드들 적용
-        for field, value in update_data.dict(exclude_unset=True).items():
-            setattr(plan, field, value)
-        
-        plan.updated_at = datetime.now()
-        
-        await db.commit()
-        await db.refresh(plan)
-        
-        return PlanResponse.from_orm(plan)
-        
+
+        update_fields = {}
+        if update_data.status:
+            if update_data.status == "done":
+                update_fields["eaten"] = True
+            elif update_data.status in ["planned", "skipped"]:
+                update_fields["eaten"] = False
+
+        if update_data.notes:
+            update_fields["note"] = update_data.notes
+
+        update_fields["updated_at"] = datetime.utcnow().isoformat()
+
+        response = supabase.table('meal_log').update(update_fields).eq('id', plan_id).execute()
+        updated_log = response.data[0]
+
+        # PlanResponse 형태로 변환
+        plan_response = {
+            "id": str(updated_log["id"]),
+            "user_id": updated_log["user_id"],
+            "date": updated_log["date"],
+            "slot": updated_log["meal_type"],
+            "type": "recipe",
+            "ref_id": str(updated_log.get("mealplan_id", "")),
+            "title": updated_log.get("note", "식단 기록"),
+            "location": None,
+            "macros": None,
+            "notes": updated_log.get("note"),
+            "status": "done" if updated_log["eaten"] else "planned",
+            "created_at": updated_log["created_at"],
+            "updated_at": updated_log["updated_at"]
+        }
+
+        return plan_response
+
     except Exception as e:
-        await db.rollback()
         raise HTTPException(
             status_code=500,
             detail=f"식단 계획 업데이트 중 오류 발생: {str(e)}"
@@ -155,32 +189,21 @@ async def update_plan_item(
 @router.delete("/item/{plan_id}")
 async def delete_plan_item(
     plan_id: str = Path(..., description="계획 ID"),
-    user_id: str = Query(..., description="사용자 ID"),
-    db: AsyncSession = Depends(get_db)
+    user_id: str = Query(..., description="사용자 ID")
 ):
-    """식단 계획 삭제"""
+    """식단 계획 삭제 (meal_log 테이블)"""
     try:
-        result = await db.execute(
-            select(Plan)
-            .where(
-                and_(
-                    Plan.id == plan_id,
-                    Plan.user_id == user_id
-                )
-            )
-        )
-        plan = result.scalar_one_or_none()
-        
-        if not plan:
+        # 기존 기록 확인
+        existing_response = supabase.table('meal_log').select('*').eq('id', plan_id).eq('user_id', str(user_id)).execute()
+
+        if not existing_response.data:
             raise HTTPException(status_code=404, detail="식단 계획을 찾을 수 없습니다")
-        
-        await db.delete(plan)
-        await db.commit()
-        
+
+        supabase.table('meal_log').delete().eq('id', plan_id).execute()
+
         return {"message": "식단 계획이 삭제되었습니다"}
-        
+
     except Exception as e:
-        await db.rollback()
         raise HTTPException(
             status_code=500,
             detail=f"식단 계획 삭제 중 오류 발생: {str(e)}"
@@ -288,56 +311,82 @@ async def generate_meal_plan_with_access_check(
 async def commit_meal_plan(
     meal_plan: MealPlanResponse,
     user_id: str = Query(..., description="사용자 ID"),
-    start_date: date = Query(..., description="시작 날짜"),
-    db: AsyncSession = Depends(get_db)
+    start_date: date = Query(..., description="시작 날짜")
 ):
     """
-    생성된 식단표를 캘린더에 일괄 저장
+    생성된 식단표를 캘린더에 일괄 저장 (meal_log 테이블 사용)
     """
     try:
-        plans_to_create = []
-        
+        print(f"🔍 [DEBUG] commit_meal_plan 호출됨")
+        print(f"🔍 [DEBUG] user_id: {user_id}")
+        print(f"🔍 [DEBUG] start_date: {start_date}")
+        print(f"🔍 [DEBUG] meal_plan 타입: {type(meal_plan)}")
+        print(f"🔍 [DEBUG] meal_plan.days 타입: {type(meal_plan.days)}")
+        print(f"🔍 [DEBUG] meal_plan.days 길이: {len(meal_plan.days) if hasattr(meal_plan.days, '__len__') else 'N/A'}")
+
+        meal_logs_to_create = []
+
         for day_idx, day_plan in enumerate(meal_plan.days):
             plan_date = start_date + timedelta(days=day_idx)
-            
-            for slot, item in day_plan.items():
-                if item and slot in ['breakfast', 'lunch', 'dinner', 'snack']:
-                    plan = Plan(
-                        user_id=user_id,
-                        date=plan_date,
-                        slot=slot,
-                        type=item.get('type', 'recipe'),
-                        ref_id=item.get('id', ''),
-                        title=item.get('title', ''),
-                        macros=item.get('macros'),
-                        location=item.get('location')
-                    )
-                    plans_to_create.append(plan)
-        
+            print(f"🔍 [DEBUG] Day {day_idx + 1} ({plan_date}): {type(day_plan)} = {day_plan}")
+
+            try:
+                for slot, item in day_plan.items():
+                    print(f"🔍 [DEBUG] 처리 중 슬롯: '{slot}', 아이템: {item}")
+
+                    if item and slot in ['breakfast', 'lunch', 'dinner', 'snack']:
+                        print(f"🔍 [DEBUG] 슬롯 '{slot}' 아이템 타입: {type(item)}, 값: {item}")
+
+                        # item이 문자열인지 딕셔너리인지 확인 후 처리
+                        if isinstance(item, str):
+                            meal_title = item
+                        elif isinstance(item, dict):
+                            meal_title = item.get('title', '') or str(item)
+                        else:
+                            meal_title = str(item) if item else ''
+
+                        print(f"🔍 [DEBUG] 최종 meal_title: '{meal_title}'")
+
+                        meal_log = {
+                            "user_id": str(user_id),
+                            "date": plan_date.isoformat(),
+                            "meal_type": slot,
+                            "eaten": False,  # 기본값
+                            "note": meal_title,
+                            "created_at": datetime.utcnow().isoformat(),
+                            "updated_at": datetime.utcnow().isoformat()
+                        }
+                        meal_logs_to_create.append(meal_log)
+                        print(f"🔍 [DEBUG] meal_log 추가됨: {meal_log}")
+                    else:
+                        print(f"🔍 [DEBUG] 슬롯 '{slot}' 건너뜀 - 아이템: {item}")
+
+            except Exception as day_error:
+                print(f"❌ [ERROR] Day {day_idx + 1} 처리 중 오류: {day_error}")
+                raise day_error
+
+        print(f"🔍 [DEBUG] 생성된 meal_logs_to_create 개수: {len(meal_logs_to_create)}")
+        for i, log in enumerate(meal_logs_to_create):
+            print(f"🔍 [DEBUG] meal_log[{i}]: {log}")
+
         # 기존 계획들 삭제 (충돌 방지)
         end_date = start_date + timedelta(days=len(meal_plan.days) - 1)
-        await db.execute(
-            select(Plan).where(
-                and_(
-                    Plan.user_id == user_id,
-                    Plan.date >= start_date,
-                    Plan.date <= end_date
-                )
-            ).delete()
-        )
-        
+        print(f"🔍 [DEBUG] 기존 데이터 삭제: {start_date} ~ {end_date}")
+        supabase.table('meal_log').delete().eq('user_id', str(user_id)).gte('date', start_date.isoformat()).lte('date', end_date.isoformat()).execute()
+
         # 새 계획들 저장
-        db.add_all(plans_to_create)
-        await db.commit()
-        
+        if meal_logs_to_create:
+            print(f"🔍 [DEBUG] Supabase에 {len(meal_logs_to_create)}개 데이터 저장 시도")
+            result = supabase.table('meal_log').insert(meal_logs_to_create).execute()
+            print(f"🔍 [DEBUG] Supabase 저장 결과: {result}")
+
         return {
-            "message": f"{len(plans_to_create)}개의 식단 계획이 저장되었습니다",
+            "message": f"{len(meal_logs_to_create)}개의 식단 계획이 저장되었습니다",
             "start_date": start_date,
             "end_date": end_date
         }
-        
+
     except Exception as e:
-        await db.rollback()
         raise HTTPException(
             status_code=500,
             detail=f"식단표 저장 중 오류 발생: {str(e)}"
