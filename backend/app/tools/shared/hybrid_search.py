@@ -10,6 +10,7 @@ import asyncio
 from typing import List, Dict, Any, Optional
 from app.core.database import supabase
 from app.core.config import settings
+from app.tools.shared.profile_tool import user_profile_tool
 
 class HybridSearchTool:
     """Supabase 하이브리드 검색 도구 클래스"""
@@ -177,8 +178,8 @@ class HybridSearchTool:
             print(f"❌ 하이브리드 검색 오류: {e}")
             return []
     
-    async def search(self, query: str, profile: str = "", max_results: int = 5) -> List[Dict]:
-        """간단한 검색 인터페이스 (한글 최적화)"""
+    async def search(self, query: str, profile: str = "", max_results: int = 5, user_id: Optional[str] = None) -> List[Dict]:
+        """간단한 검색 인터페이스 (한글 최적화) + 사용자 프로필 필터링"""
         try:
             # 한글 검색 최적화 도구 사용
             from app.tools.meal.korean_search import korean_search_tool
@@ -193,6 +194,38 @@ class HybridSearchTool:
             
             # 한글 최적화 검색 실행
             results = await korean_search_tool.korean_hybrid_search(query, max_results)
+            
+            # 사용자 프로필 필터링 (user_id가 제공된 경우)
+            if user_id and results:
+                user_preferences = await user_profile_tool.get_user_preferences(user_id)
+                if user_preferences["success"]:
+                    # 레시피 데이터 구조에 맞게 변환
+                    recipe_results = []
+                    for result in results:
+                        recipe_data = {
+                            'id': result.get('id'),
+                            'title': result.get('title'),
+                            'allergens': result.get('allergens', []),
+                            'ingredients': result.get('ingredients', []),
+                            'content': result.get('content', ''),
+                            'metadata': result.get('metadata', {})
+                        }
+                        recipe_results.append(recipe_data)
+                    
+                    # 프로필 필터링 적용
+                    filtered_recipes = user_profile_tool.filter_recipes_by_preferences(recipe_results, user_preferences)
+                    
+                    # 필터링된 결과를 원래 형식으로 변환
+                    filtered_results = []
+                    for recipe in filtered_recipes:
+                        # 원래 결과에서 해당 레시피 찾기
+                        for result in results:
+                            if result.get('id') == recipe.get('id'):
+                                filtered_results.append(result)
+                                break
+                    
+                    results = filtered_results
+                    print(f"🔧 프로필 필터링 적용: {len(results)}개 결과")
             
             # 결과 포맷팅 (검색 전략과 메시지 포함)
             formatted_results = []

@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Clock, Utensils, Target, Star, ChefHat, Flame } from 'lucide-react'
+import { AccessTime, Restaurant, GpsFixed, Star, RestaurantMenu, LocalFireDepartment } from '@mui/icons-material'
 
 interface MealDetailModalProps {
   isOpen: boolean
@@ -100,7 +100,7 @@ export function MealDetailModal({
   const scoreBadge = getScoreBadge(ketoScore)
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onClose={onClose} onOpenChange={onClose}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -115,11 +115,11 @@ export function MealDetailModal({
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Utensils className="h-4 w-4" />
+                  <Restaurant sx={{ fontSize: 16 }} />
                   메뉴
                 </div>
                 <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
+                  <AccessTime sx={{ fontSize: 16 }} />
                   <span className="text-sm">{mealInfo.time}</span>
                 </div>
               </CardTitle>
@@ -144,7 +144,7 @@ export function MealDetailModal({
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2">
-                  <Target className="h-4 w-4" />
+                  <GpsFixed sx={{ fontSize: 16 }} />
                   예상 영양성분
                 </CardTitle>
               </CardHeader>
@@ -152,7 +152,7 @@ export function MealDetailModal({
                 <div className="grid grid-cols-2 gap-4">
                   <div className="text-center">
                     <div className="flex items-center justify-center gap-1 mb-1">
-                      <Flame className="h-4 w-4 text-orange-500" />
+                      <LocalFireDepartment sx={{ fontSize: 16, color: 'orange.500' }} />
                       <span className="text-2xl font-bold text-orange-600">{nutrition.calories}</span>
                     </div>
                     <p className="text-sm text-muted-foreground">칼로리</p>
@@ -179,7 +179,7 @@ export function MealDetailModal({
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2">
-                  <ChefHat className="h-4 w-4" />
+                  <RestaurantMenu sx={{ fontSize: 16 }} />
                   키토 팁
                 </CardTitle>
               </CardHeader>

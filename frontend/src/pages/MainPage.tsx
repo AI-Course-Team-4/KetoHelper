@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { MessageSquare, CalendarDays, MapPin, Filter } from 'lucide-react'
+import { Message, CalendarToday, LocationOn, FilterList } from '@mui/icons-material'
 import { useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 
@@ -72,7 +72,7 @@ export function MainPage() {
                         <Card>
                             <CardContent className="p-6 text-center hover:scale-[1.02] transition-transform" onClick={() => navigate('/chat')}>
                                 <div className="flex items-center justify-center">
-                                    <MessageSquare className="h-7 w-7 text-green-600" />
+                                    <Message sx={{ fontSize: 28, color: 'green.600' }} />
                                 </div>
                                 <div className="font-semibold mt-2 cursor-pointer">채팅 기반 추천</div>
                                 <div className="text-sm text-muted-foreground mt-1">질문하면 AI가 바로 식단과 식당을 추천합니다.</div>
@@ -81,7 +81,7 @@ export function MainPage() {
                         <Card>
                             <CardContent className="p-6 text-center hover:scale-[1.02] transition-transform" onClick={() => navigate('/calendar')}>
                                 <div className="flex items-center justify-center">
-                                    <CalendarDays className="h-7 w-7 text-green-600" />
+                                    <CalendarToday sx={{ fontSize: 28, color: 'green.600' }} />
                                 </div>
                                 <div className="font-semibold mt-2">캘린더 등록</div>
                                 <div className="text-sm text-muted-foreground mt-1">추천 식단을 클릭하면 캘린더에 자동 등록됩니다.</div>
@@ -90,7 +90,7 @@ export function MainPage() {
                         <Card>
                             <CardContent className="p-6 text-center hover:scale-[1.02] transition-transform" onClick={() => navigate('/map')}>
                                 <div className="flex items-center justify-center">
-                                    <MapPin className="h-7 w-7 text-green-600" />
+                                    <LocationOn sx={{ fontSize: 28, color: 'green.600' }} />
                                 </div>
                                 <div className="font-semibold mt-2">위치 기반 식당</div>
                                 <div className="text-sm text-muted-foreground mt-1">현재 위치 주변의 키토 친화 식당을 찾아드립니다.</div>
@@ -99,7 +99,7 @@ export function MainPage() {
                         <Card>
                             <CardContent className="p-6 text-center hover:scale-[1.02] transition-transform" onClick={() => navigate('/profile')}>
                                 <div className="flex items-center justify-center">
-                                    <Filter className="h-7 w-7 text-green-600" />
+                                    <FilterList sx={{ fontSize: 28, color: 'green.600' }} />
                                 </div>
                                 <div className="font-semibold mt-2">알레르기 & 필터</div>
                                 <div className="text-sm text-muted-foreground mt-1">알레르기나 비선호 음식은 추천에서 자동 제외됩니다.</div>

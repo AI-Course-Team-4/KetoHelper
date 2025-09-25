@@ -1,16 +1,21 @@
 """
-개인화 설정 파일
-팀원별 개인 설정을 외부에서 관리
+팀원별 프롬프트 실험 설정 파일
+팀원들이 프롬프트를 개선하고 테스트하기 위한 시스템
 
 사용법:
 1. 이 파일을 복사하여 .personal_config.py로 생성
-2. 원하는 에이전트 설정을 수정
-3. .gitignore에 .personal_config.py 추가하여 개인 설정 보호
+2. 원하는 프롬프트 파일명을 수정하여 실험
+3. .gitignore에 .personal_config.py 추가하여 개인 실험 보호
+4. USE_PERSONAL_CONFIG = True로 설정하여 개인 실험 활성화
 
 설정 구조:
-- agent_name: AI가 자신을 소개할 때 사용할 이름 (예: "키토 마스터", "맛집 헌터") 프롬포트 적용된거 쉽게 확인하라고 해둔것
-- prompts: 프롬프트 파일명 매핑
-- tools: 도구 파일명 매핑
+- agent_name: AI가 자신을 소개할 때 사용할 이름 (프롬프트 적용 확인용)
+- prompts: 프롬프트 파일명 매핑 (팀원별 실험용)
+- tools: 도구 파일명 매핑 (팀원별 실험용)
+
+실험 예시:
+- "soobin_recipe_response": 수빈이 만든 레시피 응답 프롬프트
+- "soobin_general_chat": 수빈이 만든 일반 채팅 프롬프트
 """
 
 # ⚠️ 개인 설정 활성화 여부 - 가장 중요한 설정!
@@ -52,11 +57,20 @@ CHAT_AGENT_CONFIG = {
     "prompt_file_name": "soobin_general_chat"                   # 일반 채팅 프롬프트
 }
 
+# 오케스트레이터 개인화 설정 (팀원별 프롬프트 실험용)
+ORCHESTRATOR_CONFIG = {
+    "prompts": {
+        "recipe_response": "soobin_recipe_response",            # 레시피 응답 생성 프롬프트
+        "restaurant_response": "soobin_restaurant_response"     # 식당 응답 생성 프롬프트
+    }
+}
+
 # 전체 에이전트 설정 통합
 AGENT_CONFIGS = {
     "meal_planner": MEAL_PLANNER_CONFIG,
     "restaurant_agent": RESTAURANT_AGENT_CONFIG, 
-    "chat_agent": CHAT_AGENT_CONFIG
+    "chat_agent": CHAT_AGENT_CONFIG,
+    "orchestrator": ORCHESTRATOR_CONFIG
 }
 
 
