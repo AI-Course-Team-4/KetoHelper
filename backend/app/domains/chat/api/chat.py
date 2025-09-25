@@ -126,7 +126,7 @@ async def chat_endpoint(request: ChatMessage):
         print(f"🔍 thread_id 타입: {type(thread_id)}, 값: {repr(thread_id)}")
         
         if thread_id:
-            history_response = supabase.table("chat").select("*").eq("thread_id", thread_id).order("created_at", desc=True).limit(10).execute()
+            history_response = supabase.table("chat").select("*").eq("thread_id", thread_id).order("created_at", desc=True).limit(20).execute()
             print(f"🔍 Supabase 응답: {history_response}")
             print(f"🔍 응답 데이터: {history_response.data}")
         else:
@@ -137,7 +137,7 @@ async def chat_endpoint(request: ChatMessage):
         chat_history = list(reversed(history_response.data)) if history_response.data else []
         print(f"📖 조회된 대화 히스토리: {len(chat_history)}개 메시지")
         
-        # 사용자 메시지 저장 (히스토리 조회 후)
+        # 사용자 메시지 저장
         await insert_chat_message(
             thread_id=thread_id,
             role="user",
@@ -146,23 +146,16 @@ async def chat_endpoint(request: ChatMessage):
             guest_id=thread_guest_id
         )
         
+        # 저장 후 다시 히스토리 조회 (저장된 메시지 포함)
+        chat_history = await get_chat_history(thread_id, limit=50)
+        print(f"📚 저장 후 히스토리 조회: {len(chat_history)}개 메시지")
+        
         # 디버그: 실제 조회된 데이터 확인
         if chat_history:
             print(f"🔍 첫 번째 메시지: {chat_history[0]}")
             print(f"🔍 마지막 메시지: {chat_history[-1]}")
         else:
             print("⚠️ 대화 히스토리가 비어있습니다!")
-        
-        # 현재 사용자 메시지를 히스토리에 추가
-        current_message = {
-            "role": "user",
-            "message": request.message,
-            "thread_id": thread_id,
-            "user_id": thread_user_id,
-            "guest_id": thread_guest_id
-        }
-        chat_history.append(current_message)
-        print(f"📝 현재 메시지를 히스토리에 추가: {len(chat_history)}개 메시지")
         
         # 키토 코치 오케스트레이터 실행
         print(f"🚀 DEBUG: chat API 요청 받음 - '{request.message}'")
@@ -305,18 +298,25 @@ async def get_chat_history(
 ):
     """특정 스레드의 채팅 기록 조회"""
     try:
+        print(f"🔍 get_chat_history 호출: thread_id={thread_id}, limit={limit}, before={before} (type: {type(before)})")
+        
         # 쿼리 구성
         query = supabase.table("chat").select("*").eq("thread_id", thread_id)
         
-        # 페이징 처리
-        if before:
+        # 페이징 처리 (before 매개변수가 올바른 문자열일 때만)
+        # Query 객체가 전달되는 경우를 방지
+        if before and hasattr(before, 'strip') and isinstance(before, str) and before.strip():
             # before가 created_at인 경우
             try:
                 before_time = datetime.fromisoformat(before.replace('Z', '+00:00'))
                 query = query.lt("created_at", before_time.isoformat())
             except:
                 # before가 ID인 경우
-                query = query.lt("id", int(before))
+                try:
+                    query = query.lt("id", int(before))
+                except (ValueError, TypeError):
+                    # ID 변환 실패 시 무시
+                    pass
         
         # 시간 순으로 정렬하고 제한
         response = query.order("created_at", desc=False).limit(limit).execute()
