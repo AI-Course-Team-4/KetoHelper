@@ -93,6 +93,12 @@ export class DateParser {
       return { ...thisWeekMatch, confidence: 0.9, method: 'rule-based' as const }
     }
 
+    // 단독 요일 처리 (이번주로 해석)
+    const standaloneDayMatch = this.parseStandaloneDay(normalized)
+    if (standaloneDayMatch) {
+      return { ...standaloneDayMatch, confidence: 0.8, method: 'rule-based' as const }
+    }
+
     // 특정 날짜 (예: "12월 25일", "25일")
     const specificDateMatch = this.parseSpecificDate(normalized)
     if (specificDateMatch) {
@@ -208,6 +214,48 @@ export class DateParser {
     return null
   }
 
+  private parseStandaloneDay(text: string): Omit<ParsedDateInfo, 'confidence' | 'method'> | null {
+    // "이번주", "다음주" 등이 함께 언급된 경우는 제외
+    if (text.includes('이번주') || text.includes('다음주') || text.includes('담주')) {
+      return null
+    }
+
+    const dayMap: Record<string, number> = {
+      '월요일': 1,
+      '화요일': 2,
+      '수요일': 3,
+      '목요일': 4,
+      '금요일': 5,
+      '토요일': 6,
+      '일요일': 0
+    }
+
+    // 특정 요일이 단독으로 언급되었는지 확인
+    for (const [dayName, dayNumber] of Object.entries(dayMap)) {
+      if (text.includes(dayName)) {
+        const today = new Date(this.today)
+        const currentDay = today.getDay()
+        const daysToThisMonday = currentDay === 0 ? -6 : 1 - currentDay
+        const thisMonday = addDays(today, daysToThisMonday)
+
+        let targetDate = addDays(thisMonday, dayNumber - 1)
+
+        // 해당 요일이 이미 지났으면 다음주로 설정
+        if (targetDate < today) {
+          targetDate = addDays(targetDate, 7)
+        }
+
+        return {
+          date: targetDate,
+          description: this.getDayName(dayNumber),
+          isRelative: true
+        }
+      }
+    }
+
+    return null
+  }
+
   private parseSpecificDate(text: string): Omit<ParsedDateInfo, 'confidence' | 'method'> | null {
     const currentYear = this.today.getFullYear()
 
@@ -294,6 +342,9 @@ export class DateParser {
     const dateExpressions = [
       '오늘', '내일', '모레', '글피',
       '다음주', '담주', '이번주',
+      '월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일',
+      /이번주\s*[월화수목금토일]요일/,
+      /다음주\s*[월화수목금토일]요일/,
       /\d{1,2}월\s*\d{1,2}일/,
       /\d{1,2}일(?![일월화수목금토])/,
       /\d+일\s*[후뒤]/

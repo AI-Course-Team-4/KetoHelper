@@ -1,59 +1,74 @@
 import { supabase } from './supabaseClient'
 import { MealData } from '@/data/ketoMeals'
 
-export interface MealRecord {
+export interface MealLogRecord {
   id: string
   user_id: string
   date: string
-  breakfast?: string
-  lunch?: string
-  dinner?: string
-  snack?: string
-  breakfast_completed?: boolean
-  lunch_completed?: boolean
-  dinner_completed?: boolean
-  snack_completed?: boolean
+  meal_type: 'breakfast' | 'lunch' | 'dinner' | 'snack'
+  eaten: boolean
+  note?: string
   created_at: string
+  updated_at: string
 }
 
 /**
- * Supabase 식단 데이터 관리 서비스
+ * Supabase 식단 데이터 관리 서비스 (meal_log 테이블 사용)
  */
 export class MealService {
   /**
-   * 특정 날짜의 식단 데이터 조회
+   * 특정 날짜의 식단 데이터 조회 (meal_log 테이블)
    */
   static async getMealByDate(date: string, userId: string): Promise<MealData | null> {
     try {
       if (!userId) {
         throw new Error('로그인이 필요합니다.')
       }
-      
+
       const { data, error } = await supabase
-        .from('meals')
+        .from('meal_log')
         .select('*')
         .eq('date', date)
         .eq('user_id', userId)
-        .single()
 
       if (error) {
-        if (error.code === 'PGRST116') {
-          // 데이터가 없는 경우
-          return null
-        }
         throw error
       }
 
-      return {
-        breakfast: data.breakfast || '',
-        lunch: data.lunch || '',
-        dinner: data.dinner || '',
-        snack: data.snack || '',
-        breakfastCompleted: data.breakfast_completed || false,
-        lunchCompleted: data.lunch_completed || false,
-        dinnerCompleted: data.dinner_completed || false,
-        snackCompleted: data.snack_completed || false
+      if (!data || data.length === 0) {
+        return null
       }
+
+      // meal_log 레코드들을 MealData 형식으로 변환
+      const mealData: MealData = {
+        breakfast: '',
+        lunch: '',
+        dinner: '',
+        snack: '',
+        breakfastCompleted: false,
+        lunchCompleted: false,
+        dinnerCompleted: false,
+        snackCompleted: false
+      }
+
+      data.forEach((log: MealLogRecord) => {
+        const mealType = log.meal_type
+        if (mealType === 'breakfast') {
+          mealData.breakfast = log.note || ''
+          mealData.breakfastCompleted = log.eaten
+        } else if (mealType === 'lunch') {
+          mealData.lunch = log.note || ''
+          mealData.lunchCompleted = log.eaten
+        } else if (mealType === 'dinner') {
+          mealData.dinner = log.note || ''
+          mealData.dinnerCompleted = log.eaten
+        } else if (mealType === 'snack') {
+          mealData.snack = log.note || ''
+          mealData.snackCompleted = log.eaten
+        }
+      })
+
+      return mealData
     } catch (error) {
       console.error('식단 조회 실패:', error)
       return null
@@ -61,16 +76,16 @@ export class MealService {
   }
 
   /**
-   * 여러 날짜의 식단 데이터 조회
+   * 여러 날짜의 식단 데이터 조회 (meal_log 테이블)
    */
   static async getMealsByDateRange(startDate: string, endDate: string, userId: string): Promise<Record<string, MealData>> {
     try {
       if (!userId) {
         throw new Error('로그인이 필요합니다.')
       }
-      
+
       const { data, error } = await supabase
-        .from('meals')
+        .from('meal_log')
         .select('*')
         .gte('date', startDate)
         .lte('date', endDate)
@@ -78,22 +93,41 @@ export class MealService {
 
       if (error) throw error
 
-      const mealData: Record<string, MealData> = {}
-      
-      data?.forEach((meal) => {
-        mealData[meal.date] = {
-          breakfast: meal.breakfast || '',
-          lunch: meal.lunch || '',
-          dinner: meal.dinner || '',
-          snack: meal.snack || '',
-          breakfastCompleted: meal.breakfast_completed || false,
-          lunchCompleted: meal.lunch_completed || false,
-          dinnerCompleted: meal.dinner_completed || false,
-          snackCompleted: meal.snack_completed || false
+      const mealDataByDate: Record<string, MealData> = {}
+
+      data?.forEach((log: MealLogRecord) => {
+        const dateKey = log.date
+
+        if (!mealDataByDate[dateKey]) {
+          mealDataByDate[dateKey] = {
+            breakfast: '',
+            lunch: '',
+            dinner: '',
+            snack: '',
+            breakfastCompleted: false,
+            lunchCompleted: false,
+            dinnerCompleted: false,
+            snackCompleted: false
+          }
+        }
+
+        const mealType = log.meal_type
+        if (mealType === 'breakfast') {
+          mealDataByDate[dateKey].breakfast = log.note || ''
+          mealDataByDate[dateKey].breakfastCompleted = log.eaten
+        } else if (mealType === 'lunch') {
+          mealDataByDate[dateKey].lunch = log.note || ''
+          mealDataByDate[dateKey].lunchCompleted = log.eaten
+        } else if (mealType === 'dinner') {
+          mealDataByDate[dateKey].dinner = log.note || ''
+          mealDataByDate[dateKey].dinnerCompleted = log.eaten
+        } else if (mealType === 'snack') {
+          mealDataByDate[dateKey].snack = log.note || ''
+          mealDataByDate[dateKey].snackCompleted = log.eaten
         }
       })
 
-      return mealData
+      return mealDataByDate
     } catch (error) {
       console.error('식단 범위 조회 실패:', error)
       return {}
@@ -101,47 +135,53 @@ export class MealService {
   }
 
   /**
-   * 식단 데이터 저장 (신규/업데이트)
+   * 식단 데이터 저장 (meal_log 테이블에 개별 레코드로 저장)
    */
   static async saveMeal(date: string, mealData: MealData, userId: string): Promise<boolean> {
     try {
       if (!userId) {
         throw new Error('로그인이 필요합니다.')
       }
-      
-      // 기존 데이터 확인
-      const existingMeal = await this.getMealByDate(date, userId)
-      
-      const mealRecord = {
-        user_id: userId,
-        date,
-        breakfast: mealData.breakfast || null,
-        lunch: mealData.lunch || null,
-        dinner: mealData.dinner || null,
-        snack: mealData.snack || null,
-        breakfast_completed: mealData.breakfastCompleted || false,
-        lunch_completed: mealData.lunchCompleted || false,
-        dinner_completed: mealData.dinnerCompleted || false,
-        snack_completed: mealData.snackCompleted || false
+
+      // 기존 해당 날짜 데이터 삭제
+      await supabase
+        .from('meal_log')
+        .delete()
+        .eq('date', date)
+        .eq('user_id', userId)
+
+      // 새로운 meal_log 레코드들 생성
+      const mealLogs: any[] = []
+
+      const mealTypes = [
+        { type: 'breakfast', content: mealData.breakfast, completed: mealData.breakfastCompleted },
+        { type: 'lunch', content: mealData.lunch, completed: mealData.lunchCompleted },
+        { type: 'dinner', content: mealData.dinner, completed: mealData.dinnerCompleted },
+        { type: 'snack', content: mealData.snack, completed: mealData.snackCompleted }
+      ]
+
+      mealTypes.forEach(meal => {
+        if (meal.content && meal.content.trim()) {
+          mealLogs.push({
+            user_id: userId,
+            date: date,
+            meal_type: meal.type,
+            eaten: meal.completed || false,
+            note: meal.content,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+        }
+      })
+
+      if (mealLogs.length > 0) {
+        const { error } = await supabase
+          .from('meal_log')
+          .insert(mealLogs)
+
+        if (error) throw error
       }
 
-      let result
-      if (existingMeal) {
-        // 업데이트
-        result = await supabase
-          .from('meals')
-          .update(mealRecord)
-          .eq('date', date)
-          .eq('user_id', userId)
-      } else {
-        // 신규 생성
-        result = await supabase
-          .from('meals')
-          .insert([mealRecord])
-      }
-
-      if (result.error) throw result.error
-      
       return true
     } catch (error) {
       console.error('식단 저장 실패:', error)
@@ -157,15 +197,15 @@ export class MealService {
       if (!userId) {
         throw new Error('로그인이 필요합니다.')
       }
-      
+
       const { error } = await supabase
-        .from('meals')
+        .from('meal_log')
         .delete()
         .eq('date', date)
         .eq('user_id', userId)
 
       if (error) throw error
-      
+
       return true
     } catch (error) {
       console.error('식단 삭제 실패:', error)
@@ -173,6 +213,33 @@ export class MealService {
     }
   }
 
+  /**
+   * 특정 식사 완료 상태 업데이트
+   */
+  static async updateMealCompletion(date: string, mealType: string, completed: boolean, userId: string): Promise<boolean> {
+    try {
+      if (!userId) {
+        throw new Error('로그인이 필요합니다.')
+      }
+
+      const { error } = await supabase
+        .from('meal_log')
+        .update({
+          eaten: completed,
+          updated_at: new Date().toISOString()
+        })
+        .eq('date', date)
+        .eq('meal_type', mealType)
+        .eq('user_id', userId)
+
+      if (error) throw error
+
+      return true
+    } catch (error) {
+      console.error('식단 완료 상태 업데이트 실패:', error)
+      return false
+    }
+  }
 }
 
 /**
@@ -210,19 +277,19 @@ export class MealParserService {
               }
             }
           }
-          
+
           // 단일 식단 객체
           if (result.breakfast || result.lunch || result.dinner) {
             return this.normalizeKeys(result)
           }
         }
       }
-      
+
       // 2. response 텍스트에서 JSON 추출
       if (chatResponse.response) {
         return this.parseMealFromResponse(chatResponse.response)
       }
-      
+
       return null
     } catch (error) {
       console.error('백엔드 응답 파싱 실패:', error)
@@ -248,10 +315,10 @@ export class MealParserService {
         if (match) {
           const jsonStr = match[1]
           const parsed = JSON.parse(jsonStr)
-          
+
           // 한국어 키를 영어로 변환
           const normalized = this.normalizeKeys(parsed)
-          
+
           if (this.isValidMealData(normalized)) {
             return normalized
           }
@@ -284,7 +351,7 @@ export class MealParserService {
     }
 
     const normalized: any = {}
-    
+
     Object.keys(data).forEach(key => {
       const normalizedKey = keyMap[key] || key
       normalized[normalizedKey] = data[key]
@@ -297,7 +364,7 @@ export class MealParserService {
    * 유효한 식단 데이터인지 확인
    */
   private static isValidMealData(data: any): boolean {
-    return data && 
+    return data &&
            typeof data === 'object' &&
            (data.breakfast || data.lunch || data.dinner)
   }
@@ -307,12 +374,12 @@ export class MealParserService {
    */
   private static extractMealFromText(text: string): LLMParsedMeal | null {
     const mealData: any = {}
-    
+
     // 마크다운 형태의 7일 식단표에서 첫 번째 날 파싱
     const firstDayMatch = text.match(/\*\*1일차:\*\*([\s\S]*?)(?:\*\*2일차:\*\*|$)/)
     if (firstDayMatch) {
       const firstDayText = firstDayMatch[1]
-      
+
       // 이모지와 함께된 패턴 매칭
       const patterns = {
         breakfast: /🌅\s*아침:\s*([^\n\r-]+)/i,
@@ -328,7 +395,7 @@ export class MealParserService {
         }
       })
     }
-    
+
     // 기본 패턴 매칭 (이모지 없는 경우)
     if (!this.isValidMealData(mealData)) {
       const basicPatterns = {
