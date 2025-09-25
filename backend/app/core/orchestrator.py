@@ -959,6 +959,11 @@ class KetoCoachAgent:
                     messages.append(HumanMessage(content=msg.get("message", "")))
                 elif msg.get("role") == "assistant":
                     messages.append(AIMessage(content=msg.get("message", "")))
+            
+            # 디버그: 실제 전달되는 메시지 내용 확인
+            print(f"🔍 전달되는 메시지 수: {len(messages)}")
+            for i, msg in enumerate(messages):
+                print(f"  {i+1}. {type(msg).__name__}: {msg.content[:50]}...")
         
         # 현재 메시지 추가
         messages.append(HumanMessage(content=message))

@@ -274,6 +274,8 @@ export function ChatPage() {
       
       // 스레드 목록 새로고침
       refetchThreads()
+      // 새 스레드의 히스토리 새로고침 (빈 목록이 될 것)
+      refetchHistory()
       
       console.log('🆕 새 채팅 스레드 생성:', newThread.id)
     } catch (error) {
@@ -291,8 +293,12 @@ export function ChatPage() {
   const selectThread = (threadId: string) => {
     setCurrentThreadId(threadId)
     setCurrentSessionId(threadId) // 호환성을 위해
+    // 현재 메시지 초기화
+    clearMessages()
+    setMessage('')
     // 해당 스레드의 히스토리를 새로 불러옴
     refetchHistory()
+    console.log('🔄 스레드 전환:', threadId)
   }
 
   // 스레드 삭제 함수 추가
