@@ -855,7 +855,7 @@ export function ChatPage() {
                                             return <PlaceCard place={place} />
                                           }
                                           return (
-                                            <div className="h-full flex items-center justify-center p-6 bg-gray-50">
+                                            <div className="h-[500px] flex items-center justify-center p-6 bg-gray-50 rounded-2xl border border-gray-200">
                                               <div className="text-center text-gray-500">
                                                 <p className="text-sm font-medium">지도에서 장소를 클릭해보세요</p>
                                                 <p className="text-xs text-gray-400 mt-1">상세 정보를 확인할 수 있습니다</p>
