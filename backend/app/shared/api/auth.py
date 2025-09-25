@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi import Body
 from fastapi import Response, Request
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 import httpx
+import json
 import os
 import jwt
 from app.core.jwt_utils import (
@@ -206,7 +208,35 @@ async def kakao_login(payload: KakaoAccessRequest, response: Response):
         import traceback; traceback.print_exc()
         print('[DEBUG] token/cookie error:', str(e))
         raise
-    return {"accessToken": access, "refreshToken": refresh, "user": user}
+    # 팝업 브릿지 HTML 반환 (부모창에 결과 전송 후 창 닫기)
+    payload = {
+        "source": "naver_oauth",
+        "type": "success",
+        "user": user,
+        "accessToken": access,
+        "refreshToken": refresh,
+    }
+    html = f"""
+<!doctype html><meta charset=\"utf-8\"><title>Naver Login</title>
+<script>
+(function() {{
+  try {{
+    var payload = {json.dumps(payload)};
+    if (window.opener && window.opener !== window) {{
+      window.opener.postMessage(payload, '*');
+    }}
+    try {{
+      localStorage.setItem('naver_oauth_result', JSON.stringify(payload));
+      setTimeout(function(){{ localStorage.removeItem('naver_oauth_result'); }}, 500);
+    }} catch(e) {{}}
+    try {{ window.close(); }} catch(e) {{}}
+  }} catch(e) {{
+    location.replace('/');
+  }}
+}})();
+</script>
+"""
+    return HTMLResponse(content=html, media_type="text/html")
 
 
 @router.post("/naver")
