@@ -112,6 +112,15 @@ async def chat_endpoint(request: ChatMessage):
     - 식단표 생성: "7일 식단표 만들어줘"
     """
     print(f"🔥 DEBUG: chat_endpoint 진입! 메시지: '{request.message}'")
+    
+    # 게스트에서 로그인으로 전환 시 잘못된 요청 방지
+    if request.user_id and request.guest_id:
+        print(f"⚠️ 잘못된 요청: user_id와 guest_id가 동시에 전달됨")
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot use both user_id and guest_id simultaneously"
+        )
+    
     try:
         # 스레드 확인/생성
         thread = await ensure_thread(request.user_id, request.guest_id, request.thread_id)
