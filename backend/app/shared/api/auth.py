@@ -259,7 +259,7 @@ async def naver_callback(code: str, state: str, request: Request, response: Resp
 
     # 브릿지 HTML: 메인 창에 알리고 닫기
     target_origin = os.getenv("FRONTEND_DOMAIN", "").rstrip("/") or "*"
-    payload = {"provider": "naver", "ok": True}
+    payload = {"source": "naver_oauth", "type": "success"}
     html = f"""
 <!doctype html><meta charset=\"utf-8\"><title>Naver Login</title>
 <script>
@@ -269,9 +269,6 @@ async def naver_callback(code: str, state: str, request: Request, response: Resp
     var payload = {json.dumps(payload)};
     if (window.opener && window.opener !== window) {{
       window.opener.postMessage(payload, target === '' ? '*' : target);
-      try {{
-        if (target && target !== '*') window.opener.location.replace(target + '/login/success');
-      }} catch(e) {{}}
     }}
   }} catch(e) {{}}
   try {{ window.close(); }} catch(e) {{}}
