@@ -9,10 +9,10 @@ import { useProfileStore } from '@/store/profileStore'
 import { useAuthStore } from '@/store/authStore'
 // import { RecipeCard } from '@/components/RecipeCard'
 import { PlaceCard } from '@/components/PlaceCard'
-import { useSendMessage, useGetChatThreads, useGetChatHistory, useCreateNewThread, useDeleteThread, ChatHistory } from '@/hooks/useApi'
-import { MealParserService, MealService } from '@/lib/mealService'
-import { MealData } from '@/data/ketoMeals'
+import { useSendMessage, useGetChatThreads, useGetChatHistory, useCreateNewThread, useDeleteThread, ChatHistory, useCreatePlan } from '@/hooks/useApi'
+import { MealParserService } from '@/lib/mealService'
 import { format } from 'date-fns'
+import { extractDateFromMessage, formatDateForDisplay, formatDateForAPI } from '@/lib/dateParser'
 import KakaoMap from './KakaoMap'
 
 // Message 타입을 ChatMessage로 대체
@@ -37,6 +37,7 @@ export function ChatPage() {
   const sendMessage = useSendMessage()
   const createNewThread = useCreateNewThread()
   const deleteThread = useDeleteThread()
+  const createPlan = useCreatePlan()
   
   // 채팅 스레드 관련 훅 추가
   const { data: chatThreads = [], refetch: refetchThreads } = useGetChatThreads(
@@ -412,6 +413,65 @@ export function ChatPage() {
 
       addMessage(assistantMessage)
 
+      // 스마트 저장: 식단이 있고 사용자가 저장을 요청한 경우 자동 저장
+      if (parsedMeal && user?.id) {
+        const isAutoSaveRequest = (
+          userMessage.content.includes('저장') ||
+          userMessage.content.includes('추가') ||
+          userMessage.content.includes('계획') ||
+          userMessage.content.includes('등록') ||
+          userMessage.content.includes('넣어')
+        ) && (
+          userMessage.content.includes('오늘') ||
+          userMessage.content.includes('내일') ||
+          userMessage.content.includes('모레') ||
+          userMessage.content.includes('다음주') ||
+          userMessage.content.includes('캘린더') ||
+          /\d{1,2}월\s*\d{1,2}일/.test(userMessage.content) ||
+          /\d{1,2}일(?![일월화수목금토])/.test(userMessage.content) ||
+          /\d+일\s*[후뒤]/.test(userMessage.content)
+        )
+
+        if (isAutoSaveRequest) {
+          setTimeout(() => {
+            handleSmartMealSave(userMessage.content, parsedMeal)
+          }, 1000) // 1초 후 자동 저장
+        }
+      }
+      // 현재 메시지에 식단이 없지만 저장 요청이 있는 경우 이전 메시지에서 식단 데이터 찾기
+      else if (!parsedMeal && user?.id) {
+        const isSaveRequest = (
+          userMessage.content.includes('저장') ||
+          userMessage.content.includes('추가') ||
+          userMessage.content.includes('계획') ||
+          userMessage.content.includes('등록') ||
+          userMessage.content.includes('넣어')
+        )
+
+        if (isSaveRequest) {
+          // 현재 메시지를 추가한 후의 전체 메시지 목록에서 이전 식단 데이터 찾기
+          const updatedMessages = [...messages, assistantMessage]
+          const recentMealData = findRecentMealData(updatedMessages)
+
+          if (recentMealData) {
+            setTimeout(() => {
+              handleSmartMealSave(userMessage.content, recentMealData, '이전 식단을')
+            }, 1000) // 1초 후 자동 저장
+          } else {
+            // 이전 식단을 찾을 수 없는 경우 안내 메시지
+            const noMealMessage: ChatMessage = {
+              id: Date.now().toString(),
+              role: 'assistant',
+              content: '❌ 저장할 식단을 찾을 수 없습니다. 먼저 식단 추천을 받아주세요.',
+              timestamp: new Date()
+            }
+            setTimeout(() => {
+              addMessage(noMealMessage)
+            }, 500)
+          }
+        }
+      }
+
       // 스레드 목록 새로고침
       refetchThreads()
     } catch (error) {
@@ -435,7 +495,7 @@ export function ChatPage() {
     }
   }
 
-  // 식단 캘린더에 저장
+  // 식단 캘린더에 저장 (스마트 날짜 파싱 지원)
   const handleSaveMealToCalendar = async (messageId: string, mealData: LLMParsedMeal, targetDate?: string) => {
     if (!user?.id) {
       const errorMessage: ChatMessage = {
@@ -453,27 +513,46 @@ export function ChatPage() {
     try {
       const dateToSave = targetDate || format(new Date(), 'yyyy-MM-dd')
 
-      const mealToSave: MealData = {
-        breakfast: mealData.breakfast || '',
-        lunch: mealData.lunch || '',
-        dinner: mealData.dinner || '',
-        snack: mealData.snack || ''
+      // 각 식사 시간대별로 개별 plan 생성
+      const mealSlots = ['breakfast', 'lunch', 'dinner', 'snack'] as const
+      const savedPlans: string[] = []
+
+      for (const slot of mealSlots) {
+        const mealTitle = mealData[slot]
+        if (mealTitle && mealTitle.trim()) {
+          try {
+            const planData = {
+              user_id: user.id,
+              date: dateToSave,
+              slot: slot,
+              type: 'recipe' as const,
+              ref_id: '',
+              title: mealTitle.trim(),
+              location: undefined,
+              macros: undefined,
+              notes: undefined
+            }
+
+            await createPlan.mutateAsync(planData)
+            savedPlans.push(slot)
+          } catch (error) {
+            console.error(`${slot} 저장 실패:`, error)
+          }
+        }
       }
 
-      const success = await MealService.saveMeal(dateToSave, mealToSave, user.id)
-
-      if (success) {
+      if (savedPlans.length > 0) {
         // 성공 메시지 추가
         const successMessage: ChatMessage = {
           id: Date.now().toString(),
           role: 'assistant',
-          content: `✅ 식단이 ${format(new Date(dateToSave), 'M월 d일')} 캘린더에 저장되었습니다! 캘린더 페이지에서 확인해보세요.`,
+          content: `✅ 식단이 ${format(new Date(dateToSave), 'M월 d일')} 캘린더에 저장되었습니다! (${savedPlans.join(', ')}) 캘린더 페이지에서 확인해보세요.`,
           timestamp: new Date()
         }
 
         addMessage(successMessage)
       } else {
-        throw new Error('저장 실패')
+        throw new Error('저장할 식단이 없습니다')
       }
     } catch (error) {
       console.error('식단 저장 실패:', error)
@@ -489,6 +568,167 @@ export function ChatPage() {
       addMessage(errorMessage)
     } finally {
       setIsSavingMeal(null)
+    }
+  }
+
+  // 최근 식단 데이터 찾기 (채팅 히스토리에서)
+  const findRecentMealData = (messages: ChatMessage[]): LLMParsedMeal | null => {
+    // 최근 15개 메시지에서 mealData가 있는 assistant 메시지 검색
+    for (let i = messages.length - 1; i >= Math.max(0, messages.length - 15); i--) {
+      const msg = messages[i]
+      if (msg.role === 'assistant' && msg.mealData) {
+        console.log('🔍 최근 식단 데이터 발견:', msg.mealData)
+        return msg.mealData
+      }
+    }
+    
+    // mealData가 없으면 메시지 내용에서 파싱 시도
+    for (let i = messages.length - 1; i >= Math.max(0, messages.length - 15); i--) {
+      const msg = messages[i]
+      if (msg.role === 'assistant' && msg.content) {
+        const parsedMeal = MealParserService.parseMealFromResponse(msg.content)
+        if (parsedMeal) {
+          console.log('🔍 메시지 내용에서 식단 데이터 파싱 성공:', parsedMeal)
+          return parsedMeal
+        }
+      }
+    }
+    
+    return null
+  }
+
+  // 스마트 식단 저장 - 사용자 메시지에서 날짜 파싱 (7일 식단표 지원)
+  const handleSmartMealSave = async (userMessage: string, mealData: LLMParsedMeal, prefix: string = '') => {
+    if (!user?.id) {
+      return
+    }
+
+    // 메시지에서 날짜 추출
+    const parsedDate = extractDateFromMessage(userMessage)
+
+    if (parsedDate) {
+      setIsSavingMeal('auto-save')
+
+      try {
+        // 7일 식단표인지 확인 (이전 메시지에서 7일 식단표 요청이 있었는지 확인)
+        const recentMessages = messages.slice(-5) // 최근 5개 메시지 확인
+        const has7DayMealPlan = recentMessages.some(msg =>
+          msg.content.includes('7일') && msg.content.includes('식단') ||
+          msg.content.includes('일주일') && msg.content.includes('식단')
+        )
+
+        if (has7DayMealPlan && (userMessage.includes('다음주') || userMessage.includes('담주'))) {
+          // 7일 식단표를 다음주에 저장 (월요일부터 일요일까지)
+          const savedDays: string[] = []
+          let successCount = 0
+
+          for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+            const targetDate = new Date(parsedDate.date)
+            targetDate.setDate(targetDate.getDate() + dayOffset)
+            const dateString = format(targetDate, 'yyyy-MM-dd')
+
+            // 각 식사 시간대별로 개별 plan 생성
+            const mealSlots = ['breakfast', 'lunch', 'dinner', 'snack'] as const
+            let daySuccessCount = 0
+
+            for (const slot of mealSlots) {
+              const mealTitle = mealData[slot]
+              if (mealTitle && mealTitle.trim()) {
+                try {
+                  const planData = {
+                    user_id: user.id,
+                    date: dateString,
+                    slot: slot,
+                    type: 'recipe' as const,
+                    ref_id: '',
+                    title: mealTitle.trim(),
+                    location: undefined,
+                    macros: undefined,
+                    notes: undefined
+                  }
+
+                  await createPlan.mutateAsync(planData)
+                  daySuccessCount++
+                } catch (error) {
+                  console.error(`${dateString} ${slot} 저장 실패:`, error)
+                }
+              }
+            }
+
+            if (daySuccessCount > 0) {
+              savedDays.push(format(targetDate, 'M/d'))
+              successCount += daySuccessCount
+            }
+          }
+
+          if (successCount > 0) {
+            const successMessage: ChatMessage = {
+              id: Date.now().toString(),
+              role: 'assistant',
+              content: `✅ 7일 키토 식단표가 다음주에 저장되었습니다! 📅\n저장된 날짜: ${savedDays.join(', ')}\n총 ${successCount}개 식단이 등록되었습니다. 캘린더에서 확인해보세요! 🗓️`,
+              timestamp: new Date()
+            }
+            addMessage(successMessage)
+          } else {
+            throw new Error('7일 식단표 저장에 실패했습니다')
+          }
+        } else {
+          // 단일 날짜 저장 (기존 로직)
+          const targetDate = formatDateForAPI(parsedDate)
+          const displayDate = formatDateForDisplay(parsedDate)
+
+          const mealSlots = ['breakfast', 'lunch', 'dinner', 'snack'] as const
+          const savedPlans: string[] = []
+
+          for (const slot of mealSlots) {
+            const mealTitle = mealData[slot]
+            if (mealTitle && mealTitle.trim()) {
+              try {
+                const planData = {
+                  user_id: user.id,
+                  date: targetDate,
+                  slot: slot,
+                  type: 'recipe' as const,
+                  ref_id: '',
+                  title: mealTitle.trim(),
+                  location: undefined,
+                  macros: undefined,
+                  notes: undefined
+                }
+
+                await createPlan.mutateAsync(planData)
+                savedPlans.push(slot)
+              } catch (error) {
+                console.error(`${slot} 저장 실패:`, error)
+              }
+            }
+          }
+
+          if (savedPlans.length > 0) {
+            const messagePrefix = prefix ? prefix + ' ' : ''
+            const successMessage: ChatMessage = {
+              id: Date.now().toString(),
+              role: 'assistant',
+              content: `✅ ${messagePrefix}${displayDate}에 자동으로 저장했습니다! (${savedPlans.join(', ')}) 캘린더에서 확인해보세요.`,
+              timestamp: new Date()
+            }
+            addMessage(successMessage)
+          } else {
+            throw new Error('저장할 식단이 없습니다')
+          }
+        }
+      } catch (error) {
+        console.error('스마트 식단 저장 실패:', error)
+        const errorMessage: ChatMessage = {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: `❌ 식단 저장에 실패했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
+          timestamp: new Date()
+        }
+        addMessage(errorMessage)
+      } finally {
+        setIsSavingMeal(null)
+      }
     }
   }
 
@@ -566,6 +806,65 @@ export function ChatPage() {
       }
 
       addMessage(assistantMessage)
+
+      // 스마트 저장: 식단이 있고 사용자가 저장을 요청한 경우 자동 저장
+      if (parsedMeal && user?.id) {
+        const isAutoSaveRequest = (
+          userMessage.content.includes('저장') ||
+          userMessage.content.includes('추가') ||
+          userMessage.content.includes('계획') ||
+          userMessage.content.includes('등록') ||
+          userMessage.content.includes('넣어')
+        ) && (
+          userMessage.content.includes('오늘') ||
+          userMessage.content.includes('내일') ||
+          userMessage.content.includes('모레') ||
+          userMessage.content.includes('다음주') ||
+          userMessage.content.includes('캘린더') ||
+          /\d{1,2}월\s*\d{1,2}일/.test(userMessage.content) ||
+          /\d{1,2}일(?![일월화수목금토])/.test(userMessage.content) ||
+          /\d+일\s*[후뒤]/.test(userMessage.content)
+        )
+
+        if (isAutoSaveRequest) {
+          setTimeout(() => {
+            handleSmartMealSave(userMessage.content, parsedMeal)
+          }, 1000) // 1초 후 자동 저장
+        }
+      }
+      // 현재 메시지에 식단이 없지만 저장 요청이 있는 경우 이전 메시지에서 식단 데이터 찾기
+      else if (!parsedMeal && user?.id) {
+        const isSaveRequest = (
+          userMessage.content.includes('저장') ||
+          userMessage.content.includes('추가') ||
+          userMessage.content.includes('계획') ||
+          userMessage.content.includes('등록') ||
+          userMessage.content.includes('넣어')
+        )
+
+        if (isSaveRequest) {
+          // 현재 메시지를 추가한 후의 전체 메시지 목록에서 이전 식단 데이터 찾기
+          const updatedMessages = [...messages, assistantMessage]
+          const recentMealData = findRecentMealData(updatedMessages)
+
+          if (recentMealData) {
+            setTimeout(() => {
+              handleSmartMealSave(userMessage.content, recentMealData, '이전 식단을')
+            }, 1000) // 1초 후 자동 저장
+          } else {
+            // 이전 식단을 찾을 수 없는 경우 안내 메시지
+            const noMealMessage: ChatMessage = {
+              id: Date.now().toString(),
+              role: 'assistant',
+              content: '❌ 저장할 식단을 찾을 수 없습니다. 먼저 식단 추천을 받아주세요.',
+              timestamp: new Date()
+            }
+            setTimeout(() => {
+              addMessage(noMealMessage)
+            }, 500)
+          }
+        }
+      }
 
       // 스레드 목록 새로고침
       refetchThreads()
@@ -808,24 +1107,32 @@ export function ChatPage() {
                                       <CalendarToday sx={{ fontSize: 20 }} />
                                       추천받은 식단
                                     </h4>
-                                    <Button
-                                      size="sm"
-                                      onClick={() => handleSaveMealToCalendar(msg.id, msg.mealData!)}
-                                      disabled={isSavingMeal === msg.id}
-                                      className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
-                                    >
-                                      {isSavingMeal === msg.id ? (
-                                        <>
-                                          <CircularProgress size={16} sx={{ mr: 1 }} />
-                                          저장 중...
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Save sx={{ fontSize: 16, mr: 1 }} />
-                                          캘린더에 저장
-                                        </>
+                                    <div className="flex gap-2">
+                                      <Button
+                                        size="sm"
+                                        onClick={() => handleSaveMealToCalendar(msg.id, msg.mealData!)}
+                                        disabled={isSavingMeal === msg.id || isSavingMeal === 'auto-save'}
+                                        className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+                                      >
+                                        {isSavingMeal === msg.id ? (
+                                          <>
+                                            <CircularProgress size={16} sx={{ mr: 1 }} />
+                                            저장 중...
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Save sx={{ fontSize: 16, mr: 1 }} />
+                                            오늘에 저장
+                                          </>
+                                        )}
+                                      </Button>
+                                      {isSavingMeal === 'auto-save' && (
+                                        <div className="flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-sm">
+                                          <CircularProgress size={12} />
+                                          <span>자동 저장 중...</span>
+                                        </div>
                                       )}
-                                    </Button>
+                                    </div>
                                   </div>
                                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 text-sm">
                                     {msg.mealData.breakfast && (

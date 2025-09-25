@@ -12,7 +12,7 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
-from app.shared.models.database_models import PlaceCache
+# PlaceCache 모델 대신 Supabase 직접 사용 (database_models.py 삭제됨)
 
 class PlaceSearchTool:
     """카카오 로컬 API 장소 검색 도구"""

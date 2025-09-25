@@ -308,20 +308,43 @@ export class MealParserService {
   private static extractMealFromText(text: string): LLMParsedMeal | null {
     const mealData: any = {}
     
-    // 패턴 매칭으로 식단 정보 추출
-    const patterns = {
-      breakfast: /(?:아침|breakfast)[:\s]*([^\n\r]+)/i,
-      lunch: /(?:점심|lunch)[:\s]*([^\n\r]+)/i,
-      dinner: /(?:저녁|dinner)[:\s]*([^\n\r]+)/i,
-      snack: /(?:간식|snack)[:\s]*([^\n\r]+)/i
-    }
-
-    Object.entries(patterns).forEach(([key, pattern]) => {
-      const match = text.match(pattern)
-      if (match) {
-        mealData[key] = match[1].trim()
+    // 마크다운 형태의 7일 식단표에서 첫 번째 날 파싱
+    const firstDayMatch = text.match(/\*\*1일차:\*\*([\s\S]*?)(?:\*\*2일차:\*\*|$)/)
+    if (firstDayMatch) {
+      const firstDayText = firstDayMatch[1]
+      
+      // 이모지와 함께된 패턴 매칭
+      const patterns = {
+        breakfast: /🌅\s*아침:\s*([^\n\r-]+)/i,
+        lunch: /🌞\s*점심:\s*([^\n\r-]+)/i,
+        dinner: /🌙\s*저녁:\s*([^\n\r-]+)/i,
+        snack: /🍎\s*간식:\s*([^\n\r-]+)/i
       }
-    })
+
+      Object.entries(patterns).forEach(([key, pattern]) => {
+        const match = firstDayText.match(pattern)
+        if (match) {
+          mealData[key] = match[1].trim()
+        }
+      })
+    }
+    
+    // 기본 패턴 매칭 (이모지 없는 경우)
+    if (!this.isValidMealData(mealData)) {
+      const basicPatterns = {
+        breakfast: /(?:아침|breakfast)[:\s]*([^\n\r]+)/i,
+        lunch: /(?:점심|lunch)[:\s]*([^\n\r]+)/i,
+        dinner: /(?:저녁|dinner)[:\s]*([^\n\r]+)/i,
+        snack: /(?:간식|snack)[:\s]*([^\n\r]+)/i
+      }
+
+      Object.entries(basicPatterns).forEach(([key, pattern]) => {
+        const match = text.match(pattern)
+        if (match) {
+          mealData[key] = match[1].trim()
+        }
+      })
+    }
 
     return this.isValidMealData(mealData) ? mealData : null
   }

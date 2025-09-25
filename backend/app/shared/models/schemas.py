@@ -111,11 +111,11 @@ class PlanUpdate(BaseModel):
 
 class PlanResponse(PlanBase):
     """플랜 응답 스키마"""
-    id: UUID
-    user_id: UUID
+    id: str
+    user_id: str
     status: str
-    created_at: datetime
-    updated_at: datetime
+    created_at: str
+    updated_at: str
     
     class Config:
         from_attributes = True
