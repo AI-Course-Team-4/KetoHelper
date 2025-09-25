@@ -69,9 +69,6 @@ export function MealModal({ isOpen, onClose, selectedDate, mealData, onSave, sel
               day: 'numeric' 
             })} {selectedMealType ? allMeals.find(m => m.key === selectedMealType)?.label : '식단'}
           </CardTitle>
-          <Button variant="ghost" size="sm" onClick={handleClose}>
-            <Close sx={{ fontSize: 16 }} />
-          </Button>
         </CardHeader>
         
         <CardContent className="space-y-6">
