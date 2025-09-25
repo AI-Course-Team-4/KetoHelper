@@ -253,18 +253,32 @@ class IntentClassifier:
             r'어떻게\?', r'어떤\?', r'어떤가\?', r'어떻게', r'어떤', r'어떤가',
             r'왜\?', r'왜야\?', r'왜지\?', r'왜', r'왜야', r'왜지',
             r'도움\?', r'도움이\?', r'될까\?', r'도움', r'도움이', r'될까',
-            r'대화', r'채팅', r'말해', r'알려줘', r'설명해', r'궁금해'
+            r'대화', r'채팅', r'말해', r'알려줘', r'설명해', r'궁금해',
+            r'기억해', r'기억하', r'뭐라고', r'뭐라고 했', r'방금', r'아까',
+            r'이름', r'내 이름', r'제 이름', r'기억 못', r'기억 안'
         ]
         
         return any(re.search(pattern, text, re.IGNORECASE) for pattern in question_patterns)
     
     def _has_action_keyword(self, text: str) -> bool:
         """구체적인 액션 키워드 감지"""
-        action_keywords = ["레시피", "식단", "만들", "찾아", "추천", "식당", "맛집", "음식점"]
+        action_keywords = [
+            "레시피", "식단", "만들", "찾아", "추천", "식당", "맛집", "음식점",
+            "기억해", "기억하", "뭐라고", "뭐라고 했", "방금", "아까",
+            "이름", "내 이름", "제 이름", "기억 못", "기억 안", "대화", "채팅"
+        ]
         return any(word in text for word in action_keywords)
     
     def _validate_intent(self, text: str, initial_intent: Intent) -> Intent:
         """의도 검증 및 수정"""
+        
+        # 대화 관련 질문은 GENERAL로 유지 (이름 기억, 이전 대화 내용 등)
+        if any(keyword in text for keyword in [
+            "기억해", "기억하", "뭐라고", "뭐라고 했", "방금", "아까",
+            "이름", "내 이름", "제 이름", "기억 못", "기억 안", "대화", "채팅"
+        ]):
+            print(f"    🔍 검증: 대화 관련 질문 감지 → GENERAL 유지")
+            return Intent.GENERAL
         
         # 질문형 패턴이 있지만 구체적인 액션 키워드가 없으면 GENERAL로 변경
         if self._is_question_pattern(text) and not self._has_action_keyword(text):
