@@ -58,7 +58,7 @@ export default function NaverCallback() {
                 accessToken: at,
                 refreshToken: rt,
               },
-              window.location.origin
+              '*'
             )
             try { sessionStorage.removeItem('naver_oauth_state') } catch {}
             window.close()

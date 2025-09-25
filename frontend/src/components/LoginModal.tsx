@@ -321,7 +321,6 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
 
                                 const messageHandler = (event: MessageEvent) => {
                                     try {
-                                        if (event.origin !== window.location.origin) return
                                         const data: any = (event as any).data
                                         if (!data || data.source !== 'naver_oauth') return
                                         if (data.type === 'success') {
