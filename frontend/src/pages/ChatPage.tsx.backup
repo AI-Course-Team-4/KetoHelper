@@ -9,7 +9,7 @@ import { useProfileStore } from '@/store/profileStore'
 import { useAuthStore } from '@/store/authStore'
 // import { RecipeCard } from '@/components/RecipeCard'
 import { PlaceCard } from '@/components/PlaceCard'
-import { useSendMessage, useGetChatThreads, useGetChatHistory, useCreateNewThread, useDeleteThread, ChatHistory } from '@/hooks/useApi'
+import { useSendMessage, useGetChatThreads, useGetChatHistory, ChatThread, ChatHistory } from '@/hooks/useApi'
 import { MealParserService, MealService } from '@/lib/mealService'
 import { MealData } from '@/data/ketoMeals'
 import { format } from 'date-fns'
@@ -43,13 +43,11 @@ export function ChatPage() {
   const { profile } = useProfileStore()
   const { user, ensureGuestId, isGuest } = useAuthStore()
   const sendMessage = useSendMessage()
-  const createNewThread = useCreateNewThread()
-  const deleteThread = useDeleteThread()
   
   // 채팅 스레드 관련 훅 추가
   const { data: chatThreads = [], refetch: refetchThreads } = useGetChatThreads(
     user?.id, 
-    !user?.id ? ensureGuestId() : undefined
+    isGuest ? ensureGuestId() : undefined
   )
   
   const { data: chatHistory = [], refetch: refetchHistory } = useGetChatHistory(
@@ -258,66 +256,38 @@ export function ChatPage() {
   }, [])
 
   // 새 채팅 세션 생성
-  const createNewChat = async () => {
-    try {
-      // 새 스레드 생성
-      const newThread = await createNewThread.mutateAsync({
-        userId: user?.id,
-        guestId: !user?.id ? ensureGuestId() : undefined
-      })
-      
-      // 상태 업데이트
-      setCurrentThreadId(newThread.id)
+  const createNewChat = () => {
+    const newSessionId = Date.now().toString()
+    const newSession: ChatSession = {
+      id: newSessionId,
+      title: '새 채팅',
+      messages: [],
+      createdAt: new Date()
+    }
+
+    setChatSessions(prev => [newSession, ...prev])
+    setCurrentSessionId(newSessionId)
+    clearMessages()
+    setMessage('')
+  }
+
+  // 채팅 세션 삭제
+  const deleteChatSession = (sessionId: string) => {
+    setChatSessions(prev => prev.filter(session => session.id !== sessionId))
+    if (currentSessionId === sessionId) {
       setCurrentSessionId(null)
       clearMessages()
-      setMessage('')
-      
-      // 스레드 목록 새로고침
-      refetchThreads()
-      
-      console.log('🆕 새 채팅 스레드 생성:', newThread.id)
-    } catch (error) {
-      console.error('❌ 새 스레드 생성 실패:', error)
-      // 실패 시에도 UI는 초기화
-      setCurrentThreadId(null)
-      setCurrentSessionId(null)
-      clearMessages()
-      setMessage('')
     }
   }
 
-
-  // 스레드 선택 함수 추가
-  const selectThread = (threadId: string) => {
-    setCurrentThreadId(threadId)
-    setCurrentSessionId(threadId) // 호환성을 위해
-    // 해당 스레드의 히스토리를 새로 불러옴
-    refetchHistory()
-  }
-
-  // 스레드 삭제 함수 추가
-  const handleDeleteThread = async (threadId: string) => {
-    if (!confirm('정말로 이 대화를 삭제하시겠습니까?')) {
-      return
-    }
-
-    try {
-      await deleteThread.mutateAsync(threadId)
-      
-      // 현재 선택된 스레드가 삭제된 경우 새 채팅으로 이동
-      if (currentThreadId === threadId) {
-        setCurrentThreadId(null)
-        clearMessages()
-        setMessage('')
-      }
-      
-      // 스레드 목록 새로고침
-      refetchThreads()
-      
-      console.log('🗑️ 스레드 삭제 완료:', threadId)
-    } catch (error) {
-      console.error('❌ 스레드 삭제 실패:', error)
-      alert('스레드 삭제에 실패했습니다. 다시 시도해주세요.')
+  // 채팅 세션 선택
+  const selectChatSession = (sessionId: string) => {
+    const session = chatSessions.find(s => s.id === sessionId)
+    if (session) {
+      setCurrentSessionId(sessionId)
+      // 선택된 세션의 메시지들을 채팅 스토어에 로드
+      clearMessages()
+      session.messages.forEach(msg => addMessage(msg))
     }
   }
 
@@ -366,7 +336,7 @@ export function ChatPage() {
         } : undefined,
         location: undefined, // TODO: 위치 정보 연동
         radius_km: 5,
-        thread_id: threadId || undefined,
+        thread_id: threadId,
         user_id: userId,
         guest_id: guestId
       })
@@ -410,8 +380,15 @@ export function ChatPage() {
       addMessage(assistantMessage)
       addMessageToCurrentSession(assistantMessage)
 
-      // 스레드 목록 새로고침
-      refetchThreads()
+      // 첫 번째 메시지인 경우 세션 제목 업데이트 (사용자 메시지가 첫 번째 메시지인지 확인)
+      if (sessionId) {
+        setChatSessions(prev => prev.map(session => {
+          if (session.id === sessionId && session.title === '새 채팅') {
+            return { ...session, title: userMessage.content.slice(0, 30) + (userMessage.content.length > 30 ? '...' : '') }
+          }
+          return session
+        }))
+      }
     } catch (error) {
       console.error('메시지 전송 실패:', error)
       const errorMessage: ChatMessage = {
@@ -499,12 +476,21 @@ export function ChatPage() {
     if (!quickMessage.trim() || isLoading) return
     setShouldAutoScroll(true)
 
-    // 사용자/게스트 ID 준비
-    const userId = user?.id
-    const guestId = isGuest ? ensureGuestId() : undefined
+    // 현재 세션이 없으면 새 세션 생성
+    let sessionId = currentSessionId
+    if (!sessionId) {
+      const newSessionId = Date.now().toString()
+      const newSession: ChatSession = {
+        id: newSessionId,
+        title: '새 채팅',
+        messages: [],
+        createdAt: new Date()
+      }
 
-    // 현재 스레드가 없으면 새로 생성 (백엔드에서 처리)
-    let threadId = currentThreadId
+      setChatSessions(prev => [newSession, ...prev])
+      setCurrentSessionId(newSessionId)
+      sessionId = newSessionId
+    }
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -527,18 +513,8 @@ export function ChatPage() {
           goals_carbs_g: profile.goals_carbs_g
         } : undefined,
         location: undefined, // TODO: 위치 정보 연동
-        radius_km: 5,
-        thread_id: threadId || undefined,
-        user_id: userId,
-        guest_id: guestId
+        radius_km: 5
       })
-
-      // 응답에서 thread_id 업데이트
-      if (response.thread_id && response.thread_id !== threadId) {
-        setCurrentThreadId(response.thread_id)
-        setCurrentSessionId(response.thread_id)
-        threadId = response.thread_id
-      }
 
       // 백엔드 응답에서 식단 데이터 파싱
       let parsedMeal = MealParserService.parseMealFromBackendResponse(response)
@@ -572,8 +548,15 @@ export function ChatPage() {
       addMessage(assistantMessage)
       addMessageToCurrentSession(assistantMessage)
 
-      // 스레드 목록 새로고침
-      refetchThreads()
+      // 첫 번째 메시지인 경우 세션 제목 업데이트 (사용자 메시지가 첫 번째 메시지인지 확인)
+      if (sessionId) {
+        setChatSessions(prev => prev.map(session => {
+          if (session.id === sessionId && session.title === '새 채팅') {
+            return { ...session, title: userMessage.content.slice(0, 30) + (userMessage.content.length > 30 ? '...' : '') }
+          }
+          return session
+        }))
+      }
     } catch (error) {
       console.error('메시지 전송 실패:', error)
       const errorMessage: ChatMessage = {
@@ -628,39 +611,39 @@ export function ChatPage() {
                   </div>
                 )}
 
-                {chatThreads.map((thread) => (
+                {chatSessions.map((session) => (
                   <div
-                    key={thread.id}
-                    className={`group relative p-4 rounded-xl transition-all duration-300 ${currentThreadId === thread.id
+                    key={session.id}
+                    className={`group relative p-4 rounded-xl transition-all duration-300 ${currentSessionId === session.id
                       ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg border border-green-300'
                       : 'bg-gray-50 hover:bg-green-50 hover:shadow-md border border-gray-200 hover:border-green-200'
                       } ${isLoading ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'}`}
                     onClick={() => {
                       if (!isLoading) {
-                        selectThread(thread.id)
+                        selectChatSession(session.id)
                       }
                     }}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
                         <h4 className="text-sm font-medium truncate mb-1">
-                          {thread.title}
+                          {session.title}
                         </h4>
-                        <p className={`text-xs ${currentThreadId === thread.id ? 'text-white/70' : 'text-muted-foreground'
+                        <p className={`text-xs ${currentSessionId === session.id ? 'text-white/70' : 'text-muted-foreground'
                           }`}>
-                          {new Date(thread.last_message_at).toLocaleDateString()}
+                          {session.createdAt.toLocaleDateString()}
                         </p>
                       </div>
                       <Button
                         variant="ghost"
                         size="sm"
                         disabled={isLoading}
-                        className={`opacity-0 group-hover:opacity-100 h-7 w-7 p-0 transition-opacity duration-200 ${currentThreadId === thread.id ? 'text-white hover:bg-white/20' : 'hover:bg-muted'
+                        className={`opacity-0 group-hover:opacity-100 h-7 w-7 p-0 transition-opacity duration-200 ${currentSessionId === session.id ? 'text-white hover:bg-white/20' : 'hover:bg-muted'
                           } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                         onClick={(e) => {
                           e.stopPropagation()
                           if (!isLoading) {
-                            handleDeleteThread(thread.id)
+                            deleteChatSession(session.id)
                           }
                         }}
                       >

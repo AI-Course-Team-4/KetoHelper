@@ -943,13 +943,29 @@ class KetoCoachAgent:
         message: str,
         location: Optional[Dict[str, float]] = None,
         radius_km: float = 5.0,
-        profile: Optional[Dict[str, Any]] = None
+        profile: Optional[Dict[str, Any]] = None,
+        chat_history: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """메시지 처리 메인 함수"""
         
+        # 대화 히스토리를 메시지에 포함
+        messages = []
+        
+        # 이전 대화 내용 추가 (최근 10개 메시지)
+        if chat_history:
+            print(f"📚 대화 히스토리 {len(chat_history)}개 메시지를 컨텍스트에 포함")
+            for msg in chat_history:
+                if msg.get("role") == "user":
+                    messages.append(HumanMessage(content=msg.get("message", "")))
+                elif msg.get("role") == "assistant":
+                    messages.append(AIMessage(content=msg.get("message", "")))
+        
+        # 현재 메시지 추가
+        messages.append(HumanMessage(content=message))
+        
         # 초기 상태 설정
         initial_state: AgentState = {
-            "messages": [HumanMessage(content=message)],
+            "messages": messages,
             "intent": "",
             "slots": {},
             "results": [],

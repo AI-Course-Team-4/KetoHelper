@@ -14,6 +14,9 @@ export interface ChatRequest {
     goals_kcal?: number
     goals_carbs_g?: number
   }
+  thread_id?: string
+  user_id?: string
+  guest_id?: string
 }
 
 export interface ChatResponse {
@@ -24,12 +27,89 @@ export interface ChatResponse {
     tool: string
     [key: string]: any
   }>
+  session_id?: string
+  thread_id?: string
+  assistantBatch?: Array<{
+    role: string
+    message: string
+  }>
+}
+
+// 채팅 스레드 관련 타입
+export interface ChatThread {
+  id: string
+  title: string
+  last_message_at: string
+  created_at: string
+}
+
+export interface ChatHistory {
+  id: number
+  thread_id: string
+  role: string
+  message: string
+  created_at: string
 }
 
 export function useSendMessage() {
   return useMutation({
     mutationFn: async (data: ChatRequest): Promise<ChatResponse> => {
       const response = await api.post('/chat/', data)
+      return response.data
+    }
+  })
+}
+
+// 채팅 스레드 목록 조회
+export function useGetChatThreads(userId?: string, guestId?: string, limit = 20) {
+  return useQuery({
+    queryKey: ['chat-threads', userId, guestId, limit],
+    queryFn: async (): Promise<ChatThread[]> => {
+      const params: any = { limit }
+      if (userId) params.user_id = userId
+      if (guestId) params.guest_id = guestId
+      
+      const response = await api.get('/chat/threads', { params })
+      return response.data
+    },
+    enabled: !!(userId || guestId)
+  })
+}
+
+// 채팅 히스토리 조회
+export function useGetChatHistory(threadId: string, limit = 20, before?: string) {
+  return useQuery({
+    queryKey: ['chat-history', threadId, limit, before],
+    queryFn: async (): Promise<ChatHistory[]> => {
+      const params: any = { limit }
+      if (before) params.before = before
+      
+      const response = await api.get(`/chat/history/${threadId}`, { params })
+      return response.data
+    },
+    enabled: !!threadId
+  })
+}
+
+// 새 채팅 스레드 생성
+export function useCreateNewThread() {
+  return useMutation({
+    mutationFn: async (data: { userId?: string; guestId?: string }): Promise<ChatThread> => {
+      const params: any = {}
+      if (data.userId) params.user_id = data.userId
+      if (data.guestId) params.guest_id = data.guestId
+      
+      const response = await api.post('/chat/threads/new', {}, { params })
+      return response.data
+    }
+  })
+}
+
+// 채팅 스레드 삭제
+export function useDeleteThread() {
+  return useMutation({
+    mutationFn: async (threadId: string): Promise<{ message: string }> => {
+      const response = await api.delete(`/chat/threads/${threadId}`)
       return response.data
     }
   })
