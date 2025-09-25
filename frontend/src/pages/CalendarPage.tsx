@@ -12,6 +12,24 @@ import { DateDetailModal } from '@/components/DateDetailModal'
 import { usePlansRange } from '@/hooks/useApi'
 import { useAuthStore } from '@/store/authStore'
 
+// 컴포넌트 상단에 추가
+const getMealText = (mealData: MealData | null, mealType: string): string => {
+  if (!mealData) return '';
+  
+  switch (mealType) {
+    case 'breakfast':
+      return mealData.breakfast || '';
+    case 'lunch':
+      return mealData.lunch || '';
+    case 'dinner':
+      return mealData.dinner || '';
+    case 'snack':
+      return mealData.snack || '';
+    default:
+      return '';
+  }
+};
+
 export function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [currentMonth, setCurrentMonth] = useState(new Date())
@@ -664,10 +682,10 @@ export function CalendarPage() {
                     </div>
                   </div>
                   <div className="text-sm text-gray-600 mt-2 ml-11">
-                    {selectedMeal && selectedMeal[meal.key as keyof MealData] && selectedMeal[meal.key as keyof MealData].trim() !== ''
-                      ? selectedMeal[meal.key as keyof MealData]
-                      : '계획된 식단이 없습니다'
-                    }
+                    {(() => {
+                      const mealText = getMealText(selectedMeal, meal.key);
+                      return mealText.trim() !== '' ? mealText : '계획된 식단이 없습니다';
+                    })()}
                   </div>
                 </div>
               ))
