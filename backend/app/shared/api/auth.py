@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi import Body
 from fastapi import Response, Request
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 import httpx
+import json
 import os
 import jwt
 from app.core.jwt_utils import (
@@ -206,7 +208,104 @@ async def kakao_login(payload: KakaoAccessRequest, response: Response):
         import traceback; traceback.print_exc()
         print('[DEBUG] token/cookie error:', str(e))
         raise
-    return {"accessToken": access, "refreshToken": refresh, "user": user}
+    # 팝업 브릿지 HTML 반환 (부모창에 결과 전송 후 창 닫기)
+    payload = {
+        "source": "naver_oauth",
+        "type": "success",
+        "user": user,
+        "accessToken": access,
+        "refreshToken": refresh,
+    }
+    html = f"""
+<!doctype html><meta charset=\"utf-8\"><title>Naver Login</title>
+<script>
+(function() {{
+  try {{
+    var payload = {json.dumps(payload)};
+    if (window.opener && window.opener !== window) {{
+      window.opener.postMessage(payload, '*');
+    }}
+    try {{
+      localStorage.setItem('naver_oauth_result', JSON.stringify(payload));
+      setTimeout(function(){{ localStorage.removeItem('naver_oauth_result'); }}, 500);
+    }} catch(e) {{}}
+    try {{ window.close(); }} catch(e) {{}}
+  }} catch(e) {{
+    location.replace('/');
+  }}
+}})();
+</script>
+"""
+    return HTMLResponse(content=html, media_type="text/html")
+
+
+@router.get("/naver/callback")
+async def naver_callback(code: str, state: str, request: Request, response: Response):
+    client_id = os.getenv("NAVER_CLIENT_ID") or os.getenv("VITE_NAVER_CLIENT_ID", "")
+    client_secret = os.getenv("NAVER_CLIENT_SECRET") or os.getenv("VITE_NAVER_CLIENT_SECRET", "")
+    if not client_id or not client_secret:
+        raise HTTPException(status_code=500, detail="Naver OAuth not configured")
+
+    # 토큰 교환
+    async with httpx.AsyncClient(timeout=10) as client:
+        token_res = await client.post(
+            "https://nid.naver.com/oauth2.0/token",
+            params={
+                "grant_type": "authorization_code",
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "code": code,
+                "state": state,
+                "redirect_uri": str(request.url)
+            },
+        )
+        token_data = token_res.json()
+        access_token = token_data.get("access_token")
+        if not access_token:
+            raise HTTPException(status_code=400, detail={"message": "Invalid Naver code/state", "naver": token_data})
+
+        # 프로필 조회
+        profile_res = await client.get(
+            "https://openapi.naver.com/v1/nid/me",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        resp = profile_res.json().get("response", {})
+        profile = {
+            "id": resp.get("id"),
+            "email": resp.get("email", ""),
+            "name": resp.get("name") or resp.get("nickname") or "",
+            "picture": resp.get("profile_image", ""),
+            "provider": "naver",
+        }
+
+    # 사용자 upsert 및 토큰/쿠키
+    user = await _upsert_user(profile)
+    access = create_access_token(user["id"], {"email": user["email"], "name": user["name"]})
+    refresh = create_refresh_token(user["id"])
+    _set_auth_cookies(response, access, refresh)
+
+    # 브릿지 HTML: 메인 창에 알리고 닫기
+    target_origin = os.getenv("FRONTEND_DOMAIN", "").rstrip("/") or "*"
+    payload = {"provider": "naver", "ok": True}
+    html = f"""
+<!doctype html><meta charset=\"utf-8\"><title>Naver Login</title>
+<script>
+(function() {{
+  try {{
+    var target = {json.dumps(target_origin)};
+    var payload = {json.dumps(payload)};
+    if (window.opener && window.opener !== window) {{
+      window.opener.postMessage(payload, target === '' ? '*' : target);
+      try {{
+        if (target && target !== '*') window.opener.location.replace(target + '/login/success');
+      }} catch(e) {{}}
+    }}
+  }} catch(e) {{}}
+  try {{ window.close(); }} catch(e) {{}}
+}})();
+</script>
+"""
+    return HTMLResponse(content=html, media_type="text/html")
 
 
 @router.post("/naver")

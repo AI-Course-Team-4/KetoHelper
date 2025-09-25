@@ -285,7 +285,8 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                                 }
                                 setIsNaverLoading(true)
                                 setError(null)
-                                const redirectUriRaw = `${window.location.origin}/auth/naver/callback`
+                                const apiBase = ((import.meta as any).env.VITE_API_BASE_URL || '').replace(/\/+$/,'')
+                                const redirectUriRaw = apiBase ? `${apiBase}/api/v1/auth/naver/callback` : `${window.location.origin}/auth/naver/callback`
                                 const redirectUri = encodeURIComponent(redirectUriRaw)
                                 const state = Math.random().toString(36).slice(2)
                                 try { sessionStorage.setItem('naver_oauth_state', state) } catch { }
@@ -297,7 +298,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                                 const left = window.screenX + Math.max(0, (window.outerWidth - width) / 2)
                                 const top = window.screenY + Math.max(0, (window.outerHeight - height) / 2)
                                 const popupName = `naver_oauth_popup_${state}`
-                                const features = `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,status=no,toolbar=no,menubar=no,location=no`
+                                const features = `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,status=no,toolbar=no,menubar=no,location=no,noopener=no,noreferrer=no`
                                 const popup = window.open(
                                     authUrl,
                                     popupName,
