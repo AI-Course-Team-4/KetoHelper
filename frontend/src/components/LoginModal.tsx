@@ -297,7 +297,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                                 const left = window.screenX + Math.max(0, (window.outerWidth - width) / 2)
                                 const top = window.screenY + Math.max(0, (window.outerHeight - height) / 2)
                                 const popupName = `naver_oauth_popup_${state}`
-                                const features = `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,status=no,toolbar=no,menubar=no,location=no`
+                                const features = `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,status=no,toolbar=no,menubar=no,location=no,noopener=no,noreferrer=no`
                                 const popup = window.open(
                                     authUrl,
                                     popupName,
