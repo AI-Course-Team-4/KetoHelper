@@ -285,7 +285,8 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                                 }
                                 setIsNaverLoading(true)
                                 setError(null)
-                                const redirectUriRaw = `${window.location.origin}/auth/naver/callback`
+                                const apiBase = ((import.meta as any).env.VITE_API_BASE_URL || '').replace(/\/+$/,'')
+                                const redirectUriRaw = apiBase ? `${apiBase}/api/v1/auth/naver/callback` : `${window.location.origin}/auth/naver/callback`
                                 const redirectUri = encodeURIComponent(redirectUriRaw)
                                 const state = Math.random().toString(36).slice(2)
                                 try { sessionStorage.setItem('naver_oauth_state', state) } catch { }
