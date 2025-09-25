@@ -17,18 +17,10 @@ import KakaoMap from './KakaoMap'
 
 // Message 타입을 ChatMessage로 대체
 
-interface ChatSession {
-  id: string
-  title: string
-  messages: ChatMessage[]
-  createdAt: Date
-}
 
 export function ChatPage() {
   const [message, setMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [chatSessions, setChatSessions] = useState<ChatSession[]>([])
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(null) // 현재 스레드 ID 추가
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
@@ -81,7 +73,6 @@ export function ChatPage() {
         if (chatThreads.length > 0 && !currentThreadId) {
           const latestThread = chatThreads[0]
           setCurrentThreadId(latestThread.id)
-          setCurrentSessionId(latestThread.id) // 호환성을 위해
         }
       } catch (error) {
         console.error('이전 대화 불러오기 실패:', error)
@@ -268,7 +259,6 @@ export function ChatPage() {
       
       // 상태 업데이트
       setCurrentThreadId(newThread.id)
-      setCurrentSessionId(null)
       clearMessages()
       setMessage('')
       
@@ -282,7 +272,6 @@ export function ChatPage() {
       console.error('❌ 새 스레드 생성 실패:', error)
       // 실패 시에도 UI는 초기화
       setCurrentThreadId(null)
-      setCurrentSessionId(null)
       clearMessages()
       setMessage('')
     }
@@ -292,7 +281,6 @@ export function ChatPage() {
   // 스레드 선택 함수 추가
   const selectThread = (threadId: string) => {
     setCurrentThreadId(threadId)
-    setCurrentSessionId(threadId) // 호환성을 위해
     // 현재 메시지 초기화
     clearMessages()
     setMessage('')
@@ -327,16 +315,6 @@ export function ChatPage() {
     }
   }
 
-  // 현재 세션에 메시지 추가
-  const addMessageToCurrentSession = (message: ChatMessage) => {
-    if (currentSessionId) {
-      setChatSessions(prev => prev.map(session =>
-        session.id === currentSessionId
-          ? { ...session, messages: [...session.messages, message] }
-          : session
-      ))
-    }
-  }
 
   const handleSendMessage = async () => {
     if (!message.trim() || isLoading) return
@@ -357,7 +335,6 @@ export function ChatPage() {
     }
 
     addMessage(userMessage)
-    addMessageToCurrentSession(userMessage)
     setMessage('')
     setIsLoading(true)
 
@@ -380,7 +357,6 @@ export function ChatPage() {
       // 응답에서 thread_id 업데이트
       if (response.thread_id && response.thread_id !== threadId) {
         setCurrentThreadId(response.thread_id)
-        setCurrentSessionId(response.thread_id)
         threadId = response.thread_id
       }
 
@@ -414,7 +390,6 @@ export function ChatPage() {
       }
 
       addMessage(assistantMessage)
-      addMessageToCurrentSession(assistantMessage)
 
       // 스레드 목록 새로고침
       refetchThreads()
@@ -427,7 +402,6 @@ export function ChatPage() {
         timestamp: new Date()
       }
       addMessage(errorMessage)
-      addMessageToCurrentSession(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -450,7 +424,6 @@ export function ChatPage() {
         timestamp: new Date()
       }
       addMessage(errorMessage)
-      addMessageToCurrentSession(errorMessage)
       return
     }
 
@@ -478,7 +451,6 @@ export function ChatPage() {
         }
 
         addMessage(successMessage)
-        addMessageToCurrentSession(successMessage)
       } else {
         throw new Error('저장 실패')
       }
@@ -494,7 +466,6 @@ export function ChatPage() {
       }
 
       addMessage(errorMessage)
-      addMessageToCurrentSession(errorMessage)
     } finally {
       setIsSavingMeal(null)
     }
@@ -520,7 +491,6 @@ export function ChatPage() {
     }
 
     addMessage(userMessage)
-    addMessageToCurrentSession(userMessage)
     setIsLoading(true)
 
     try {
@@ -542,7 +512,6 @@ export function ChatPage() {
       // 응답에서 thread_id 업데이트
       if (response.thread_id && response.thread_id !== threadId) {
         setCurrentThreadId(response.thread_id)
-        setCurrentSessionId(response.thread_id)
         threadId = response.thread_id
       }
 
@@ -576,7 +545,6 @@ export function ChatPage() {
       }
 
       addMessage(assistantMessage)
-      addMessageToCurrentSession(assistantMessage)
 
       // 스레드 목록 새로고침
       refetchThreads()
@@ -589,7 +557,6 @@ export function ChatPage() {
         timestamp: new Date()
       }
       addMessage(errorMessage)
-      addMessageToCurrentSession(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -624,7 +591,7 @@ export function ChatPage() {
             {/* 채팅 히스토리 */}
             <div className="max-h-[60vh] overflow-y-auto">
               <div className="space-y-3">
-                {chatSessions.length === 0 && (
+                {chatThreads.length === 0 && (
                   <div className="text-center py-12 text-muted-foreground">
                     <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-4">
                       <Message sx={{ fontSize: 32 }} />
