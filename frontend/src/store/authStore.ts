@@ -48,7 +48,28 @@ export const useAuthStore = create<AuthState>()(
             profileImage: user?.profileImage,
           })
         } catch {}
-        set({ user, accessToken, refreshToken, isGuest: false });
+        
+        // 게스트에서 로그인으로 전환 시 기존 게스트 데이터 삭제
+        const currentState = get()
+        if (currentState.guestId) {
+          console.log('🗑️ 게스트에서 로그인 전환 - 게스트 데이터 삭제:', currentState.guestId)
+          
+          // 게스트 관련 로컬스토리지 데이터 삭제
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('keto-coach-chat-v2') // 채팅 스토어 데이터
+            localStorage.removeItem('keto-coach-profile-v2') // 프로필 데이터
+            
+            // 게스트 ID별 특정 데이터 삭제 (있다면)
+            const guestChatKey = `guest-chat-${currentState.guestId}`
+            const guestThreadKey = `guest-threads-${currentState.guestId}`
+            localStorage.removeItem(guestChatKey)
+            localStorage.removeItem(guestThreadKey)
+            
+            console.log('✅ 게스트 데이터 삭제 완료')
+          }
+        }
+        
+        set({ user, accessToken, refreshToken, isGuest: false, guestId: '' });
       },
       setAccessToken: (accessToken) => set({ accessToken }),
       updateUser: (updates) => {

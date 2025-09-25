@@ -65,6 +65,27 @@ export function ChatPage() {
     }
   }, [])
 
+  // 로그인 상태 변화 감지 - 게스트에서 로그인으로 전환 시 채팅 데이터 초기화
+  useEffect(() => {
+    if (user && !isGuest) {
+      console.log('🔐 로그인 감지 - 채팅 데이터 초기화')
+      
+      // 채팅 메시지 클리어
+      clearMessages()
+      
+      // 현재 스레드 ID 초기화
+      setCurrentThreadId(null)
+      
+      // 스레드 목록 새로고침 (로그인 사용자용)
+      refetchThreads()
+      
+      // 선택된 장소 인덱스 초기화
+      setSelectedPlaceIndexByMsg({})
+      
+      console.log('✅ 로그인 후 채팅 데이터 초기화 완료')
+    }
+  }, [user, isGuest, clearMessages, refetchThreads])
+
   // 페이지 로드 시 이전 대화 불러오기
   useEffect(() => {
     const loadPreviousChat = async () => {
