@@ -532,20 +532,23 @@ export function ChatPage() {
       </div>
 
       {/* 메인 콘텐츠 영역 */}
-      <div className="flex flex-1 gap-4 lg:gap-6 px-4 lg:px-6 min-h-0 overflow-hidden">
+        <div className="flex flex-1 gap-4 lg:gap-6 min-h-0 overflow-hidden mt-6">
         {/* 왼쪽 사이드바 - 데스크톱에서만 표시 */}
-        <div className="hidden lg:block w-80 bg-white/80 backdrop-blur-sm border-0 rounded-2xl shadow-xl flex flex-col">
+        <div className="hidden lg:block w-80 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl flex flex-col">
           {/* 사이드바 헤더 */}
           <div className="p-6 border-b border-gray-100">
             <Button
               onClick={createNewChat}
               disabled={isLoading}
-              className={`w-full justify-center gap-3 h-14 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300 mb-4 rounded-xl ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`w-full justify-center gap-3 h-14 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
               variant="default"
             >
               <Add sx={{ fontSize: 20 }} />
               새 채팅 시작
             </Button>
+
+            {/* 여백 추가 */}
+            <div className="h-4"></div>
 
             {/* 채팅 히스토리 */}
             <div className="max-h-[60vh] overflow-y-auto">
@@ -607,7 +610,7 @@ export function ChatPage() {
         </div>
 
         {/* 메인 채팅 영역 */}
-        <div className="flex-1 flex flex-col bg-white/80 backdrop-blur-sm border-0 rounded-2xl shadow-xl min-h-0 w-full lg:w-auto overflow-hidden">
+        <div className="flex-1 flex flex-col bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl min-h-0 w-full lg:w-auto overflow-hidden">
           {!hasStartedChatting ? (
             // 채팅 시작 전 - 가운데 입력창
             <div className="flex-1 flex items-center justify-center p-8 overflow-hidden">
@@ -616,11 +619,11 @@ export function ChatPage() {
                   <div className="w-28 h-28 lg:w-36 lg:h-36 rounded-full bg-gradient-to-br from-green-500 via-emerald-500 to-teal-500 flex items-center justify-center mx-auto mb-6 lg:mb-8 shadow-2xl ring-4 ring-green-100">
                     <span className="text-5xl lg:text-6xl">🥑</span>
                   </div>
-                  <h3 className="text-3xl lg:text-4xl font-bold mb-4 lg:mb-6 bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 bg-clip-text text-transparent">
-                    안녕하세요! 키토 코치입니다
+                  <h3 className="text-3xl lg:text-3xl font-bold mb-4 lg:mb-6 bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                    안녕하세요, 키토 코치입니다!
                   </h3>
                   {user ? (
-                    <p className="text-gray-600 text-lg lg:text-xl leading-relaxed px-4 max-w-2xl mx-auto">
+                    <p className="text-gray-600 text-lg lg:text-lg leading-relaxed px-4 max-w-2xl mx-auto">
                       건강한 키토 식단을 위한 모든 것을 도와드릴게요.<br />
                       <span className="font-semibold text-green-700">레시피 추천부터 식당 찾기까지</span> 무엇이든 물어보세요!
                     </p>
@@ -641,7 +644,7 @@ export function ChatPage() {
                         onChange={(e) => setMessage(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder="키토 식단에 대해 무엇이든 물어보세요..."
-                        className="h-14 lg:h-16 text-base lg:text-lg pl-6 lg:pl-8 pr-12 lg:pr-16 bg-white border-2 border-gray-200 focus:border-green-400 rounded-2xl shadow-lg focus:shadow-xl transition-all duration-300"
+                        className="h-14 lg:h-16 text-base lg:text-lg pl-6 lg:pl-8 pr-12 lg:pr-16 bg-white border-2 border-gray-200 focus:border-green-400 rounded-3xl shadow-lg focus:shadow-xl transition-all duration-300"
                         disabled={isLoading}
                       />
                       {isLoading && (
@@ -653,7 +656,7 @@ export function ChatPage() {
                     <Button
                       onClick={handleSendMessage}
                       disabled={!message.trim() || isLoading}
-                      className="h-14 lg:h-16 px-6 lg:px-8 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300"
+                      className="h-14 lg:h-16 px-6 lg:px-8 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold rounded-2xl hover:shadow-xl transition-all duration-300"
                     >
                       <Send className="h-5 w-5 lg:h-6 lg:w-6" />
                     </Button>
@@ -690,7 +693,7 @@ export function ChatPage() {
                 <div ref={scrollAreaRef} className="flex-1 p-4 lg:p-6 overflow-y-auto scroll-smooth">
                   <div className="max-w-4xl mx-auto">
                     <div className="space-y-4 lg:space-y-6">
-                      {messages.map((msg, index) => (
+                      {messages.map((msg: ChatMessage, index: number) => (
                         <div key={msg.id}>
                           {/* 날짜 구분선 */}
                           {shouldShowDateSeparator(index) && (
@@ -715,7 +718,7 @@ export function ChatPage() {
                             </div>
 
                             {/* 메시지 내용 */}
-                            <div className={`flex-1 max-w-2xl ${msg.role === 'user' ? 'text-right' : ''}`}>
+                            <div className={`flex-1 max-w-3xl ${msg.role === 'user' ? 'text-right' : ''}`}>
                               <div className={`inline-block p-4 lg:p-5 rounded-2xl shadow-lg ${msg.role === 'user'
                                   ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
                                   : 'bg-white border-2 border-gray-100'
@@ -804,52 +807,65 @@ export function ChatPage() {
                                 </div>
                               )} */}
 
-                              {/* 결과에 좌표가 포함된 장소가 있으면 작은 지도를 표시 */}
+                              {/* 결과에 좌표가 포함된 장소가 있으면 지도와 카드를 가로로 표시 */}
                               {msg.results && msg.results.some((r: any) => typeof r.lat === 'number' && typeof r.lng === 'number') && (
                                 <div className="mt-4 lg:mt-5">
-                                  <div className="rounded-2xl overflow-hidden border border-gray-200">
-                                    <div className="h-[460px]">
-                                      {(() => {
-                                        const placeResults = msg.results!.filter((r: any) => typeof r.lat === 'number' && typeof r.lng === 'number')
-                                        const restaurants = placeResults.map((r: any, i: number) => ({
-                                          id: r.place_id || String(i),
-                                          name: r.name || '',
-                                          address: r.address || '',
-                                          lat: r.lat,
-                                          lng: r.lng,
-                                        }))
-                                        return (
-                                          <KakaoMap
-                                            lat={userLocation?.lat}
-                                            lng={userLocation?.lng}
-                                            level={1}
-                                            fitToBounds={true}
-                                            restaurants={restaurants}
-                                            activeIndex={typeof selectedPlaceIndexByMsg[msg.id] === 'number' ? selectedPlaceIndexByMsg[msg.id]! : null}
-                                            specialMarker={userLocation ? { lat: userLocation.lat, lng: userLocation.lng, title: '현재 위치' } : undefined}
-                                            onMarkerClick={({ index }) => {
-                                              setSelectedPlaceIndexByMsg(prev => ({ ...prev, [msg.id]: index }))
-                                            }}
-                                          />
-                                        )
-                                      })()}
+                                  <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
+                                    {/* 지도 영역 */}
+                                    <div className="flex-1">
+                                      <div className="rounded-2xl overflow-hidden border border-gray-200">
+                                        <div className="h-[500px] lg:h-[500px]">
+                                          {(() => {
+                                            const placeResults = msg.results!.filter((r: any) => typeof r.lat === 'number' && typeof r.lng === 'number')
+                                            const restaurants = placeResults.map((r: any, i: number) => ({
+                                              id: r.place_id || String(i),
+                                              name: r.name || '',
+                                              address: r.address || '',
+                                              lat: r.lat,
+                                              lng: r.lng,
+                                            }))
+                                            return (
+                                              <KakaoMap
+                                                key={`map-${msg.id}`}
+                                                lat={userLocation?.lat}
+                                                lng={userLocation?.lng}
+                                                level={1}
+                                                fitToBounds={true}
+                                                restaurants={restaurants}
+                                                activeIndex={typeof selectedPlaceIndexByMsg[msg.id] === 'number' ? selectedPlaceIndexByMsg[msg.id]! : null}
+                                                specialMarker={userLocation ? { lat: userLocation.lat, lng: userLocation.lng, title: '현재 위치' } : undefined}
+                                                onMarkerClick={({ index }) => {
+                                                  setSelectedPlaceIndexByMsg(prev => ({ ...prev, [msg.id]: index }))
+                                                }}
+                                              />
+                                            )
+                                          })()}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* 장소 카드 영역 */}
+                                    <div className="w-full lg:w-80 flex-shrink-0">
+                                      <div className="overflow-hidden">
+                                        {(() => {
+                                          const placeResults = msg.results!.filter((r: any) => typeof r.lat === 'number' && typeof r.lng === 'number')
+                                          const sel = selectedPlaceIndexByMsg[msg.id]
+                                          if (typeof sel === 'number' && sel >= 0 && sel < placeResults.length) {
+                                            const place = placeResults[sel]
+                                            return <PlaceCard place={place} />
+                                          }
+                                          return (
+                                            <div className="h-full flex items-center justify-center p-6 bg-gray-50">
+                                              <div className="text-center text-gray-500">
+                                                <p className="text-sm font-medium">지도에서 장소를 클릭해보세요</p>
+                                                <p className="text-xs text-gray-400 mt-1">상세 정보를 확인할 수 있습니다</p>
+                                              </div>
+                                            </div>
+                                          )
+                                        })()}
+                                      </div>
                                     </div>
                                   </div>
-
-                                  {/* 마커 클릭 시에만 해당 장소 카드 보여주기 */}
-                                  {(() => {
-                                    const placeResults = msg.results!.filter((r: any) => typeof r.lat === 'number' && typeof r.lng === 'number')
-                                    const sel = selectedPlaceIndexByMsg[msg.id]
-                                    if (typeof sel === 'number' && sel >= 0 && sel < placeResults.length) {
-                                      const place = placeResults[sel]
-                                      return (
-                                        <div className="mt-3">
-                                          <PlaceCard place={place} />
-                                        </div>
-                                      )
-                                    }
-                                    return null
-                                  })()}
                                 </div>
                               )}
                             </div>
@@ -888,7 +904,7 @@ export function ChatPage() {
                         onChange={(e) => setMessage(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder="키토 식단에 대해 무엇이든 물어보세요..."
-                        className="h-12 lg:h-14 pl-4 lg:pl-6 pr-12 lg:pr-14 bg-white border-2 border-gray-200 focus:border-green-400 rounded-xl lg:rounded-2xl shadow-lg focus:shadow-xl transition-all duration-300"
+                        className="h-12 lg:h-14 pl-4 lg:pl-6 pr-12 lg:pr-14 bg-white border-2 border-gray-200 focus:border-green-400 rounded-2xl shadow-lg focus:shadow-xl transition-all duration-300"
                         disabled={isLoading}
                       />
                       {isLoading && (
@@ -900,14 +916,14 @@ export function ChatPage() {
                     <Button
                       onClick={handleSendMessage}
                       disabled={!message.trim() || isLoading}
-                      className="h-12 lg:h-14 px-4 lg:px-6 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl lg:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300"
+                      className="h-12 lg:h-14 px-4 lg:px-6 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300"
                     >
                       <Send className="h-4 w-4 lg:h-5 lg:w-5" />
                     </Button>
                   </div>
 
                   {/* 빠른 질문 버튼들 */}
-                  <div className="flex flex-wrap gap-1 lg:gap-2 mt-3 lg:mt-4">
+                  <div className="flex flex-wrap gap-1 lg:gap-2 mt-3 lg:mt-4 justify-center">
                     {[
                       "아침 키토 레시피 추천해줘",
                       "강남역 근처 키토 식당 찾아줘",
