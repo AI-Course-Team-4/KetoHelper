@@ -83,7 +83,7 @@
 @layer components {
   /* 채팅 버블 */
   .chat-bubble {
-    @apply max-w-xs lg:max-w-md px-4 py-2 rounded-lg shadow-sm;
+    @apply max-w-xs lg:max-w-md px-4 py-2 rounded-lg;
   }
   
   .chat-bubble-user {
@@ -96,11 +96,11 @@
   
   /* 카드 스타일 */
   .recipe-card {
-    @apply bg-card border rounded-lg shadow-sm p-4 hover:shadow-md transition-shadow;
+    @apply bg-card border rounded-lg p-4 transition-shadow;
   }
   
   .place-card {
-    @apply bg-card border rounded-lg shadow-sm p-4 hover:shadow-md transition-shadow cursor-pointer;
+    @apply bg-card border rounded-lg p-4 transition-shadow cursor-pointer;
   }
   
   /* 키토 스코어 배지 */
@@ -147,9 +147,11 @@
   }
   
   .rdp-custom .rdp-table {
-    @apply w-full border-separate border-spacing-0 rounded-2xl overflow-hidden shadow-lg;
+    @apply w-full border-separate border-spacing-0 rounded-2xl overflow-hidden;
     background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
     border: 1px solid #e2e8f0;
+    width: 700px;
+    margin: 0 auto;
   }
   
   .rdp-custom .rdp-head_cell {
@@ -160,6 +162,7 @@
     border-bottom: 2px solid #e2e8f0;
     border-right: 1px solid #e2e8f0;
     border-left: 1px solid #e2e8f0;
+    width: 100px;
   }
   
   .rdp-custom .rdp-head_cell:first-child {
@@ -171,11 +174,14 @@
   }
   
   .rdp-custom .rdp-cell {
-    @apply text-center relative p-1 min-h-24 bg-white;
+    @apply text-center relative p-1 bg-white;
     border-right: 1px solid #e2e8f0;
     border-bottom: 1px solid #e2e8f0;
     border-left: 1px solid #e2e8f0;
     vertical-align: top;
+    width: 100px;
+    height: 130px !important;
+    overflow: hidden;
   }
   
   .rdp-custom .rdp-cell:first-child {
@@ -187,16 +193,17 @@
   }
   
   .rdp-custom .rdp-day {
-    @apply w-full min-h-full flex flex-col items-center justify-start rounded-xl cursor-pointer transition-all duration-200 font-medium text-sm;
-    @apply hover:bg-blue-50 hover:scale-105 hover:shadow-md;
+    @apply w-full h-full flex flex-col items-center justify-start rounded-xl cursor-pointer transition-all duration-200 font-medium text-sm;
+    @apply hover:bg-blue-50 hover:scale-105;
     font-weight: 500;
     background: linear-gradient(135deg, transparent 0%, rgba(59, 130, 246, 0.05) 100%);
     padding: 4px;
+    height: 122px !important;
+    overflow: hidden;
   }
   
   .rdp-custom .rdp-day_selected {
-    @apply bg-gradient-to-br from-blue-500 to-blue-600 text-white font-bold shadow-lg scale-105;
-    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);
+    @apply bg-gradient-to-br from-blue-500 to-blue-600 text-white font-bold scale-105;
     background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
   }
   
@@ -214,7 +221,7 @@
   }
   
   .rdp-custom .rdp-day:hover:not(.rdp-day_disabled):not(.rdp-day_selected):not(.rdp-day_today) {
-    @apply bg-gradient-to-br from-blue-50 to-blue-100 scale-105 shadow-md;
+    @apply bg-gradient-to-br from-blue-50 to-blue-100 scale-105;
     background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
   }
   
@@ -225,8 +232,7 @@
   
   /* 식단이 있는 날짜 스타일 */
   .rdp-custom .rdp-day[data-has-meal="true"] {
-    @apply bg-gradient-to-br from-green-500 to-green-600 text-white font-bold shadow-lg;
-    box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+    @apply bg-gradient-to-br from-green-500 to-green-600 text-white font-bold;
     background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   }
   
@@ -258,8 +264,12 @@
   
   /* 식단 정보 표시 스타일 */
   .meal-info {
-    @apply text-xs text-gray-600 truncate mt-1;
+    @apply text-xs text-gray-600 mt-1;
     line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 90px;
   }
   
   .meal-info:first-child {
@@ -286,7 +296,7 @@
   }
   
   .shadow-keto {
-    box-shadow: 0 4px 20px rgba(16, 185, 129, 0.15);
+    /* box-shadow: 0 4px 20px rgba(16, 185, 129, 0.15); */
   }
 }
 
@@ -299,7 +309,12 @@
   .chat-bubble {
     @apply max-w-xs;
   }
+  
+  .meal-info {
+    max-width: 70px;
+  }
 }
+
 
 /* 프린트 스타일 */
 @media print {
