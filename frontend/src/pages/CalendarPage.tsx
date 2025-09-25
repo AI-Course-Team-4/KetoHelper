@@ -9,6 +9,26 @@ import 'react-day-picker/dist/style.css'
 import { MealData, generateRandomMeal } from '@/data/ketoMeals'
 import { MealModal } from '@/components/MealModal'
 import { DateDetailModal } from '@/components/DateDetailModal'
+import { usePlansRange } from '@/hooks/useApi'
+import { useAuthStore } from '@/store/authStore'
+
+// 컴포넌트 상단에 추가
+const getMealText = (mealData: MealData | null, mealType: string): string => {
+  if (!mealData) return '';
+  
+  switch (mealType) {
+    case 'breakfast':
+      return mealData.breakfast || '';
+    case 'lunch':
+      return mealData.lunch || '';
+    case 'dinner':
+      return mealData.dinner || '';
+    case 'snack':
+      return mealData.snack || '';
+    default:
+      return '';
+  }
+};
 
 export function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
@@ -26,10 +46,62 @@ export function CalendarPage() {
     snackCompleted?: boolean
   }>>({})
 
-  // 컴포넌트 마운트 시 샘플 데이터 로드
+  // 사용자 인증 정보
+  const { user } = useAuthStore()
+  
+  // 현재 월의 시작일과 종료일 계산
+  const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1)
+  const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0)
+  
+  // API로 실제 데이터 가져오기
+  const { data: plansData, isLoading, error } = usePlansRange(
+    format(startOfMonth, 'yyyy-MM-dd'),
+    format(endOfMonth, 'yyyy-MM-dd'),
+    user?.id || ''
+  )
+
+  // API 데이터를 캘린더 형식으로 변환
   useEffect(() => {
-    loadSampleMealData(currentMonth)
-  }, [currentMonth])
+    if (plansData && user?.id) {
+      console.log('📅 API에서 식단 데이터 로드:', plansData)
+      
+      const convertedData: Record<string, MealData> = {}
+      
+      plansData.forEach((plan: any) => {
+        const dateKey = formatDateKey(new Date(plan.date))
+        
+        if (!convertedData[dateKey]) {
+          convertedData[dateKey] = {
+            breakfast: '',
+            lunch: '',
+            dinner: '',
+            snack: ''
+          }
+        }
+        
+        // 슬롯에 맞는 식단 데이터 설정
+        if (plan.slot === 'breakfast') {
+          convertedData[dateKey].breakfast = plan.title
+          convertedData[dateKey].breakfastCompleted = plan.status === 'done'
+        } else if (plan.slot === 'lunch') {
+          convertedData[dateKey].lunch = plan.title
+          convertedData[dateKey].lunchCompleted = plan.status === 'done'
+        } else if (plan.slot === 'dinner') {
+          convertedData[dateKey].dinner = plan.title
+          convertedData[dateKey].dinnerCompleted = plan.status === 'done'
+        } else if (plan.slot === 'snack') {
+          convertedData[dateKey].snack = plan.title
+          convertedData[dateKey].snackCompleted = plan.status === 'done'
+        }
+      })
+      
+      setMealData(convertedData)
+      console.log('✅ API 데이터 변환 완료:', convertedData)
+    } else if (!user?.id) {
+      // 사용자가 로그인하지 않은 경우 샘플 데이터 사용
+      loadSampleMealData(currentMonth)
+    }
+  }, [plansData, user?.id, currentMonth])
 
   // 샘플 데이터 생성 (UI 테스트용)
   const loadSampleMealData = (month: Date) => {
@@ -280,7 +352,26 @@ export function CalendarPage() {
             </div>
           </CardHeader>
           <CardContent className="p-6 pt-0">
-            <div className="calendar-container w-full flex items-start justify-center overflow-x-auto">
+            {isLoading && (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-2"></div>
+                  <p className="text-gray-600">식단 데이터를 불러오는 중...</p>
+                </div>
+              </div>
+            )}
+            
+            {error && (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-center text-red-600">
+                  <p>데이터를 불러오는 중 오류가 발생했습니다.</p>
+                  <p className="text-sm mt-1">샘플 데이터를 표시합니다.</p>
+                </div>
+              </div>
+            )}
+            
+            {!isLoading && !error && (
+              <div className="calendar-container w-full flex items-start justify-center overflow-x-auto">
                 <DayPicker
                 mode="single"
                 selected={selectedDate}
@@ -359,7 +450,7 @@ export function CalendarPage() {
                         )}
                         {meal && isCurrentMonth && (
                           <div className="meal-info-container flex-1 p-1">
-                            {meal.breakfast && (
+                            {meal.breakfast && meal.breakfast.trim() !== '' && (
                               <div className="meal-info text-xs flex items-center justify-between group">
                                 <span className="truncate mr-1 text-xs" title={meal.breakfast}>
                                   <span className="hidden sm:inline">🌅</span>
@@ -382,7 +473,7 @@ export function CalendarPage() {
                                 </div>
                               </div>
                             )}
-                            {meal.lunch && (
+                            {meal.lunch && meal.lunch.trim() !== '' && (
                               <div className="meal-info text-xs flex items-center justify-between group">
                                 <span className="truncate mr-1 text-xs" title={meal.lunch}>
                                   <span className="hidden sm:inline">☀️</span>
@@ -405,7 +496,7 @@ export function CalendarPage() {
                                 </div>
                               </div>
                             )}
-                            {meal.dinner && (
+                            {meal.dinner && meal.dinner.trim() !== '' && (
                               <div className="meal-info text-xs flex items-center justify-between group">
                                 <span className="truncate mr-1 text-xs" title={meal.dinner}>
                                   <span className="hidden sm:inline">🌙</span>
@@ -428,7 +519,7 @@ export function CalendarPage() {
                                 </div>
                               </div>
                             )}
-                            {meal.snack && (
+                            {meal.snack && meal.snack.trim() !== '' && (
                               <div className="meal-info text-xs flex items-center justify-between group text-purple-600">
                                 <span className="truncate mr-1 text-xs" title={meal.snack}>
                                   <span className="hidden sm:inline">🍎</span>
@@ -527,7 +618,8 @@ export function CalendarPage() {
                    }
                  }}
               />
-            </div>
+              </div>
+            )}
             
             {/* 캘린더 범례 */}
             {/* <div className="mt-4 p-4 bg-gray-50 rounded-lg">
@@ -590,10 +682,10 @@ export function CalendarPage() {
                     </div>
                   </div>
                   <div className="text-sm text-gray-600 mt-2 ml-11">
-                    {selectedMeal && selectedMeal[meal.key as keyof MealData] 
-                      ? selectedMeal[meal.key as keyof MealData]
-                      : '계획된 식단이 없습니다'
-                    }
+                    {(() => {
+                      const mealText = getMealText(selectedMeal, meal.key);
+                      return mealText.trim() !== '' ? mealText : '계획된 식단이 없습니다';
+                    })()}
                   </div>
                 </div>
               ))
