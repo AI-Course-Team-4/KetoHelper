@@ -57,6 +57,7 @@ async def _upsert_user(profile: dict) -> dict:
             "nickname": existing_user.get("nickname") or profile.get("name") or profile.get("nickname") or "",
             "social_nickname": existing_user.get("social_nickname") or profile.get("name") or profile.get("nickname") or "",
             "profile_image_url": profile.get("picture") or profile.get("profile_image") or "",
+            "provider": provider,
         }
     else:
         user_data = {
@@ -65,6 +66,7 @@ async def _upsert_user(profile: dict) -> dict:
             "nickname": profile.get("name") or profile.get("nickname") or "",
             "social_nickname": profile.get("name") or profile.get("nickname") or "",
             "profile_image_url": profile.get("picture") or profile.get("profile_image") or "",
+            "provider": provider,
         }
 
     try:
