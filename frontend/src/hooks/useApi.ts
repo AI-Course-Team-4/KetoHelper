@@ -286,6 +286,20 @@ export function useUpdatePlan() {
   })
 }
 
+export function useDeletePlan() {
+  return useMutation({
+    mutationFn: async ({ planId, userId }: {
+      planId: string
+      userId: string
+    }) => {
+      const response = await api.delete(`/plans/item/${planId}`, {
+        params: { user_id: userId }
+      })
+      return response.data
+    }
+  })
+}
+
 // Meal Plan Generation
 export interface MealPlanRequest {
   days?: number
