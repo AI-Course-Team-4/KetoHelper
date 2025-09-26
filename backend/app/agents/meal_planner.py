@@ -275,6 +275,7 @@ class MealPlannerAgent:
             
             return {
                 "days": simple_plan,
+                "duration_days": days,  # 요청된 일수 정보 추가
                 "total_macros": {"message": "간단 버전에서는 영양 계산이 제외됩니다"},
                 "notes": notes,
                 "constraints": {
@@ -598,6 +599,7 @@ class MealPlannerAgent:
                 
                 return {
                     "days": meal_plan_days,
+                    "duration_days": days,  # 요청된 일수 정보 추가
                     "total_macros": total_macros,
                     "notes": notes,
                     "source": "embeddings",
@@ -728,6 +730,7 @@ class MealPlannerAgent:
                 return {
                     "type": "meal_plan",
                     "days": detailed_days,
+                    "duration_days": days,  # 요청된 일수 정보 추가
                     "total_macros": total_macros,
                     "notes": notes,
                     "source": "ai_structure_plus_embeddings"
@@ -1060,6 +1063,7 @@ class MealPlannerAgent:
         
         return {
             "days": plan_days,
+            "duration_days": days,  # 요청된 일수 정보 추가
             "total_macros": self._calculate_total_macros(plan_days),
             "notes": ["기본 키토 식단입니다", "개인 취향에 맞게 조정하세요"]
         }

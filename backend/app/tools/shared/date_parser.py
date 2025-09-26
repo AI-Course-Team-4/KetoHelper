@@ -551,14 +551,29 @@ JSON 형식:
         return any(word in text for word in words)
     
     def _extract_duration_days(self, text: str) -> Optional[int]:
-        """텍스트에서 일수 정보를 추출 (예: 3일치, 7일치)"""
-        # "N일치" 패턴 찾기
+        """텍스트에서 일수 정보를 추출 (예: 3일치, 2주치, 5주일치)"""
+        import re
+        
+        # 1. "N주치" 또는 "N주일치" 패턴 찾기 (주 단위)
+        week_patterns = [
+            r'(\d+)주일치',  # "2주일치", "3주일치", "5주일치"
+            r'(\d+)주치',    # "2주치", "3주치", "5주치"
+            r'(\d+)주',      # "2주", "3주", "5주" (문맥상 기간으로 해석)
+        ]
+        
+        for pattern in week_patterns:
+            match = re.search(pattern, text)
+            if match:
+                weeks = int(match.group(1))
+                return weeks * 7  # 주를 일로 변환
+        
+        # 2. "N일치" 패턴 찾기 (일 단위)
         duration_match = re.search(r'(\d+)일치', text)
         if duration_match:
             return int(duration_match.group(1))
         
-        # "N일" 패턴 찾기 (기간 표현)
-        if '일' in text:
+        # 3. "N일" 패턴 찾기 (기간 표현)
+        if '일' in text and any(word in text for word in ['식단', '계획', '추천', '만들']):
             days_match = re.search(r'(\d+)일', text)
             if days_match:
                 return int(days_match.group(1))
@@ -567,7 +582,7 @@ JSON 형식:
         return None
     
     def _extract_duration_from_context(self, chat_history: List[str]) -> Optional[int]:
-        """대화 맥락에서 일수 정보를 추출"""
+        """대화 맥락에서 일수 정보를 추출 (동적 파싱)"""
         if not chat_history:
             return None
             
@@ -575,22 +590,11 @@ JSON 형식:
         recent_messages = chat_history[-5:]
         
         for message in reversed(recent_messages):  # 최근 메시지부터 확인
-            message_lower = message.lower()
-            
-            # "N일치" 패턴 찾기
-            duration_match = re.search(r'(\d+)일치', message_lower)
-            if duration_match:
-                days = int(duration_match.group(1))
-                logger.debug(f"대화 맥락에서 일수 정보 발견: {days}일치")
-                return days
-            
-            # "N일" 패턴 찾기 (기간 표현)
-            if '일' in message_lower and any(keyword in message_lower for keyword in ['식단', '계획', '저장', '추가']):
-                days_match = re.search(r'(\d+)일', message_lower)
-                if days_match:
-                    days = int(days_match.group(1))
-                    logger.debug(f"대화 맥락에서 일수 정보 발견: {days}일")
-                    return days
+            # 동적 파싱 함수 사용
+            duration_days = self._extract_duration_days(message)
+            if duration_days:
+                logger.debug(f"대화 맥락에서 일수 정보 발견: {duration_days}일")
+                return duration_days
         
         return None
 
