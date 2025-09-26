@@ -112,6 +112,31 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'keto-auth',
       version: 4, // 토큰 로딩 문제 해결
+      onRehydrateStorage: () => (state) => {
+        // 다른 탭에서의 토큰 변경 감지
+        if (typeof window !== 'undefined') {
+          const handleStorageChange = (e: StorageEvent) => {
+            if (e.key === 'keto-auth' && e.newValue) {
+              try {
+                const newState = JSON.parse(e.newValue)
+                if (newState.state) {
+                  const { user, accessToken, refreshToken } = newState.state
+                  if (user && accessToken) {
+                    console.log('🔄 다른 탭에서 토큰 갱신 감지')
+                    state?.setAuth(user, accessToken, refreshToken)
+                  } else if (!user && !accessToken) {
+                    console.log('🚪 다른 탭에서 로그아웃 감지')
+                    state?.clear()
+                  }
+                }
+              } catch (e) {
+                console.warn('토큰 동기화 실패:', e)
+              }
+            }
+          }
+          window.addEventListener('storage', handleStorageChange)
+        }
+      },
       // 보안을 위해 토큰들을 localStorage가 아닌 sessionStorage 사용하거나
       // 또는 HttpOnly 쿠키를 통해서만 관리하는 것이 더 좋지만,
       // 현재 구조를 유지하면서 개선

@@ -9,7 +9,7 @@ from fastapi.security import HTTPBearer
 
 JWT_SECRET = os.getenv("JWT_SECRET", "dev_secret_change_me")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-ACCESS_TOKEN_EXP_MINUTES = int(os.getenv("ACCESS_TOKEN_EXP_MINUTES", "30"))
+ACCESS_TOKEN_EXP_MINUTES = int(os.getenv("ACCESS_TOKEN_EXP_MINUTES", "1"))  # 개발용: 1분
 REFRESH_TOKEN_EXP_DAYS = int(os.getenv("REFRESH_TOKEN_EXP_DAYS", "30"))
 
 

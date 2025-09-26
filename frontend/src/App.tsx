@@ -1,5 +1,7 @@
 import { Routes, Route } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
+import { ProtectedRoute } from '@/components/ProtectedRoute'
+import { PublicOnlyRoute } from '@/components/PublicOnlyRoute'
 import { ChatPage } from '@/pages/ChatPage'
 import { MapPage } from '@/pages/MapPage'
 import { CalendarPage } from '@/pages/CalendarPage'
@@ -13,12 +15,24 @@ function App() {
     <div className="min-h-screen bg-background">
       <Layout>
         <Routes>
+          {/* 공개 페이지 */}
           <Route path="/" element={<MainPage />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/map" element={<MapPage />} />
-          <Route path="/calendar" element={<CalendarPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
           <Route path="/auth/naver/callback" element={<NaverCallback />} />
+          
+          {/* 인증 필요 페이지 */}
+          <Route path="/calendar" element={
+            <ProtectedRoute>
+              <CalendarPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/profile" element={
+            <ProtectedRoute>
+              <ProfilePage />
+            </ProtectedRoute>
+          } />
+          {/* 구독 페이지는 페이지 내부에서 로그인 모달 처리 */}
           <Route path="/subscribe" element={<SubscribePage />} />
         </Routes>
       </Layout>
