@@ -2,16 +2,6 @@ import axios from 'axios'
 import { useAuthStore } from '@/store/authStore'
 import { commonToasts } from '@/lib/toast'
 
-// JWT 토큰에서 페이로드 추출 (디코딩만, 검증 안함)
-function decodeJWTPayload(token: string) {
-  try {
-    const payload = token.split('.')[1]
-    return JSON.parse(atob(payload))
-  } catch {
-    return null
-  }
-}
-
 // useApi.ts와 동일한 baseURL 로직 적용
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, ''); // 끝 슬래시 제거
 // 배포 도메인(예: *.vercel.app)에서는 강제로 프록시(/api/v1) 사용
