@@ -169,12 +169,18 @@ async def chat_endpoint(request: ChatMessage):
         # 키토 코치 오케스트레이터 실행
         print(f"🚀 DEBUG: chat API 요청 받음 - '{request.message}'")
         agent = KetoCoachAgent()
+        # 오케스트레이터에 user_id 정보 포함해서 전달
+        profile_with_user_id = request.profile or {}
+        if thread_user_id:
+            profile_with_user_id["user_id"] = thread_user_id
+        
         result = await agent.process_message(
             message=request.message,
             location=request.location,
             radius_km=request.radius_km or 5.0,
-            profile=request.profile,
-            chat_history=chat_history
+            profile=profile_with_user_id,
+            chat_history=chat_history,
+            thread_id=thread_id
         )
         print(f"✅ DEBUG: 오케스트레이터 결과 - intent: {result.get('intent', 'unknown')}")
         

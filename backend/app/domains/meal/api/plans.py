@@ -657,3 +657,23 @@ def _categorize_ingredient(name: str) -> str:
             return '양념/조미료'
     
     return '기타'
+
+# 캘린더 페이지에서 입력한 텍스트를 식단으로 추가 (기존 생성 로직 재사용)
+@router.post("/calendar/add_meal", response_model=PlanResponse)
+async def add_meal_to_calendar(
+    plan: PlanCreate,
+    user_id: str = Query(..., description="사용자 ID")
+):
+    """
+    캘린더 입력창에서 받은 단일 식단을 저장합니다.
+    같은 날짜·끼니·user_id가 있으면 덮어쓰기(업서트),
+    없으면 새로 추가합니다.
+    """
+    normalized_note = (plan.title or plan.notes or "").strip()
+    if not normalized_note:
+        raise HTTPException(status_code=400, detail="빈 입력은 저장할 수 없습니다")
+
+    try:
+        return await create_or_update_plan(plan=plan, user_id=user_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"식단 저장 중 오류 발생: {str(e)}")

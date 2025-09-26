@@ -76,6 +76,23 @@ export interface ChatResponse {
     role: string
     message: string
   }>
+  meal_plan_data?: {
+    duration_days: number
+    days: Array<{
+      breakfast?: { title: string }
+      lunch?: { title: string }
+      dinner?: { title: string }
+      snack?: { title: string }
+    }>
+    total_macros?: any
+    notes?: string[]
+  }
+  save_to_calendar_data?: {
+    action: string
+    start_date: string
+    duration_days: number
+    message: string
+  }
 }
 
 // 채팅 스레드 관련 타입
@@ -258,6 +275,18 @@ export function useCreatePlan() {
   })
 }
 
+// 캘린더 입력창 전용: 단일 식단 추가 (백엔드에서 빈 입력 검증 포함)
+export function useAddMealToCalendar() {
+  return useMutation({
+    mutationFn: async (data: PlanCreateRequest & { user_id: string }) => {
+      const response = await api.post('/plans/calendar/add_meal', data, {
+        params: { user_id: data.user_id }
+      })
+      return response.data
+    }
+  })
+}
+
 export function usePlansRange(startDate: string, endDate: string, userId: string) {
   return useQuery({
     queryKey: ['plans-range', startDate, endDate, userId],
@@ -279,6 +308,20 @@ export function useUpdatePlan() {
       userId: string
     }) => {
       const response = await api.patch(`/plans/item/${planId}`, updates, {
+        params: { user_id: userId }
+      })
+      return response.data
+    }
+  })
+}
+
+export function useDeletePlan() {
+  return useMutation({
+    mutationFn: async ({ planId, userId }: {
+      planId: string
+      userId: string
+    }) => {
+      const response = await api.delete(`/plans/item/${planId}`, {
         params: { user_id: userId }
       })
       return response.data
