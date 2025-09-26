@@ -275,6 +275,18 @@ export function useCreatePlan() {
   })
 }
 
+// 캘린더 입력창 전용: 단일 식단 추가 (백엔드에서 빈 입력 검증 포함)
+export function useAddMealToCalendar() {
+  return useMutation({
+    mutationFn: async (data: PlanCreateRequest & { user_id: string }) => {
+      const response = await api.post('/plans/calendar/add_meal', data, {
+        params: { user_id: data.user_id }
+      })
+      return response.data
+    }
+  })
+}
+
 export function usePlansRange(startDate: string, endDate: string, userId: string) {
   return useQuery({
     queryKey: ['plans-range', startDate, endDate, userId],

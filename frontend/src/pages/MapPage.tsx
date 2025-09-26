@@ -83,7 +83,7 @@ export function MapPage() {
     }
   }, [])
 
-  // 백엔드에서 키토 식당 데이터 로드 (20개로 제한했는데 키토 점수 90점대가 안 나옴)
+  // 백엔드에서 키토 식당 데이터 로드
   useEffect(() => {
     const loadRestaurants = async () => {
       if (!userLocation) return
@@ -234,7 +234,10 @@ export function MapPage() {
       {/* 검색 및 필터 */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">검색 및 필터</CardTitle>
+          <CardTitle className="text-lg flex items-center">
+            <Search sx={{ fontSize: 20, mr: 1 }} />
+            검색 및 필터
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex gap-2">
