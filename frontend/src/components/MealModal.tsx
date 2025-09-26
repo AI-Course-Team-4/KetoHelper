@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Close, Save } from '@mui/icons-material'
+import { Save } from '@mui/icons-material'
 import { MealData } from '@/data/ketoMeals'
 import { useAddMealToCalendar } from '@/hooks/useApi'
 import { format } from 'date-fns'
@@ -18,7 +18,7 @@ interface MealModalProps {
   selectedMealType?: string | null
 }
 
-export function MealModal({ isOpen, onClose, selectedDate, mealData, onSave, selectedMealType }: MealModalProps) {
+export function MealModal({ isOpen, onClose, selectedDate, mealData, selectedMealType }: MealModalProps) {
   const [formData, setFormData] = useState<MealData>({
     breakfast: mealData?.breakfast || '',
     lunch: mealData?.lunch || '',
@@ -31,11 +31,6 @@ export function MealModal({ isOpen, onClose, selectedDate, mealData, onSave, sel
       ...prev,
       [field]: value
     }))
-  }
-
-  const handleSave = () => {
-    onSave(selectedDate, formData)
-    onClose()
   }
 
   const handleClose = () => {
