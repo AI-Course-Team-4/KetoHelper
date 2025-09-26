@@ -8,12 +8,7 @@ interface PublicOnlyRouteProps {
 }
 
 export function PublicOnlyRoute({ children, redirectTo = '/' }: PublicOnlyRouteProps) {
-  const { user, loading } = useAuthStore()
-
-  // 로딩 중이면 children 렌더링 (로딩 상태 유지)
-  if (loading) {
-    return <>{children}</>
-  }
+  const { user } = useAuthStore()
 
   // 로그인된 경우 메인 페이지로 리다이렉트
   if (user) {

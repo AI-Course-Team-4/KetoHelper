@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Menu, Search, Person, Logout } from '@mui/icons-material'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
