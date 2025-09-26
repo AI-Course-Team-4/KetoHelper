@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 import asyncio
 
 from app.domains.chat.api import chat
+from app.domains.chat.api import date_parser_router
 from app.domains.restaurant.api import places
 from app.domains.meal.api import plans
 from app.domains.profile.api import profile
@@ -88,7 +89,8 @@ load_dotenv()
 # 라우터 등록
 print("🔧 DEBUG: 라우터 등록 중...")
 app.include_router(chat.router, prefix="/api/v1")
-app.include_router(places.router, prefix="/api/v1") 
+app.include_router(date_parser_router, prefix="/api/v1", tags=["date-parsing"])
+app.include_router(places.router, prefix="/api/v1")
 app.include_router(plans.router, prefix="/api/v1")
 app.include_router(profile.router, prefix="/api/v1")
 app.include_router(admin_metrics.router, prefix="/api/v1")

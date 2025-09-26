@@ -4,6 +4,48 @@ import axiosClient from '@/lib/axiosClient'
 // axiosClient를 사용하여 토큰 갱신과 인증을 자동으로 처리
 export const api = axiosClient
 
+// Date Parsing API
+export interface DateParseRequest {
+  message: string
+  context?: string
+}
+
+export interface ParsedDateInfo {
+  date: string // ISO format
+  description: string
+  is_relative: boolean
+  confidence: number
+  method: 'rule-based' | 'llm-assisted' | 'fallback'
+  iso_string: string
+  display_string: string
+}
+
+export interface DateParseResponse {
+  success: boolean
+  parsed_date?: ParsedDateInfo
+  error_message?: string
+}
+
+// 메시지에서 날짜 추출
+export function useParseDateFromMessage() {
+  return useMutation({
+    mutationFn: async (data: DateParseRequest): Promise<DateParseResponse> => {
+      const response = await api.post('/parse-date', data)
+      return response.data
+    }
+  })
+}
+
+// 자연어 날짜 파싱
+export function useParseNaturalDate() {
+  return useMutation({
+    mutationFn: async (data: DateParseRequest): Promise<DateParseResponse> => {
+      const response = await api.post('/parse-natural-date', data)
+      return response.data
+    }
+  })
+}
+
 // Chat API
 export interface ChatRequest {
   message: string
