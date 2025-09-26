@@ -271,7 +271,7 @@ async def naver_callback(code: str, state: str, request: Request, response: Resp
       window.opener.postMessage(payload, target === '' ? '*' : target);
     }}
   }} catch(e) {{}}
-  try {{ window.close(); }} catch(e) {{}}
+  // try {{ window.close(); }} catch(e) {{}}  // 디버깅용 주석 처리
 }})();
 </script>
 """
