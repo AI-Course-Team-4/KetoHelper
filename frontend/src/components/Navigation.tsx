@@ -1,14 +1,13 @@
 import { NavLink } from 'react-router-dom'
 import { 
-  MessageCircle, 
-  Map, 
-  Calendar, 
-  User, 
-  BarChart3,
-  Utensils,
-  MapPin,
+  Message, 
+  CalendarToday, 
+  Person, 
+  BarChart,
+  Restaurant,
+  LocationOn as MapPin,
   CreditCard
-} from 'lucide-react'
+} from '@mui/icons-material'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
 import { toast } from 'react-hot-toast'
@@ -17,25 +16,25 @@ const navigationItems = [
   {
     title: '채팅',
     href: '/chat',
-    icon: MessageCircle,
+    icon: Message,
     description: 'AI와 대화하며 추천받기'
   },
   {
     title: '지도',
     href: '/map',
-    icon: Map,
+    icon: MapPin,
     description: '주변 키토 친화 식당'
   },
   {
     title: '캘린더',
     href: '/calendar',
-    icon: Calendar,
+    icon: CalendarToday,
     description: '식단 계획 관리'
   },
   {
     title: '프로필',
     href: '/profile',
-    icon: User,
+    icon: Person,
     description: '개인 설정 및 목표'
   },
   {
@@ -87,15 +86,15 @@ export function Navigation() {
         </h3>
         <div className="space-y-1">
           <button className="flex items-center space-x-2 w-full px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors">
-            <Utensils className="h-4 w-4" />
+            <Restaurant sx={{ fontSize: 16 }} />
             <span>오늘 식단 추가</span>
           </button>
           <button className="flex items-center space-x-2 w-full px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors">
-            <MapPin className="h-4 w-4" />
+            <MapPin sx={{ fontSize: 16 }} />
             <span>주변 식당 찾기</span>
           </button>
           <button className="flex items-center space-x-2 w-full px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors">
-            <BarChart3 className="h-4 w-4" />
+            <BarChart sx={{ fontSize: 16 }} />
             <span>이번 주 통계</span>
           </button>
         </div>

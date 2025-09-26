@@ -4,9 +4,7 @@ import { ChatPage } from '@/pages/ChatPage'
 import { MapPage } from '@/pages/MapPage'
 import { CalendarPage } from '@/pages/CalendarPage'
 import { ProfilePage } from '@/pages/ProfilePage'
-import { Toaster } from '@/components/ui/toaster'
 import NaverCallback from '@/pages/NaverCallback'
-import { Toaster as HotToaster } from 'react-hot-toast'
 import { MainPage } from '@/pages/MainPage'
 import { SubscribePage } from '@/pages/SubscribePage'
 
@@ -24,8 +22,6 @@ function App() {
           <Route path="/subscribe" element={<SubscribePage />} />
         </Routes>
       </Layout>
-      <Toaster />
-      <HotToaster position="top-center" />
     </div>
   )
 }

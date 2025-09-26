@@ -14,6 +14,7 @@ tools/
 │   └── place_search.py            # 카카오 로컬 API 장소 검색
 └── shared/            # 공통 도구
     ├── hybrid_search.py           # 하이브리드 검색 (벡터+키워드)
+    ├── profile_tool.py            # 사용자 프로필 조회 (알레르기, 목표 등)
     └── recipe_rag.py             # 레시피 RAG 검색
 ```
 
@@ -70,6 +71,32 @@ places = await search_tool.search(
 ```
 
 ### 🔄 Shared Tools
+
+#### `profile_tool.py` - 사용자 프로필 조회
+```python
+from app.tools.shared.profile_tool import user_profile_tool
+
+# 전체 프로필 조회
+profile_result = await user_profile_tool.get_user_profile(user_id)
+if profile_result["success"]:
+    profile = profile_result["profile"]
+    print(f"목표: {profile['goals_kcal']}kcal")
+
+# 식단 선호도만 조회
+prefs_result = await user_profile_tool.get_user_preferences(user_id)
+if prefs_result["success"]:
+    prefs = prefs_result["preferences"]
+    allergies = prefs["allergies"]
+    dislikes = prefs["dislikes"]
+
+# 접근 권한 확인
+access_result = await user_profile_tool.check_user_access(user_id)
+if access_result["success"]:
+    has_access = access_result["access"]["has_access"]
+
+# 프롬프트용 텍스트 포맷팅
+formatted_text = user_profile_tool.format_preferences_for_prompt(prefs_result)
+```
 
 #### `hybrid_search.py` - 하이브리드 검색
 ```python

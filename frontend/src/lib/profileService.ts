@@ -23,6 +23,7 @@ export interface UserProfile {
   id: string
   email: string
   nickname?: string
+  social_nickname?: string
   profile_image_url?: string
   goals_kcal?: number
   goals_carbs_g?: number
@@ -34,6 +35,7 @@ export interface UserProfile {
 
 export interface UserProfileUpdate {
   nickname?: string
+  social_nickname?: string
   goals_kcal?: number
   goals_carbs_g?: number
   selected_allergy_ids?: number[]

@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi import Body
 from fastapi import Response, Request
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 import httpx
+import json
 import os
 import jwt
 from app.core.jwt_utils import (
@@ -36,12 +38,13 @@ async def _upsert_user(profile: dict) -> dict:
     # 공급자 ID로 UUIDv5 생성 (DB가 uuid 타입일 때 안전)
     raw_id = str(profile.get("id") or profile.get("sub") or profile.get("email") or "")
     provider = profile.get("provider") or profile.get("source") or "oauth"
+    print(f"provider: {provider}")
     try:
         fixed_id = str(uuid.UUID(raw_id))
     except Exception:
         fixed_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{provider}:{raw_id}"))
 
-    # 먼저 기존 사용자 확인
+    # 먼저 기존 사용자 확인 (id 기준)
     try:
         existing_resp = supabase_admin.table("users").select("*").eq("id", fixed_id).execute()
         existing_user = getattr(existing_resp, "data", None)
@@ -54,34 +57,59 @@ async def _upsert_user(profile: dict) -> dict:
         user_data = {
             "id": fixed_id,
             "email": profile.get("email", ""),
-            # 기존 nickname이 있으면 보존, 없으면 소셜 로그인 정보 사용
             "nickname": existing_user.get("nickname") or profile.get("name") or profile.get("nickname") or "",
+            "social_nickname": existing_user.get("social_nickname") or profile.get("name") or profile.get("nickname") or "",
             "profile_image_url": profile.get("picture") or profile.get("profile_image") or "",
+            "provider": provider,
         }
     else:
-        # 신규 사용자는 소셜 로그인 정보 사용
         user_data = {
             "id": fixed_id,
             "email": profile.get("email", ""),
             "nickname": profile.get("name") or profile.get("nickname") or "",
+            "social_nickname": profile.get("name") or profile.get("nickname") or "",
             "profile_image_url": profile.get("picture") or profile.get("profile_image") or "",
+            "provider": provider,
         }
 
+    print('[DEBUG] fixed_id', fixed_id, 'raw_id', raw_id, 'provider', provider)
+    print('[DEBUG] upsert payload', user_data)
     try:
-        resp = supabase_admin.table("users").upsert([user_data], on_conflict="id").execute()
+        # supabase-py v2에서는 upsert 체인에 select가 없을 수 있음 → upsert 후 별도 select 수행
+        resp = (
+            supabase_admin
+                .table("users")
+                .upsert([user_data], on_conflict="id")
+                .execute()
+        )
     except Exception as e:
+        import traceback; traceback.print_exc()
+        print('[DEBUG] upsert payload on error =', user_data)
         raise HTTPException(status_code=500, detail={"message": "supabase upsert failed", "error": str(e)})
 
-    data = getattr(resp, "data", None) if resp else None
-    if not data:
-        raise HTTPException(status_code=500, detail="supabase upsert returned no data")
+    # upsert 결과 대신, 항상 id로 최신 레코드 재조회 (클라이언트/버전 차이 안전성 확보)
+    try:
+        sel = (
+            supabase_admin
+                .table("users")
+                .select("*")
+                .eq("id", user_data["id"]) 
+                .limit(1)
+                .execute()
+        )
+        data = getattr(sel, "data", None) or []
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        print('[DEBUG] select after upsert failed:', str(e))
+        data = []
 
-    row = data[0]
+    row = (data[0] if data else {}) or {}
     return {
         "id": row.get("id", fixed_id),
-        "email": row.get("email", user_data["email"]),
-        "name": row.get("nickname", ""),
-        "profile_image": row.get("profile_image_url", ""),
+        "email": row.get("email", user_data.get("email","")),
+        "name": row.get("nickname", user_data.get("nickname","")),
+        "profile_image": row.get("profile_image_url", user_data.get("profile_image_url","")),
+        "provider": row.get("provider", user_data.get("provider","")),
     }
 
 
@@ -130,6 +158,18 @@ async def google_login(payload: GoogleAccessRequest, response: Response):
     profile["provider"] = "google"
     profile["id"] = profile.get("sub") or profile.get("id")
     user = await _upsert_user(profile)
+    print('[DEBUG] user for token', user)
+
+    try:
+        access = create_access_token(user["id"], {"email": user["email"], "name": user["name"]})
+        refresh = create_refresh_token(user["id"])
+        print('[DEBUG] tokens created')
+        _set_auth_cookies(response, access, refresh)
+        print('[DEBUG] cookies set')
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        print('[DEBUG] token/cookie error:', str(e))
+        raise
     access = create_access_token(user["id"], {"email": user["email"], "name": user["name"]})
     refresh = create_refresh_token(user["id"])
     _set_auth_cookies(response, access, refresh)
@@ -153,13 +193,89 @@ async def kakao_login(payload: KakaoAccessRequest, response: Response):
             "email": kakao_account.get("email", ""),
             "name": kakao_account.get("profile", {}).get("nickname", ""),
             "picture": kakao_account.get("profile", {}).get("profile_image_url", ""),
+            "provider": "kakao",
         }
 
+    user = await _upsert_user(profile)
+    print('[DEBUG] user for token', user)
+    try:
+        access = create_access_token(user["id"], {"email": user["email"], "name": user["name"]})
+        refresh = create_refresh_token(user["id"])
+        print('[DEBUG] tokens created')
+        _set_auth_cookies(response, access, refresh)
+        print('[DEBUG] cookies set')
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        print('[DEBUG] token/cookie error:', str(e))
+        raise
+    # 카카오는 JSON을 반환 (프론트가 setAuth 처리)
+    return {"accessToken": access, "refreshToken": refresh, "user": user}
+
+
+@router.get("/naver/callback")
+async def naver_callback(code: str, state: str, request: Request, response: Response):
+    client_id = os.getenv("NAVER_CLIENT_ID") or os.getenv("VITE_NAVER_CLIENT_ID", "")
+    client_secret = os.getenv("NAVER_CLIENT_SECRET") or os.getenv("VITE_NAVER_CLIENT_SECRET", "")
+    if not client_id or not client_secret:
+        raise HTTPException(status_code=500, detail="Naver OAuth not configured")
+
+    # 토큰 교환
+    async with httpx.AsyncClient(timeout=10) as client:
+        token_res = await client.post(
+            "https://nid.naver.com/oauth2.0/token",
+            params={
+                "grant_type": "authorization_code",
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "code": code,
+                "state": state,
+                "redirect_uri": str(request.url)
+            },
+        )
+        token_data = token_res.json()
+        access_token = token_data.get("access_token")
+        if not access_token:
+            raise HTTPException(status_code=400, detail={"message": "Invalid Naver code/state", "naver": token_data})
+
+        # 프로필 조회
+        profile_res = await client.get(
+            "https://openapi.naver.com/v1/nid/me",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        resp = profile_res.json().get("response", {})
+        profile = {
+            "id": resp.get("id"),
+            "email": resp.get("email", ""),
+            "name": resp.get("name") or resp.get("nickname") or "",
+            "picture": resp.get("profile_image", ""),
+            "provider": "naver",
+        }
+
+    # 사용자 upsert 및 토큰/쿠키
     user = await _upsert_user(profile)
     access = create_access_token(user["id"], {"email": user["email"], "name": user["name"]})
     refresh = create_refresh_token(user["id"])
     _set_auth_cookies(response, access, refresh)
-    return {"accessToken": access, "refreshToken": refresh, "user": user}
+
+    # 브릿지 HTML: 메인 창에 알리고 닫기
+    target_origin = os.getenv("FRONTEND_DOMAIN", "").rstrip("/") or "*"
+    payload = {"source": "naver_oauth", "type": "success"}
+    html = f"""
+<!doctype html><meta charset=\"utf-8\"><title>Naver Login</title>
+<script>
+(function() {{
+  try {{
+    var target = {json.dumps(target_origin)};
+    var payload = {json.dumps(payload)};
+    if (window.opener && window.opener !== window) {{
+      window.opener.postMessage(payload, target === '' ? '*' : target);
+    }}
+  }} catch(e) {{}}
+  // try {{ window.close(); }} catch(e) {{}}  // 디버깅용 주석 처리
+}})();
+</script>
+"""
+    return HTMLResponse(content=html, media_type="text/html")
 
 
 @router.post("/naver")
@@ -167,6 +283,8 @@ async def naver_login(payload: NaverCodeRequest, response: Response):
     # Support both backend and Vite-style env names
     client_id = os.getenv("NAVER_CLIENT_ID") or os.getenv("VITE_NAVER_CLIENT_ID", "")
     client_secret = os.getenv("NAVER_CLIENT_SECRET") or os.getenv("VITE_NAVER_CLIENT_SECRET", "")
+    print(f"client_id: {client_id}")
+    print(f"client_secret: {client_secret}")
     if not client_id or not client_secret:
         raise HTTPException(status_code=500, detail="Naver OAuth not configured")
 
@@ -190,11 +308,14 @@ async def naver_login(payload: NaverCodeRequest, response: Response):
             raise HTTPException(status_code=400, detail={"message": "Invalid Naver code/state", "naver": token_data})
 
         # 2) 사용자 정보
+        print('[DEBUG] step=token_ok')
         profile_res = await client.get(
             "https://openapi.naver.com/v1/nid/me",
             headers={"Authorization": f"Bearer {access_token}"},
         )
         try:
+            print('[DEBUG] step=profile_status', profile_res.status_code)
+            print('[DEBUG] step=profile_body', await profile_res.aread())
             profile_json = profile_res.json()
         except Exception:
             raise HTTPException(status_code=502, detail="Failed to parse Naver profile response")
@@ -204,12 +325,21 @@ async def naver_login(payload: NaverCodeRequest, response: Response):
             "email": resp.get("email", ""),
             "name": resp.get("name") or resp.get("nickname") or "",
             "picture": resp.get("profile_image", ""),
+            "provider": "naver",
         }
 
     user = await _upsert_user(profile)
-    access = create_access_token(user["id"], {"email": user["email"], "name": user["name"]})
-    refresh = create_refresh_token(user["id"])
-    _set_auth_cookies(response, access, refresh)
+    print('[DEBUG] user for token', user)
+    try:
+        access = create_access_token(user["id"], {"email": user["email"], "name": user["name"]})
+        refresh = create_refresh_token(user["id"])
+        print('[DEBUG] tokens created')
+        _set_auth_cookies(response, access, refresh)
+        print('[DEBUG] cookies set')
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        print('[DEBUG] token/cookie error:', str(e))
+        raise
     return {"accessToken": access, "refreshToken": refresh, "user": user}
 
 

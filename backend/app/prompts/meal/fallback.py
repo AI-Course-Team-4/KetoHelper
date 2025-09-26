@@ -113,6 +113,15 @@ FALLBACK_RECIPE_ERROR_PROMPT = """
 ⚠️ AI 서비스 오류로 기본 가이드를 제공했습니다. 구체적인 레시피는 키토 레시피 사이트를 참고해주세요.
 """
 
+# 프롬프트 로드 실패 시 최종 폴백
+FINAL_FALLBACK_PROMPT = "키토 {key} 작업을 수행하세요."
+
+# 레시피 생성 최종 폴백
+FINAL_RECIPE_FALLBACK_PROMPT = "키토 레시피 '{message}' 생성에 실패했습니다. 키토 원칙에 맞는 재료로 직접 조리해보세요."
+
+# 프롬프트 찾기 실패 메시지
+PROMPT_NOT_FOUND_MESSAGE = "프롬프트를 찾을 수 없습니다."
+
 # 시스템 오류 시 기본 응답
 MEAL_FALLBACK_PROMPT = """키토 식단 관련 문의에 답변드리겠습니다.
 

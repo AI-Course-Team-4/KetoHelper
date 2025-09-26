@@ -14,6 +14,9 @@ class ChatMessage(BaseModel):
     location: Optional[Dict[str, float]] = Field(None, description="위치 정보 {lat, lng}")
     radius_km: Optional[float] = Field(5.0, description="검색 반경(km)")
     profile: Optional[Dict[str, Any]] = Field(None, description="사용자 프로필")
+    thread_id: Optional[str] = Field(None, description="대화 스레드 ID")
+    user_id: Optional[str] = Field(None, description="사용자 ID (로그인 시)")
+    guest_id: Optional[str] = Field(None, description="게스트 ID (비로그인 시)")
 
 class ChatResponse(BaseModel):
     """채팅 응답 스키마"""
@@ -21,6 +24,23 @@ class ChatResponse(BaseModel):
     intent: str = Field(..., description="의도 분류")
     results: Optional[List[Dict[str, Any]]] = Field(None, description="검색 결과")
     session_id: Optional[str] = Field(None, description="세션 ID")
+    thread_id: Optional[str] = Field(None, description="대화 스레드 ID")
+    assistantBatch: Optional[List[Dict[str, Any]]] = Field(None, description="AI 응답 메시지 배열")
+
+class ChatThread(BaseModel):
+    """채팅 스레드 스키마"""
+    id: str = Field(..., description="스레드 ID")
+    title: str = Field(..., description="스레드 제목")
+    last_message_at: datetime = Field(..., description="마지막 메시지 시간")
+    created_at: datetime = Field(..., description="생성 시간")
+
+class ChatHistory(BaseModel):
+    """채팅 히스토리 스키마"""
+    id: int = Field(..., description="메시지 ID")
+    thread_id: str = Field(..., description="스레드 ID")
+    role: str = Field(..., description="역할 (user/assistant)")
+    message: str = Field(..., description="메시지 내용")
+    created_at: datetime = Field(..., description="생성 시간")
 
 class RecipeBase(BaseModel):
     """레시피 기본 스키마"""
@@ -91,11 +111,11 @@ class PlanUpdate(BaseModel):
 
 class PlanResponse(PlanBase):
     """플랜 응답 스키마"""
-    id: UUID
-    user_id: UUID
+    id: str
+    user_id: str
     status: str
-    created_at: datetime
-    updated_at: datetime
+    created_at: str
+    updated_at: str
     
     class Config:
         from_attributes = True

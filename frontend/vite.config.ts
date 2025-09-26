@@ -23,5 +23,16 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          mui: ['@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled'],
+          utils: ['axios', 'date-fns', 'zod', 'zustand', '@tanstack/react-query'],
+          auth: ['@react-oauth/google', '@supabase/supabase-js']
+        }
+      }
+    },
+    chunkSizeWarningLimit: 1000
   }
 })

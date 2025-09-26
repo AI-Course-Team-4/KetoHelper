@@ -3,6 +3,49 @@ import axiosClient from '@/lib/axiosClient'
 
 // axiosClient를 사용하여 토큰 갱신과 인증을 자동으로 처리
 export const api = axiosClient
+
+// Date Parsing API
+export interface DateParseRequest {
+  message: string
+  context?: string
+}
+
+export interface ParsedDateInfo {
+  date: string // ISO format
+  description: string
+  is_relative: boolean
+  confidence: number
+  method: 'rule-based' | 'llm-assisted' | 'fallback'
+  iso_string: string
+  display_string: string
+}
+
+export interface DateParseResponse {
+  success: boolean
+  parsed_date?: ParsedDateInfo
+  error_message?: string
+}
+
+// 메시지에서 날짜 추출
+export function useParseDateFromMessage() {
+  return useMutation({
+    mutationFn: async (data: DateParseRequest): Promise<DateParseResponse> => {
+      const response = await api.post('/parse-date', data)
+      return response.data
+    }
+  })
+}
+
+// 자연어 날짜 파싱
+export function useParseNaturalDate() {
+  return useMutation({
+    mutationFn: async (data: DateParseRequest): Promise<DateParseResponse> => {
+      const response = await api.post('/parse-natural-date', data)
+      return response.data
+    }
+  })
+}
+
 // Chat API
 export interface ChatRequest {
   message: string
@@ -14,6 +57,9 @@ export interface ChatRequest {
     goals_kcal?: number
     goals_carbs_g?: number
   }
+  thread_id?: string
+  user_id?: string
+  guest_id?: string
 }
 
 export interface ChatResponse {
@@ -24,12 +70,89 @@ export interface ChatResponse {
     tool: string
     [key: string]: any
   }>
+  session_id?: string
+  thread_id?: string
+  assistantBatch?: Array<{
+    role: string
+    message: string
+  }>
+}
+
+// 채팅 스레드 관련 타입
+export interface ChatThread {
+  id: string
+  title: string
+  last_message_at: string
+  created_at: string
+}
+
+export interface ChatHistory {
+  id: number
+  thread_id: string
+  role: string
+  message: string
+  created_at: string
 }
 
 export function useSendMessage() {
   return useMutation({
     mutationFn: async (data: ChatRequest): Promise<ChatResponse> => {
       const response = await api.post('/chat/', data)
+      return response.data
+    }
+  })
+}
+
+// 채팅 스레드 목록 조회
+export function useGetChatThreads(userId?: string, guestId?: string, limit = 20) {
+  return useQuery({
+    queryKey: ['chat-threads', userId, guestId, limit],
+    queryFn: async (): Promise<ChatThread[]> => {
+      const params: any = { limit }
+      if (userId) params.user_id = userId
+      if (guestId) params.guest_id = guestId
+
+      const response = await api.get('/chat/threads', { params })
+      return response.data
+    },
+    enabled: !!(userId || guestId)
+  })
+}
+
+// 채팅 히스토리 조회
+export function useGetChatHistory(threadId: string, limit = 20, before?: string) {
+  return useQuery({
+    queryKey: ['chat-history', threadId, limit, before],
+    queryFn: async (): Promise<ChatHistory[]> => {
+      const params: any = { limit }
+      if (before) params.before = before
+
+      const response = await api.get(`/chat/history/${threadId}`, { params })
+      return response.data
+    },
+    enabled: !!threadId
+  })
+}
+
+// 새 채팅 스레드 생성
+export function useCreateNewThread() {
+  return useMutation({
+    mutationFn: async (data: { userId?: string; guestId?: string }): Promise<ChatThread> => {
+      const params: any = {}
+      if (data.userId) params.user_id = data.userId
+      if (data.guestId) params.guest_id = data.guestId
+
+      const response = await api.post('/chat/threads/new', {}, { params })
+      return response.data
+    }
+  })
+}
+
+// 채팅 스레드 삭제
+export function useDeleteThread() {
+  return useMutation({
+    mutationFn: async (threadId: string): Promise<{ message: string }> => {
+      const response = await api.delete(`/chat/threads/${threadId}`)
       return response.data
     }
   })
@@ -55,16 +178,16 @@ export async function* sendMessageStream(data: ChatRequest): AsyncGenerator<any,
   }
 
   const decoder = new TextDecoder()
-  
+
   try {
     while (true) {
       const { done, value } = await reader.read()
-      
+
       if (done) break
-      
+
       const chunk = decoder.decode(value, { stream: true })
       const lines = chunk.split('\n')
-      
+
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           try {
@@ -117,10 +240,11 @@ export interface PlanCreateRequest {
   date: string
   slot: 'breakfast' | 'lunch' | 'dinner' | 'snack'
   type: 'recipe' | 'place'
-  refId: string
+  ref_id: string
   title: string
   macros?: any
   location?: any
+  notes?: string
 }
 
 export function useCreatePlan() {
@@ -149,7 +273,7 @@ export function usePlansRange(startDate: string, endDate: string, userId: string
 
 export function useUpdatePlan() {
   return useMutation({
-    mutationFn: async ({ planId, updates, userId }: { 
+    mutationFn: async ({ planId, updates, userId }: {
       planId: string
       updates: { status?: string; notes?: string }
       userId: string
@@ -184,11 +308,11 @@ export function useGenerateMealPlan() {
 
 export function useCommitMealPlan() {
   return useMutation({
-    mutationFn: async ({ 
-      mealPlan, 
-      userId, 
-      startDate 
-    }: { 
+    mutationFn: async ({
+      mealPlan,
+      userId,
+      startDate
+    }: {
       mealPlan: any
       userId: string
       startDate: string
@@ -223,7 +347,7 @@ export function useExportWeekICS() {
         params: { user_id: userId },
         responseType: 'blob'
       })
-      
+
       // 파일 다운로드
       const url = window.URL.createObjectURL(new Blob([response.data]))
       const link = document.createElement('a')
@@ -233,7 +357,7 @@ export function useExportWeekICS() {
       link.click()
       link.remove()
       window.URL.revokeObjectURL(url)
-      
+
       return response.data
     }
   })

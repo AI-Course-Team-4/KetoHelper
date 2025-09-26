@@ -46,7 +46,8 @@ export const useChatStore = create<ChatState>()(
       },
       
       clearMessages: () => {
-        set({ messages: [] })
+        console.log('🗑️ ChatStore: 메시지 클리어')
+        set({ messages: [], currentSessionId: null })
       },
       
       setLoading: (loading) => {

@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Search, MapPin, Utensils, Loader2 } from 'lucide-react'
+import { Search, LocationOn, Restaurant, Clear } from '@mui/icons-material'
+import { CircularProgress } from '@mui/material'
 import { PlaceCard } from '@/components/PlaceCard'
 import { useSearchPlaces, api } from '@/hooks/useApi'
 import KakaoMap from './KakaoMap'
@@ -17,7 +18,6 @@ export function MapPage() {
     address: string; 
     lat?: number; 
     lng?: number; 
-    source_url?: string;
     keto_score?: number;
     why?: string[];
     tips?: string[];
@@ -29,7 +29,6 @@ export function MapPage() {
     address: string; 
     lat?: number; 
     lng?: number; 
-    source_url?: string;
     keto_score?: number;
     why?: string[];
     tips?: string[];
@@ -42,6 +41,25 @@ export function MapPage() {
   const itemRefs = useRef<Array<HTMLDivElement | null>>([])
 
   const searchPlaces = useSearchPlaces()
+
+  // 카테고리 목록을 백엔드에서 로드
+  const [categories, setCategories] = useState<Array<{ code: string; name: string }>>([
+    { code: '', name: '전체' }
+  ])
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const res = await api.get('/places/categories')
+        const arr = Array.isArray(res.data?.categories) ? res.data.categories : []
+        const mapped = arr.map((c: any) => ({ code: String(c.code || ''), name: String(c.name || '') }))
+        setCategories([{ code: '', name: '전체' }, ...mapped])
+      } catch (e) {
+        console.error('카테고리 로드 실패:', e)
+      }
+    }
+    loadCategories()
+  }, [])
 
   // 위치 정보 가져오기
   useEffect(() => {
@@ -65,7 +83,7 @@ export function MapPage() {
     }
   }, [])
 
-  // 백엔드에서 키토 식당 데이터 로드
+  // 백엔드에서 키토 식당 데이터 로드 (20개로 제한했는데 키토 점수 90점대가 안 나옴)
   useEffect(() => {
     const loadRestaurants = async () => {
       if (!userLocation) return
@@ -77,7 +95,7 @@ export function MapPage() {
             lng: userLocation.lng,
             radius: 2000,
             min_score: 30,
-            max_results: 50,
+            max_results: 20,
           },
         })
         console.log('백엔드 응답:', res.data)
@@ -89,7 +107,6 @@ export function MapPage() {
           address: p.address || '',
           lat: typeof p.lat === 'number' ? p.lat : undefined,
           lng: typeof p.lng === 'number' ? p.lng : undefined,
-          source_url: p.source_url || undefined,
           keto_score: typeof p.keto_score === 'number' ? p.keto_score : undefined,
           why: Array.isArray(p.why) ? p.why : undefined,
           tips: Array.isArray(p.tips) ? p.tips : undefined,
@@ -126,32 +143,65 @@ export function MapPage() {
     if (!userLocation) return
     setIsLoading(true)
     try {
-      const res = await api.get('/places/high-keto-score', {
-        params: {
-          lat: userLocation.lat,
-          lng: userLocation.lng,
-          radius: 2000,
-          min_score: 30,
-          max_results: 50,
-        },
-      })
-      const places = res.data?.places || []
-      const mapped = places.map((p: any) => ({
-        id: String(p.place_id || ''),
-        name: p.name || '',
-        address: p.address || '',
-        lat: typeof p.lat === 'number' ? p.lat : undefined,
-        lng: typeof p.lng === 'number' ? p.lng : undefined,
-        source_url: p.source_url || undefined,
-        keto_score: typeof p.keto_score === 'number' ? p.keto_score : undefined,
-        why: Array.isArray(p.why) ? p.why : undefined,
-        tips: Array.isArray(p.tips) ? p.tips : undefined,
-        category: p.category || undefined,
-      }))
-      setMapRestaurants(mapped)
-      setListRestaurants(mapped)
-      setNearbyCount(mapped.length)
-      setSelectedIndex(null)
+      const hasKeyword = searchQuery.trim().length > 0
+      const hasCategory = !!selectedCategory
+
+      if (hasKeyword || hasCategory) {
+        const categoryName = categories.find(c => c.code === selectedCategory)?.name
+        const queryForBackend = hasKeyword ? searchQuery.trim() : (categoryName || '키토')
+
+        const res = await api.get('/places', {
+          params: {
+            q: queryForBackend,
+            lat: userLocation.lat,
+            lng: userLocation.lng,
+            radius: 2000,
+            category: hasCategory ? selectedCategory : undefined,
+          },
+        })
+        const places = res.data || []
+        const mapped = places.map((p: any) => ({
+          id: String(p.place_id || ''),
+          name: p.name || '',
+          address: p.address || '',
+          lat: typeof p.lat === 'number' ? p.lat : undefined,
+          lng: typeof p.lng === 'number' ? p.lng : undefined,
+          keto_score: typeof p.keto_score === 'number' ? p.keto_score : undefined,
+          why: Array.isArray(p.why) ? p.why : undefined,
+          tips: Array.isArray(p.tips) ? p.tips : undefined,
+          category: p.category || undefined,
+        }))
+        setMapRestaurants(mapped)
+        setListRestaurants(mapped)
+        setNearbyCount(mapped.length)
+        setSelectedIndex(null)
+      } else {
+        const res = await api.get('/places/high-keto-score', {
+          params: {
+            lat: userLocation.lat,
+            lng: userLocation.lng,
+            radius: 2000,
+            min_score: 30,
+            max_results: 50,
+          },
+        })
+        const places = res.data?.places || []
+        const mapped = places.map((p: any) => ({
+          id: String(p.place_id || ''),
+          name: p.name || '',
+          address: p.address || '',
+          lat: typeof p.lat === 'number' ? p.lat : undefined,
+          lng: typeof p.lng === 'number' ? p.lng : undefined,
+          keto_score: typeof p.keto_score === 'number' ? p.keto_score : undefined,
+          why: Array.isArray(p.why) ? p.why : undefined,
+          tips: Array.isArray(p.tips) ? p.tips : undefined,
+          category: p.category || undefined,
+        }))
+        setMapRestaurants(mapped)
+        setListRestaurants(mapped)
+        setNearbyCount(mapped.length)
+        setSelectedIndex(null)
+      }
     } catch (e) {
       console.error('검색 중 에러:', e)
     } finally {
@@ -159,14 +209,17 @@ export function MapPage() {
     }
   }
 
-  const categories = [
-    { code: '', name: '전체' },
-    { code: 'meat', name: '고기구이' },
-    { code: 'shabu', name: '샤브샤브' },
-    { code: 'salad', name: '샐러드' },
-    { code: 'seafood', name: '해산물' },
-    { code: 'western', name: '양식' }
-  ]
+  // 전체 페이지 로딩 화면: 위치 획득 중 또는 리스트 로딩 중
+  if (!userLocation || isLoading) {
+    return (
+      <div className="min-h-[80vh] flex flex-col items-center justify-center gap-3">
+        <CircularProgress size={40} />
+        <div className="text-sm text-muted-foreground">
+          {!userLocation ? '위치 정보를 가져오는 중...' : '식당 목록을 불러오는 중...'}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -185,22 +238,39 @@ export function MapPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex gap-2">
-            <Input
-              placeholder="식당명이나 음식 종류를 검색하세요..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-              className="flex-1"
-            />
+            <div className="relative flex-1">
+              <Input
+                placeholder="식당명이나 음식 종류를 검색하세요..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  const anyEvt = e as any
+                  const composing = anyEvt?.nativeEvent?.isComposing || anyEvt?.keyCode === 229
+                  if (!composing && e.key === 'Enter') handleSearch()
+                }}
+                className="pr-8"
+              />
+              {searchQuery && !isLoading && (
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setSearchQuery('')}
+                  className="absolute inset-y-0 right-2 my-auto h-6 w-6 flex items-center justify-center rounded hover:bg-muted/70 text-muted-foreground"
+                  aria-label="입력 삭제"
+                >
+                  <Clear sx={{ fontSize: 16 }} />
+                </button>
+              )}
+            </div>
             <Button onClick={handleSearch} disabled={!userLocation || isLoading}>
               {isLoading ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <CircularProgress size={16} sx={{ mr: 1 }} />
                   검색 중...
                 </>
               ) : (
                 <>
-                  <Search className="h-4 w-4 mr-2" />
+                  <Search sx={{ fontSize: 16, mr: 1 }} />
                   검색
                 </>
               )}
@@ -224,10 +294,10 @@ export function MapPage() {
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <Card className="lg:col-span-8">
+        <Card className="lg:col-span-8 rounded-2xl overflow-hidden">
           <CardHeader>
             <CardTitle className="text-lg flex items-center">
-              <MapPin className="h-5 w-5 mr-2" />
+              <LocationOn sx={{ fontSize: 20, mr: 1 }} />
               지도
             </CardTitle>
           </CardHeader>
@@ -238,21 +308,27 @@ export function MapPage() {
                 lng={userLocation?.lng}
                 level={2}
                 fitToBounds={false}
-                onMarkerClick={({ index }) => { setSelectedIndex(index) }}
+                onMarkerClick={(payload) => {
+                  const source = (listRestaurants.length ? listRestaurants : mapRestaurants)
+                  const matched = typeof payload.index === 'number' ? source[payload.index] : undefined
+                  console.log('Marker clicked:', payload, 'matched list item:', matched)
+                  if (typeof payload.index === 'number') setSelectedIndex(payload.index)
+                }}
                 markers={[]}
                 restaurants={listRestaurants.length ? listRestaurants : mapRestaurants}
                 specialMarker={userLocation
                   ? { lat: userLocation.lat, lng: userLocation.lng, title: '현재 위치' }
                   : { lat: 37.4979, lng: 127.0276, title: '강남역' }}
+                activeIndex={selectedIndex}
               />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-4">
+        <Card className="lg:col-span-4 rounded-2xl overflow-hidden">
           <CardHeader>
             <CardTitle className="text-lg flex items-center">
-              <Utensils className="h-5 w-5 mr-2" />
+              <Restaurant sx={{ fontSize: 20, mr: 1 }} />
               주변 키토 친화 식당
               <span className="ml-auto text-muted-foreground text-sm">{nearbyCount.toLocaleString()}개</span>
             </CardTitle>
@@ -261,7 +337,7 @@ export function MapPage() {
             <div className="h-[800px] overflow-auto pr-4 md:pr-6" ref={listContainerRef}>
               {isLoading ? (
                 <div className="flex items-center justify-center h-full">
-                  <Loader2 className="h-8 w-8 animate-spin" />
+                  <CircularProgress size={32} />
                   <span className="ml-2">로딩 중...</span>
                 </div>
               ) : (
@@ -269,7 +345,6 @@ export function MapPage() {
                   {(listRestaurants.length ? listRestaurants : mapRestaurants).map((r, index) => {
                     const address = (r as any).addr_road || (r as any).address || (r as any).addr_jibun || ''
                     const active = typeof selectedIndex === 'number' && selectedIndex === index
-                    let url = (r as any).source_url || ''
                     const ketoScore = (r as any).keto_score
                     const why = (r as any).why || []
                     const tips = (r as any).tips || []
@@ -277,7 +352,7 @@ export function MapPage() {
                     
                     return (
                       <div key={(r as any).id} ref={(el) => (itemRefs.current[index] = el)}>
-                        <Card className={`overflow-hidden transition-[box-shadow,background-color] ${active ? 'ring-2 ring-inset ring-primary/60 bg-primary/5' : ''}`}>
+                        <Card onClick={() => setSelectedIndex(index)} className={`rounded-2xl overflow-hidden transition-[box-shadow,background-color] ${active ? 'ring-2 ring-inset ring-primary/60 bg-primary/5' : ''}`}>
                           <CardHeader className="pb-2">
                             <CardTitle className="text-base flex items-center justify-between gap-2">
                               <span className="truncate" title={(r as any).name || undefined}>{(r as any).name || '이름 없음'}</span>
@@ -301,12 +376,11 @@ export function MapPage() {
                             </CardTitle>
                           </CardHeader>
                           <CardContent className="space-y-3">
-                            <div className="text-sm text-muted-foreground truncate" title={address}>{address || '주소 정보 없음'}</div>
+                            <div className="text-[0.95rem] text-muted-foreground truncate" title={address}>{address || '주소 정보 없음'}</div>
                             
                             {why.length > 0 && (
                               <div className="space-y-1">
-                                <div className="text-xs font-medium text-gray-700">키토 친화 이유:</div>
-                                <ul className="text-xs text-gray-600 space-y-1">
+                                <ul className="text-sm text-gray-700 space-y-1">
                                   {why.map((reason: string, idx: number) => (
                                     <li key={idx} className="flex items-start">
                                       <span className="text-green-500 mr-1">•</span>
@@ -319,8 +393,7 @@ export function MapPage() {
                             
                             {tips.length > 0 && (
                               <div className="space-y-1">
-                                <div className="text-xs font-medium text-gray-700">팁:</div>
-                                <ul className="text-xs text-gray-600 space-y-1">
+                                <ul className="text-sm text-gray-700 space-y-1">
                                   {tips.map((tip: string, idx: number) => (
                                     <li key={idx} className="flex items-start">
                                       <span className="text-blue-500 mr-1">💡</span>
@@ -331,22 +404,6 @@ export function MapPage() {
                               </div>
                             )}
                             
-                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                              {url ? (
-                                <a
-                                  href={url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="underline hover:text-foreground"
-                                >
-                                  링크 열기
-                                </a>
-                              ) : (
-                                <span className="text-gray-400">
-                                  링크 없음
-                                </span>
-                              )}
-                            </div>
                           </CardContent>
                         </Card>
                       </div>
@@ -380,7 +437,7 @@ export function MapPage() {
       {!userLocation && (
         <Card>
           <CardContent className="text-center py-8">
-            <MapPin className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <LocationOn sx={{ fontSize: 48, color: 'text.secondary', mx: 'auto', mb: 2 }} />
             <h3 className="text-lg font-semibold mb-2">위치 정보 필요</h3>
             <p className="text-muted-foreground">
               주변 식당을 찾기 위해 위치 정보 접근을 허용해주세요.

@@ -1,16 +1,23 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useState, useEffect, useMemo, useContext, useRef } from 'react'
+import { useNavigate, UNSAFE_NavigationContext } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/common'
-import { User, Target, AlertTriangle, Trash2, Plus, Loader2, ThumbsDown } from 'lucide-react'
+import { Person, GpsFixed, Warning, ThumbDown } from '@mui/icons-material'
+import { CircularProgress, Box, Typography, Stack, Card, CardContent, CardHeader, Autocomplete, Chip, TextField, Checkbox } from '@mui/material'
 import { useProfileStore, useProfileHelpers } from '@/store/profileStore'
 import { useAuthStore } from '@/store/authStore'
 import { toast } from 'react-hot-toast'
 
+interface OptionType {
+  id: number
+  name: string
+  category: string
+  label: string
+  description?: string
+}
+
 export function ProfilePage() {
+  const navigation = useContext(UNSAFE_NavigationContext)?.navigator as any
   const navigate = useNavigate()
   const { user, updateUser } = useAuthStore()
   const { 
@@ -18,11 +25,7 @@ export function ProfilePage() {
     error,
     loadMasterData,
     loadProfile,
-    updateProfile, 
-    addAllergy, 
-    removeAllergy, 
-    addDislike, 
-    removeDislike 
+    updateProfile
   } = useProfileStore()
   const { 
     getAllergiesByCategory,
@@ -32,13 +35,56 @@ export function ProfilePage() {
   const [nickname, setNickname] = useState('')
   const [goalsKcal, setGoalsKcal] = useState('')
   const [goalsCarbsG, setGoalsCarbsG] = useState('')
-  const [selectedAllergyId, setSelectedAllergyId] = useState<string>('')
-  const [selectedDislikeId, setSelectedDislikeId] = useState<string>('')
+
+  // 로컬 상태 (알레르기, 비선호 재료)
+  const [localAllergyIds, setLocalAllergyIds] = useState<number[]>([])
+  const [localDislikeIds, setLocalDislikeIds] = useState<number[]>([])
 
   // 저장된 데이터 (변경 감지용)
   const [savedNickname, setSavedNickname] = useState('')
   const [savedGoalsKcal, setSavedGoalsKcal] = useState('')
   const [savedGoalsCarbsG, setSavedGoalsCarbsG] = useState('')
+  const [savedAllergyIds, setSavedAllergyIds] = useState<number[]>([])
+  const [savedDislikeIds, setSavedDislikeIds] = useState<number[]>([])
+
+  // 일괄 저장 중 토스트 중복 방지 플래그
+  const isBulkSavingRef = useRef<boolean>(false)
+  const isNavigatingRef = useRef<boolean>(false)
+
+
+  // 알레르기/비선호 재료 옵션들을 미리 계산
+  const allergyOptions = useMemo(() => {
+    return Object.entries(getAllergiesByCategory()).flatMap(([category, allergies]) => 
+      allergies.map(allergy => ({
+        id: allergy.id,
+        name: allergy.name,
+        category: category,
+        label: `${category} - ${allergy.name}`,
+        description: allergy.description
+      }))
+    )
+  }, [getAllergiesByCategory])
+
+  const dislikeOptions = useMemo(() => {
+    return Object.entries(getDislikesByCategory()).flatMap(([category, dislikes]) => 
+      dislikes.map(dislike => ({
+        id: dislike.id,
+        name: dislike.name,
+        category: category,
+        label: `${category} - ${dislike.name}`,
+        description: dislike.description
+      }))
+    )
+  }, [getDislikesByCategory])
+
+  // 선택된 알레르기/비선호 재료 객체들
+  const selectedAllergies = useMemo(() => {
+    return localAllergyIds.map(id => allergyOptions.find(option => option.id === id)).filter(Boolean) as OptionType[]
+  }, [localAllergyIds, allergyOptions])
+
+  const selectedDislikes = useMemo(() => {
+    return localDislikeIds.map(id => dislikeOptions.find(option => option.id === id)).filter(Boolean) as OptionType[]
+  }, [localDislikeIds, dislikeOptions])
 
   // 마스터 데이터 및 프로필 로드
   useEffect(() => {
@@ -49,10 +95,12 @@ export function ProfilePage() {
   }, [user?.id, loadProfile, loadMasterData])
 
 
+
   // 프로필 데이터가 변경되면 로컬 상태 업데이트
   useEffect(() => {
     if (profile && user?.id) {
-      const newNickname = profile.nickname ?? user?.name ?? ''
+      const nicknameOrUndefined = profile.nickname && profile.nickname.trim() !== '' ? profile.nickname : undefined
+      const newNickname = nicknameOrUndefined ?? profile.social_nickname ?? user?.name ?? ''
       const newGoalsKcal = profile.goals_kcal ? profile.goals_kcal.toLocaleString() : ''
       const newGoalsCarbsG = profile.goals_carbs_g ? String(profile.goals_carbs_g) : ''
       
@@ -61,10 +109,16 @@ export function ProfilePage() {
       setGoalsKcal(newGoalsKcal)
       setGoalsCarbsG(newGoalsCarbsG)
       
+      // 로컬 상태 초기화
+      setLocalAllergyIds(profile.selected_allergy_ids || [])
+      setLocalDislikeIds(profile.selected_dislike_ids || [])
+      
       // 저장된 데이터도 업데이트
       setSavedNickname(newNickname)
       setSavedGoalsKcal(newGoalsKcal)
       setSavedGoalsCarbsG(newGoalsCarbsG)
+      setSavedAllergyIds(profile.selected_allergy_ids || [])
+      setSavedDislikeIds(profile.selected_dislike_ids || [])
     } else if (!user) {
       // 로그아웃 시 상태 클리어
       setNickname('')
@@ -79,7 +133,7 @@ export function ProfilePage() {
   // 로그인 상태 확인 - 로그인하지 않은 경우 메인 페이지로 리다이렉트
   useEffect(() => {
     if (!user) {
-      console.log('User not authenticated, redirecting to main page')
+      alert('로그아웃 되었습니다. 메인 페이지로 이동합니다.')
       navigate('/')
       return
     }
@@ -110,6 +164,75 @@ export function ProfilePage() {
   // 변경 감지 로직
   const hasBasicInfoChanged = nickname !== savedNickname
   const hasKetoGoalsChanged = goalsKcal !== savedGoalsKcal || goalsCarbsG !== savedGoalsCarbsG
+  const hasAllergyChanged = JSON.stringify(localAllergyIds.sort()) !== JSON.stringify(savedAllergyIds.sort())
+  const hasDislikeChanged = JSON.stringify(localDislikeIds.sort()) !== JSON.stringify(savedDislikeIds.sort())
+  const hasAnyChanges = hasBasicInfoChanged || hasKetoGoalsChanged || hasAllergyChanged || hasDislikeChanged
+
+  // 공통 확인/저장 유틸 - 최신 상태로 변경분만 순차 저장
+  const confirmAndSaveIfNeeded = async (): Promise<boolean> => {
+    if (!hasAnyChanges) return true
+    isBulkSavingRef.current = true
+    isNavigatingRef.current = true
+    console.group('[Profile] Unsaved changes before navigation')
+    if (hasBasicInfoChanged) console.log('BasicInfo - nickname (current -> saved):', nickname, '->', savedNickname)
+    if (hasKetoGoalsChanged) {
+      console.log('KetoGoals - goalsKcal (current -> saved):', goalsKcal, '->', savedGoalsKcal)
+      console.log('KetoGoals - goalsCarbsG (current -> saved):', goalsCarbsG, '->', savedGoalsCarbsG)
+    }
+    if (hasAllergyChanged) console.log('Allergies - current IDs:', localAllergyIds, 'saved IDs:', savedAllergyIds)
+    if (hasDislikeChanged) console.log('Dislikes - current IDs:', localDislikeIds, 'saved IDs:', savedDislikeIds)
+    console.groupEnd()
+    const ok = window.confirm('변경내용이 저장되지 않았습니다. 저장하시겠습니까?')
+    if (!ok) { isNavigatingRef.current = false; return false }
+    if (hasBasicInfoChanged) await handleSaveBasicInfo()
+    if (hasKetoGoalsChanged) await handleSaveKetoGoals()
+    if (hasAllergyChanged) await handleSaveAllergy()
+    if (hasDislikeChanged) await handleSaveDislike()
+    isBulkSavingRef.current = false
+    // 전역 Toaster의 기본 지속 시간을 사용
+    toast.success('변경사항이 저장되었습니다')
+    return true
+  }
+
+  // 라우터 차단 방식: 모든 내부 네비게이션에서 확실히 개입
+  useEffect(() => {
+    if (!navigation?.block) return
+    const unblock = navigation.block(async (tx: any) => {
+      const proceed = await confirmAndSaveIfNeeded()
+      if (!proceed) return
+      // 아주 짧은 지연을 주어 토스트가 보일 시간을 확보
+      setTimeout(() => {
+        unblock()
+        tx.retry()
+      }, 80)
+    })
+    return unblock
+  }, [navigation, hasAnyChanges, hasBasicInfoChanged, hasKetoGoalsChanged, hasAllergyChanged, hasDislikeChanged, nickname, savedNickname, goalsKcal, savedGoalsKcal, goalsCarbsG, savedGoalsCarbsG, localAllergyIds, savedAllergyIds, localDislikeIds, savedDislikeIds])
+
+  // 보조 가드: a/Link 클릭을 캡처해 확인/저장을 보장 (SPA 내부 전환 유지)
+  useEffect(() => {
+    const handler = async (event: MouseEvent) => {
+      const target = event.target as Element | null
+      const anchor = target?.closest('a') as HTMLAnchorElement | null
+      if (!anchor) return
+      if (anchor.target === '_blank') return
+      const href = anchor.getAttribute('href') || ''
+      if (!href || href.startsWith('#') || href.startsWith('javascript:')) return
+      const isSameOrigin = anchor.host === window.location.host
+      if (!isSameOrigin) return
+      if (!hasAnyChanges) return
+      event.preventDefault()
+      const ok = await confirmAndSaveIfNeeded()
+      if (ok) {
+        // SPA 내비게이션으로 이동 (전체 리로드 금지)
+        setTimeout(() => navigate(href), 0)
+      }
+    }
+    document.addEventListener('click', handler, true)
+    return () => document.removeEventListener('click', handler, true)
+  }, [hasAnyChanges, confirmAndSaveIfNeeded, navigate])
+
+  // 내부 라우팅 차단 훅 제거됨: 링크 클릭시 저장 후 이동 로직으로 대체
 
   const handleSaveBasicInfo = async () => {
     if (!user?.id) {
@@ -117,8 +240,13 @@ export function ProfilePage() {
       return
     }
 
+    // 입력값 정제
+    const inputNickname = (nickname ?? '').trim()
+    // 요구사항: 빈값으로 저장하되, 화면/초기화 시에는 social_nickname으로 표시
+    const nextNickname = inputNickname === '' ? '' : inputNickname
+
     // 닉네임 미완성 한글 검증 (선택사항)
-    if (nickname && /[ㄱ-ㅎㅏ-ㅣ]/.test(nickname)) {
+    if (nextNickname && /[ㄱ-ㅎㅏ-ㅣ]/.test(nextNickname)) {
       toast.error("닉네임에 미완성 한글이 포함되어 있습니다")
       return
     }
@@ -126,18 +254,22 @@ export function ProfilePage() {
     setIsBasicInfoLoading(true)
     try {
       await updateProfile(user.id, {
-      nickname: nickname || undefined,
+        nickname: nextNickname, // 빈 문자열도 그대로 저장
+        goals_kcal: profile?.goals_kcal,
+        goals_carbs_g: profile?.goals_carbs_g,
+        selected_allergy_ids: profile?.selected_allergy_ids,
+        selected_dislike_ids: profile?.selected_dislike_ids,
       })
       
       // 저장 성공 시 저장된 데이터 업데이트
-      setSavedNickname(nickname)
+      setSavedNickname(nextNickname)
       
-      // authStore의 사용자 이름도 업데이트 (헤더에서 표시되는 이름)
-      updateUser({ name: nickname || user.name })
+      // 헤더 등 표시 이름 업데이트: 닉네임이 비어 있으면 socialNickname 사용
+      updateUser({ name: nextNickname || (user as any)?.socialNickname || user.name })
       
-      toast.success("기본 정보가 저장되었습니다")
+      if (!isBulkSavingRef.current) toast.success("기본 정보가 저장되었습니다")
     } catch (error) {
-      // 에러는 스토어에서 처리됨
+      toast.error('기본 정보 저장에 실패했습니다')
     } finally {
       setIsBasicInfoLoading(false)
     }
@@ -174,7 +306,7 @@ export function ProfilePage() {
       setSavedGoalsKcal(goalsKcal)
       setSavedGoalsCarbsG(goalsCarbsG)
       
-      toast.success("키토 목표가 저장되었습니다")
+      if (!isBulkSavingRef.current) toast.success("키토 목표가 저장되었습니다")
     } catch (error) {
       // 에러는 스토어에서 처리됨
     } finally {
@@ -182,22 +314,22 @@ export function ProfilePage() {
     }
   }
 
-  const handleAddAllergy = async () => {
+  const handleSaveAllergy = async () => {
     if (!user?.id) {
       toast.error("로그인이 필요합니다")
       return
     }
 
-    if (!selectedAllergyId) {
-      toast.error("추가할 알레르기를 선택해주세요")
-      return
-    }
-
     setIsAllergyLoading(true)
     try {
-      await addAllergy(user.id, parseInt(selectedAllergyId))
-      setSelectedAllergyId('')
-      toast.success("알레르기가 추가되었습니다")
+      await updateProfile(user.id, {
+        selected_allergy_ids: localAllergyIds
+      })
+      
+      // 저장 성공 시 저장된 데이터 업데이트
+      setSavedAllergyIds([...localAllergyIds])
+      
+      if (!isBulkSavingRef.current) toast.success("알레르기 정보가 저장되었습니다")
     } catch (error) {
       // 에러는 스토어에서 처리됨
     } finally {
@@ -205,33 +337,22 @@ export function ProfilePage() {
     }
   }
 
-  const handleRemoveAllergy = async (allergyId: number) => {
-    if (!user?.id) return
-    
-    try {
-      await removeAllergy(user.id, allergyId)
-      toast.success("알레르기가 제거되었습니다")
-    } catch (error) {
-      // 에러는 스토어에서 처리됨
-    }
-  }
-
-  const handleAddDislike = async () => {
+  const handleSaveDislike = async () => {
     if (!user?.id) {
       toast.error("로그인이 필요합니다")
       return
     }
 
-    if (!selectedDislikeId) {
-      toast.error("추가할 비선호 재료를 선택해주세요")
-      return
-    }
-
     setIsDislikeLoading(true)
     try {
-      await addDislike(user.id, parseInt(selectedDislikeId))
-      setSelectedDislikeId('')
-      toast.success("비선호 재료가 추가되었습니다")
+      await updateProfile(user.id, {
+        selected_dislike_ids: localDislikeIds
+      })
+      
+      // 저장 성공 시 저장된 데이터 업데이트
+      setSavedDislikeIds([...localDislikeIds])
+      
+      if (!isBulkSavingRef.current) toast.success("비선호 재료 정보가 저장되었습니다")
     } catch (error) {
       // 에러는 스토어에서 처리됨
     } finally {
@@ -239,84 +360,47 @@ export function ProfilePage() {
     }
   }
 
-  const handleRemoveDislike = async (dislikeId: number) => {
-    if (!user?.id) return
-    
-    try {
-      await removeDislike(user.id, dislikeId)
-      toast.success("비선호 재료가 제거되었습니다")
-    } catch (error) {
-      // 에러는 스토어에서 처리됨
-    }
-  }
-
-  // 전체 알레르기 삭제
-  const handleClearAllAllergies = async () => {
-    if (!user?.id || !profile?.selected_allergy_ids?.length) return
-    
-    const confirmed = window.confirm(
-      `모든 알레르기 ${profile.allergy_names?.length}개를 삭제하시겠습니까?`
-    )
-    
-    if (!confirmed) return
-    
-    try {
-      await updateProfile(user.id, {
-        selected_allergy_ids: []
-      })
-      toast.success("모든 알레르기가 삭제되었습니다")
-    } catch (error) {
-      toast.error("알레르기 삭제 중 오류가 발생했습니다")
-    }
-  }
-
-  // 전체 비선호 재료 삭제
-  const handleClearAllDislikes = async () => {
-    if (!user?.id || !profile?.selected_dislike_ids?.length) return
-    
-    const confirmed = window.confirm(
-      `모든 비선호 재료 ${profile.dislike_names?.length}개를 삭제하시겠습니까?`
-    )
-    
-    if (!confirmed) return
-    
-    try {
-      await updateProfile(user.id, {
-        selected_dislike_ids: []
-      })
-      toast.success("모든 비선호 재료가 삭제되었습니다")
-    } catch (error) {
-      toast.error("비선호 재료 삭제 중 오류가 발생했습니다")
-    }
-  }
 
 
 
   // 로그인하지 않은 경우 아무것도 렌더링하지 않음 (리다이렉트 중)
-  if (!user) {
+  if (!user || isNavigatingRef.current) {
     return null
   }
 
   return (
-    <div className="space-y-6">
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       {/* 헤더 */}
-      <div>
-        <h1 className="text-2xl font-bold text-gradient">프로필 설정</h1>
-        <p className="text-muted-foreground mt-1">
+      <Box>
+        <Typography 
+          variant="h4" 
+          sx={{ 
+            fontWeight: 700, 
+            color: 'primary.main',
+            mb: 0.5
+          }}
+        >
+          프로필 설정
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
           개인 정보와 키토 다이어트 목표를 설정하세요
-        </p>
-      </div>
+        </Typography>
+      </Box>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 3, alignItems: 'stretch' }}>
         {/* 기본 정보 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <User className="h-5 w-5 mr-2 text-gray-800" />
-              기본 정보
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+          <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <CardHeader
+              title={
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <Person sx={{ fontSize: 20, color: 'text.primary' }} />
+                  <span>기본 정보</span>
+                </Stack>
+              }
+            />
+            <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              <Stack spacing={2} sx={{ flex: 1 }}>
             {user?.profileImage && (
               <div className="flex items-center gap-3">
                 <img
@@ -356,27 +440,33 @@ export function ProfilePage() {
                 >
                   {isBasicInfoLoading ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <CircularProgress size={16} sx={{ mr: 1 }} />
                       저장 중...
                     </>
                   ) : (
                     '저장'
                   )}
             </Button>
+            </Stack>
           </CardContent>
         </Card>
+        </Box>
 
         {/* 키토 목표 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Target className="h-5 w-5 mr-2 text-green-600" />
-              키토 목표
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+          <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <CardHeader
+              title={
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <GpsFixed sx={{ fontSize: 20, color: 'success.main' }} />
+                  <span>키토 목표</span>
+                </Stack>
+              }
+            />
+            <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              <Stack spacing={2} sx={{ flex: 1 }}>
             <div>
-              <label className="text-sm font-medium">일일 목표 칼로리</label>
+              <label className="text-sm font-medium">일일 목표 칼로리 (kcal)</label> 
               <Input
                     type="text"
                     numericOnly
@@ -418,269 +508,238 @@ export function ProfilePage() {
             >
               {isKetoGoalsLoading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <CircularProgress size={16} sx={{ mr: 1 }} />
                   저장 중...
                 </>
               ) : (
-                '목표 저장'
+                '저장'
               )}
             </Button>
+            </Stack>
           </CardContent>
         </Card>
-      </div>
+        </Box>
+      </Box>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 3, mt: 3 }}>
         {/* 알레르기 */}
+        <Box>
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <AlertTriangle className="h-5 w-5 mr-2 text-red-600" />
-              알레르기
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-2">
-                  <Select value={selectedAllergyId} onValueChange={setSelectedAllergyId}>
-                    <SelectTrigger className="flex-1" size="lg">
-                      <SelectValue placeholder="알레르기를 선택하세요" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(getAllergiesByCategory()).map(([category, allergies]) => (
-                        <div key={category}>
-                          <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
-                            {category}
-                          </div>
-                          {allergies.map((allergy) => {
-                            const isAlreadySelected = profile?.selected_allergy_ids.includes(allergy.id)
+          <CardHeader
+            title={
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <Warning sx={{ fontSize: 20, color: 'error.main' }} />
+                <span>알레르기</span>
+              </Stack>
+            }
+          />
+          <CardContent>
+            <Stack spacing={2}>
+            <Autocomplete<OptionType, true, false, false>
+              id="allergy-autocomplete"
+              multiple
+              disableCloseOnSelect={true}
+              options={allergyOptions}
+              groupBy={(option) => option.category}
+              getOptionLabel={(option) => option.label}
+              isOptionEqualToValue={(option, value) => option.id === value.id}
+              value={selectedAllergies}
+              onChange={(_, newValue) => {
+                const newAllergyIds = newValue.map(item => item.id)
+                setLocalAllergyIds(newAllergyIds)
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  placeholder="알레르기를 선택하세요"
+                  variant="outlined"
+                />
+              )}
+              noOptionsText="해당하는 알레르기가 없습니다"
+              renderValue={(value, getTagProps) =>
+                value.map((option, index) => {
+                  const safeOption = option as OptionType
                             return (
-                              <SelectItem 
-                                key={allergy.id} 
-                                value={allergy.id.toString()}
-                                disabled={isAlreadySelected}
-                              >
-                                <div className="flex flex-col">
-                                  <div className="flex items-center justify-between">
-                                    <span className="font-medium">{allergy.name}</span>
-                                    {isAlreadySelected && (
-                                      <span className="text-xs text-green-600 ml-2">✓ 이미 추가됨</span>
-                                    )}
-                                  </div>
-                                  {allergy.description && (
-                                    <span className="text-xs text-muted-foreground mt-0.5">
-                                      {allergy.description}
-                                    </span>
-                                  )}
-                                </div>
-                              </SelectItem>
-                            )
-                          })}
-                        </div>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button 
-                    onClick={handleAddAllergy} 
-                    className="h-12 w-12 flex-shrink-0"
-                    disabled={isAllergyLoading || !selectedAllergyId}
-                  >
-                    {isAllergyLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                <Plus className="h-4 w-4" />
-                    )}
-              </Button>
-            </div>
-            
-                <div className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-                    {profile?.allergy_names?.map((allergyName, index) => {
-                      const allergyId = profile.selected_allergy_ids[index]
+                    <Chip
+                      {...getTagProps({ index })}
+                      key={`allergy-chip-${safeOption.id}-${index}`}
+                      label={safeOption.name}
+                      color="error"
+                      variant="outlined"
+                      onDelete={() => {
+                        const newAllergyIds = localAllergyIds.filter(id => id !== safeOption.id)
+                        setLocalAllergyIds(newAllergyIds)
+                        console.log('알레르기 개별 삭제:', safeOption.name, '새로운 IDs:', newAllergyIds)
+                      }}
+                    />
+                  )
+                })
+              }
+              renderOption={(props, option) => {
+                const isSelected = localAllergyIds.includes(option.id)
+                const { key, ...optionProps } = props
                       return (
-                <Badge 
-                          key={allergyId} 
-                          variant="outline" 
-                          className="flex items-center gap-1 bg-red-100 text-red-800 border-red-300 hover:bg-red-200"
-                        >
-                          {allergyName}
-                  <Trash2 
-                    className="h-3 w-3 cursor-pointer" 
-                            onClick={() => handleRemoveAllergy(allergyId)}
-                  />
-                </Badge>
-                      )
-                    })}
-                  </div>
-                  
-                  {/* 전체 삭제 버튼 */}
-                  {profile?.allergy_names && profile.allergy_names.length > 0 && (
-                    <Button
-                      onClick={handleClearAllAllergies}
-                      variant="outline"
-                      size="sm"
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-300"
+                  <Box component="li" key={key} {...optionProps}>
+                    <Checkbox
+                      checked={isSelected}
+                      sx={{ mr: 1 }}
+                    />
+                    <Box 
+                      sx={{ 
+                        flex: 1,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        py: 0.5,
+                        transition: 'all 0.2s ease-in-out'
+                      }}
                     >
-                      <Trash2 className="h-4 w-4 mr-1" />
-                      전체 삭제 ({profile.allergy_names.length}개)
-                    </Button>
-                  )}
-            </div>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                          {option.name}
+                        </Typography>
+                        {option.description && (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, fontStyle: 'italic' }}>
+                            {option.description}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>
+                  </Box>
+                )
+              }}
+            />
             
-            {(!profile?.allergy_names || profile.allergy_names.length === 0) && (
-              <p className="text-sm text-muted-foreground">
-                등록된 알레르기가 없습니다
-              </p>
-            )}
+            <Button 
+              onClick={handleSaveAllergy} 
+              className="w-full mt-2"
+              variant="contained"
+              disabled={isAllergyLoading || !hasAllergyChanged}
+            >
+              {isAllergyLoading ? (
+                <>
+                  <CircularProgress size={16} sx={{ mr: 1 }} />
+                  저장 중...
+                </>
+              ) : (
+                '저장'
+              )}
+            </Button>
+            </Stack>
           </CardContent>
         </Card>
+        </Box>
 
         {/* 비선호 재료 */}
+        <Box>
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <ThumbsDown className="h-5 w-5 mr-2 text-orange-600" />
-              비선호 재료
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-2">
-                  <Select value={selectedDislikeId} onValueChange={setSelectedDislikeId}>
-                    <SelectTrigger className="flex-1" size="lg">
-                      <SelectValue placeholder="비선호 재료를 선택하세요" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(getDislikesByCategory()).map(([category, dislikes]) => (
-                        <div key={category}>
-                          <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
-                            {category}
-                          </div>
-                          {dislikes.map((dislike) => {
-                            const isAlreadySelected = profile?.selected_dislike_ids.includes(dislike.id)
+            <CardHeader
+              title={
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <ThumbDown sx={{ fontSize: 20, color: 'warning.main' }} />
+                  <span>비선호 재료</span>
+                </Stack>
+              }
+            />
+          <CardContent>
+            <Stack spacing={2}>
+            <Autocomplete<OptionType, true, false, false>
+              id="dislike-autocomplete"
+              multiple
+              disableCloseOnSelect={true}
+              options={dislikeOptions}
+              groupBy={(option) => option.category}
+              getOptionLabel={(option) => option.label}
+              isOptionEqualToValue={(option, value) => option.id === value.id}
+              value={selectedDislikes}
+              onChange={(_, newValue) => {
+                const newDislikeIds = newValue.map(item => item.id)
+                setLocalDislikeIds(newDislikeIds)
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  placeholder="비선호 재료를 선택하세요"
+                  variant="outlined"
+                />
+              )}
+              noOptionsText="해당하는 비선호 재료가 없습니다"
+              renderValue={(value, getTagProps) =>
+                value.map((option, index) => {
+                  const safeOption = option as OptionType
                             return (
-                              <SelectItem 
-                                key={dislike.id} 
-                                value={dislike.id.toString()}
-                                disabled={isAlreadySelected}
-                              >
-                                <div className="flex flex-col">
-                                  <div className="flex items-center justify-between">
-                                    <span className="font-medium">{dislike.name}</span>
-                                    {isAlreadySelected && (
-                                      <span className="text-xs text-green-600 ml-2">✓ 이미 추가됨</span>
-                                    )}
-                                  </div>
-                                  {dislike.description && (
-                                    <span className="text-xs text-muted-foreground mt-0.5">
-                                      {dislike.description}
-                                    </span>
-                                  )}
-                                </div>
-                              </SelectItem>
-                            )
-                          })}
-                        </div>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button 
-                    onClick={handleAddDislike} 
-                    className="h-12 w-12 flex-shrink-0"
-                    disabled={isDislikeLoading || !selectedDislikeId}
-                  >
-                    {isDislikeLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                <Plus className="h-4 w-4" />
-                    )}
-              </Button>
-            </div>
-            
-                <div className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-                    {profile?.dislike_names?.map((dislikeName, index) => {
-                      const dislikeId = profile.selected_dislike_ids[index]
+                    <Chip
+                      {...getTagProps({ index })}
+                      key={`dislike-chip-${safeOption.id}-${index}`}
+                      label={safeOption.name}
+                      color="warning"
+                      variant="outlined"
+                      onDelete={() => {
+                        const newDislikeIds = localDislikeIds.filter(id => id !== safeOption.id)
+                        setLocalDislikeIds(newDislikeIds)
+                        console.log('비선호 재료 개별 삭제:', safeOption.name, '새로운 IDs:', newDislikeIds)
+                      }}
+                    />
+                  )
+                })
+              }
+              renderOption={(props, option) => {
+                const isSelected = localDislikeIds.includes(option.id)
+                const { key, ...optionProps } = props
                       return (
-                <Badge 
-                          key={dislikeId} 
-                  variant="outline" 
-                          className="flex items-center gap-1 bg-orange-100 text-orange-800 border-orange-300 hover:bg-orange-200"
-                >
-                          {dislikeName}
-                  <Trash2 
-                    className="h-3 w-3 cursor-pointer" 
-                            onClick={() => handleRemoveDislike(dislikeId)}
-                  />
-                </Badge>
-                      )
-                    })}
-                  </div>
-                  
-                  {/* 전체 삭제 버튼 */}
-                  {profile?.dislike_names && profile.dislike_names.length > 0 && (
-                    <Button
-                      onClick={handleClearAllDislikes}
-                      variant="outline"
-                      size="sm"
-                      className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 border-orange-300"
+                  <Box component="li" key={key} {...optionProps}>
+                    <Checkbox
+                      checked={isSelected}
+                      sx={{ mr: 1 }}
+                    />
+                    <Box 
+                      sx={{ 
+                        flex: 1,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        py: 0.5,
+                        transition: 'all 0.2s ease-in-out'
+                      }}
                     >
-                      <Trash2 className="h-4 w-4 mr-1" />
-                      전체 삭제 ({profile.dislike_names.length}개)
-                    </Button>
-                  )}
-            </div>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                          {option.name}
+                        </Typography>
+                        {option.description && (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, fontStyle: 'italic' }}>
+                            {option.description}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>
+                  </Box>
+                )
+              }}
+            />
             
-            {(!profile?.dislike_names || profile.dislike_names.length === 0) && (
-              <p className="text-sm text-muted-foreground">
-                등록된 비선호 재료가 없습니다
-              </p>
-            )}
+            <Button 
+              onClick={handleSaveDislike} 
+              className="w-full mt-2"
+              variant="contained"
+              disabled={isDislikeLoading || !hasDislikeChanged}
+            >
+              {isDislikeLoading ? (
+                <>
+                  <CircularProgress size={16} sx={{ mr: 1 }} />
+                  저장 중...
+                </>
+              ) : (
+                '저장'
+              )}
+            </Button>
+            </Stack>
           </CardContent>
         </Card>
-      </div>
+        </Box>
+      </Box>
 
-      {/* 키토 가이드 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>키토 다이어트 가이드</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <div className="text-2xl font-bold text-green-600">70-80%</div>
-              <div className="text-sm text-green-700">지방</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                주 에너지원
-              </div>
-            </div>
-            
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600">15-25%</div>
-              <div className="text-sm text-blue-700">단백질</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                근육 유지
-              </div>
-            </div>
-            
-            <div className="text-center p-4 bg-orange-50 rounded-lg">
-              <div className="text-2xl font-bold text-orange-600">5-10%</div>
-              <div className="text-sm text-orange-700">탄수화물</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                최소 섭취
-              </div>
-            </div>
-          </div>
-          
-          <div className="mt-6 space-y-2">
-            <h4 className="font-medium">💡 키토 성공 팁</h4>
-            <ul className="text-sm text-muted-foreground space-y-1">
-              <li>• 충분한 물 섭취 (하루 2-3L)</li>
-              <li>• 전해질 보충 (나트륨, 칼륨, 마그네슘)</li>
-              <li>• 점진적 탄수화물 감소</li>
-              <li>• 규칙적인 식사 시간</li>
-              <li>• 스트레스 관리와 충분한 수면</li>
-            </ul>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+      
+    </Box>
   )
 }

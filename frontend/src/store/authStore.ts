@@ -1,21 +1,26 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { v4 as uuidv4 } from 'uuid'
 
 export interface AuthUser {
   id: string
   email?: string
   name?: string
   profileImage?: string
+  socialNickname?: string
 }
 
 interface AuthState {
   user: AuthUser | null
   accessToken?: string
   refreshToken?: string
+  guestId: string // 게스트 ID 추가
+  isGuest: boolean // 게스트 여부 확인
   setAuth: (user: AuthUser, accessToken: string, refreshToken: string) => void
   setAccessToken: (accessToken: string) => void
   updateUser: (updates: Partial<AuthUser>) => void
   clear: (shouldRedirect?: boolean) => void
+  ensureGuestId: () => string // 게스트 ID 생성/조회 함수 추가
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -24,6 +29,8 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       accessToken: undefined,
       refreshToken: undefined,
+      guestId: '', // 게스트 ID 초기화
+      isGuest: false, // 게스트 여부 초기화
       setAuth: (user, accessToken, refreshToken) => {
         console.log('🔐 setAuth 호출:', {
           user: !!user,
@@ -32,7 +39,37 @@ export const useAuthStore = create<AuthState>()(
           accessTokenLength: accessToken?.length,
           refreshTokenLength: refreshToken?.length
         });
-        set({ user, accessToken, refreshToken });
+        // 저장되는 사용자 정보 확인용 상세 로그
+        try {
+          console.log('👤 setAuth user detail:', {
+            id: user?.id,
+            email: user?.email,
+            name: user?.name,
+            profileImage: user?.profileImage,
+          })
+        } catch {}
+        
+        // 게스트에서 로그인으로 전환 시 기존 게스트 데이터 삭제
+        const currentState = get()
+        if (currentState.guestId) {
+          console.log('🗑️ 게스트에서 로그인 전환 - 게스트 데이터 삭제:', currentState.guestId)
+          
+          // 게스트 관련 로컬스토리지 데이터 삭제
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('keto-coach-chat-v2') // 채팅 스토어 데이터
+            localStorage.removeItem('keto-coach-profile-v2') // 프로필 데이터
+            
+            // 게스트 ID별 특정 데이터 삭제 (있다면)
+            const guestChatKey = `guest-chat-${currentState.guestId}`
+            const guestThreadKey = `guest-threads-${currentState.guestId}`
+            localStorage.removeItem(guestChatKey)
+            localStorage.removeItem(guestThreadKey)
+            
+            console.log('✅ 게스트 데이터 삭제 완료')
+          }
+        }
+        
+        set({ user, accessToken, refreshToken, isGuest: false, guestId: '' });
       },
       setAccessToken: (accessToken) => set({ accessToken }),
       updateUser: (updates) => {
@@ -43,7 +80,7 @@ export const useAuthStore = create<AuthState>()(
       },
       clear: (shouldRedirect = false) => {
         console.log('🚪 authStore.clear() 호출')
-        set({ user: null, accessToken: undefined, refreshToken: undefined })
+        set({ user: null, accessToken: undefined, refreshToken: undefined, isGuest: false })
         
         // ProfileStore도 함께 클리어 (다른 사용자 프로필 데이터 방지)
         if (typeof window !== 'undefined') {
@@ -57,6 +94,20 @@ export const useAuthStore = create<AuthState>()(
           window.location.href = '/'
         }
       },
+      // 게스트 ID 생성/조회 함수 추가
+      ensureGuestId: () => {
+        const state = get()
+        let guestId = state.guestId
+        
+        // 게스트 ID가 없으면 새로 생성
+        if (!guestId) {
+          guestId = uuidv4()
+          console.log('🎭 새 게스트 ID 생성:', guestId)
+          set({ guestId, isGuest: true })
+        }
+        
+        return guestId
+      },
     }),
     {
       name: 'keto-auth',
@@ -67,7 +118,9 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({ 
         user: state.user,
         accessToken: state.accessToken, // 임시로 accessToken도 저장
-        refreshToken: state.refreshToken
+        refreshToken: state.refreshToken,
+        guestId: state.guestId, // 게스트 ID도 저장
+        isGuest: state.isGuest // 게스트 여부도 저장
       }),
       migrate: (persistedState: any, version) => {
         console.log('🔄 Zustand 마이그레이션 실행:', { version, persistedState });
@@ -79,7 +132,9 @@ export const useAuthStore = create<AuthState>()(
           const migrated = {
             user: state.user ?? null,
             accessToken: state.accessToken,
-            refreshToken: state.refreshToken
+            refreshToken: state.refreshToken,
+            guestId: state.guestId ?? '',
+            isGuest: state.isGuest ?? false
           };
           
           console.log('✅ 마이그레이션 결과:', migrated);
@@ -87,7 +142,7 @@ export const useAuthStore = create<AuthState>()(
         }
         
         console.log('❌ 마이그레이션 실패, 초기화');
-        return { user: null, accessToken: undefined, refreshToken: undefined }
+        return { user: null, accessToken: undefined, refreshToken: undefined, guestId: '', isGuest: false }
       },
     }
   )
