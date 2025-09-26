@@ -76,6 +76,23 @@ export interface ChatResponse {
     role: string
     message: string
   }>
+  meal_plan_data?: {
+    duration_days: number
+    days: Array<{
+      breakfast?: { title: string }
+      lunch?: { title: string }
+      dinner?: { title: string }
+      snack?: { title: string }
+    }>
+    total_macros?: any
+    notes?: string[]
+  }
+  save_to_calendar_data?: {
+    action: string
+    start_date: string
+    duration_days: number
+    message: string
+  }
 }
 
 // 채팅 스레드 관련 타입

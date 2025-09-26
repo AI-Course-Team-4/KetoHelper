@@ -386,24 +386,23 @@ export function ChatPage() {
         threadId = response.thread_id
       }
 
-      // 백엔드 응답에서 식단 데이터 파싱
-      let parsedMeal = MealParserService.parseMealFromBackendResponse(response)
-
-      // 테스트용: 식단 추천 관련 메시지인 경우 임시 데이터 생성
-      if (!parsedMeal && (
-        userMessage.content.includes('식단') ||
-        userMessage.content.includes('추천') ||
-        userMessage.content.includes('메뉴') ||
-        userMessage.content.includes('아침') ||
-        userMessage.content.includes('점심') ||
-        userMessage.content.includes('저녁')
-      )) {
+      // 백엔드에서 반환하는 구조화된 meal_plan_data 사용
+      let parsedMeal: LLMParsedMeal | null = null
+      
+      if (response.meal_plan_data && response.meal_plan_data.days && response.meal_plan_data.days.length > 0) {
+        // 백엔드에서 구조화된 데이터가 있으면 첫 번째 날 데이터 사용
+        const firstDay = response.meal_plan_data.days[0]
         parsedMeal = {
-          breakfast: '아보카도 토스트와 스크램블 에그',
-          lunch: '그릴 치킨 샐러드 (올리브오일 드레싱)',
-          dinner: '연어 스테이크와 구운 브로콜리',
-          snack: '아몬드 한 줌과 치즈 큐브'
+          breakfast: firstDay.breakfast?.title || '',
+          lunch: firstDay.lunch?.title || '',
+          dinner: firstDay.dinner?.title || '',
+          snack: firstDay.snack?.title || ''
         }
+        console.log('✅ 백엔드 meal_plan_data 사용:', parsedMeal)
+      } else {
+        // 백엔드 구조화 데이터가 없으면 기존 파싱 방식 사용
+        parsedMeal = MealParserService.parseMealFromBackendResponse(response)
+        console.log('⚠️ 기존 파싱 방식 사용:', parsedMeal)
       }
 
       const assistantMessage: ChatMessage = {
@@ -417,8 +416,15 @@ export function ChatPage() {
 
       addMessage(assistantMessage)
 
-      // 스마트 저장: 식단이 있고 사용자가 저장을 요청한 경우 자동 저장
-      if (parsedMeal && user?.id) {
+      // 백엔드에서 제공하는 save_to_calendar_data가 있으면 우선 사용
+      if (response.save_to_calendar_data && user?.id) {
+        console.log('✅ 백엔드 save_to_calendar_data 사용:', response.save_to_calendar_data)
+        setTimeout(() => {
+          handleBackendCalendarSave(response.save_to_calendar_data!, parsedMeal)
+        }, 1000)
+      }
+      // 백엔드 데이터가 없으면 기존 로직 사용
+      else if (parsedMeal && user?.id) {
         const isAutoSaveRequest = (
           userMessage.content.includes('저장') ||
           userMessage.content.includes('추가') ||
@@ -756,6 +762,118 @@ export function ChatPage() {
     }
   }
 
+  // 백엔드 캘린더 저장 데이터 처리
+  const handleBackendCalendarSave = async (saveData: any, mealData: LLMParsedMeal | null) => {
+    if (!user?.id) {
+      return
+    }
+
+    setIsSavingMeal('auto-save')
+    
+    try {
+      const startDate = new Date(saveData.start_date)
+      const durationDays = saveData.duration_days
+      const daysData = saveData.days_data || []  // 백엔드에서 준비한 완벽한 일별 데이터
+      
+      console.log(`🗓️ 백엔드 캘린더 저장: ${durationDays}일치, 시작일: ${startDate.toISOString()}`)
+      console.log(`🗓️ 백엔드에서 받은 days_data:`, daysData)
+      
+      let successCount = 0
+      const savedDays: string[] = []
+      
+      // durationDays만큼 반복해서 저장
+      for (let i = 0; i < durationDays; i++) {
+        const currentDate = new Date(startDate)
+        currentDate.setDate(startDate.getDate() + i)
+        const dateString = currentDate.toISOString().split('T')[0]
+        
+        // 해당 일의 백엔드 데이터 사용, 없으면 기본값
+        let dayMeals: any = {}
+        if (daysData[i]) {
+          dayMeals = daysData[i]
+          console.log(`🗓️ ${i+1}일차 백엔드 식단 사용:`, dayMeals)
+        } else {
+          // fallback: 기본 식단
+          dayMeals = mealData || {
+            breakfast: '키토 아침 메뉴',
+            lunch: '키토 점심 메뉴', 
+            dinner: '키토 저녁 메뉴',
+            snack: '키토 간식'
+          }
+        }
+        
+        // 각 식사 시간대별로 개별 plan 생성
+        const mealSlots = ['breakfast', 'lunch', 'dinner', 'snack'] as const
+        let daySuccessCount = 0
+
+        for (const slot of mealSlots) {
+          // dayMeals 구조에 맞게 mealTitle 추출
+          let mealTitle = ''
+          if (dayMeals[slot]) {
+            if (typeof dayMeals[slot] === 'string') {
+              mealTitle = dayMeals[slot]
+            } else if (dayMeals[slot]?.title) {
+              mealTitle = dayMeals[slot].title
+            }
+          }
+          
+          if (mealTitle && mealTitle.trim()) {
+            try {
+              const planData = {
+                user_id: user.id,
+                date: dateString,
+                slot: slot,
+                type: 'recipe' as const,
+                ref_id: '',
+                title: mealTitle.trim(),
+                location: undefined,
+                macros: undefined,
+                notes: undefined
+              }
+
+              await createPlan.mutateAsync(planData)
+              daySuccessCount++
+            } catch (error) {
+              console.error(`${dateString} ${slot} 저장 실패:`, error)
+            }
+          }
+        }
+
+        if (daySuccessCount > 0) {
+          savedDays.push(format(currentDate, 'M/d'))
+          successCount += daySuccessCount
+        }
+      }
+
+      // 캘린더 데이터 새로고침
+      queryClient.invalidateQueries({ queryKey: ['plans-range'] })
+      
+      if (successCount > 0) {
+        const successMessage: ChatMessage = {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: `✅ ${durationDays}일치 식단표를 캘린더에 저장했습니다! (${savedDays.join(', ')}일)`,
+          timestamp: new Date()
+        }
+        addMessage(successMessage)
+      } else {
+        throw new Error('식단 저장에 실패했습니다.')
+      }
+      
+    } catch (error) {
+      console.error('백엔드 캘린더 저장 실패:', error)
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: `❌ 식단 저장에 실패했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
+        timestamp: new Date()
+      }
+      addMessage(errorMessage)
+    } finally {
+      setIsSavingMeal(null)
+    }
+  }
+
   // 빠른 질문 메시지 전송
   const handleQuickMessage = async (quickMessage: string) => {
     if (!quickMessage.trim() || isLoading) return
@@ -800,24 +918,23 @@ export function ChatPage() {
         threadId = response.thread_id
       }
 
-      // 백엔드 응답에서 식단 데이터 파싱
-      let parsedMeal = MealParserService.parseMealFromBackendResponse(response)
-
-      // 테스트용: 식단 추천 관련 메시지인 경우 임시 데이터 생성
-      if (!parsedMeal && (
-        userMessage.content.includes('식단') ||
-        userMessage.content.includes('추천') ||
-        userMessage.content.includes('메뉴') ||
-        userMessage.content.includes('아침') ||
-        userMessage.content.includes('점심') ||
-        userMessage.content.includes('저녁')
-      )) {
+      // 백엔드에서 반환하는 구조화된 meal_plan_data 사용
+      let parsedMeal: LLMParsedMeal | null = null
+      
+      if (response.meal_plan_data && response.meal_plan_data.days && response.meal_plan_data.days.length > 0) {
+        // 백엔드에서 구조화된 데이터가 있으면 첫 번째 날 데이터 사용
+        const firstDay = response.meal_plan_data.days[0]
         parsedMeal = {
-          breakfast: '아보카도 토스트와 스크램블 에그',
-          lunch: '그릴 치킨 샐러드 (올리브오일 드레싱)',
-          dinner: '연어 스테이크와 구운 브로콜리',
-          snack: '아몬드 한 줌과 치즈 큐브'
+          breakfast: firstDay.breakfast?.title || '',
+          lunch: firstDay.lunch?.title || '',
+          dinner: firstDay.dinner?.title || '',
+          snack: firstDay.snack?.title || ''
         }
+        console.log('✅ 백엔드 meal_plan_data 사용:', parsedMeal)
+      } else {
+        // 백엔드 구조화 데이터가 없으면 기존 파싱 방식 사용
+        parsedMeal = MealParserService.parseMealFromBackendResponse(response)
+        console.log('⚠️ 기존 파싱 방식 사용:', parsedMeal)
       }
 
       const assistantMessage: ChatMessage = {
@@ -831,8 +948,15 @@ export function ChatPage() {
 
       addMessage(assistantMessage)
 
-      // 스마트 저장: 식단이 있고 사용자가 저장을 요청한 경우 자동 저장
-      if (parsedMeal && user?.id) {
+      // 백엔드에서 제공하는 save_to_calendar_data가 있으면 우선 사용
+      if (response.save_to_calendar_data && user?.id) {
+        console.log('✅ 백엔드 save_to_calendar_data 사용:', response.save_to_calendar_data)
+        setTimeout(() => {
+          handleBackendCalendarSave(response.save_to_calendar_data!, parsedMeal)
+        }, 1000)
+      }
+      // 백엔드 데이터가 없으면 기존 로직 사용
+      else if (parsedMeal && user?.id) {
         const isAutoSaveRequest = (
           userMessage.content.includes('저장') ||
           userMessage.content.includes('추가') ||
