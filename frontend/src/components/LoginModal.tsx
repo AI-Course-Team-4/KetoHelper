@@ -285,7 +285,8 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                                 }
                                 setIsNaverLoading(true)
                                 setError(null)
-                                const redirectUriRaw = `${window.location.origin}/auth/naver/callback`
+                                const apiBase = ((import.meta as any).env.VITE_API_BASE_URL || '').replace(/\/+$/,'')
+                                const redirectUriRaw = apiBase ? `${apiBase}/api/v1/auth/naver/callback` : `${window.location.origin}/auth/naver/callback`
                                 const redirectUri = encodeURIComponent(redirectUriRaw)
                                 const state = Math.random().toString(36).slice(2)
                                 try { sessionStorage.setItem('naver_oauth_state', state) } catch { }
@@ -351,7 +352,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                                     toast.success(`안녕하세요 ${user?.name || '사용자'}님!`)
                                 }
 
-                                const messageHandler = (event: MessageEvent) => {
+                                const messageHandler = async (event: MessageEvent) => {
                                     try {
                                         const data: any = (event as any).data
                                         if (!data || data.source !== 'naver_oauth') return
@@ -359,10 +360,28 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                                             const user = data.user as any
                                             const at = data.accessToken
                                             const rt = data.refreshToken
+                                            console.log('[Auth] Naver login success', { user, at, rt })
                                             if (user && at && rt) {
                                                 processResult(user, at, rt)
                                             } else {
-                                                toast.error('네이버 로그인 정보가 올바르지 않습니다.')
+                                                // 브릿지에서 토큰/유저를 보내지 않는 경우 → 쿠키 기반 리프레시
+                                                try {
+                                                    const res: any = await authService.refresh('')
+                                                    const newAT: string | undefined = res?.accessToken
+                                                    const newRT: string | undefined = res?.refreshToken
+                                                    if (!newAT || !newRT) throw new Error('토큰 리프레시 실패')
+                                                    const payload = JSON.parse(atob(newAT.split('.')[1] || 'e30='))
+                                                    const minimalUser = {
+                                                        id: payload?.sub || 'unknown',
+                                                        email: payload?.email || '',
+                                                        name: payload?.name || '',
+                                                        profile_image: ''
+                                                    }
+                                                    processResult(minimalUser as any, newAT, newRT)
+                                                } catch (e: any) {
+                                                    console.error('[Auth] Naver refresh failed', e)
+                                                    toast.error('네이버 로그인에 실패했습니다. 다시 시도해주세요.')
+                                                }
                                             }
                                         } else if (data.type === 'error') {
                                             const msg = data.message || '네이버 로그인에 실패했습니다.'
