@@ -9,11 +9,12 @@ import { useProfileStore } from '@/store/profileStore'
 import { useAuthStore } from '@/store/authStore'
 // import { RecipeCard } from '@/components/RecipeCard'
 import { PlaceCard } from '@/components/PlaceCard'
-import { useSendMessage, useGetChatThreads, useGetChatHistory, useCreateNewThread, useDeleteThread, ChatHistory, useCreatePlan } from '@/hooks/useApi'
+import { useSendMessage, useGetChatThreads, useGetChatHistory, useCreateNewThread, useDeleteThread, ChatHistory, useCreatePlan, useParseDateFromMessage, ParsedDateInfo } from '@/hooks/useApi'
 import { MealParserService } from '@/lib/mealService'
 import { format } from 'date-fns'
-import { extractDateFromMessage, formatDateForDisplay, formatDateForAPI } from '@/lib/dateParser'
+
 import KakaoMap from './KakaoMap'
+
 
 // Message 타입을 ChatMessage로 대체
 
@@ -38,6 +39,7 @@ export function ChatPage() {
   const createNewThread = useCreateNewThread()
   const deleteThread = useDeleteThread()
   const createPlan = useCreatePlan()
+  const parseDateFromMessage = useParseDateFromMessage()
   
   // 채팅 스레드 관련 훅 추가
   const { data: chatThreads = [], refetch: refetchThreads } = useGetChatThreads(
@@ -603,8 +605,19 @@ export function ChatPage() {
       return
     }
 
-    // 메시지에서 날짜 추출
-    const parsedDate = extractDateFromMessage(userMessage)
+    // 백엔드 API를 통한 날짜 파싱
+    let parsedDate: ParsedDateInfo | null = null
+
+    try {
+      const parseResult = await parseDateFromMessage.mutateAsync({ message: userMessage })
+      if (parseResult.success && parseResult.parsed_date) {
+        parsedDate = parseResult.parsed_date
+      }
+    } catch (error) {
+      console.error('날짜 파싱 API 오류:', error)
+      // 백엔드에서 폴백 처리가 되므로 여기서는 null로 유지
+      parsedDate = null
+    }
 
     if (parsedDate) {
       setIsSavingMeal('auto-save')
@@ -623,9 +636,9 @@ export function ChatPage() {
           let successCount = 0
 
           for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-            const targetDate = new Date(parsedDate.date)
-            targetDate.setDate(targetDate.getDate() + dayOffset)
-            const dateString = format(targetDate, 'yyyy-MM-dd')
+            const baseDate = new Date(parsedDate.date)
+            baseDate.setDate(baseDate.getDate() + dayOffset)
+            const dateString = format(baseDate, 'yyyy-MM-dd')
 
             // 각 식사 시간대별로 개별 plan 생성
             const mealSlots = ['breakfast', 'lunch', 'dinner', 'snack'] as const
@@ -656,7 +669,7 @@ export function ChatPage() {
             }
 
             if (daySuccessCount > 0) {
-              savedDays.push(format(targetDate, 'M/d'))
+              savedDays.push(format(baseDate, 'M/d'))
               successCount += daySuccessCount
             }
           }
@@ -674,8 +687,8 @@ export function ChatPage() {
           }
         } else {
           // 단일 날짜 저장 (기존 로직)
-          const targetDate = formatDateForAPI(parsedDate)
-          const displayDate = formatDateForDisplay(parsedDate)
+          const targetDate = parsedDate.iso_string
+          const displayDate = parsedDate.display_string
 
           const mealSlots = ['breakfast', 'lunch', 'dinner', 'snack'] as const
           const savedPlans: string[] = []
