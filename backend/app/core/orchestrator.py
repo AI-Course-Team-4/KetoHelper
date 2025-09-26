@@ -21,6 +21,8 @@ from app.tools.meal.keto_score import KetoScoreCalculator
 from app.tools.shared.temporary_dislikes_extractor import temp_dislikes_extractor
 from app.agents.meal_planner import MealPlannerAgent
 from app.agents.chat_agent import SimpleKetoCoachAgent
+from app.shared.utils.calendar_utils import CalendarUtils
+from app.tools.calendar.calendar_saver import CalendarSaver
 
 # 프롬프트 모듈 import (중앙집중화된 구조)
 from app.prompts.chat.intent_classification import INTENT_CLASSIFICATION_PROMPT, get_intent_prompt
@@ -29,6 +31,11 @@ from app.prompts.chat.response_generation import RESPONSE_GENERATION_PROMPT, RES
 from app.prompts.meal.recipe_response import RECIPE_RESPONSE_GENERATION_PROMPT
 from app.prompts.restaurant.search_improvement import PLACE_SEARCH_IMPROVEMENT_PROMPT
 from app.prompts.restaurant.search_failure import PLACE_SEARCH_FAILURE_PROMPT
+from app.prompts.calendar import (
+    CALENDAR_SAVE_CONFIRMATION_PROMPT,
+    CALENDAR_SAVE_FAILURE_PROMPT,
+    CALENDAR_MEAL_PLAN_VALIDATION_PROMPT
+)
 
 from typing_extensions import TypedDict, NotRequired
 
@@ -77,9 +84,11 @@ class KetoCoachAgent:
         self.hybrid_search = hybrid_search_tool  # 이미 초기화된 인스턴스 사용
         self.place_search = PlaceSearchTool()
         self.restaurant_hybrid_search = restaurant_hybrid_search_tool  # 식당 RAG 검색
-        self.keto_score = KetoScoreCalculator() 
+        self.keto_score = KetoScoreCalculator()
         self.meal_planner = MealPlannerAgent()
         self.simple_agent = SimpleKetoCoachAgent()
+        self.calendar_saver = CalendarSaver()
+        self.calendar_utils = CalendarUtils()
         
         # 워크플로우 그래프 구성
         self.workflow = self._build_workflow()
@@ -214,7 +223,7 @@ class KetoCoachAgent:
                     state["calendar_save_request"] = True
                     
                     # 대화 히스토리에서 최근 식단 데이터 찾기
-                    meal_plan_data = self._find_recent_meal_plan(chat_history)
+                    meal_plan_data = self.calendar_utils.find_recent_meal_plan(chat_history)
                     if meal_plan_data:
                         state["meal_plan_data"] = meal_plan_data
                         # save_to_calendar_data 생성은 별도 노드에서 처리
@@ -307,58 +316,7 @@ class KetoCoachAgent:
         
         return initial_intent
     
-    def _find_recent_meal_plan(self, chat_history: List[str]) -> Optional[Dict]:
-        """대화 히스토리에서 최근 식단 데이터 찾기"""
-        
-        # 역순으로 탐색 (최근 대화부터)
-        for msg in reversed(chat_history[-10:]):  # 최근 10개 메시지만 확인
-            # 식단표 패턴 찾기
-            if "일차:" in msg or "아침:" in msg or "점심:" in msg or "저녁:" in msg:
-                # 간단한 파싱 (실제로는 더 정교하게 구현 필요)
-                days = []
-                lines = msg.split('\n')
-                
-                current_day = {}
-                for line in lines:
-                    if '아침:' in line:
-                        current_day['breakfast'] = {'title': line.split('아침:')[1].strip()}
-                    elif '점심:' in line:
-                        current_day['lunch'] = {'title': line.split('점심:')[1].strip()}
-                    elif '저녁:' in line:
-                        current_day['dinner'] = {'title': line.split('저녁:')[1].strip()}
-                    elif '간식:' in line:
-                        current_day['snack'] = {'title': line.split('간식:')[1].strip()}
-                    
-                    # 하루 단위로 저장
-                    if '일차:' in line and current_day:
-                        days.append(current_day)
-                        current_day = {}
-                
-                # 마지막 날 추가
-                if current_day:
-                    days.append(current_day)
-                
-                if days:
-                    # duration_days를 더 정확하게 설정
-                    found_duration = len(days)
-                    
-                    # 메시지에서 숫자(일차) 찾기로 일수 추출
-                    try:
-                        from app.tools.shared.date_parser import DateParser
-                        date_parser = DateParser()
-                        extracted_days = date_parser._extract_duration_days(msg)
-                        if extracted_days and extracted_days > 0:
-                            found_duration = extracted_days
-                            print(f"🔍 메시지에서 추출한 일수: {found_duration}")
-                    except Exception as e:
-                        print(f"⚠️ 일수 추출 중 오류: {e}")
-                    
-                    return {
-                        'days': days,
-                        'duration_days': found_duration
-                    }
-        
-        return None
+    # _find_recent_meal_plan 함수 제거 - CalendarUtils로 이동
 
     def _route_condition(self, state: AgentState) -> str:
         """라우팅 조건 함수"""
@@ -824,241 +782,87 @@ class KetoCoachAgent:
         return state
     
     async def _calendar_save_node(self, state: AgentState) -> AgentState:
-        """캘린더 저장 처리 노드"""
+        """캘린더 저장 처리 노드 (CalendarSaver 사용, 충돌 해결 포함)"""
         
         try:
             message = state["messages"][-1].content if state["messages"] else ""
-            
-            # 날짜 파싱
-            from app.tools.shared.date_parser import DateParser
-            date_parser = DateParser()
-            
-            # 대화 히스토리 가져오기 (메모리 히스토리 + 데이터베이스 조회)
+
+            # 1. 충돌 해결 상태인지 먼저 확인
+            if state.get("calendar_conflict_info") and state.get("pending_meal_logs"):
+                print(f"🔄 캘린더 충돌 해결 처리 중: '{message}'")
+
+                # 충돌 해결 처리
+                conflict_result = await self.calendar_saver.handle_conflict_resolution(
+                    state, message,
+                    state["calendar_conflict_info"],
+                    state["pending_meal_logs"],
+                    state.get("save_to_calendar_data", {})
+                )
+
+                # 충돌 처리 완료 후 상태 정리
+                if "calendar_conflict_info" in state:
+                    del state["calendar_conflict_info"]
+                if "pending_meal_logs" in state:
+                    del state["pending_meal_logs"]
+
+                state["response"] = conflict_result["message"]
+
+                state["tool_calls"].append({
+                    "tool": "calendar_conflict_resolver",
+                    "success": conflict_result["success"],
+                    "action_taken": conflict_result.get("action_taken", "unknown"),
+                    "method": "handle_conflict_resolution"
+                })
+
+                return state
+
+            # 2. 일반 캘린더 저장 처리
+            # 대화 히스토리 가져오기
             chat_history = []
-            
             if state["messages"]:
                 chat_history = [msg.content for msg in state["messages"]]
-            else:
-                state["response"] = "대화 히스토리를 찾을 수 없습니다. 새로운 식단을 생성해주세요."
-                return state
-                
-            parsed_date = date_parser.extract_date_from_message_with_context(message, chat_history)
-            
-            if not parsed_date:
-                state["response"] = "날짜를 파악할 수 없습니다. 더 구체적으로 말씀해주세요. (예: '다음주 월요일부터', '내일부터')"
-                return state
-            
-            # meal_plan_data를 찾기 - state에서 먼저 확인
-            meal_plan_data = state.get("meal_plan_data")
-            
-            if not meal_plan_data:
-                print(f"🔍 식단 추출 중: 기존 채팅 히스토리 {len(chat_history)}개 메시지 분석")
-                meal_plan_data = self._find_recent_meal_plan(chat_history)
-                
-                # 메모리 히스토리에서 찾지 못한 경우 데이터베이스에서 직접 조회
-                if not meal_plan_data and state.get("thread_id"):
-                    try:
-                        from app.core.database import supabase
-                        print(f"🔍 데이터베이스 조회 시도: thread_id={state['thread_id']}")
-                        db_history = supabase.table("chat").select("message").eq("thread_id", state["thread_id"]).order("created_at", desc=True).limit(20).execute()
-                        
-                        db_messages = [msg["message"] for msg in db_history.data if msg.get("message")]
-                        print(f"🔍 데이터베이스에서 {len(db_messages)}개 메시지 조회")
-                        
-                        if db_messages:
-                            meal_plan_data = self._find_recent_meal_plan(db_messages)
-                            if meal_plan_data:
-                                print(f"🔍 데이터베이스에서 식단 발견: {meal_plan_data}")
-                    except Exception as db_error:
-                        print(f"⚠️ 데이터베이스 조회 실패: {db_error}")
-                
-            if not meal_plan_data:
-                state["response"] = "저장할 식단을 찾을 수 없습니다. 먼저 식단을 생성해주세요."
-                return state
-            
-            # duration_days 추출 (더 정확한 방법 사용)
-            duration_days = None
-            
-            # 1. meal_plan_data에서 duration_days 먼저 확인
-            if 'duration_days' in meal_plan_data:
-                duration_days = meal_plan_data['duration_days']
-                print(f"🔍 DEBUG: meal_plan_data에서 duration_days 추출: {duration_days}")
-            
-            # 2. days 배열 길이로 확인
-            if duration_days is None and 'days' in meal_plan_data:
-                duration_days = len(meal_plan_data['days'])
-                print(f"🔍 DEBUG: days 배열 길이로 duration_days 추출: {duration_days}")
-            
-            # 3. 대화 히스토리에서 더 정확한 일수 찾기
-            if duration_days is None or duration_days == 1:
-                # DateParser의 _extract_duration_days로 다시 시도
-                for history_msg in reversed(chat_history[-5:]):
-                    extracted_days = date_parser._extract_duration_days(history_msg)
-                    if extracted_days and extracted_days > 1:
-                        duration_days = extracted_days
-                        print(f"🔍 DEBUG: 채팅 히스토리에서 일수 재추출: {duration_days}")
-                        break
-            
-            # 최종 기본값 (1일이 아니면)
-            if duration_days is None:
-                duration_days = 3  # 기본 3일
-                print(f"🔍 DEBUG: 기본값 사용: {duration_days}일")
-            
-            print(f"🔍 DEBUG: 캘린더 저장 - meal_plan_data: {meal_plan_data}")
-            print(f"🔍 DEBUG: 캘린더 저장 - 최종 duration_days: {duration_days}")
-            print(f"🔍 DEBUG: 캘린더 저장 - parsed_date.date: {parsed_date.date}")
-            print(f"🔍 DEBUG: 캘린더 저장 - parsed_date.description: {parsed_date.description}")
-            
-            # 일별 식단 데이터를 직접 포함한 save_data 생성
-            days_data = []
-            
-            if meal_plan_data and 'days' in meal_plan_data:
-                days_data = meal_plan_data['days']
-            else:
-                # 기본 식단으로 fallback
-                for i in range(duration_days):
-                    days_data.append({
-                        'breakfast': {'title': f'키토 아침 메뉴 {i+1}일차'},
-                        'lunch': {'title': f'키토 점심 메뉴 {i+1}일차'},
-                        'dinner': {'title': f'키토 저녁 메뉴 {i+1}일차'},
-                        'snack': {'title': f'키토 간식 {i+1}일차'}
-                    })
-            
-            save_data = {
-                "action": "save_to_calendar",
-                "start_date": parsed_date.date.isoformat(),
-                "duration_days": duration_days,
-                "meal_plan_data": meal_plan_data,
-                "days_data": days_data,  # 직접 프론트엔드에서 사용할 수 있는 일별 데이터 추가
-                "message": f"{duration_days}일치 식단표를 {parsed_date.date.strftime('%Y년 %m월 %d일')}부터 캘린더에 저장합니다."
-            }
-            
-            print(f"🔍 DEBUG: save_data 구조: {save_data}")
-            print(f"🔍 DEBUG: days_data 길이: {len(days_data)}")
-            
-            # 실제 Supabase에 식단 데이터 저장
-            try:
-                from app.core.database import supabase
-                from datetime import datetime as dt_module, timedelta
-                
-                # user_id 가져오기 - 여러 방법으로 시도
-                user_id = None
-                
-                # 1. profile에서 확인
-                if state.get("profile") and state["profile"].get("user_id"):
-                    user_id = state["profile"]["user_id"]
-                    print(f"🔍 DEBUG: user_id from profile: {user_id}")
-                
-                # 2. state에서 직접 user_id 확인
-                if not user_id and state.get("user_id"):
-                    user_id = state["user_id"]
-                    print(f"🔍 DEBUG: user_id from state: {user_id}")
-                
-                # 3. thread_id로 데이터베이스에서 조회
-                if not user_id and state.get("thread_id"):
-                    try:
-                        thread_response = supabase.table("chat_thread").select("user_id").eq("id", state["thread_id"]).execute()
-                        if thread_response.data:
-                            user_id = thread_response.data[0].get("user_id")
-                            print(f"🔍 DEBUG: user_id from thread: {user_id}")
-                    except Exception as thread_error:
-                        print(f"⚠️ thread에서 user_id 조회 실패: {thread_error}")
-                
-                if not user_id:
-                    # 사용자 정보를 찾지 못한 경우 알려준다
-                    print(f"⚠️ 사용자 정보를 찾을 수 없어 실제 저장을 건너뜁니다")
-                    state["response"] = f"데이터를 준비했습니다만, 사용자 정보가 필요합니다. 프론트엔드에서 완료될 예정입니다."
-                else:
-                    # 기존 해당 기간 데이터 삭제 (충돌 방지)
-                    end_date = parsed_date.date + timedelta(days=duration_days - 1)
-                    delete_result = supabase.table('meal_log').delete()\
-                        .eq('user_id', str(user_id))\
-                        .gte('date', parsed_date.date.isoformat())\
-                        .lte('date', end_date.isoformat()).execute()
-                    print(f"🔍 DEBUG: 기존 데이터 삭제 결과: {delete_result}")
-                    
-                    # 새 meal_log 데이터 생성
-                    meal_logs_to_create = []
-                    current_date = parsed_date.date
-                    
-                    for i, day_data in enumerate(days_data):
-                        date_string = current_date.isoformat()
-                        
-                        # 각 식사 시간대별로 meal_log 생성
-                        meal_types = ['breakfast', 'lunch', 'dinner', 'snack']
-                        for slot in meal_types:
-                            if slot in day_data and day_data[slot]:
-                                meal_item = day_data[slot]
-                                meal_title = ""
-                                
-                                if isinstance(meal_item, str):
-                                    meal_title = meal_item
-                                elif isinstance(meal_item, dict) and meal_item.get('title'):
-                                    meal_title = meal_item['title']
-                                else:
-                                    meal_title = str(meal_item) if meal_item else ""
-                                
-                                if meal_title and meal_title.strip():
-                                    meal_log = {
-                                        "user_id": str(user_id),
-                                        "date": date_string,
-                                        "meal_type": slot,
-                                        "eaten": False,
-                                        "note": meal_title.strip(),
-                                        "created_at": dt_module.utcnow().isoformat(),
-                                        "updated_at": dt_module.utcnow().isoformat()
-                                    }
-                                    meal_logs_to_create.append(meal_log)
-                                    print(f"🔍 DEBUG: meal_log 추가: {meal_log}")
-                        
-                        current_date += timedelta(days=1)
-                    
-                    # Supabase에 일괄 저장
-                    if meal_logs_to_create:
-                        print(f"🔍 DEBUG: Supabase에 {len(meal_logs_to_create)}개 데이터 저장 시도")
-                        result = supabase.table('meal_log').insert(meal_logs_to_create).execute()
-                        print(f"🔍 DEBUG: Supabase 저장 결과: {result}")
-                        
-                        if result.data:
-                            state["response"] = f"✅ {duration_days}일치 식단표가 캘린더에 성공적으로 저장되었습니다! {parsed_date.date.strftime('%Y년 %m월 %d일')}부터 해주시겠어요! 📅✨"
-                        else:
-                            state["response"] = f"식단을 준비했습니다만 저장 중 오류가 발생했습니다. 다시 시도해주세요."
-                    else:
-                        state["response"] = "저장할 식단 데이터를 찾을 수 없습니다."
-                        
-            except Exception as save_error:
-                print(f"❌ Supabase 저장 중 오류 발생: {save_error}")
-                import traceback
-                print(f"❌ 상세 저장 오류: {traceback.format_exc()}")
-                state["response"] = f"식단 데이터를 준비했습니다만 저장 중 오류가 발생했습니다. 프론트엔드에서 완료될 예정입니다."
-            
-            # fallback으로 프론트엔드에 저장 데이터도 전달
-            state["save_to_calendar_data"] = save_data
-            state["meal_plan_data"] = meal_plan_data
-            
+
+            # CalendarSaver를 사용하여 저장 처리
+            result = await self.calendar_saver.save_meal_plan_to_calendar(
+                state, message, chat_history
+            )
+
+            # 결과에 따라 상태 업데이트
+            state["response"] = result["message"]
+
+            if result.get("save_data"):
+                state["save_to_calendar_data"] = result["save_data"]
+                # meal_plan_data가 있으면 보존
+                if result["save_data"].get("meal_plan_data"):
+                    state["meal_plan_data"] = result["save_data"]["meal_plan_data"]
+
+            # 충돌 정보가 있으면 상태에 저장 (다음 사용자 입력에서 처리)
+            if result.get("has_conflict"):
+                state["calendar_conflict_info"] = result.get("conflict_info")
+                state["pending_meal_logs"] = result.get("pending_meal_logs")
+
+            state["tool_calls"].append({
+                "tool": "calendar_saver",
+                "success": result["success"],
+                "method": "save_meal_plan_to_calendar",
+                "has_conflict": result.get("has_conflict", False)
+            })
+
             return state
-            
+
         except Exception as e:
-            print(f"❌ 캘린더 저장 처리 오류: {e}")
+            print(f"❌ 캘린더 저장 노드 오류: {e}")
             import traceback
             print(f"❌ 상세 오류: {traceback.format_exc()}")
             state["response"] = "죄송합니다. 캘린더 저장 처리 중 오류가 발생했습니다. 다시 시도해주세요."
             return state
     
-    def _is_calendar_save_request(self, message: str) -> bool:
-        """캘린더 저장 요청인지 감지"""
-        save_keywords = ['저장', '추가', '계획', '등록', '넣어', '캘린더', '일정']
-        date_keywords = ['다음주', '내일', '오늘', '모레', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일']
-        
-        has_save_keyword = any(keyword in message for keyword in save_keywords)
-        has_date_keyword = any(keyword in message for keyword in date_keywords)
-        
-        return has_save_keyword and has_date_keyword
-    
+    # _is_calendar_save_request 함수 제거 - CalendarUtils로 이동
+
     async def _handle_calendar_save_request(self, state: AgentState, message: str) -> AgentState:
-        """캘린더 저장 요청 처리"""
+        """캘린더 저장 요청 처리 (CalendarSaver 사용)"""
         try:
-            # 대화 히스토리에서 이전 식단표 데이터 찾기
+            # 대화 히스토리 가져오기
             chat_history = []
             if state["messages"]:
                 # 최근 10개 메시지만 확인 (토큰 절약)
@@ -1066,53 +870,34 @@ class KetoCoachAgent:
                 for msg in recent_messages:
                     if hasattr(msg, 'content'):
                         chat_history.append(msg.content)
-            
-            # 날짜 파싱 (date_parser 사용)
-            from app.tools.shared.date_parser import DateParser
-            date_parser = DateParser()
-            
-            parsed_date = date_parser.extract_date_from_message_with_context(message, chat_history)
-            if not parsed_date or not parsed_date.date:
-                state["response"] = "죄송합니다. 날짜를 파악할 수 없습니다. 더 구체적으로 말씀해주세요. (예: '다음주 월요일부터', '내일부터')"
-                return state
-            
-            # 대화 히스토리에서 meal_plan_data 찾기
-            meal_plan_data = None
-            duration_days = parsed_date.duration_days or 7  # 기본값 7일
-            
-            # 히스토리에서 식단표 관련 키워드와 일수 정보 찾기
-            for history_msg in reversed(chat_history):
-                # 동적 일수 파싱
-                context_duration = date_parser._extract_duration_days(history_msg)
-                if context_duration:
-                    duration_days = context_duration
-                    print(f"🔍 대화 맥락에서 일수 정보 발견: {duration_days}일")
-                    break
-                
-                # 식단표 생성 메시지인지 확인
-                if any(word in history_msg for word in ["식단표", "식단", "계획", "추천"]) and any(word in history_msg for word in ["만들어", "생성", "계획해"]):
-                    break
-            
-            # 구조화된 저장 데이터 생성
-            save_data = {
-                "action": "save_to_calendar",
-                "start_date": parsed_date.date.isoformat(),
-                "duration_days": duration_days,
-                "message": f"{duration_days}일치 식단표를 {parsed_date.date.strftime('%Y년 %m월 %d일')}부터 캘린더에 저장합니다."
-            }
-            
-            # 응답 메시지 생성
-            response_message = f"네! {duration_days}일치 식단표를 {parsed_date.date.strftime('%Y년 %m월 %d일')}부터 캘린더에 저장해드릴게요! 🗓️✨"
-            
-            state["response"] = response_message
-            state["save_to_calendar_data"] = save_data
-            
+
+            # CalendarSaver를 사용하여 저장 처리
+            result = await self.calendar_saver.save_meal_plan_to_calendar(
+                state, message, chat_history
+            )
+
+            # 결과에 따라 상태 업데이트
+            state["response"] = result["message"]
+
+            if result.get("save_data"):
+                state["save_to_calendar_data"] = result["save_data"]
+                # meal_plan_data가 있으면 보존
+                if result["save_data"].get("meal_plan_data"):
+                    state["meal_plan_data"] = result["save_data"]["meal_plan_data"]
+
+            # 충돌 정보가 있으면 상태에 저장 (다음 사용자 입력에서 처리)
+            if result.get("has_conflict"):
+                state["calendar_conflict_info"] = result.get("conflict_info")
+                state["pending_meal_logs"] = result.get("pending_meal_logs")
+
             return state
-            
+
         except Exception as e:
             print(f"❌ 캘린더 저장 요청 처리 오류: {e}")
             state["response"] = "죄송합니다. 캘린더 저장 처리 중 오류가 발생했습니다. 다시 시도해주세요."
             return state
+    
+    # 기존 _handle_calendar_save_request 함수 제거됨 - 위의 새 버전 사용
     
     async def _answer_node(self, state: AgentState) -> AgentState:
         """최종 응답 생성 노드"""
@@ -1121,7 +906,7 @@ class KetoCoachAgent:
             message = state["messages"][-1].content if state["messages"] else ""
             
             # 캘린더 저장 요청 감지 및 처리
-            if self._is_calendar_save_request(message):
+            if self.calendar_utils.is_calendar_save_request(message):
                 return await self._handle_calendar_save_request(state, message)
             
             # 결과 기반 응답 생성

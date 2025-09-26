@@ -3,8 +3,8 @@ from pydantic import BaseModel
 from typing import Optional, List
 import logging
 
-# 상대 import로 변경 - tools/shared/date_parser 모듈 사용
-from ....tools.shared.date_parser import date_parser, ParsedDateInfo
+# 새 위치에서 tools/shared/date_parser 모듈 사용할 수 있도록 경로 수정
+from ...tools.shared.date_parser import date_parser, ParsedDateInfo
 
 # 로거 설정
 logger = logging.getLogger(__name__)

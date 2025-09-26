@@ -28,6 +28,7 @@ export function ChatPage() {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
   const [isSavingMeal, setIsSavingMeal] = useState<string | null>(null) // 저장 중인 메시지 ID
+  const [isSaving, setIsSaving] = useState(false) // 중복 저장 방지를 위한 플래그
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [selectedPlaceIndexByMsg, setSelectedPlaceIndexByMsg] = useState<Record<string, number | null>>({})
 
@@ -419,9 +420,11 @@ export function ChatPage() {
       // 백엔드에서 제공하는 save_to_calendar_data가 있으면 우선 사용
       if (response.save_to_calendar_data && user?.id) {
         console.log('✅ 백엔드 save_to_calendar_data 사용:', response.save_to_calendar_data)
-        setTimeout(() => {
+        if (!isSaving) {
+          setIsSaving(true)
           handleBackendCalendarSave(response.save_to_calendar_data!, parsedMeal)
-        }, 1000)
+            .finally(() => setIsSaving(false))
+        }
       }
       // 백엔드 데이터가 없으면 기존 로직 사용
       else if (parsedMeal && user?.id) {
@@ -443,9 +446,13 @@ export function ChatPage() {
         )
 
         if (isAutoSaveRequest) {
-          setTimeout(() => {
-            handleSmartMealSave(userMessage.content, parsedMeal)
-          }, 1000) // 1초 후 자동 저장
+          if (!isSaving) {
+            setIsSaving(true)
+            setTimeout(() => {
+              handleSmartMealSave(userMessage.content, parsedMeal)
+                .finally(() => setIsSaving(false))
+            }, 1000) // 1초 후 자동 저장
+          }
         }
       }
       // 현재 메시지에 식단이 없지만 저장 요청이 있는 경우 이전 메시지에서 식단 데이터 찾기
@@ -464,9 +471,13 @@ export function ChatPage() {
           const recentMealData = findRecentMealData(updatedMessages)
 
           if (recentMealData) {
-            setTimeout(() => {
-              handleSmartMealSave(userMessage.content, recentMealData, '이전 식단을')
-            }, 1000) // 1초 후 자동 저장
+            if (!isSaving) {
+              setIsSaving(true)
+              setTimeout(() => {
+                handleSmartMealSave(userMessage.content, recentMealData, '이전 식단을')
+                  .finally(() => setIsSaving(false))
+              }, 1000) // 1초 후 자동 저장
+            }
           } else {
             // 이전 식단을 찾을 수 없는 경우 안내 메시지
             const noMealMessage: ChatMessage = {
@@ -616,6 +627,12 @@ export function ChatPage() {
       return
     }
 
+    // 중복 저장 방지
+    if (isSaving) {
+      console.log('🔒 이미 저장 중입니다. 중복 저장을 방지합니다.')
+      return
+    }
+
     // 백엔드 API를 통한 날짜 파싱
     let parsedDate: ParsedDateInfo | null = null
 
@@ -631,6 +648,7 @@ export function ChatPage() {
     }
 
     if (parsedDate) {
+      setIsSaving(true)
       setIsSavingMeal('auto-save')
 
       try {
@@ -758,6 +776,7 @@ export function ChatPage() {
         addMessage(errorMessage)
       } finally {
         setIsSavingMeal(null)
+        setIsSaving(false)
       }
     }
   }
@@ -768,6 +787,13 @@ export function ChatPage() {
       return
     }
 
+    // 중복 저장 방지
+    if (isSaving) {
+      console.log('🔒 이미 저장 중입니다. 중복 저장을 방지합니다.')
+      return
+    }
+
+    setIsSaving(true)
     setIsSavingMeal('auto-save')
     
     try {
@@ -871,6 +897,7 @@ export function ChatPage() {
       addMessage(errorMessage)
     } finally {
       setIsSavingMeal(null)
+      setIsSaving(false)
     }
   }
 
@@ -951,9 +978,11 @@ export function ChatPage() {
       // 백엔드에서 제공하는 save_to_calendar_data가 있으면 우선 사용
       if (response.save_to_calendar_data && user?.id) {
         console.log('✅ 백엔드 save_to_calendar_data 사용:', response.save_to_calendar_data)
-        setTimeout(() => {
+        if (!isSaving) {
+          setIsSaving(true)
           handleBackendCalendarSave(response.save_to_calendar_data!, parsedMeal)
-        }, 1000)
+            .finally(() => setIsSaving(false))
+        }
       }
       // 백엔드 데이터가 없으면 기존 로직 사용
       else if (parsedMeal && user?.id) {
@@ -975,9 +1004,13 @@ export function ChatPage() {
         )
 
         if (isAutoSaveRequest) {
-          setTimeout(() => {
-            handleSmartMealSave(userMessage.content, parsedMeal)
-          }, 1000) // 1초 후 자동 저장
+          if (!isSaving) {
+            setIsSaving(true)
+            setTimeout(() => {
+              handleSmartMealSave(userMessage.content, parsedMeal)
+                .finally(() => setIsSaving(false))
+            }, 1000) // 1초 후 자동 저장
+          }
         }
       }
       // 현재 메시지에 식단이 없지만 저장 요청이 있는 경우 이전 메시지에서 식단 데이터 찾기
@@ -996,9 +1029,13 @@ export function ChatPage() {
           const recentMealData = findRecentMealData(updatedMessages)
 
           if (recentMealData) {
-            setTimeout(() => {
-              handleSmartMealSave(userMessage.content, recentMealData, '이전 식단을')
-            }, 1000) // 1초 후 자동 저장
+            if (!isSaving) {
+              setIsSaving(true)
+              setTimeout(() => {
+                handleSmartMealSave(userMessage.content, recentMealData, '이전 식단을')
+                  .finally(() => setIsSaving(false))
+              }, 1000) // 1초 후 자동 저장
+            }
           } else {
             // 이전 식단을 찾을 수 없는 경우 안내 메시지
             const noMealMessage: ChatMessage = {
