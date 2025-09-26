@@ -1,6 +1,5 @@
 import { useAuthStore } from '@/store/authStore'
 import axios from 'axios'
-import { api } from '@/hooks/useApi'
 
 // User 타입 정의
 interface User {
@@ -14,7 +13,6 @@ class AuthService {
   private isRefreshing = false
   private refreshPromise: Promise<any> | null = null
   private scheduledRefresh: NodeJS.Timeout | null = null
-  private hasShownExpiryToast = false
   
   // 클라이언트 표시용 로그인 세션 플래그 (HttpOnly RT 유무를 대체 판단)
   private setLoginSessionFlag(on: boolean) {
@@ -214,14 +212,6 @@ class AuthService {
       
       return { success: false, user: null, accessToken: null, refreshToken: null }
     }
-  }
-
-  // HttpOnly 쿠키는 JavaScript에서 읽을 수 없음
-  // Refresh Token은 백엔드에서 자동으로 처리됨
-  private getCookieValue(name: string): string | null {
-    // HttpOnly 쿠키는 document.cookie로 읽을 수 없음
-    console.log('🍪 HttpOnly 쿠키는 JavaScript에서 읽을 수 없습니다:', name)
-    return null
   }
 
   // JWT 토큰 디코딩
