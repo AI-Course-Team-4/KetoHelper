@@ -4,6 +4,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Close, Save } from '@mui/icons-material'
 import { MealData } from '@/data/ketoMeals'
+import { useAddMealToCalendar } from '@/hooks/useApi'
+import { format } from 'date-fns'
+import { useAuthStore } from '@/store/authStore'
+import { useQueryClient } from '@tanstack/react-query'
 
 interface MealModalProps {
   isOpen: boolean
@@ -44,8 +48,6 @@ export function MealModal({ isOpen, onClose, selectedDate, mealData, onSave, sel
     onClose()
   }
 
-  if (!isOpen) return null
-
   const allMeals = [
     { key: 'breakfast', label: '아침', icon: '🌅', placeholder: '아침 메뉴를 입력하세요' },
     { key: 'lunch', label: '점심', icon: '☀️', placeholder: '점심 메뉴를 입력하세요' },
@@ -57,6 +59,82 @@ export function MealModal({ isOpen, onClose, selectedDate, mealData, onSave, sel
   const meals = selectedMealType 
     ? allMeals.filter(meal => meal.key === selectedMealType)
     : allMeals
+
+  // 모달에서 입력한 값을 캘린더에 추가하기
+  const addMealMutation = useAddMealToCalendar()
+  const user = useAuthStore(state => state.user)
+  const queryClient = useQueryClient()
+  const addMeal = async () => {
+    const dateStr = format(selectedDate, 'yyyy-MM-dd')
+    const targets = selectedMealType
+      ? [selectedMealType]
+      : (['breakfast','lunch','dinner','snack'] as const)
+
+    // 각 타겟 슬롯에 대해 입력값이 있는 경우만 전송하고, 캐시를 즉시 병합 업데이트
+    const createdPlans: any[] = []
+    for (const slot of targets) {
+      const text = String(formData[slot as keyof MealData] || '').trim()
+      if (!text) continue
+      try {
+        const result = await addMealMutation.mutateAsync({
+          user_id: user?.id || '',
+          date: dateStr,
+          slot: slot as any,
+          type: 'recipe',
+          ref_id: '',
+          title: text
+        })
+        createdPlans.push(result)
+      } catch (e: any) {
+        console.error('캘린더 추가 실패:', e)
+        alert(e?.response?.data?.detail || '저장 중 오류가 발생했습니다')
+        return
+      }
+    }
+
+    // plans-range 캐시 병합 업데이트 (완전 새로고침 없이 반영)
+    try {
+      const queries = queryClient.getQueriesData<any>({ queryKey: ['plans-range'] })
+      queries.forEach(([qKey, qData]) => {
+        if (!Array.isArray(qData)) return
+        const keyArr = qKey as unknown as any[]
+        const start = keyArr?.[1]
+        const end = keyArr?.[2]
+        const qUserId = keyArr?.[3]
+
+        if (!start || !end || !qUserId) return
+
+        const inRange = (d: string) => d >= start && d <= end
+
+        let changed = false
+        let next = [...qData]
+
+        for (const plan of createdPlans) {
+          if (plan?.user_id !== qUserId) continue
+          if (!inRange(plan?.date)) continue
+          const idx = next.findIndex((p: any) => p.id === plan.id)
+          if (idx >= 0) {
+            next[idx] = plan
+          } else {
+            next = [...next, plan]
+          }
+          changed = true
+        }
+
+        if (changed) {
+          // 날짜 기준 정렬 유지
+          next.sort((a: any, b: any) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+          queryClient.setQueryData(qKey, next)
+        }
+      })
+    } catch (e) {
+      // 캐시 업데이트 실패 시에는 무효화로 폴백
+      queryClient.invalidateQueries({ queryKey: ['plans-range'] })
+    }
+    onClose()
+  }
+
+  if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -88,7 +166,7 @@ export function MealModal({ isOpen, onClose, selectedDate, mealData, onSave, sel
           ))}
           
           <div className="flex gap-3 pt-4">
-            <Button onClick={handleSave} className="flex-1">
+            <Button onClick={addMeal} className="flex-1">
               <Save className="h-4 w-4 mr-2" />
               저장
             </Button>
