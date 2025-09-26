@@ -10,6 +10,7 @@ import { useAuthStore } from '@/store/authStore'
 // import { RecipeCard } from '@/components/RecipeCard'
 import { PlaceCard } from '@/components/PlaceCard'
 import { useSendMessage, useGetChatThreads, useGetChatHistory, useCreateNewThread, useDeleteThread, ChatHistory, useCreatePlan, useParseDateFromMessage, ParsedDateInfo } from '@/hooks/useApi'
+import { useQueryClient } from '@tanstack/react-query'
 import { MealParserService } from '@/lib/mealService'
 import { format } from 'date-fns'
 
@@ -40,6 +41,7 @@ export function ChatPage() {
   const deleteThread = useDeleteThread()
   const createPlan = useCreatePlan()
   const parseDateFromMessage = useParseDateFromMessage()
+  const queryClient = useQueryClient()
   
   // 채팅 스레드 관련 훅 추가
   const { data: chatThreads = [], refetch: refetchThreads } = useGetChatThreads(
@@ -384,24 +386,23 @@ export function ChatPage() {
         threadId = response.thread_id
       }
 
-      // 백엔드 응답에서 식단 데이터 파싱
-      let parsedMeal = MealParserService.parseMealFromBackendResponse(response)
-
-      // 테스트용: 식단 추천 관련 메시지인 경우 임시 데이터 생성
-      if (!parsedMeal && (
-        userMessage.content.includes('식단') ||
-        userMessage.content.includes('추천') ||
-        userMessage.content.includes('메뉴') ||
-        userMessage.content.includes('아침') ||
-        userMessage.content.includes('점심') ||
-        userMessage.content.includes('저녁')
-      )) {
+      // 백엔드에서 반환하는 구조화된 meal_plan_data 사용
+      let parsedMeal: LLMParsedMeal | null = null
+      
+      if (response.meal_plan_data && response.meal_plan_data.days && response.meal_plan_data.days.length > 0) {
+        // 백엔드에서 구조화된 데이터가 있으면 첫 번째 날 데이터 사용
+        const firstDay = response.meal_plan_data.days[0]
         parsedMeal = {
-          breakfast: '아보카도 토스트와 스크램블 에그',
-          lunch: '그릴 치킨 샐러드 (올리브오일 드레싱)',
-          dinner: '연어 스테이크와 구운 브로콜리',
-          snack: '아몬드 한 줌과 치즈 큐브'
+          breakfast: firstDay.breakfast?.title || '',
+          lunch: firstDay.lunch?.title || '',
+          dinner: firstDay.dinner?.title || '',
+          snack: firstDay.snack?.title || ''
         }
+        console.log('✅ 백엔드 meal_plan_data 사용:', parsedMeal)
+      } else {
+        // 백엔드 구조화 데이터가 없으면 기존 파싱 방식 사용
+        parsedMeal = MealParserService.parseMealFromBackendResponse(response)
+        console.log('⚠️ 기존 파싱 방식 사용:', parsedMeal)
       }
 
       const assistantMessage: ChatMessage = {
@@ -415,8 +416,15 @@ export function ChatPage() {
 
       addMessage(assistantMessage)
 
-      // 스마트 저장: 식단이 있고 사용자가 저장을 요청한 경우 자동 저장
-      if (parsedMeal && user?.id) {
+      // 백엔드에서 제공하는 save_to_calendar_data가 있으면 우선 사용
+      if (response.save_to_calendar_data && user?.id) {
+        console.log('✅ 백엔드 save_to_calendar_data 사용:', response.save_to_calendar_data)
+        setTimeout(() => {
+          handleBackendCalendarSave(response.save_to_calendar_data!, parsedMeal)
+        }, 1000)
+      }
+      // 백엔드 데이터가 없으면 기존 로직 사용
+      else if (parsedMeal && user?.id) {
         const isAutoSaveRequest = (
           userMessage.content.includes('저장') ||
           userMessage.content.includes('추가') ||
@@ -544,6 +552,9 @@ export function ChatPage() {
       }
 
       if (savedPlans.length > 0) {
+        // 캘린더 데이터 새로고침
+        queryClient.invalidateQueries({ queryKey: ['plans-range'] })
+        
         // 성공 메시지 추가
         const successMessage: ChatMessage = {
           id: Date.now().toString(),
@@ -675,6 +686,9 @@ export function ChatPage() {
           }
 
           if (successCount > 0) {
+            // 캘린더 데이터 새로고침
+            queryClient.invalidateQueries({ queryKey: ['plans-range'] })
+            
             const successMessage: ChatMessage = {
               id: Date.now().toString(),
               role: 'assistant',
@@ -718,6 +732,9 @@ export function ChatPage() {
           }
 
           if (savedPlans.length > 0) {
+            // 캘린더 데이터 새로고침
+            queryClient.invalidateQueries({ queryKey: ['plans-range'] })
+            
             const messagePrefix = prefix ? prefix + ' ' : ''
             const successMessage: ChatMessage = {
               id: Date.now().toString(),
@@ -742,6 +759,118 @@ export function ChatPage() {
       } finally {
         setIsSavingMeal(null)
       }
+    }
+  }
+
+  // 백엔드 캘린더 저장 데이터 처리
+  const handleBackendCalendarSave = async (saveData: any, mealData: LLMParsedMeal | null) => {
+    if (!user?.id) {
+      return
+    }
+
+    setIsSavingMeal('auto-save')
+    
+    try {
+      const startDate = new Date(saveData.start_date)
+      const durationDays = saveData.duration_days
+      const daysData = saveData.days_data || []  // 백엔드에서 준비한 완벽한 일별 데이터
+      
+      console.log(`🗓️ 백엔드 캘린더 저장: ${durationDays}일치, 시작일: ${startDate.toISOString()}`)
+      console.log(`🗓️ 백엔드에서 받은 days_data:`, daysData)
+      
+      let successCount = 0
+      const savedDays: string[] = []
+      
+      // durationDays만큼 반복해서 저장
+      for (let i = 0; i < durationDays; i++) {
+        const currentDate = new Date(startDate)
+        currentDate.setDate(startDate.getDate() + i)
+        const dateString = currentDate.toISOString().split('T')[0]
+        
+        // 해당 일의 백엔드 데이터 사용, 없으면 기본값
+        let dayMeals: any = {}
+        if (daysData[i]) {
+          dayMeals = daysData[i]
+          console.log(`🗓️ ${i+1}일차 백엔드 식단 사용:`, dayMeals)
+        } else {
+          // fallback: 기본 식단
+          dayMeals = mealData || {
+            breakfast: '키토 아침 메뉴',
+            lunch: '키토 점심 메뉴', 
+            dinner: '키토 저녁 메뉴',
+            snack: '키토 간식'
+          }
+        }
+        
+        // 각 식사 시간대별로 개별 plan 생성
+        const mealSlots = ['breakfast', 'lunch', 'dinner', 'snack'] as const
+        let daySuccessCount = 0
+
+        for (const slot of mealSlots) {
+          // dayMeals 구조에 맞게 mealTitle 추출
+          let mealTitle = ''
+          if (dayMeals[slot]) {
+            if (typeof dayMeals[slot] === 'string') {
+              mealTitle = dayMeals[slot]
+            } else if (dayMeals[slot]?.title) {
+              mealTitle = dayMeals[slot].title
+            }
+          }
+          
+          if (mealTitle && mealTitle.trim()) {
+            try {
+              const planData = {
+                user_id: user.id,
+                date: dateString,
+                slot: slot,
+                type: 'recipe' as const,
+                ref_id: '',
+                title: mealTitle.trim(),
+                location: undefined,
+                macros: undefined,
+                notes: undefined
+              }
+
+              await createPlan.mutateAsync(planData)
+              daySuccessCount++
+            } catch (error) {
+              console.error(`${dateString} ${slot} 저장 실패:`, error)
+            }
+          }
+        }
+
+        if (daySuccessCount > 0) {
+          savedDays.push(format(currentDate, 'M/d'))
+          successCount += daySuccessCount
+        }
+      }
+
+      // 캘린더 데이터 새로고침
+      queryClient.invalidateQueries({ queryKey: ['plans-range'] })
+      
+      if (successCount > 0) {
+        const successMessage: ChatMessage = {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: `✅ ${durationDays}일치 식단표를 캘린더에 저장했습니다! (${savedDays.join(', ')}일)`,
+          timestamp: new Date()
+        }
+        addMessage(successMessage)
+      } else {
+        throw new Error('식단 저장에 실패했습니다.')
+      }
+      
+    } catch (error) {
+      console.error('백엔드 캘린더 저장 실패:', error)
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: `❌ 식단 저장에 실패했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
+        timestamp: new Date()
+      }
+      addMessage(errorMessage)
+    } finally {
+      setIsSavingMeal(null)
     }
   }
 
@@ -789,24 +918,23 @@ export function ChatPage() {
         threadId = response.thread_id
       }
 
-      // 백엔드 응답에서 식단 데이터 파싱
-      let parsedMeal = MealParserService.parseMealFromBackendResponse(response)
-
-      // 테스트용: 식단 추천 관련 메시지인 경우 임시 데이터 생성
-      if (!parsedMeal && (
-        userMessage.content.includes('식단') ||
-        userMessage.content.includes('추천') ||
-        userMessage.content.includes('메뉴') ||
-        userMessage.content.includes('아침') ||
-        userMessage.content.includes('점심') ||
-        userMessage.content.includes('저녁')
-      )) {
+      // 백엔드에서 반환하는 구조화된 meal_plan_data 사용
+      let parsedMeal: LLMParsedMeal | null = null
+      
+      if (response.meal_plan_data && response.meal_plan_data.days && response.meal_plan_data.days.length > 0) {
+        // 백엔드에서 구조화된 데이터가 있으면 첫 번째 날 데이터 사용
+        const firstDay = response.meal_plan_data.days[0]
         parsedMeal = {
-          breakfast: '아보카도 토스트와 스크램블 에그',
-          lunch: '그릴 치킨 샐러드 (올리브오일 드레싱)',
-          dinner: '연어 스테이크와 구운 브로콜리',
-          snack: '아몬드 한 줌과 치즈 큐브'
+          breakfast: firstDay.breakfast?.title || '',
+          lunch: firstDay.lunch?.title || '',
+          dinner: firstDay.dinner?.title || '',
+          snack: firstDay.snack?.title || ''
         }
+        console.log('✅ 백엔드 meal_plan_data 사용:', parsedMeal)
+      } else {
+        // 백엔드 구조화 데이터가 없으면 기존 파싱 방식 사용
+        parsedMeal = MealParserService.parseMealFromBackendResponse(response)
+        console.log('⚠️ 기존 파싱 방식 사용:', parsedMeal)
       }
 
       const assistantMessage: ChatMessage = {
@@ -820,8 +948,15 @@ export function ChatPage() {
 
       addMessage(assistantMessage)
 
-      // 스마트 저장: 식단이 있고 사용자가 저장을 요청한 경우 자동 저장
-      if (parsedMeal && user?.id) {
+      // 백엔드에서 제공하는 save_to_calendar_data가 있으면 우선 사용
+      if (response.save_to_calendar_data && user?.id) {
+        console.log('✅ 백엔드 save_to_calendar_data 사용:', response.save_to_calendar_data)
+        setTimeout(() => {
+          handleBackendCalendarSave(response.save_to_calendar_data!, parsedMeal)
+        }, 1000)
+      }
+      // 백엔드 데이터가 없으면 기존 로직 사용
+      else if (parsedMeal && user?.id) {
         const isAutoSaveRequest = (
           userMessage.content.includes('저장') ||
           userMessage.content.includes('추가') ||
@@ -1084,15 +1219,85 @@ export function ChatPage() {
                           <div className={`flex items-start gap-3 lg:gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''
                             }`}>
                             {/* 아바타 */}
-                            <div className={`flex-shrink-0 w-10 h-10 lg:w-12 lg:h-12 rounded-full flex items-center justify-center shadow-lg ring-2 ${msg.role === 'user'
+                            <div className={`flex-shrink-0 w-10 h-10 lg:w-12 lg:h-12 rounded-full flex items-center justify-center shadow-lg ring-2 overflow-hidden ${msg.role === 'user'
                                 ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white ring-blue-200'
                                 : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white ring-green-200'
                               }`}>
-                              {msg.role === 'user' ? <Person sx={{ fontSize: { xs: 20, lg: 24 } }} /> : <span className="text-lg lg:text-xl">🥑</span>}
+                              {msg.role === 'user' ? (
+                                // 사용자 프로필 이미지 또는 기본 아이콘
+                                (() => {
+                                  const profileImageUrl = profile?.profile_image_url || user?.profileImage;
+                                  const userName = profile?.nickname || user?.name || '사용자';
+                                  
+                                  if (user && profileImageUrl) {
+                                    return (
+                                      <div className="relative w-full h-full">
+                                        <img 
+                                          src={profileImageUrl} 
+                                          alt={userName} 
+                                          className="w-full h-full object-cover rounded-full"
+                                          onError={(e) => {
+                                            // 이미지 로드 실패 시 fallback div 표시
+                                            const target = e.currentTarget;
+                                            target.style.display = 'none';
+                                            const fallback = target.nextElementSibling as HTMLElement;
+                                            if (fallback) {
+                                              fallback.style.display = 'flex';
+                                            }
+                                          }}
+                                        />
+                                        <div 
+                                          className="absolute inset-0 flex items-center justify-center bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full"
+                                          style={{ display: 'none' }}
+                                        >
+                                          <Person sx={{ fontSize: { xs: 20, lg: 24 } }} />
+                                        </div>
+                                      </div>
+                                    );
+                                  } else if (user) {
+                                    // 로그인했지만 프로필 이미지가 없는 경우 - 이니셜 표시
+                                    const initial = userName.charAt(0).toUpperCase();
+                                    return (
+                                      <div className="flex items-center justify-center w-full h-full text-white font-bold text-sm lg:text-base">
+                                        {initial}
+                                      </div>
+                                    );
+                                  } else {
+                                    // 게스트 사용자
+                                    return <Person sx={{ fontSize: { xs: 20, lg: 24 } }} />;
+                                  }
+                                })()
+                              ) : (
+                                <span className="text-lg lg:text-xl">🥑</span>
+                              )}
                             </div>
 
                             {/* 메시지 내용 */}
                             <div className={`flex-1 max-w-3xl ${msg.role === 'user' ? 'text-right' : ''}`}>
+                              {/* 사용자 프로필 정보 표시 */}
+                              {msg.role === 'user' && (
+                                <div className="mb-2 text-right">
+                                  <span className="text-xs lg:text-sm text-gray-600 bg-gray-50 px-3 py-1 rounded-full">
+                                    {user ? 
+                                      (profile?.nickname || user.name || user.email || '사용자') : 
+                                      '게스트 사용자'
+                                    }
+                                    {profile && user && (
+                                      <span className="ml-2 text-green-600">
+                                        키토 목표: {profile.goals_kcal || 1500}kcal
+                                        {profile.goals_carbs_g && (
+                                          <span className="ml-1">/ 탄수화물: {profile.goals_carbs_g}g</span>
+                                        )}
+                                      </span>
+                                    )}
+                                    {!user && (
+                                      <span className="ml-2 text-amber-600">
+                                        로그인하면 개인화된 추천을 받을 수 있어요
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
+                              )}
                               <div className={`inline-block p-4 lg:p-5 rounded-2xl shadow-lg ${msg.role === 'user'
                                   ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
                                   : 'bg-white border-2 border-gray-100'
@@ -1120,7 +1325,7 @@ export function ChatPage() {
                                       <CalendarToday sx={{ fontSize: 20 }} />
                                       추천받은 식단
                                     </h4>
-                                    <div className="flex gap-2">
+                                    <div className="flex flex-wrap gap-2">
                                       <Button
                                         size="sm"
                                         onClick={() => handleSaveMealToCalendar(msg.id, msg.mealData!)}
@@ -1139,6 +1344,35 @@ export function ChatPage() {
                                           </>
                                         )}
                                       </Button>
+                                      
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => {
+                                          const tomorrow = format(new Date(Date.now() + 86400000), 'yyyy-MM-dd')
+                                          handleSaveMealToCalendar(msg.id, msg.mealData!, tomorrow)
+                                        }}
+                                        disabled={isSavingMeal === msg.id || isSavingMeal === 'auto-save'}
+                                        className="border-2 border-green-500 text-green-700 hover:bg-green-50 font-semibold rounded-xl transition-all duration-300"
+                                      >
+                                        <CalendarToday sx={{ fontSize: 16, mr: 1 }} />
+                                        내일에 저장
+                                      </Button>
+
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => {
+                                          const dayAfterTomorrow = format(new Date(Date.now() + 172800000), 'yyyy-MM-dd')
+                                          handleSaveMealToCalendar(msg.id, msg.mealData!, dayAfterTomorrow)
+                                        }}
+                                        disabled={isSavingMeal === msg.id || isSavingMeal === 'auto-save'}
+                                        className="border-2 border-green-500 text-green-700 hover:bg-green-50 font-semibold rounded-xl transition-all duration-300"
+                                      >
+                                        <CalendarToday sx={{ fontSize: 16, mr: 1 }} />
+                                        모레에 저장
+                                      </Button>
+                                      
                                       {isSavingMeal === 'auto-save' && (
                                         <div className="flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-sm">
                                           <CircularProgress size={12} />

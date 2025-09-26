@@ -31,10 +31,16 @@ MEAL_PLANNER_CONFIG = {
     "prompts": {
         "structure": "soobin_structure",     # 식단표 구조 계획 프롬프트
         "generation": "soobin_generation",   # 개별 레시피 생성 프롬프트
-        "notes": "soobin_notes"              # 식단표 조언 프롬프트
+        "notes": "soobin_notes",             # 식단표 조언 프롬프트
+        "embedding_based": "soobin_embedding_based",  # 임베딩 기반 검색 프롬프트
+        "fallback": "soobin_fallback",       # 폴백 프롬프트
+        "recipe_response": "soobin_recipe_response",  # 레시피 응답 프롬프트
+        "single_recipe": "soobin_single_recipe"       # 단일 레시피 프롬프트
     },
     "tools": {
-        "keto_score": "soobin_keto_score"    # 키토 친화도 점수 계산 도구
+        "keto_score": "soobin_keto_score",           # 키토 친화도 점수 계산 도구
+        "korean_search": "soobin_korean_search",     # 한국어 검색 도구
+        "recipe_response_formatter": "soobin_recipe_response_formatter"  # 레시피 응답 포맷터
     }
 }
 
@@ -44,17 +50,25 @@ RESTAURANT_AGENT_CONFIG = {
     "prompts": {
         "search_improvement": "soobin_search_improvement",  # 검색 키워드 개선 프롬프트
         "search_failure": "soobin_search_failure",          # 검색 실패 처리 프롬프트
-        "recommendation": "soobin_recommendation"           # 식당 추천 프롬프트
+        "recommendation": "soobin_recommendation",          # 식당 추천 프롬프트
+        "fallback": "soobin_fallback"                       # 폴백 프롬프트
     },
     "tools": {
-        "place_search": "soobin_place_search"               # 장소 검색 도구
+        "place_search": "soobin_place_search",              # 장소 검색 도구
+        "restaurant_hybrid_search": "soobin_restaurant_hybrid_search"  # 하이브리드 검색 도구
     }
 }
 
 # 채팅 에이전트 개인화 설정  
 CHAT_AGENT_CONFIG = {
     "agent_name": "수빈의 키토 코치",
-    "prompt_file_name": "soobin_general_chat"                   # 일반 채팅 프롬프트
+    "prompts": {
+        "general_chat": "soobin_general_chat",              # 일반 채팅 프롬프트
+        "fallback": "soobin_fallback",                      # 폴백 프롬프트
+        "intent_classification": "soobin_intent_classification",  # 의도 분류 프롬프트
+        "memory_update": "soobin_memory_update",            # 메모리 업데이트 프롬프트
+        "response_generation": "soobin_response_generation" # 응답 생성 프롬프트
+    }
 }
 
 # 오케스트레이터 개인화 설정 (팀원별 프롬프트 실험용)
@@ -72,5 +86,29 @@ AGENT_CONFIGS = {
     "chat_agent": CHAT_AGENT_CONFIG,
     "orchestrator": ORCHESTRATOR_CONFIG
 }
+
+# ============================================================================
+# 업데이트된 프롬프트 및 도구 목록 (2024.09.26)
+# ============================================================================
+# 
+# Meal Planner 추가된 항목:
+# - embedding_based: 임베딩 기반 검색 프롬프트
+# - fallback: 폴백 프롬프트  
+# - recipe_response: 레시피 응답 프롬프트
+# - single_recipe: 단일 레시피 프롬프트
+# - korean_search: 한국어 검색 도구
+# - recipe_response_formatter: 레시피 응답 포맷터
+#
+# Restaurant Agent 추가된 항목:
+# - fallback: 폴백 프롬프트
+# - restaurant_hybrid_search: 하이브리드 검색 도구
+#
+# Chat Agent 추가된 항목:
+# - fallback: 폴백 프롬프트
+# - intent_classification: 의도 분류 프롬프트
+# - memory_update: 메모리 업데이트 프롬프트
+# - response_generation: 응답 생성 프롬프트
+#
+# 사용법: USE_PERSONAL_CONFIG = True로 변경하여 개인 설정 활성화
 
 
