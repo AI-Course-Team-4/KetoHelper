@@ -207,3 +207,6 @@ backend/config/.personal_config.py
 **/personal_config_*.py
 **/my_*.py
 **/*_custom.py
+
+#codex_ai 파일 예외 처리
+AGENTS.md

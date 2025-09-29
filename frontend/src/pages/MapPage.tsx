@@ -182,7 +182,7 @@ export function MapPage() {
             lng: userLocation.lng,
             radius: 2000,
             min_score: 30,
-            max_results: 50,
+            max_results: 30,
           },
         })
         const places = res.data?.places || []
