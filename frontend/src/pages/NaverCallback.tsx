@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { Box, CircularProgress } from '@mui/material'
 import { toast } from 'react-hot-toast'
-import { authService } from '@/lib/authService'
+import { authService } from '@/services/AuthService'
 import { useAuthStore } from '@/store/authStore'
 
 export default function NaverCallback() {

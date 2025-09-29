@@ -5,12 +5,11 @@ import { Input } from '@/components/ui/input'
 // DropdownMenu는 MUI Menu로 대체 예정
 import { useAuthStore } from '@/store/authStore'
 import { useProfileStore } from '@/store/profileStore'
-import { authService } from '@/lib/authService'
+import { authService } from '@/services/AuthService'
 import { toast } from 'react-hot-toast'
 import { LoginModal } from './LoginModal'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { cleanupLocalAuthArtifacts, clearChatHistoryStorage, clearNaverOAuthState } from '@/lib/bootCleanup'
-import { shouldRedirectOnTokenExpiry } from '@/lib/routeUtils'
 
 export function Header() {
   const [, setIsSearchOpen] = useState(false)
@@ -29,6 +28,11 @@ export function Header() {
   }
 
   const handleLogout = async () => {
+    // 수동 로그아웃 플래그 설정 (axios 인터셉터에서 토스트 표시 방지)
+    if (typeof window !== 'undefined') {
+      (window as any).isManualLogout = true
+    }
+    
     try {
       await authService.logout()
       toast.success('성공적으로 로그아웃 되었습니다.')
@@ -40,16 +44,23 @@ export function Header() {
     clearProfile()
     console.log('🗑️ 로그아웃: 프로필 스토어 클리어 완료')
     
-    // 현재 경로에 따라 리다이렉트 여부 결정
-    const shouldRedirect = shouldRedirectOnTokenExpiry(location.pathname)
+    // AuthService.clearMemory()에서 Zustand store도 함께 초기화하므로 중복 제거
+    // clear(shouldRedirect) // 제거됨 - AuthService에서 처리
     
-    clear(shouldRedirect)
+    // 기타 정리 작업
     try { cleanupLocalAuthArtifacts() } catch {}
     try { clearChatHistoryStorage() } catch {}
     try { clearNaverOAuthState() } catch {}
     
     // 수동 로그아웃은 항상 메인 페이지로 (사용자가 의도한 행동)
     navigate('/')
+    
+    // 수동 로그아웃 플래그 리셋
+    setTimeout(() => {
+      if (typeof window !== 'undefined') {
+        (window as any).isManualLogout = false
+      }
+    }, 1000)
   }
 
   const handleMenuClick = () => {

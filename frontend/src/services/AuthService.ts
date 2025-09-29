@@ -1,4 +1,5 @@
 import { useAuthStore } from '@/store/authStore'
+import { commonToasts } from '@/lib/toast'
 import axios from 'axios'
 
 // User 타입 정의
@@ -62,13 +63,28 @@ class AuthService {
   }
 
   // 메모리 초기화
-  clearMemory() {
+  clearMemory(showToast = false) {
+    // 토스트 표시가 필요한 경우 먼저 표시
+    if (showToast) {
+      try {
+        commonToasts.sessionExpired()
+        console.log('🔔 세션 만료 토스트 표시됨')
+      } catch (error) {
+        console.error('토스트 표시 실패:', error)
+      }
+    }
+    
     this.accessToken = null
     this.refreshToken = null
     this.user = null
-    console.log('🧹 메모리 초기화 완료')
+    console.log('🧹 AuthService 메모리 초기화 완료')
     // 로그인 세션 플래그 제거
     this.setLoginSessionFlag(false)
+    
+    // Zustand store도 함께 초기화 (전역 토큰 완전 초기화)
+    const { clear } = useAuthStore.getState()
+    clear()
+    console.log('🧹 Zustand store 초기화 완료')
   }
 
   // 개발용: 토큰 만료 테스트
@@ -236,10 +252,23 @@ class AuthService {
   private isTokenExpired(token: string): boolean {
     try {
       const payload = this.decodeJWTPayload(token)
-      if (!payload || !payload.exp) return true
+      if (!payload || !payload.exp) {
+        console.log('❌ 토큰 페이로드 또는 exp 없음:', payload)
+        return true
+      }
       
       const currentTime = Math.floor(Date.now() / 1000)
-      return payload.exp < currentTime
+      const tokenExp = payload.exp
+      const timeUntilExpiry = tokenExp - currentTime
+      
+      console.log('🔍 토큰 만료 검증:', {
+        currentTime: new Date(currentTime * 1000).toISOString(),
+        tokenExp: new Date(tokenExp * 1000).toISOString(),
+        timeUntilExpiry: timeUntilExpiry,
+        isExpired: tokenExp < currentTime
+      })
+      
+      return tokenExp < currentTime
     } catch (error) {
       console.error('토큰 만료 검증 실패:', error)
       return true
@@ -298,6 +327,88 @@ class AuthService {
     }
 
     return true
+  }
+
+  // 로그아웃 (메모리 클리어)
+  async logout(): Promise<void> {
+    this.clearMemory()
+    console.log('✅ 로그아웃 완료')
+  }
+
+  // 네이버 로그인 (API 호출)
+  async naverLogin(code: string, state: string, redirectUri: string): Promise<any> {
+    const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+    const response = await fetch(`${baseURL}/api/v1/auth/naver`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ code, state, redirect_uri: redirectUri }),
+    })
+    
+    if (!response.ok) {
+      throw new Error('네이버 로그인 실패')
+    }
+    
+    return await response.json()
+  }
+
+  // 구글 로그인 (API 호출)
+  async googleAccessLogin(accessToken: string): Promise<any> {
+    const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+    const response = await fetch(`${baseURL}/api/v1/auth/google`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ access_token: accessToken }),
+    })
+    
+    if (!response.ok) {
+      throw new Error('구글 로그인 실패')
+    }
+    
+    return await response.json()
+  }
+
+  // 카카오 로그인 (API 호출)
+  async kakaoLogin(accessToken: string): Promise<any> {
+    const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+    const response = await fetch(`${baseURL}/api/v1/auth/kakao`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ access_token: accessToken }),
+    })
+    
+    if (!response.ok) {
+      throw new Error('카카오 로그인 실패')
+    }
+    
+    return await response.json()
+  }
+
+  // 토큰 갱신 (API 호출)
+  async refresh(refreshToken: string): Promise<any> {
+    const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+    const response = await fetch(`${baseURL}/api/v1/auth/refresh`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    })
+    
+    if (!response.ok) {
+      throw new Error('토큰 갱신 실패')
+    }
+    
+    return await response.json()
   }
 }
 
