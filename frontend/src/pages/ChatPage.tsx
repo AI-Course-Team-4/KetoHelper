@@ -1463,18 +1463,6 @@ export function ChatPage() {
                               {/* 결과에 좌표가 포함된 장소가 있으면 지도와 카드를 가로로 표시 */}
                               {(() => {
                                 const hasLocationData = msg.results && msg.results.some((r: any) => typeof r.lat === 'number' && typeof r.lng === 'number')
-                                console.log(`🗺️ 지도 표시 조건 체크 - 메시지 ID: ${msg.id}`, {
-                                  hasResults: !!msg.results,
-                                  resultsLength: msg.results?.length || 0,
-                                  hasLocationData,
-                                  sampleResult: msg.results?.[0] ? {
-                                    name: msg.results[0].name,
-                                    lat: msg.results[0].lat,
-                                    lng: msg.results[0].lng,
-                                    latType: typeof msg.results[0].lat,
-                                    lngType: typeof msg.results[0].lng
-                                  } : null
-                                })
                                 return hasLocationData
                               })() && (
                                 <div className="mt-4 lg:mt-5">

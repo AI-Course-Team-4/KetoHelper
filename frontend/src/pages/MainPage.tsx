@@ -70,7 +70,7 @@ export function MainPage() {
                 <CardContent className="pt-0">
                     <div className="grid md:grid-cols-4 gap-4">
                         <Card>
-                            <CardContent className="p-6 text-center hover:scale-[1.02] transition-transform" onClick={() => navigate('/chat')}>
+                            <CardContent className="p-6 text-center hover:scale-[1.02] transition-transform" style={{ cursor: 'pointer' }} onClick={() => navigate('/chat')}>
                                 <div className="flex items-center justify-center">
                                     <Message sx={{ fontSize: 28, color: 'green.600' }} />
                                 </div>
@@ -79,7 +79,7 @@ export function MainPage() {
                             </CardContent>
                         </Card>
                         <Card>
-                            <CardContent className="p-6 text-center hover:scale-[1.02] transition-transform" onClick={() => navigate('/calendar')}>
+                            <CardContent className="p-6 text-center hover:scale-[1.02] transition-transform" style={{ cursor: 'pointer' }} onClick={() => navigate('/calendar')}>
                                 <div className="flex items-center justify-center">
                                     <CalendarToday sx={{ fontSize: 28, color: 'green.600' }} />
                                 </div>
@@ -88,7 +88,7 @@ export function MainPage() {
                             </CardContent>
                         </Card>
                         <Card>
-                            <CardContent className="p-6 text-center hover:scale-[1.02] transition-transform" onClick={() => navigate('/map')}>
+                            <CardContent className="p-6 text-center hover:scale-[1.02] transition-transform" style={{ cursor: 'pointer' }} onClick={() => navigate('/map')}>
                                 <div className="flex items-center justify-center">
                                     <LocationOn sx={{ fontSize: 28, color: 'green.600' }} />
                                 </div>
@@ -97,7 +97,7 @@ export function MainPage() {
                             </CardContent>
                         </Card>
                         <Card>
-                            <CardContent className="p-6 text-center hover:scale-[1.02] transition-transform" onClick={() => navigate('/profile')}>
+                            <CardContent className="p-6 text-center hover:scale-[1.02] transition-transform" style={{ cursor: 'pointer' }} onClick={() => navigate('/profile')}>
                                 <div className="flex items-center justify-center">
                                     <FilterList sx={{ fontSize: 28, color: 'green.600' }} />
                                 </div>
