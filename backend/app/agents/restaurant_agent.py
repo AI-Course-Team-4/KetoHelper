@@ -296,7 +296,7 @@ class RestaurantAgent:
                     profile_text += f"알레르기: {', '.join(allergies)}. "
                 if dislikes:
                     profile_text += f"비선호 음식: {', '.join(dislikes)}. "
-            z
+            
             prompt = self.prompts["recommendation"].format(
                 message=message,
                 restaurants=restaurant_summary,
