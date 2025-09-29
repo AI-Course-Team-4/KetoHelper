@@ -697,8 +697,7 @@ export function CalendarPage() {
               <Button 
                 onClick={handleGenerateMealPlan}
                 disabled={isGeneratingMealPlan}
-                className="bg-white/20 hover:bg-white/30 text-white border-white/30"
-                variant="outline"
+                className="px-3 py-2 bg-white border border-white text-green-600 rounded-lg hover:bg-green-50 hover:text-green-700 font-semibold disabled:opacity-50 shadow-md"
               >
                 <Add sx={{ fontSize: 20, mr: 1 }} />
                 {isGeneratingMealPlan ? '생성 중...' : `AI 식단표 생성`}
