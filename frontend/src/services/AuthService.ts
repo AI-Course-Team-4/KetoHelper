@@ -45,6 +45,8 @@ class AuthService {
   // Refresh Token을 메모리에 저장
   setRefreshToken(token: string) {
     this.refreshToken = token
+    // 새 로그인/토큰 수령 시 세션 플래그를 반드시 켠다 (새로고침 후 refresh 허용)
+    this.setLoginSessionFlag(!!token)
   }
 
   // Refresh Token을 메모리에서 가져오기

@@ -15,7 +15,7 @@ const client = axios.create({
   baseURL: (isDev || forceProxy || !API_BASE) ? "/api/v1" : `${API_BASE}/api/v1`,
   withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 30000,
+  timeout: 40000,
 })
 
 console.log('axiosClient 설정:', {
