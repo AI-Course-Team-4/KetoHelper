@@ -8,7 +8,7 @@ import { useProfileStore } from '@/store/profileStore'
 import { authService } from '@/services/AuthService'
 import { toast } from 'react-hot-toast'
 import { LoginModal } from './LoginModal'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { cleanupLocalAuthArtifacts, clearChatHistoryStorage, clearNaverOAuthState } from '@/lib/bootCleanup'
 
 export function Header() {
@@ -18,7 +18,7 @@ export function Header() {
   const { user } = useAuthStore()
   const { clearProfile } = useProfileStore()
   const navigate = useNavigate()
-  // const location = useLocation()
+  const location = useLocation()
   const avatarSrc = user?.profileImage
     ? user.profileImage.replace(/^http:/, 'https:')
     : undefined
@@ -52,8 +52,12 @@ export function Header() {
     try { clearChatHistoryStorage() } catch {}
     try { clearNaverOAuthState() } catch {}
     
-    // 수동 로그아웃은 항상 메인 페이지로 (사용자가 의도한 행동)
-    navigate('/')
+    // 수동 로그아웃 처리: 공개 페이지(채팅/지도)는 그대로 유지
+    const currentPath = location.pathname
+    const stayOnPage = currentPath.startsWith('/chat') || currentPath.startsWith('/map')
+    if (!stayOnPage) {
+      navigate('/')
+    }
     
     // 수동 로그아웃 플래그 리셋
     setTimeout(() => {

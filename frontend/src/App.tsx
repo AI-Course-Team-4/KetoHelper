@@ -8,11 +8,13 @@ import { ProfilePage } from '@/pages/ProfilePage'
 import NaverCallback from '@/pages/NaverCallback'
 import { MainPage } from '@/pages/MainPage'
 import { SubscribePage } from '@/pages/SubscribePage'
+import { AuthRouteGuard } from '@/components/AuthRouteGuard'
 
 function App() {
   return (
     <div className="min-h-screen bg-background">
       <Layout>
+        <AuthRouteGuard />
         <Routes>
           {/* 공개 페이지 */}
           <Route path="/" element={<MainPage />} />
@@ -31,7 +33,7 @@ function App() {
               <ProfilePage />
             </ProtectedRoute>
           } />
-          {/* 구독 페이지는 페이지 내부에서 로그인 모달 처리 */}
+          {/* 구독 페이지 */}
           <Route path="/subscribe" element={<SubscribePage />} />
         </Routes>
       </Layout>
