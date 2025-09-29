@@ -28,6 +28,7 @@ export function ChatPage() {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
   const [isSavingMeal, setIsSavingMeal] = useState<string | null>(null) // 저장 중인 메시지 ID
+  const [isSaving, setIsSaving] = useState(false) // 중복 저장 방지를 위한 플래그
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [selectedPlaceIndexByMsg, setSelectedPlaceIndexByMsg] = useState<Record<string, number | null>>({})
 
@@ -317,7 +318,12 @@ export function ChatPage() {
 
   // 스레드 삭제 함수 추가
   const handleDeleteThread = async (threadId: string) => {
-    if (!confirm('정말로 이 대화를 삭제하시겠습니까?')) {
+    // 더 나은 확인 다이얼로그로 개선
+    const confirmDelete = window.confirm(
+      '🗑️ 채팅 삭제\n\n정말로 이 대화를 삭제하시겠습니까?\n삭제된 대화는 복구할 수 없습니다.'
+    )
+    
+    if (!confirmDelete) {
       return
     }
 
@@ -335,9 +341,13 @@ export function ChatPage() {
       refetchThreads()
       
       console.log('🗑️ 스레드 삭제 완료:', threadId)
+      
+      // 성공 피드백 추가
+      // TODO: 토스트 알림으로 개선 가능
+      
     } catch (error) {
       console.error('❌ 스레드 삭제 실패:', error)
-      alert('스레드 삭제에 실패했습니다. 다시 시도해주세요.')
+      alert('⚠️ 채팅 삭제 실패\n\n스레드 삭제에 실패했습니다.\n잠시 후 다시 시도해주세요.')
     }
   }
 
@@ -419,9 +429,11 @@ export function ChatPage() {
       // 백엔드에서 제공하는 save_to_calendar_data가 있으면 우선 사용
       if (response.save_to_calendar_data && user?.id) {
         console.log('✅ 백엔드 save_to_calendar_data 사용:', response.save_to_calendar_data)
-        setTimeout(() => {
+        if (!isSaving) {
+          setIsSaving(true)
           handleBackendCalendarSave(response.save_to_calendar_data!, parsedMeal)
-        }, 1000)
+            .finally(() => setIsSaving(false))
+        }
       }
       // 백엔드 데이터가 없으면 기존 로직 사용
       else if (parsedMeal && user?.id) {
@@ -443,9 +455,13 @@ export function ChatPage() {
         )
 
         if (isAutoSaveRequest) {
-          setTimeout(() => {
-            handleSmartMealSave(userMessage.content, parsedMeal)
-          }, 1000) // 1초 후 자동 저장
+          if (!isSaving) {
+            setIsSaving(true)
+            setTimeout(() => {
+              handleSmartMealSave(userMessage.content, parsedMeal)
+                .finally(() => setIsSaving(false))
+            }, 1000) // 1초 후 자동 저장
+          }
         }
       }
       // 현재 메시지에 식단이 없지만 저장 요청이 있는 경우 이전 메시지에서 식단 데이터 찾기
@@ -464,9 +480,13 @@ export function ChatPage() {
           const recentMealData = findRecentMealData(updatedMessages)
 
           if (recentMealData) {
-            setTimeout(() => {
-              handleSmartMealSave(userMessage.content, recentMealData, '이전 식단을')
-            }, 1000) // 1초 후 자동 저장
+            if (!isSaving) {
+              setIsSaving(true)
+              setTimeout(() => {
+                handleSmartMealSave(userMessage.content, recentMealData, '이전 식단을')
+                  .finally(() => setIsSaving(false))
+              }, 1000) // 1초 후 자동 저장
+            }
           } else {
             // 이전 식단을 찾을 수 없는 경우 안내 메시지
             const noMealMessage: ChatMessage = {
@@ -616,6 +636,12 @@ export function ChatPage() {
       return
     }
 
+    // 중복 저장 방지
+    if (isSaving) {
+      console.log('🔒 이미 저장 중입니다. 중복 저장을 방지합니다.')
+      return
+    }
+
     // 백엔드 API를 통한 날짜 파싱
     let parsedDate: ParsedDateInfo | null = null
 
@@ -631,6 +657,7 @@ export function ChatPage() {
     }
 
     if (parsedDate) {
+      setIsSaving(true)
       setIsSavingMeal('auto-save')
 
       try {
@@ -758,6 +785,7 @@ export function ChatPage() {
         addMessage(errorMessage)
       } finally {
         setIsSavingMeal(null)
+        setIsSaving(false)
       }
     }
   }
@@ -768,6 +796,13 @@ export function ChatPage() {
       return
     }
 
+    // 중복 저장 방지
+    if (isSaving) {
+      console.log('🔒 이미 저장 중입니다. 중복 저장을 방지합니다.')
+      return
+    }
+
+    setIsSaving(true)
     setIsSavingMeal('auto-save')
     
     try {
@@ -871,6 +906,7 @@ export function ChatPage() {
       addMessage(errorMessage)
     } finally {
       setIsSavingMeal(null)
+      setIsSaving(false)
     }
   }
 
@@ -951,9 +987,11 @@ export function ChatPage() {
       // 백엔드에서 제공하는 save_to_calendar_data가 있으면 우선 사용
       if (response.save_to_calendar_data && user?.id) {
         console.log('✅ 백엔드 save_to_calendar_data 사용:', response.save_to_calendar_data)
-        setTimeout(() => {
+        if (!isSaving) {
+          setIsSaving(true)
           handleBackendCalendarSave(response.save_to_calendar_data!, parsedMeal)
-        }, 1000)
+            .finally(() => setIsSaving(false))
+        }
       }
       // 백엔드 데이터가 없으면 기존 로직 사용
       else if (parsedMeal && user?.id) {
@@ -975,9 +1013,13 @@ export function ChatPage() {
         )
 
         if (isAutoSaveRequest) {
-          setTimeout(() => {
-            handleSmartMealSave(userMessage.content, parsedMeal)
-          }, 1000) // 1초 후 자동 저장
+          if (!isSaving) {
+            setIsSaving(true)
+            setTimeout(() => {
+              handleSmartMealSave(userMessage.content, parsedMeal)
+                .finally(() => setIsSaving(false))
+            }, 1000) // 1초 후 자동 저장
+          }
         }
       }
       // 현재 메시지에 식단이 없지만 저장 요청이 있는 경우 이전 메시지에서 식단 데이터 찾기
@@ -996,9 +1038,13 @@ export function ChatPage() {
           const recentMealData = findRecentMealData(updatedMessages)
 
           if (recentMealData) {
-            setTimeout(() => {
-              handleSmartMealSave(userMessage.content, recentMealData, '이전 식단을')
-            }, 1000) // 1초 후 자동 저장
+            if (!isSaving) {
+              setIsSaving(true)
+              setTimeout(() => {
+                handleSmartMealSave(userMessage.content, recentMealData, '이전 식단을')
+                  .finally(() => setIsSaving(false))
+              }, 1000) // 1초 후 자동 저장
+            }
           } else {
             // 이전 식단을 찾을 수 없는 경우 안내 메시지
             const noMealMessage: ChatMessage = {
@@ -1099,7 +1145,9 @@ export function ChatPage() {
                         variant="ghost"
                         size="sm"
                         disabled={isLoading}
-                        className={`opacity-0 group-hover:opacity-100 h-7 w-7 p-0 transition-opacity duration-200 ${currentThreadId === thread.id ? 'text-white hover:bg-white/20' : 'hover:bg-muted'
+                        className={`opacity-0 group-hover:opacity-100 h-8 w-8 p-0 transition-all duration-200 ${currentThreadId === thread.id 
+                          ? 'text-red-200 bg-red-500/20 border border-red-300/50 hover:bg-red-500/80 hover:text-white hover:border-red-400 hover:shadow-lg' 
+                          : 'hover:bg-red-50 hover:text-red-600 border border-transparent hover:border-red-200 hover:shadow-md'
                           } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                         onClick={(e) => {
                           e.stopPropagation()
@@ -1108,7 +1156,7 @@ export function ChatPage() {
                           }
                         }}
                       >
-                        <Delete sx={{ fontSize: 12 }} />
+                        <Delete sx={{ fontSize: 14 }} />
                       </Button>
                     </div>
                   </div>
@@ -1426,18 +1474,6 @@ export function ChatPage() {
                               {/* 결과에 좌표가 포함된 장소가 있으면 지도와 카드를 가로로 표시 */}
                               {(() => {
                                 const hasLocationData = msg.results && msg.results.some((r: any) => typeof r.lat === 'number' && typeof r.lng === 'number')
-                                console.log(`🗺️ 지도 표시 조건 체크 - 메시지 ID: ${msg.id}`, {
-                                  hasResults: !!msg.results,
-                                  resultsLength: msg.results?.length || 0,
-                                  hasLocationData,
-                                  sampleResult: msg.results?.[0] ? {
-                                    name: msg.results[0].name,
-                                    lat: msg.results[0].lat,
-                                    lng: msg.results[0].lng,
-                                    latType: typeof msg.results[0].lat,
-                                    lngType: typeof msg.results[0].lng
-                                  } : null
-                                })
                                 return hasLocationData
                               })() && (
                                 <div className="mt-4 lg:mt-5">

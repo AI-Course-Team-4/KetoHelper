@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 import asyncio
 
 from app.domains.chat.api import chat
-from app.domains.chat.api import date_parser_router
+from app.shared.api.date_endpoints import router as date_parser_router
 from app.domains.restaurant.api import places
 from app.domains.meal.api import plans
 from app.domains.profile.api import profile

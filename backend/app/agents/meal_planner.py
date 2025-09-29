@@ -21,6 +21,9 @@ from app.core.config import settings
 from app.tools.shared.hybrid_search import hybrid_search_tool
 from app.tools.shared.profile_tool import user_profile_tool
 from app.tools.restaurant.place_search import PlaceSearchTool
+from app.tools.shared.date_parser import DateParser
+from app.tools.shared.temporary_dislikes_extractor import temp_dislikes_extractor
+from app.tools.meal.response_formatter import MealResponseFormatter
 from config import get_personal_configs, get_agent_config
 
 class MealPlannerAgent:
@@ -68,6 +71,11 @@ class MealPlannerAgent:
         
         # 하이브리드 검색 도구 사용
         self.place_search = PlaceSearchTool()
+        
+        # 새로운 도구들 초기화
+        self.date_parser = DateParser()
+        self.response_formatter = MealResponseFormatter()
+        self.temp_dislikes_extractor = temp_dislikes_extractor
     
     def _load_prompts(self) -> Dict[str, str]:
         """프롬프트 파일들 동적 로딩"""
@@ -1236,3 +1244,305 @@ class MealPlannerAgent:
                 "success": False,
                 "error": f"지원하지 않는 요청 타입: {request_type}"
             }
+    
+    # ==========================================
+    # 새로운 통합 처리 메서드들
+    # ==========================================
+    
+    async def handle_meal_request(self, message: str, state: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        모든 식단 요청 처리의 진입점
+        Orchestrator로부터 모든 처리 위임받음
+        
+        Args:
+            message (str): 사용자 메시지
+            state (Dict): 전체 상태
+            
+        Returns:
+            Dict[str, Any]: 업데이트할 상태 정보
+        """
+        print(f"🍽️ 식단 요청 처리 시작: '{message}'")
+        
+        # 1. 날짜 파싱
+        days = self._parse_days(message, state)
+        if days is None:
+            return {
+                "response": "몇 일치 식단표를 원하시는지 구체적으로 말씀해주세요. (예: 5일치, 일주일치, 3일치)",
+                "results": []
+            }
+        
+        # 2. 제약조건 추출
+        constraints = self._extract_all_constraints(message, state)
+        
+        # 3. fast_mode 결정
+        fast_mode = state.get("fast_mode", self._determine_fast_mode(message))
+        
+        # 4. 사용자 ID 확인
+        user_id = state.get("profile", {}).get("user_id")
+        
+        # 5. 개인화 vs 일반 식단 결정
+        if state.get("use_personalized") and user_id:
+            print(f"👤 개인화 식단 생성: user_id={user_id}")
+            
+            # 접근 권한 확인 옵션
+            if state.get("check_access", False):
+                result = await self.check_user_access_and_generate(
+                    user_id=user_id,
+                    request_type="meal_plan",
+                    days=days
+                )
+                if not result["success"]:
+                    return {
+                        "response": result["error"],
+                        "results": []
+                    }
+                meal_plan = result["data"]
+            else:
+                # 직접 개인화 생성
+                meal_plan = await self.generate_personalized_meal_plan(
+                    user_id=user_id,
+                    days=days,
+                    fast_mode=fast_mode
+                )
+        else:
+            # 일반 식단 생성
+            meal_plan = await self.generate_meal_plan(
+                days=days,
+                kcal_target=constraints.get("kcal_target"),
+                carbs_max=constraints.get("carbs_max", 30),
+                allergies=constraints.get("allergies", []),
+                dislikes=constraints.get("dislikes", []),
+                user_id=user_id,
+                fast_mode=fast_mode
+            )
+        
+        # 6. 응답 포맷팅
+        formatted_response = self.response_formatter.format_meal_plan(
+            meal_plan, days
+        )
+        
+        # 7. 결과 반환
+        return {
+            "results": [meal_plan],
+            "response": formatted_response,
+            "formatted_response": formatted_response,  # 포맷된 응답 저장
+            "meal_plan_days": days,
+            "meal_plan_data": meal_plan,  # 구조화된 데이터
+            "tool_calls": [{
+                "tool": "meal_planner",
+                "method": "handle_meal_request",
+                "days": days,
+                "fast_mode": fast_mode,
+                "personalized": state.get("use_personalized", False)
+            }]
+        }
+    
+    async def handle_recipe_request(self, message: str, state: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        모든 레시피 요청 처리의 진입점
+        
+        Args:
+            message (str): 사용자 메시지
+            state (Dict): 전체 상태
+            
+        Returns:
+            Dict[str, Any]: 업데이트할 상태 정보
+        """
+        print(f"🍳 레시피 요청 처리 시작: '{message}'")
+        
+        # 1. 제약조건 추출
+        constraints = self._extract_all_constraints(message, state)
+        
+        # 2. 사용자 ID 확인
+        user_id = state.get("profile", {}).get("user_id")
+        
+        # 3. 프로필 기반 vs 일반 레시피
+        if user_id and state.get("profile"):
+            print(f"👤 프로필 기반 레시피 생성: user_id={user_id}")
+            recipe = await self.generate_recipe_with_profile(
+                user_id=user_id,
+                message=message
+            )
+        else:
+            # 프로필 컨텍스트 생성
+            profile_context = self._build_profile_context(constraints)
+            recipe = await self.generate_single_recipe(
+                message=message,
+                profile_context=profile_context
+            )
+        
+        # 4. 응답 포맷팅
+        formatted_response = self.response_formatter.format_recipe(
+            recipe, message
+        )
+        
+        # 5. 결과 반환
+        return {
+            "results": [{
+                "title": f"AI 생성: {message}",
+                "content": recipe,
+                "source": "meal_planner_agent",
+                "type": "recipe"
+            }],
+            "response": formatted_response,
+            "formatted_response": formatted_response,
+            "tool_calls": [{
+                "tool": "meal_planner",
+                "method": "handle_recipe_request",
+                "query": message,
+                "has_profile": bool(user_id and state.get("profile"))
+            }]
+        }
+    
+    # ==========================================
+    # 헬퍼 메서드들
+    # ==========================================
+    
+    def _parse_days(self, message: str, state: Dict) -> Optional[int]:
+        """
+        메시지에서 날짜/일수 파싱
+        
+        Args:
+            message (str): 사용자 메시지
+            state (Dict): 상태 정보
+            
+        Returns:
+            Optional[int]: 파싱된 일수 또는 None
+        """
+        # DateParser 사용
+        days = self.date_parser._extract_duration_days(message)
+        
+        if days is not None:
+            print(f"📅 DateParser가 감지한 days: {days}")
+            return days
+        
+        # 슬롯에서 가져오기
+        slots_days = state.get("slots", {}).get("days")
+        if slots_days:
+            days = int(slots_days)
+            print(f"📅 슬롯에서 추출된 days: {days}")
+            return days
+        
+        # 기본값 없이 None 반환
+        print("⚠️ 일수를 파악할 수 없음")
+        return None
+    
+    def _extract_all_constraints(self, message: str, state: Dict) -> Dict[str, Any]:
+        """
+        메시지와 프로필에서 모든 제약조건 추출
+        
+        Args:
+            message (str): 사용자 메시지  
+            state (Dict): 상태 정보
+            
+        Returns:
+            Dict: 추출된 제약조건들
+        """
+        constraints = {
+            "kcal_target": None,
+            "carbs_max": 30,
+            "allergies": [],
+            "dislikes": []
+        }
+        
+        # 임시 불호 식재료 추출
+        temp_dislikes = self.temp_dislikes_extractor.extract_from_message(message)
+        
+        # 프로필 정보 병합
+        if state.get("profile"):
+            profile = state["profile"]
+            constraints["kcal_target"] = profile.get("goals_kcal")
+            constraints["carbs_max"] = profile.get("goals_carbs_g", 30)
+            constraints["allergies"] = profile.get("allergies", [])
+            
+            profile_dislikes = profile.get("dislikes", [])
+            # 임시 불호와 프로필 불호 합치기
+            constraints["dislikes"] = self.temp_dislikes_extractor.combine_with_profile_dislikes(
+                temp_dislikes, profile_dislikes
+            )
+        else:
+            constraints["dislikes"] = temp_dislikes
+        
+        print(f"📋 추출된 제약조건: 칼로리 {constraints['kcal_target']}, "
+              f"탄수화물 {constraints['carbs_max']}g, "
+              f"알레르기 {len(constraints['allergies'])}개, "
+              f"불호 {len(constraints['dislikes'])}개")
+        
+        return constraints
+    
+    def _determine_fast_mode(self, message: str) -> bool:
+        """
+        메시지 내용에 따라 fast_mode 결정
+        
+        Args:
+            message (str): 사용자 메시지
+            
+        Returns:
+            bool: fast_mode 여부
+        """
+        # 정확한 검색이 필요한 키워드
+        accurate_keywords = ["정확한", "자세한", "맞춤", "개인", "추천", "최적"]
+        
+        # 빠른 응답이 필요한 키워드
+        fast_keywords = ["빠르게", "간단히", "대충", "아무거나", "급해"]
+        
+        message_lower = message.lower()
+        
+        if any(keyword in message_lower for keyword in accurate_keywords):
+            print("🔍 정확한 검색 모드")
+            return False
+        
+        if any(keyword in message_lower for keyword in fast_keywords):
+            print("⚡ 빠른 검색 모드")
+            return True
+        
+        # 기본값: 빠른 모드
+        return True
+    
+    def _build_profile_context(self, constraints: Dict[str, Any]) -> str:
+        """
+        제약조건을 프롬프트용 텍스트로 변환
+        
+        Args:
+            constraints (Dict): 제약조건
+            
+        Returns:
+            str: 프로필 컨텍스트 문자열
+        """
+        context_parts = []
+        
+        if constraints.get("kcal_target"):
+            context_parts.append(f"목표 칼로리: {constraints['kcal_target']}kcal")
+        
+        if constraints.get("carbs_max"):
+            context_parts.append(f"탄수화물 제한: {constraints['carbs_max']}g")
+        
+        if constraints.get("allergies"):
+            context_parts.append(f"알레르기: {', '.join(constraints['allergies'])}")
+        
+        if constraints.get("dislikes"):
+            context_parts.append(f"싫어하는 음식: {', '.join(constraints['dislikes'])}")
+        
+        return ". ".join(context_parts) if context_parts else ""
+    
+    def _should_use_personalized(self, message: str, state: Dict) -> bool:
+        """
+        개인화 기능 사용 여부 결정
+        
+        Args:
+            message (str): 사용자 메시지
+            state (Dict): 상태 정보
+            
+        Returns:
+            bool: 개인화 사용 여부
+        """
+        # 명시적 플래그 확인
+        if state.get("use_personalized"):
+            return True
+        
+        # 개인화 키워드 확인
+        personalized_keywords = ["맞춤", "개인", "나한테", "내게", "나에게", "내 취향"]
+        if any(keyword in message.lower() for keyword in personalized_keywords):
+            return True
+        
+        return False

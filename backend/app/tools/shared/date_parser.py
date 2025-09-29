@@ -86,13 +86,28 @@ class DateParser:
         logger.debug("규칙 기반 파싱 시도")
         rule_based_result = self._parse_with_rules(normalized)
         if rule_based_result:
-            # 대화 맥락에서 일수 정보 추출하여 적용
+            # 대화 맥락에서 일수 정보 추출하여 적용 (강화된 보호 로직)
             context_duration = self._extract_duration_from_context(chat_history)
-            if context_duration and not rule_based_result.duration_days:
-                rule_based_result.duration_days = context_duration
-                logger.debug(f"대화 맥락에서 일수 정보 적용: {context_duration}일")
+            if context_duration:
+                print(f"🔍 대화 맥락에서 일수 발견: {context_duration}일, 현재 값: {rule_based_result.duration_days}")
+                
+                # 다음주 + 특정요일 조합이면 절대 덮어쓰지 않기
+                is_specific_weekday = any(day in normalized for day in ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일', '월', '화', '수', '목', '금', '토', '일'])
+                is_next_weekday_marked = ('다음주' in normalized) and is_specific_weekday
+                
+                # 무조건 1일 고정이 된 것을 보호하기
+                forced_single_day = (rule_based_result.duration_days == 1 and is_next_weekday_marked)
+                
+                if forced_single_day:
+                    print(f"🔍 다음주+특정요일 조합 1일 강제 보호됨 - 대화맥락 덮어쓰기 방지")
+                    logger.debug(f"다음주 특정요일: duration 강제 유지")
+                elif not rule_based_result.duration_days:
+                    rule_based_result.duration_days = context_duration
+                    logger.debug(f"대화 맥락에서 일수 정보 적용: {context_duration}일")
+                else:
+                    print(f"🔍 기존 duration 유지 보호: {rule_based_result.duration_days}일")
             
-            logger.debug(f"규칙 기반 파싱 성공: {rule_based_result.description} (신뢰도: {rule_based_result.confidence})")
+            logger.debug(f"규칙 기반 파싱 성공: {rule_based_result.description} (신뢰도: {rule_based_result.confidence}, duration: {rule_based_result.duration_days}일)")
             return rule_based_result
 
         # 3단계: 폴백 (기본값)
@@ -173,9 +188,19 @@ class DateParser:
         if any(word in normalized for word in ['다음주', '담주', '다움주', '다음쥬', '다움쥬', '다윰주', '다음줘']):
             next_week_result = self._parse_next_week(normalized)
             if next_week_result:
-                # 일수 정보 추가 (다음주는 기본 7일)
-                duration_days = self._extract_duration_days(normalized) or 7
-                next_week_result.duration_days = duration_days
+                print(f"🔍 다음주 파싱 결과 초기: {next_week_result.duration_days}일 설정됨")
+                
+                # 요일이 명시된 경우 이미 1일로 설정된 상태에서 변경하지 않음
+                has_weekday = any(day in normalized for day in ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'])
+                
+                # 사용자가 명시적으로 입력한 경우만 덮어쓰기 (하지만 특정 요일 명시시는 제외)
+                user_duration = self._extract_duration_days(normalized)
+                if user_duration and not (has_weekday and next_week_result.duration_days == 1):
+                    print(f"🔍 사용자가 명시한 duration: {user_duration}일로 덮어쓰기")
+                    next_week_result.duration_days = user_duration
+                else:
+                    print(f"🔍 요일 명시된 경우 또는 사용자 입력 없음으로 duration 유지: {next_week_result.duration_days}일")
+                
             return next_week_result
 
         # 이번주 관련
@@ -336,6 +361,18 @@ JSON 형식:
         """
         대화 맥락을 포함한 LLM 파싱
         """
+        # "다음주 + 요일"은 rule-based 로직으로 먼저 완전 처리
+        if any(word in normalized for word in ['다음주', '담주', '다움주', '다음쥬', '다움쥬', '다윰주', '다음줘']) and any(word in normalized for word in ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일']):
+            # 다음주 요일 rule-based 처리 우선
+            logger.debug(f"다음주+요일 감지, rule-based 우선 처리: '{normalized}'")
+            rule_result = self._parse_next_week(normalized)
+            if rule_result:
+                # 일수 정보 추가 
+                duration_days = self._extract_duration_days(normalized) or 7
+                rule_result.duration_days = duration_days
+                logger.debug(f"rule-based 다음주 파싱 성공: {rule_result.description} (신뢰도: {rule_result.confidence})")
+                return rule_result
+            
         if not self.model:
             logger.debug("LLM 모델이 없어서 LLM 파싱 건너뜀")
             return None
@@ -599,62 +636,83 @@ JSON 형식:
         return None
 
     def _parse_next_week(self, text: str) -> Optional[ParsedDateInfo]:
-        # 오타 포함 체크 (더 포괄적인 오타 인식)
+        print(f"🔍 _parse_next_week 호출됨: '{text}'")
+        
+        # 오타 포함 체크 (더 포괄적인 오타 인식)  
         if not any(word in text for word in ['다음주', '담주', '다움주', '다음쥬', '다움쥬', '다윰주', '다음줘']):
             return None
 
+        # 요일 매핑 (Python의 weekday() 기준: 0=월, 6=일)
         day_map = {
-            '월요일': 1, '월': 1,
-            '화요일': 2, '화': 2,
-            '수요일': 3, '수': 3,
-            '목요일': 4, '목': 4,
-            '금요일': 5, '금': 5,
-            '토요일': 6, '토': 6,
-            '일요일': 0, '일': 0
+            '월요일': 0, '월': 0,
+            '화요일': 1, '화': 1,
+            '수요일': 2, '수': 2,
+            '목요일': 3, '목': 3,
+            '금요일': 4, '금': 4,
+            '토요일': 5, '토': 5,
+            '일요일': 6, '일': 6  # 일요일을 6으로 통일
         }
-
-        # 다음주의 시작 (월요일) 구하기
-        current_day = self.today.weekday()  # 0=월요일, 6=일요일
-        days_to_next_monday = 7 - current_day
-        next_monday = self.today + timedelta(days=days_to_next_monday)
 
         # 특정 요일이 언급되었는지 확인
         for day_name, day_number in day_map.items():
             if day_name in text:
-                if day_number == 0:  # 일요일
-                    target_date = next_monday + timedelta(days=6)
-                else:  # 월-토
-                    target_date = next_monday + timedelta(days=day_number - 1)
+                print(f"🔍 요일 발견: {day_name}")
+                current_weekday = self.today.weekday() # 오늘 요일 (월=0)
 
+                # --- [수정된 로직 시작] ---
+                # 1. 다음 주 월요일의 날짜를 계산합니다.
+                days_until_next_monday = (7 - current_weekday) % 7
+                if days_until_next_monday == 0: # 오늘이 월요일인 경우
+                    days_until_next_monday = 7
+                next_week_monday = self.today + timedelta(days=days_until_next_monday)
+
+                # 2. 다음 주 월요일로부터 목표 요일까지의 날짜를 더합니다.
+                # day_number가 월요일(0)부터 시작하므로 그대로 더해주면 됩니다.
+                target_date = next_week_monday + timedelta(days=day_number)
+                # --- [수정된 로직 끝] ---
+
+                day_weekdays = {0: "월요일", 1: "화요일", 2: "수요일", 3: "목요일", 4: "금요일", 5: "토요일", 6: "일요일"}
+                translated_day_name = day_weekdays.get(day_number, "요일")
+                
+                print(f"🔍 다음주 {translated_day_name} {target_date} - duration_days=1 설정됨")
+                
                 return ParsedDateInfo(
-                    date=target_date,
-                    description=f"다음주 {self._get_day_name(day_number)}",
+                    date=target_date, # 수정된 target_date 사용
+                    description=f"다음주 {translated_day_name}",
                     is_relative=True,
-                    confidence=0.9,
-                    method='rule-based'
+                    confidence=0.95, # 신뢰도 상향 조정
+                    method='rule-based',
+                    duration_days=1  # 요일이 명시된 경우 1일로 설정
                 )
 
-        # 요일이 명시되지 않았으면 다음주 월요일
+        # 요일이 명시되지 않았으면 다음주 월요일 (기존 로직 유지)
+        current_weekday = self.today.weekday()
+        days_back_to_monday = current_weekday
+        this_week_monday = self.today - timedelta(days=days_back_to_monday)
+        next_week_monday = this_week_monday + timedelta(days=7)
+        
         return ParsedDateInfo(
-            date=next_monday,
+            date=next_week_monday,
             description='다음주 월요일',
             is_relative=True,
             confidence=0.9,
-            method='rule-based'
+            method='rule-based',
+            duration_days=7  # 요일 미지정시 다음주 전체(7일)로 설정
         )
 
     def _parse_this_week(self, text: str) -> Optional[ParsedDateInfo]:
         if '이번주' not in text:
             return None
 
+        # 요일 매핑 (Python의 weekday() 기준: 0=월, 6=일)
         day_map = {
-            '월요일': 1, '월': 1,
-            '화요일': 2, '화': 2,
-            '수요일': 3, '수': 3,
-            '목요일': 4, '목': 4,
-            '금요일': 5, '금': 5,
-            '토요일': 6, '토': 6,
-            '일요일': 0, '일': 0
+            '월요일': 0, '월': 0,
+            '화요일': 1, '화': 1,
+            '수요일': 2, '수': 2,
+            '목요일': 3, '목': 3,
+            '금요일': 4, '금': 4,
+            '토요일': 5, '토': 5,
+            '일요일': 6, '일': 6
         }
 
         # 이번주의 시작 (월요일) 구하기
@@ -664,10 +722,8 @@ JSON 형식:
         # 특정 요일이 언급되었는지 확인
         for day_name, day_number in day_map.items():
             if day_name in text:
-                if day_number == 0:  # 일요일
-                    target_date = this_monday + timedelta(days=6)
-                else:  # 월-토
-                    target_date = this_monday + timedelta(days=day_number - 1)
+                # 이번주의 해당 요일 계산 (day_number는 weekday() 기준: 0=월, 6=일)
+                target_date = this_monday + timedelta(days=day_number)
 
                 return ParsedDateInfo(
                     date=target_date,
@@ -684,26 +740,25 @@ JSON 형식:
         if any(word in text for word in ['이번주', '다음주', '담주', '다움주']):
             return None
 
+        # 요일 매핑 (Python의 weekday() 기준: 0=월, 6=일)
         day_map = {
-            '월요일': 1,
-            '화요일': 2,
-            '수요일': 3,
-            '목요일': 4,
-            '금요일': 5,
-            '토요일': 6,
-            '일요일': 0
+            '월요일': 0,
+            '화요일': 1,
+            '수요일': 2,
+            '목요일': 3,
+            '금요일': 4,
+            '토요일': 5,
+            '일요일': 6
         }
 
         # 특정 요일이 단독으로 언급되었는지 확인
         for day_name, day_number in day_map.items():
             if day_name in text:
-                current_day = self.today.weekday()
+                current_day = self.today.weekday()  # 0=월요일, 6=일요일
                 this_monday = self.today - timedelta(days=current_day)
 
-                if day_number == 0:  # 일요일
-                    target_date = this_monday + timedelta(days=6)
-                else:  # 월-토
-                    target_date = this_monday + timedelta(days=day_number - 1)
+                # 이번주의 해당 요일 계산 (day_number는 weekday() 기준: 0=월, 6=일)
+                target_date = this_monday + timedelta(days=day_number)
 
                 # 해당 요일이 이미 지났으면 다음주로 설정
                 if target_date < self.today:
@@ -819,13 +874,16 @@ JSON 형식:
 
         # 메시지에서 날짜 표현 추출 (띄어쓰기 및 오타 허용)
         date_patterns = [
+            # 가장 구체적인 패턴을 위로 이동
+            r'이\s*번\s*주\s*[월화수목금토일]요일',
+            r'다\s*음\s*주\s*[월화수목금토일]요일',
+            
+            # 그 다음 일반적인 패턴들
             r'오늘', r'내일', r'낼', r'모레', r'모래', r'글피',
             r'다\s*음\s*주', r'다움주', r'다윰주', r'다음줘', r'담\s*주', r'이\s*번\s*주',  # 띄어쓰기 및 오타
             r'이벊주', r'이번줘',  # 이번주 오타들
             r'하루(?:만)?',  # "하루" 또는 "하루만"
-            r'월요일', r'화요일', r'수요일', r'목요일', r'금요일', r'토요일', r'일요일',
-            r'이\s*번\s*주\s*[월화수목금토일]요일',
-            r'다\s*음\s*주\s*[월화수목금토일]요일',
+            r'월요일', r'화요일', r'수요일', r'목요일', r'금요일', r'토요일', r'일요일', # 단독 요일
             r'\d{1,2}월\s*\d{1,2}일',
             r'\d{1,2}일(?![일월화수목금토])',
             r'\d+일\s*[후뒤]'

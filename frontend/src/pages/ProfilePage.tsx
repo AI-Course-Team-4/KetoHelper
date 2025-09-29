@@ -148,10 +148,18 @@ export function ProfilePage() {
     }
   }, [user])
 
-  // 에러 처리
+  // 에러 처리 (인터셉터에서 처리된 에러/401류는 토스트 제외)
   useEffect(() => {
-    if (error) {
-      toast.error(error)
+    if (!error) return
+    const msg = String(error)
+    const shouldSuppress =
+      msg.includes('401') ||
+      msg.includes('Unauthorized') ||
+      msg.includes('Token refresh failed') ||
+      msg.includes('Request handled by interceptor') ||
+      msg.includes('Session expired')
+    if (!shouldSuppress) {
+      toast.error(msg)
     }
   }, [error])
 
