@@ -16,21 +16,17 @@ from datetime import datetime
 from app.core.config import settings
 from app.core.intent_classifier import IntentClassifier, Intent  # 추가
 from app.tools.shared.hybrid_search import hybrid_search_tool
-from app.tools.restaurant.place_search import PlaceSearchTool
-from app.tools.restaurant.restaurant_hybrid_search import restaurant_hybrid_search_tool
-from app.tools.meal.keto_score import KetoScoreCalculator
 from app.tools.shared.temporary_dislikes_extractor import temp_dislikes_extractor
 from app.agents.meal_planner import MealPlannerAgent
 from app.agents.chat_agent import SimpleKetoCoachAgent
+from app.agents.place_search_agent import PlaceSearchAgent
 from app.shared.utils.calendar_utils import CalendarUtils
 from app.tools.calendar.calendar_saver import CalendarSaver
 
 # 프롬프트 모듈 import (중앙집중화된 구조)
 from app.prompts.chat.intent_classification import INTENT_CLASSIFICATION_PROMPT, get_intent_prompt
-from app.prompts.chat.memory_update import MEMORY_UPDATE_PROMPT
-from app.prompts.chat.response_generation import RESPONSE_GENERATION_PROMPT, RESTAURANT_RESPONSE_GENERATION_PROMPT
+from app.prompts.chat.response_generation import RESPONSE_GENERATION_PROMPT, PLACE_RESPONSE_GENERATION_PROMPT
 from app.prompts.meal.recipe_response import RECIPE_RESPONSE_GENERATION_PROMPT
-from app.prompts.restaurant.search_improvement import PLACE_SEARCH_IMPROVEMENT_PROMPT
 from app.prompts.restaurant.search_failure import PLACE_SEARCH_FAILURE_PROMPT
 from app.prompts.calendar import (
     CALENDAR_SAVE_CONFIRMATION_PROMPT,
@@ -87,11 +83,9 @@ class KetoCoachAgent:
         
         # 도구들 초기화
         self.hybrid_search = hybrid_search_tool  # 이미 초기화된 인스턴스 사용
-        self.place_search = PlaceSearchTool()
-        self.restaurant_hybrid_search = restaurant_hybrid_search_tool  # 식당 RAG 검색
-        self.keto_score = KetoScoreCalculator()
         self.meal_planner = MealPlannerAgent()
         self.simple_agent = SimpleKetoCoachAgent()
+        self.place_search_agent = PlaceSearchAgent()  # 새로운 식당 검색 에이전트
         self.calendar_saver = CalendarSaver()
         self.calendar_utils = CalendarUtils()
         
@@ -109,7 +103,6 @@ class KetoCoachAgent:
         workflow.add_node("place_search", self._place_search_node)
         workflow.add_node("meal_plan", self._meal_plan_node)
         workflow.add_node("calendar_save", self._calendar_save_node)  # 새로 추가!
-        workflow.add_node("memory_update", self._memory_update_node)
         workflow.add_node("general_chat", self._general_chat_node)
         workflow.add_node("answer", self._answer_node)
         
@@ -125,7 +118,6 @@ class KetoCoachAgent:
                 "place": "place_search", 
                 "mealplan": "meal_plan",
                 "calendar_save": "calendar_save",  # 새로 추가!
-                "memory": "memory_update",
                 "other": "general_chat"
             }
         )
@@ -135,7 +127,6 @@ class KetoCoachAgent:
         workflow.add_edge("place_search", "answer")
         workflow.add_edge("meal_plan", "answer")
         workflow.add_edge("calendar_save", "answer")  # 새로 추가!
-        workflow.add_edge("memory_update", "answer")
         workflow.add_edge("general_chat", END)
         workflow.add_edge("answer", END)
         
@@ -175,7 +166,7 @@ class KetoCoachAgent:
         
         IntentClassifier Intent -> Orchestrator Route 매핑:
         - MEAL_PLANNING -> recipe 또는 mealplan (세분화 필요)
-        - RESTAURANT_SEARCH -> place
+        - PLACE_SEARCH -> place
         - BOTH -> 우선순위에 따라 결정
         - GENERAL -> other
         """
@@ -216,13 +207,13 @@ class KetoCoachAgent:
             print(f"  🍴 기본값 → recipe")
             return "recipe"
         
-        elif intent_enum == Intent.RESTAURANT_SEARCH:
+        elif intent_enum == Intent.PLACE_SEARCH:
             return "place"
         
         elif intent_enum == Intent.BOTH:
             # 식당 키워드가 더 강하면 place, 아니면 recipe
-            restaurant_keywords = ["식당", "맛집", "음식점", "카페", "레스토랑", "근처", "주변"]
-            if any(keyword in message for keyword in restaurant_keywords):
+            place_keywords = ["식당", "맛집", "음식점", "카페", "레스토랑", "근처", "주변"]
+            if any(keyword in message for keyword in place_keywords):
                 print(f"  🏪 BOTH → 식당 우선")
                 return "place"
             print(f"  🍳 BOTH → 레시피 우선")
@@ -303,12 +294,13 @@ class KetoCoachAgent:
                             # 기본값
                             state["intent"] = "recipe"
                             state["use_meal_planner_recipe"] = True
-                elif intent_value == "restaurant_search" or intent_value == "restaurant":
+                elif intent_value == "restaurant_search" or intent_value == "place_search":
                     state["intent"] = "place"
+                    print(f"🏪 식당 검색 모드 활성화 (intent_value: {intent_value})")
                 elif intent_value == "both":
                     # 식당 키워드가 더 강하면 place, 아니면 recipe
-                    restaurant_keywords = ["식당", "맛집", "음식점", "카페", "레스토랑", "근처", "주변"]
-                    if any(keyword in message for keyword in restaurant_keywords):
+                    place_keywords = ["식당", "맛집", "음식점", "카페", "레스토랑", "근처", "주변"]
+                    if any(keyword in message for keyword in place_keywords):
                         state["intent"] = "place"
                     else:
                         state["intent"] = "recipe"
@@ -519,145 +511,30 @@ class KetoCoachAgent:
         return state
     
     async def _place_search_node(self, state: AgentState) -> AgentState:
-        """장소 검색 노드 (RAG + 카카오 API 병행)"""
+        """장소 검색 노드 (PlaceSearchAgent 사용)"""
         
         try:
             message = state["messages"][-1].content if state["messages"] else ""
             
-            # 위치 정보 추출
-            lat = state["location"].get("lat", 37.4979) if state["location"] else 37.4979  # 기본: 강남역
-            lng = state["location"].get("lng", 127.0276) if state["location"] else 127.0276
-            
-            print(f"🔍 식당 검색 시작: '{message}' (위치: {lat}, {lng})")
-            
-            # 1. RAG 검색 실행
-            print("  🤖 RAG 검색 실행 중...")
-            rag_results = []
-            try:
-                rag_results = await self.restaurant_hybrid_search.hybrid_search(
-                    query=message,
-                    location={"lat": lat, "lng": lng},
-                    max_results=10
-                )
-                print(f"  ✅ RAG 검색 결과: {len(rag_results)}개")
-            except Exception as e:
-                print(f"  ❌ RAG 검색 실패: {e}")
-            
-            # 2. 카카오 API 검색 실행 (기존 로직)
-            print("  📍 카카오 API 검색 실행 중...")
-            kakao_results = []
-            try:
-                # 검색 쿼리 개선
-                query_improvement_prompt = PLACE_SEARCH_IMPROVEMENT_PROMPT.format(message=message)
-                llm_response = await self.llm.ainvoke([HumanMessage(content=query_improvement_prompt)])
-                search_keywords = llm_response.content.strip().split(", ")
-                
-                print(f"  🔍 LLM 생성 키워드: {search_keywords[:3]}")
-                
-                all_places = []
-                
-                # 각 키워드로 검색
-                for keyword in search_keywords[:3]:  # 최대 3개 키워드
-                    places = await self.place_search.search(
-                        query=keyword.strip('"'),
-                        lat=lat,
-                        lng=lng,
-                        radius=int(state["radius_km"] * 1000)
-                    )
-                    
-                    # 키토 스코어 계산
-                    for place in places:
-                        score_result = self.keto_score.calculate_score(
-                            name=place.get("name", ""),
-                            category=place.get("category", ""),
-                            address=place.get("address", "")
-                        )
-                        
-                        place.update({
-                            "keto_score": score_result["score"],
-                            "why": score_result["reasons"],
-                            "tips": score_result["tips"],
-                            "source": "kakao_api"
-                        })
-                        
-                        all_places.append(place)
-                
-                # 중복 제거
-                unique_places = {}
-                for place in all_places:
-                    place_id = place.get("id", "")
-                    if place_id not in unique_places or place["keto_score"] > unique_places[place_id]["keto_score"]:
-                        unique_places[place_id] = place
-                
-                kakao_results = list(unique_places.values())
-                print(f"  ✅ 카카오 API 검색 결과: {len(kakao_results)}개")
-                
-            except Exception as e:
-                print(f"  ❌ 카카오 API 검색 실패: {e}")
-            
-            # 3. 결과 통합 및 정렬
-            print("  🔄 결과 통합 중...")
-            all_results = []
-            
-            # RAG 결과 변환 (표준 포맷으로)
-            for result in rag_results:
-                all_results.append({
-                    "id": result.get("restaurant_id", ""),
-                    "name": result.get("restaurant_name", ""),
-                    "category": result.get("category", ""),
-                    "address": result.get("addr_road", result.get("addr_jibun", "")),
-                    "lat": result.get("lat", 0.0),
-                    "lng": result.get("lng", 0.0),
-                    "phone": result.get("phone", ""),
-                    "keto_score": result.get("keto_score", 0),
-                    "why": result.get("keto_reasons", {}),
-                    "tips": [],
-                    "source": "rag",
-                    "menu_info": {
-                        "name": result.get("menu_name", ""),
-                        "description": result.get("menu_description", ""),
-                        "price": result.get("menu_price")
-                    },
-                    "similarity": result.get("similarity", 0.0),
-                    "final_score": result.get("final_score", 0.0)
-                })
-            
-            # 카카오 결과 추가
-            all_results.extend(kakao_results)
-            
-            # 중복 제거 (이름 + 주소 기준)
-            unique_results = {}
-            for result in all_results:
-                key = f"{result.get('name', '')}_{result.get('address', '')}"
-                if key not in unique_results:
-                    unique_results[key] = result
-                else:
-                    # 더 높은 점수의 결과 선택
-                    existing_score = unique_results[key].get("keto_score", 0)
-                    current_score = result.get("keto_score", 0)
-                    if current_score > existing_score:
-                        unique_results[key] = result
-            
-            # 최종 정렬 (키토 스코어 + RAG 점수 고려)
-            final_results = sorted(
-                unique_results.values(),
-                key=lambda x: (x.get("keto_score", 0), x.get("final_score", 0), x.get("similarity", 0)),
-                reverse=True
+            # PlaceSearchAgent에 검색 위임
+            search_result = await self.place_search_agent.search_places(
+                message=message,
+                location=state.get("location"),
+                radius_km=state.get("radius_km", 5.0),
+                profile=state.get("profile")
             )
             
-            state["results"] = final_results[:10]  # 상위 10개
-            state["tool_calls"].append({
-                "tool": "hybrid_place_search",
-                "rag_results": len(rag_results),
-                "kakao_results": len(kakao_results),
-                "final_results": len(state["results"]),
-                "location": {"lat": lat, "lng": lng}
-            })
+            # 결과를 state에 저장
+            state["results"] = search_result.get("results", [])
             
-            print(f"  ✅ 최종 결과: {len(state['results'])}개 (RAG: {len(rag_results)}, 카카오: {len(kakao_results)})")
+            # tool_calls 정보 추가
+            if search_result.get("tool_calls"):
+                state["tool_calls"].extend(search_result["tool_calls"])
+            
+            print(f"✅ PlaceSearchAgent 검색 완료: {len(state['results'])}개 결과")
             
         except Exception as e:
-            print(f"Place search error: {e}")
+            print(f"❌ Place search error: {e}")
             state["results"] = []
         
         return state
@@ -692,37 +569,6 @@ class KetoCoachAgent:
             return state
     
     
-    async def _memory_update_node(self, state: AgentState) -> AgentState:
-        """메모리/프로필 업데이트 노드"""
-        
-        try:
-            message = state["messages"][-1].content if state["messages"] else ""
-            
-            # 프로필 업데이트 정보 추출
-            update_prompt = MEMORY_UPDATE_PROMPT.format(message=message)
-            
-            response = await self.llm.ainvoke([HumanMessage(content=update_prompt)])
-            
-            # JSON 파싱 및 프로필 업데이트
-            json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
-            if json_match:
-                updates = json.loads(json_match.group())
-                if not state["profile"]:
-                    state["profile"] = {}
-                
-                for key, value in updates.items():
-                    if value:  # 빈 값이 아닌 경우만 업데이트
-                        state["profile"][key] = value
-                
-                state["tool_calls"].append({
-                    "tool": "memory_update",
-                    "updates": updates
-                })
-            
-        except Exception as e:
-            print(f"Memory update error: {e}")
-        
-        return state
     
     async def _general_chat_node(self, state: AgentState) -> AgentState:
         """일반 채팅 노드 (대화 맥락 고려)"""
@@ -998,7 +844,7 @@ class KetoCoachAgent:
                     # 식당 전용 응답 생성 프롬프트 사용
                     location = state.get('location') or {}
                     location_info = f"위도: {location.get('lat', '정보없음')}, 경도: {location.get('lng', '정보없음')}"
-                    answer_prompt = RESTAURANT_RESPONSE_GENERATION_PROMPT.format(
+                    answer_prompt = PLACE_RESPONSE_GENERATION_PROMPT.format(
                         message=message,
                         location=location_info,
                         context=context
@@ -1243,8 +1089,7 @@ class KetoCoachAgent:
                 "router": "의도 분석 완료",
                 "recipe_search": "레시피를 검색하고 있습니다...",
                 "place_search": "주변 식당을 찾고 있습니다...",
-                "meal_planner": "식단표를 생성하고 있습니다...",
-                "memory_update": "프로필을 업데이트하고 있습니다..."
+                "meal_planner": "식단표를 생성하고 있습니다..."
             }
             
             yield {
