@@ -112,7 +112,7 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'keto-auth',
       version: 4, // 토큰 로딩 문제 해결
-      onRehydrateStorage: () => (state) => {
+      onRehydrateStorage: () => () => {
         // 다른 탭에서의 토큰 변경 감지 (임시 비활성화)
         // 무한 루프 문제로 인해 일시적으로 비활성화
         console.log('🔧 storage 이벤트 리스너 비활성화됨 (무한 루프 방지)')

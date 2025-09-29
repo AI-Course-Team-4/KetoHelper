@@ -8,17 +8,17 @@ import { useProfileStore } from '@/store/profileStore'
 import { authService } from '@/services/AuthService'
 import { toast } from 'react-hot-toast'
 import { LoginModal } from './LoginModal'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { cleanupLocalAuthArtifacts, clearChatHistoryStorage, clearNaverOAuthState } from '@/lib/bootCleanup'
 
 export function Header() {
   const [, setIsSearchOpen] = useState(false)
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const [avatarError, setAvatarError] = useState(false)
-  const { user, clear } = useAuthStore()
+  const { user } = useAuthStore()
   const { clearProfile } = useProfileStore()
   const navigate = useNavigate()
-  const location = useLocation()
+  // const location = useLocation()
   const avatarSrc = user?.profileImage
     ? user.profileImage.replace(/^http:/, 'https:')
     : undefined
