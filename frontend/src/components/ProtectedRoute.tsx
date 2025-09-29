@@ -9,10 +9,11 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, accessToken } = useAuthStore()
 
-  // 로그인되지 않은 경우 또는 토큰이 없는 경우 메인 페이지로 리다이렉트
+  // 단순히 user와 accessToken 존재 여부만 확인
+  // 토큰 검증은 AuthProvider에서 처리
   if (!user || !accessToken) {
     return <Navigate to="/" replace />
   }
-
+  
   return <>{children}</>
 }

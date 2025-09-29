@@ -35,9 +35,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const initializeAuth = async () => {
       try {
         console.log('🚀 AuthProvider 초기화 시작...')
+        
         const result = await authService.validateAndRefreshTokens()
         console.log('🔍 validateAndRefreshTokens 결과:', result)
+        
         if (result.success && result.user && result.accessToken) {
+          console.log('✅ 토큰 검증 성공, 사용자 정보 설정 중...')
           // AuthService에서 반환된 데이터로 setAuth 호출
           setAuth(result.user, result.accessToken, result.refreshToken || '')
           
@@ -46,9 +49,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
           console.log('✅ 인증 초기화 완료, 토큰 갱신 예약됨')
         } else {
           console.log('❌ 인증 초기화 실패, 로그인 필요')
+          console.log('🔍 실패 이유:', { success: result.success, hasUser: !!result.user, hasToken: !!result.accessToken })
         }
       } catch (error) {
-        console.error('인증 초기화 실패:', error)
+        console.error('❌ 인증 초기화 실패:', error)
       } finally {
         setLoading(false)
         setIsInitialized(true)
