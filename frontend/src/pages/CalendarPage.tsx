@@ -670,12 +670,41 @@ export function CalendarPage() {
 
   return (
     <div className="space-y-6">
-      {/* 간단한 헤더 */}
-      <div>
-        <h1 className="text-2xl font-bold text-gradient">식단 캘린더</h1>
-        <p className="text-muted-foreground mt-1">
-          키토 식단 계획을 스마트하게 관리하고 기록하세요
-        </p>
+      {/* 헤더 */}
+      <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white">
+        <div className="relative p-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+            <div className="flex-1">
+              <h1 className="text-3xl font-bold mb-2">🥑 식단 캘린더</h1>
+              <p className="text-green-100">
+                키토 식단 계획을 스마트하게 관리하고 기록하세요
+              </p>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <select 
+                value={selectedDays} 
+                onChange={(e) => setSelectedDays(Number(e.target.value))}
+                disabled={isGeneratingMealPlan}
+                className="px-3 py-2 bg-white/20 border border-white/30 text-white rounded-lg disabled:opacity-50"
+              >
+                <option value={3} className="text-gray-800">3일</option>
+                <option value={7} className="text-gray-800">7일</option>
+                <option value={14} className="text-gray-800">14일</option>
+                <option value={30} className="text-gray-800">30일</option>
+              </select>
+              
+              <Button 
+                onClick={handleGenerateMealPlan}
+                disabled={isGeneratingMealPlan}
+                className="px-3 py-2 bg-white border border-white text-green-600 rounded-lg hover:bg-green-50 hover:text-green-700 font-semibold disabled:opacity-50 shadow-md"
+              >
+                <Add sx={{ fontSize: 20, mr: 1 }} />
+                {isGeneratingMealPlan ? '생성 중...' : `AI 식단표 생성`}
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* 주간 통계 */}

@@ -318,7 +318,12 @@ export function ChatPage() {
 
   // 스레드 삭제 함수 추가
   const handleDeleteThread = async (threadId: string) => {
-    if (!confirm('정말로 이 대화를 삭제하시겠습니까?')) {
+    // 더 나은 확인 다이얼로그로 개선
+    const confirmDelete = window.confirm(
+      '🗑️ 채팅 삭제\n\n정말로 이 대화를 삭제하시겠습니까?\n삭제된 대화는 복구할 수 없습니다.'
+    )
+    
+    if (!confirmDelete) {
       return
     }
 
@@ -336,9 +341,13 @@ export function ChatPage() {
       refetchThreads()
       
       console.log('🗑️ 스레드 삭제 완료:', threadId)
+      
+      // 성공 피드백 추가
+      // TODO: 토스트 알림으로 개선 가능
+      
     } catch (error) {
       console.error('❌ 스레드 삭제 실패:', error)
-      alert('스레드 삭제에 실패했습니다. 다시 시도해주세요.')
+      alert('⚠️ 채팅 삭제 실패\n\n스레드 삭제에 실패했습니다.\n잠시 후 다시 시도해주세요.')
     }
   }
 
@@ -1136,7 +1145,9 @@ export function ChatPage() {
                         variant="ghost"
                         size="sm"
                         disabled={isLoading}
-                        className={`opacity-0 group-hover:opacity-100 h-7 w-7 p-0 transition-opacity duration-200 ${currentThreadId === thread.id ? 'text-white hover:bg-white/20' : 'hover:bg-muted'
+                        className={`opacity-0 group-hover:opacity-100 h-8 w-8 p-0 transition-all duration-200 ${currentThreadId === thread.id 
+                          ? 'text-red-200 bg-red-500/20 border border-red-300/50 hover:bg-red-500/80 hover:text-white hover:border-red-400 hover:shadow-lg' 
+                          : 'hover:bg-red-50 hover:text-red-600 border border-transparent hover:border-red-200 hover:shadow-md'
                           } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                         onClick={(e) => {
                           e.stopPropagation()
@@ -1145,7 +1156,7 @@ export function ChatPage() {
                           }
                         }}
                       >
-                        <Delete sx={{ fontSize: 12 }} />
+                        <Delete sx={{ fontSize: 14 }} />
                       </Button>
                     </div>
                   </div>
