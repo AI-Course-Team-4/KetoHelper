@@ -3,7 +3,7 @@ import { Box, CircularProgress } from '@mui/material'
 import { toast } from 'react-hot-toast'
 import { useState } from 'react'
 import { useGoogleLogin } from '@react-oauth/google'
-import { authService } from '@/lib/authService'
+import { authService } from '@/services/AuthService'
 import { useAuthStore } from '@/store/authStore'
 
 

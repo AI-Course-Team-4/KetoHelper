@@ -18,14 +18,25 @@ def _now_utc() -> datetime:
 
 
 def create_access_token(subject: str, claims: Optional[Dict[str, Any]] = None) -> str:
+    now = _now_utc()
+    exp_time = now + timedelta(minutes=ACCESS_TOKEN_EXP_MINUTES)
+    
     payload: Dict[str, Any] = {
         "sub": subject,
         "type": "access",
-        "iat": int(_now_utc().timestamp()),
-        "exp": int((_now_utc() + timedelta(minutes=ACCESS_TOKEN_EXP_MINUTES)).timestamp()),
+        "iat": int(now.timestamp()),
+        "exp": int(exp_time.timestamp()),
     }
     if claims:
         payload.update(claims)
+    
+    print(f'🔑 Access Token 생성:')
+    print(f'  - 현재 시간: {now.isoformat()}')
+    print(f'  - 만료 시간: {exp_time.isoformat()}')
+    print(f'  - 만료까지: {ACCESS_TOKEN_EXP_MINUTES}분')
+    print(f'  - iat: {payload["iat"]} ({now.isoformat()})')
+    print(f'  - exp: {payload["exp"]} ({exp_time.isoformat()})')
+    
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
@@ -83,11 +94,22 @@ def get_current_user(request: Request) -> Dict[str, Any]:
         
         # 토큰 만료 확인
         exp = payload.get("exp")
-        if exp and datetime.fromtimestamp(exp, tz=timezone.utc) < _now_utc():
-            raise HTTPException(
-                status_code=401,
-                detail="토큰이 만료되었습니다"
-            )
+        if exp:
+            current_time = _now_utc()
+            exp_time = datetime.fromtimestamp(exp, tz=timezone.utc)
+            time_diff = (exp_time - current_time).total_seconds()
+            
+            print(f'🔍 백엔드 토큰 만료 검증:')
+            print(f'  - 현재 시간: {current_time.isoformat()}')
+            print(f'  - 토큰 만료 시간: {exp_time.isoformat()}')
+            print(f'  - 시간 차이: {time_diff}초')
+            print(f'  - 만료 여부: {exp_time < current_time}')
+            
+            if exp_time < current_time:
+                raise HTTPException(
+                    status_code=401,
+                    detail="토큰이 만료되었습니다"
+                )
         
         # 사용자 정보 반환
         return {

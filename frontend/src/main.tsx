@@ -31,15 +31,26 @@ const googleClientId = (import.meta as any).env.VITE_GOOGLE_CLIENT_ID as string
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ThemeProvider theme={muiTheme}>
-      <HotToaster
-          position="top-center"
-          toastOptions={{
-            duration: 3500,
-            style: { fontSize: 14 },
-            success: { duration: 3500 },
-            error: { duration: 4000 },
-          }}
-        />
+      <CssBaseline />
+      <GoogleOAuthProvider clientId={googleClientId || ''}>
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter>
+            <AuthProvider>
+              <App />
+              {/* HotToaster를 모든 Provider 안쪽에 배치 */}
+              <HotToaster
+                position="top-center"
+                toastOptions={{
+                  duration: 3500,
+                  style: { fontSize: 14 },
+                  success: { duration: 3500 },
+                  error: { duration: 4000 },
+                }}
+              />
+            </AuthProvider>
+          </BrowserRouter>
+        </QueryClientProvider>
+      </GoogleOAuthProvider>
       {/* 새로고침 후 1회성 세션 만료 토스트 처리 */}
       {(() => {
         try {
@@ -55,16 +66,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         } catch {}
         return null
       })()}
-      <CssBaseline />
-      <GoogleOAuthProvider clientId={googleClientId || ''}>
-        <QueryClientProvider client={queryClient}>
-          <BrowserRouter>
-            <AuthProvider>
-              <App />
-            </AuthProvider>
-          </BrowserRouter>
-        </QueryClientProvider>
-      </GoogleOAuthProvider>
     </ThemeProvider>
   </React.StrictMode>,
 )
