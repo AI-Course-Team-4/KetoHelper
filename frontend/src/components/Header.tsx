@@ -97,7 +97,7 @@ export function Header() {
         </div>
 
         {/* 사용자 메뉴 */}
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 pr-5">
           {user ? (
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="sm" onClick={() => navigate('/profile')}>
