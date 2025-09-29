@@ -21,6 +21,8 @@ from app.tools.meal.keto_score import KetoScoreCalculator
 from app.tools.shared.temporary_dislikes_extractor import temp_dislikes_extractor
 from app.agents.meal_planner import MealPlannerAgent
 from app.agents.chat_agent import SimpleKetoCoachAgent
+from app.shared.utils.calendar_utils import CalendarUtils
+from app.tools.calendar.calendar_saver import CalendarSaver
 
 # 프롬프트 모듈 import (중앙집중화된 구조)
 from app.prompts.chat.intent_classification import INTENT_CLASSIFICATION_PROMPT, get_intent_prompt
@@ -29,6 +31,11 @@ from app.prompts.chat.response_generation import RESPONSE_GENERATION_PROMPT, RES
 from app.prompts.meal.recipe_response import RECIPE_RESPONSE_GENERATION_PROMPT
 from app.prompts.restaurant.search_improvement import PLACE_SEARCH_IMPROVEMENT_PROMPT
 from app.prompts.restaurant.search_failure import PLACE_SEARCH_FAILURE_PROMPT
+from app.prompts.calendar import (
+    CALENDAR_SAVE_CONFIRMATION_PROMPT,
+    CALENDAR_SAVE_FAILURE_PROMPT,
+    CALENDAR_MEAL_PLAN_VALIDATION_PROMPT
+)
 
 from typing_extensions import TypedDict, NotRequired
 
@@ -44,6 +51,10 @@ class AgentState(TypedDict):
     location: NotRequired[Optional[Dict[str, float]]]
     radius_km: NotRequired[float]
     meal_plan_days: NotRequired[int]  # 추가
+    meal_plan_data: NotRequired[Optional[Dict[str, Any]]]  # 구조화된 식단표 데이터
+    save_to_calendar_data: NotRequired[Optional[Dict[str, Any]]]  # 캘린더 저장 데이터
+    calendar_save_request: NotRequired[bool]  # 캘린더 저장 요청 여부 추가
+    thread_id: NotRequired[Optional[str]]  # 현재 스레드 ID 추가
 
 class KetoCoachAgent:
     """키토 코치 메인 에이전트 (LangGraph 오케스트레이터)"""
@@ -73,9 +84,11 @@ class KetoCoachAgent:
         self.hybrid_search = hybrid_search_tool  # 이미 초기화된 인스턴스 사용
         self.place_search = PlaceSearchTool()
         self.restaurant_hybrid_search = restaurant_hybrid_search_tool  # 식당 RAG 검색
-        self.keto_score = KetoScoreCalculator() 
+        self.keto_score = KetoScoreCalculator()
         self.meal_planner = MealPlannerAgent()
         self.simple_agent = SimpleKetoCoachAgent()
+        self.calendar_saver = CalendarSaver()
+        self.calendar_utils = CalendarUtils()
         
         # 워크플로우 그래프 구성
         self.workflow = self._build_workflow()
@@ -90,6 +103,7 @@ class KetoCoachAgent:
         workflow.add_node("recipe_search", self._recipe_search_node)
         workflow.add_node("place_search", self._place_search_node)
         workflow.add_node("meal_plan", self._meal_plan_node)
+        workflow.add_node("calendar_save", self._calendar_save_node)  # 새로 추가!
         workflow.add_node("memory_update", self._memory_update_node)
         workflow.add_node("general_chat", self._general_chat_node)
         workflow.add_node("answer", self._answer_node)
@@ -103,8 +117,9 @@ class KetoCoachAgent:
             self._route_condition,
             {
                 "recipe": "recipe_search",
-                "place": "place_search",
+                "place": "place_search", 
                 "mealplan": "meal_plan",
+                "calendar_save": "calendar_save",  # 새로 추가!
                 "memory": "memory_update",
                 "other": "general_chat"
             }
@@ -114,6 +129,7 @@ class KetoCoachAgent:
         workflow.add_edge("recipe_search", "answer")
         workflow.add_edge("place_search", "answer")
         workflow.add_edge("meal_plan", "answer")
+        workflow.add_edge("calendar_save", "answer")  # 새로 추가!
         workflow.add_edge("memory_update", "answer")
         workflow.add_edge("general_chat", END)
         workflow.add_edge("answer", END)
@@ -182,161 +198,72 @@ class KetoCoachAgent:
             return "other"
     
     async def _router_node(self, state: AgentState) -> AgentState:
-        """하이브리드 의도 분류 노드
-        
-        1. IntentClassifier로 빠른 키워드 기반 분류
-        2. 높은 확신도(0.8+) → 바로 사용
-        3. 낮은 확신도 → LLM 분류로 폴백
-        4. 두 결과를 병합하여 최종 결정
-        """
+        """의도 기반 라우팅 (신규 기능 + 하이브리드 IntentClassifier)"""
         
         message = state["messages"][-1].content if state["messages"] else ""
+        chat_history = [msg.content for msg in state["messages"]] if state["messages"] else []
         
-        try:
-            print(f"\n🎯 하이브리드 의도 분류 시작: '{message[:50]}...'")
-            
-            # IntentClassifier 사용 가능 여부 확인
-            if self.intent_classifier:
-                # 1단계: IntentClassifier로 빠른 분류
-                quick_result = await self.intent_classifier.classify_intent(
-                    user_input=message,
-                    context=""
+        # IntentClassifier로 의도 분류
+        if self.intent_classifier:
+            try:
+                result = await self.intent_classifier.classify(
+                    user_input=message, 
+                    context=" ".join(chat_history[-5:]) if len(chat_history) > 1 else ""
                 )
                 
-                quick_intent = quick_result["intent"]
-                quick_confidence = quick_result["confidence"]
-                quick_method = quick_result.get("method", "unknown")
+                intent_value = result["intent"].value
+                confidence = result["confidence"]
                 
-                # 슬롯 추출
-                quick_slots = self.intent_classifier.extract_slots(message, quick_intent)
+                print(f"🎯 의도 분류: {intent_value} (신뢰도: {confidence:.2f}, 방식: {result.get('method', 'unknown')})")
                 
-                print(f"  📊 키워드 분류: {quick_intent.value} (확신도: {quick_confidence:.2f}, 방법: {quick_method})")
-                print(f"  📦 추출된 슬롯: {quick_slots}")
+                # 캘린더 저장 요청 처리 (새로 추가!)
+                if intent_value == "calendar_save":
+                    print("📅 캘린더 저장 요청 감지")
+                    state["intent"] = "calendar_save"
+                    state["calendar_save_request"] = True
+                    
+                    # 대화 히스토리에서 최근 식단 데이터 찾기
+                    meal_plan_data = self.calendar_utils.find_recent_meal_plan(chat_history)
+                    if meal_plan_data:
+                        state["meal_plan_data"] = meal_plan_data
+                        # save_to_calendar_data 생성은 별도 노드에서 처리
+                    else:
+                        state["response"] = "저장할 식단을 찾을 수 없습니다. 먼저 식단을 생성해주세요."
+                    return state
                 
-                # 2단계: 높은 확신도면 바로 사용
-                if quick_confidence >= 0.8:
-                    print(f"  ✅ 높은 확신도 → 키워드 분류 채택")
-                    
-                    # Intent enum을 라우팅 키로 변환
-                    mapped_intent = self._map_intent_to_route(quick_intent, message, quick_slots)
-                    state["intent"] = mapped_intent
-                    state["slots"] = quick_slots
-                    
-                    # 추가 검증 (기존 로직 유지)
-                    state["intent"] = self._validate_intent(message, state["intent"])
-                    
-                    print(f"  🎯 최종 의도: {state['intent']}")
+                # 나머지 기존 로직...
+                if intent_value == "meal_planning" or intent_value == "mealplan":
+                    state["intent"] = "mealplan"
+                elif intent_value == "restaurant_search" or intent_value == "restaurant":
+                    state["intent"] = "place"
+                elif intent_value == "both":
+                    # 식당 키워드가 더 강하면 place, 아니면 recipe
+                    restaurant_keywords = ["식당", "맛집", "음식점", "카페", "레스토랑", "근처", "주변"]
+                    if any(keyword in message for keyword in restaurant_keywords):
+                        state["intent"] = "place"
+                    else:
+                        state["intent"] = "recipe"
+                else:
+                    state["intent"] = "other"
+                
+                # 기존 로직에서 확신도 검증도 필요하다면 추가
+                if intent_value != "calendar_save" and confidence >= 0.8:
+                    print(f"  ✅ 높은 확신도 → 분류 채택")
                     
                     state["tool_calls"].append({
                         "tool": "router",
                         "method": "keyword_based",
                         "intent": state["intent"],
-                        "slots": state["slots"],
-                        "confidence": quick_confidence
+                        "confidence": confidence
                     })
                     
                     return state
                 
-                else:
-                    # 3단계: 낮은 확신도 → LLM 분류
-                    print(f"  🤖 낮은 확신도 → LLM 분류 실행")
-                    
-                    # 향상된 프롬프트 사용 (키워드 힌트 포함)
-                    enhanced_prompt = get_intent_prompt(
-                        message=message,
-                        keyword_intent=quick_intent.value,
-                        confidence=quick_confidence
-                    )
-                    
-                    response = await self.llm.ainvoke([HumanMessage(content=enhanced_prompt)])
-                    
-                    # JSON 파싱
-                    json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
-                    if json_match:
-                        result = json.loads(json_match.group())
-                        llm_intent = result.get("intent", "other")
-                        llm_slots = result.get("slots", {})
-                        
-                        print(f"  🤖 LLM 분류: {llm_intent}")
-                        
-                        # 4단계: 결과 병합
-                        # LLM 결과를 우선하되, 슬롯은 병합
-                        state["intent"] = llm_intent
-                        state["slots"] = {**quick_slots, **llm_slots}  # 병합
-                        
-                        # 추가 검증
-                        state["intent"] = self._validate_intent(message, state["intent"])
-                        
-                        print(f"  🎯 최종 의도: {state['intent']} (LLM 기반)")
-                        
-                        state["tool_calls"].append({
-                            "tool": "router",
-                            "method": "hybrid_llm",
-                            "intent": state["intent"],
-                            "slots": state["slots"],
-                            "keyword_hint": quick_intent.value,
-                            "keyword_confidence": quick_confidence
-                        })
-                    else:
-                        # JSON 파싱 실패 시 키워드 결과 사용
-                        mapped_intent = self._map_intent_to_route(quick_intent, message, quick_slots)
-                        state["intent"] = mapped_intent
-                        state["slots"] = quick_slots
-                        state["intent"] = self._validate_intent(message, state["intent"])
-                        
-                        state["tool_calls"].append({
-                            "tool": "router",
-                            "method": "keyword_fallback",
-                            "intent": state["intent"],
-                            "slots": state["slots"]
-                        })
+            except Exception as e:
+                print(f"IntentClassifier 오류, SimpleAgent로 폴백: {e}")
+                # 폴백 로직 - 기본 intent로 처리
+                state["intent"] = "other"
             
-            else:
-                # IntentClassifier 없으면 기존 LLM 방식 사용
-                print("  ⚠️ IntentClassifier 사용 불가 → 기존 LLM 방식")
-                
-                # 기본 프롬프트 사용 (키워드 힌트 없음)
-                router_prompt = get_intent_prompt(message=message)
-                response = await self.llm.ainvoke([HumanMessage(content=router_prompt)])
-                
-                json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
-                if json_match:
-                    result = json.loads(json_match.group())
-                    initial_intent = result.get("intent", "other")
-                    state["slots"] = result.get("slots", {})
-                    state["intent"] = self._validate_intent(message, initial_intent)
-                    
-                    state["tool_calls"].append({
-                        "tool": "router",
-                        "method": "llm_only",
-                        "intent": state["intent"],
-                        "slots": state["slots"]
-                    })
-                else:
-                    state["intent"] = "other"
-                    state["slots"] = {}
-                    
-                    state["tool_calls"].append({
-                        "tool": "router",
-                        "method": "default",
-                        "intent": "other",
-                        "slots": {}
-                    })
-            
-        except Exception as e:
-            print(f"  ❌ Router error: {e}")
-            state["intent"] = "other"
-            state["slots"] = {}
-            
-            state["tool_calls"].append({
-                "tool": "router",
-                "method": "error",
-                "intent": "other",
-                "error": str(e)
-            })
-        
-        print(f"  📍 라우팅 결정: {state['intent']} → {self._route_condition(state)}")
-        
         return state
     
     def _validate_intent(self, message: str, initial_intent: str) -> str:
@@ -388,10 +315,15 @@ class KetoCoachAgent:
                 return "other"
         
         return initial_intent
+    
+    # _find_recent_meal_plan 함수 제거 - CalendarUtils로 이동
 
     def _route_condition(self, state: AgentState) -> str:
         """라우팅 조건 함수"""
-        return state["intent"]
+        intent = state["intent"]
+        if state.get("calendar_save_request", False):
+            return "calendar_save"
+        return intent
     
     async def _recipe_search_node(self, state: AgentState) -> AgentState:
         """레시피 검색 노드 (Hybrid Search 사용)"""
@@ -650,29 +582,33 @@ class KetoCoachAgent:
             # 채팅에서 임시 불호 식재료 추출
             temp_dislikes = temp_dislikes_extractor.extract_from_message(message)
             
-            # 먼저 메시지에서 직접 일수 파싱 (더 확실한 방법)
-            days = 7  # 기본값
+            # DateParser를 사용하여 정확한 일수 파싱
+            from app.tools.shared.date_parser import DateParser
+            date_parser = DateParser()
             
             print(f"🔍 DEBUG: 메시지: {message}")
             print(f"🔍 DEBUG: 전체 슬롯: {state['slots']}")
             
-            # 메시지에서 직접 일수 파싱
-            if any(word in message for word in ["하루치", "하루", "1일", "오늘"]):
-                days = 1
-                print(f"🔍 DEBUG: 메시지에서 하루치 감지 → days = 1")
-            elif any(word in message for word in ["이틀", "2일"]):
-                days = 2
-                print(f"🔍 DEBUG: 메시지에서 이틀 감지 → days = 2")
-            elif any(word in message for word in ["3일", "사흘"]):
-                days = 3
-                print(f"🔍 DEBUG: 메시지에서 3일 감지 → days = 3")
-            elif any(word in message for word in ["이번주", "다음주", "일주일", "한주", "한 주"]):
-                days = 7
-                print(f"🔍 DEBUG: 메시지에서 주간 감지 → days = 7")
+            # DateParser를 사용하여 일수 추출
+            days = date_parser._extract_duration_days(message)
+            
+            if days is not None:
+                print(f"🔍 DEBUG: DateParser가 감지한 days: {days}")
             else:
-                # 슬롯에서 가져오기 (메시지 파싱이 실패한 경우)
-                days = int(state["slots"].get("days", 7)) if state["slots"].get("days") else 7
-                print(f"🔍 DEBUG: 슬롯에서 추출된 days: {days}")
+                # 슬롯에서 가져오기 (DateParser 실행 실패한 경우)
+                slots_days = state["slots"].get("days")
+                if slots_days:
+                    days = int(slots_days)
+                    print(f"🔍 DEBUG: 슬롯에서 추출된 days: {days}")
+                else:
+                    # 기본값 없이 사용자에게 명확한 응답 요청
+                    days = None
+            
+            # 일수를 제대로 파악하지 못한 경우
+            if days is None:
+                # 식단표는 생성하지 않고 사용자에게 명확한 응답 요청
+                state["response"] = "몇 일치 식단표를 원하시는지 구체적으로 말씀해주세요. (예: 5일치, 일주일치, 3일치)"
+                return state
             
             print(f"🔍 DEBUG: 최종 days: {days}")
             
@@ -725,9 +661,8 @@ class KetoCoachAgent:
         except Exception as e:
             print(f"Meal plan error: {e}")
             state["results"] = []
-            # 에러 케이스에서도 days 값 저장
-            state["meal_plan_days"] = days
-            print(f"🔍 DEBUG: 에러 케이스에서도 state에 meal_plan_days 저장: {days}")
+            state["response"] = "죄송합니다. 식단표 생성 중 오류가 발생했습니다. 다시 시도해주세요."
+            # 에러 케이스에서는 days 값 저장하지 않음 (None이면 처리하지 않도록)
         
         return state
     
@@ -846,11 +781,133 @@ class KetoCoachAgent:
         
         return state
     
+    async def _calendar_save_node(self, state: AgentState) -> AgentState:
+        """캘린더 저장 처리 노드 (CalendarSaver 사용, 충돌 해결 포함)"""
+        
+        try:
+            message = state["messages"][-1].content if state["messages"] else ""
+
+            # 1. 충돌 해결 상태인지 먼저 확인
+            if state.get("calendar_conflict_info") and state.get("pending_meal_logs"):
+                print(f"🔄 캘린더 충돌 해결 처리 중: '{message}'")
+
+                # 충돌 해결 처리
+                conflict_result = await self.calendar_saver.handle_conflict_resolution(
+                    state, message,
+                    state["calendar_conflict_info"],
+                    state["pending_meal_logs"],
+                    state.get("save_to_calendar_data", {})
+                )
+
+                # 충돌 처리 완료 후 상태 정리
+                if "calendar_conflict_info" in state:
+                    del state["calendar_conflict_info"]
+                if "pending_meal_logs" in state:
+                    del state["pending_meal_logs"]
+
+                state["response"] = conflict_result["message"]
+
+                state["tool_calls"].append({
+                    "tool": "calendar_conflict_resolver",
+                    "success": conflict_result["success"],
+                    "action_taken": conflict_result.get("action_taken", "unknown"),
+                    "method": "handle_conflict_resolution"
+                })
+
+                return state
+
+            # 2. 일반 캘린더 저장 처리
+            # 대화 히스토리 가져오기
+            chat_history = []
+            if state["messages"]:
+                chat_history = [msg.content for msg in state["messages"]]
+
+            # CalendarSaver를 사용하여 저장 처리
+            result = await self.calendar_saver.save_meal_plan_to_calendar(
+                state, message, chat_history
+            )
+
+            # 결과에 따라 상태 업데이트
+            state["response"] = result["message"]
+
+            if result.get("save_data"):
+                state["save_to_calendar_data"] = result["save_data"]
+                # meal_plan_data가 있으면 보존
+                if result["save_data"].get("meal_plan_data"):
+                    state["meal_plan_data"] = result["save_data"]["meal_plan_data"]
+
+            # 충돌 정보가 있으면 상태에 저장 (다음 사용자 입력에서 처리)
+            if result.get("has_conflict"):
+                state["calendar_conflict_info"] = result.get("conflict_info")
+                state["pending_meal_logs"] = result.get("pending_meal_logs")
+
+            state["tool_calls"].append({
+                "tool": "calendar_saver",
+                "success": result["success"],
+                "method": "save_meal_plan_to_calendar",
+                "has_conflict": result.get("has_conflict", False)
+            })
+
+            return state
+
+        except Exception as e:
+            print(f"❌ 캘린더 저장 노드 오류: {e}")
+            import traceback
+            print(f"❌ 상세 오류: {traceback.format_exc()}")
+            state["response"] = "죄송합니다. 캘린더 저장 처리 중 오류가 발생했습니다. 다시 시도해주세요."
+            return state
+    
+    # _is_calendar_save_request 함수 제거 - CalendarUtils로 이동
+
+    async def _handle_calendar_save_request(self, state: AgentState, message: str) -> AgentState:
+        """캘린더 저장 요청 처리 (CalendarSaver 사용)"""
+        try:
+            # 대화 히스토리 가져오기
+            chat_history = []
+            if state["messages"]:
+                # 최근 10개 메시지만 확인 (토큰 절약)
+                recent_messages = state["messages"][-10:] if len(state["messages"]) > 10 else state["messages"]
+                for msg in recent_messages:
+                    if hasattr(msg, 'content'):
+                        chat_history.append(msg.content)
+
+            # CalendarSaver를 사용하여 저장 처리
+            result = await self.calendar_saver.save_meal_plan_to_calendar(
+                state, message, chat_history
+            )
+
+            # 결과에 따라 상태 업데이트
+            state["response"] = result["message"]
+
+            if result.get("save_data"):
+                state["save_to_calendar_data"] = result["save_data"]
+                # meal_plan_data가 있으면 보존
+                if result["save_data"].get("meal_plan_data"):
+                    state["meal_plan_data"] = result["save_data"]["meal_plan_data"]
+
+            # 충돌 정보가 있으면 상태에 저장 (다음 사용자 입력에서 처리)
+            if result.get("has_conflict"):
+                state["calendar_conflict_info"] = result.get("conflict_info")
+                state["pending_meal_logs"] = result.get("pending_meal_logs")
+
+            return state
+
+        except Exception as e:
+            print(f"❌ 캘린더 저장 요청 처리 오류: {e}")
+            state["response"] = "죄송합니다. 캘린더 저장 처리 중 오류가 발생했습니다. 다시 시도해주세요."
+            return state
+    
+    # 기존 _handle_calendar_save_request 함수 제거됨 - 위의 새 버전 사용
+    
     async def _answer_node(self, state: AgentState) -> AgentState:
         """최종 응답 생성 노드"""
         
         try:
             message = state["messages"][-1].content if state["messages"] else ""
+            
+            # 캘린더 저장 요청 감지 및 처리
+            if self.calendar_utils.is_calendar_save_request(message):
+                return await self._handle_calendar_save_request(state, message)
             
             # 결과 기반 응답 생성
             context = ""
@@ -952,8 +1009,17 @@ class KetoCoachAgent:
                             for note in notes[:3]:  # 최대 3개만
                                 response_text += f"- {note}\n"
                         
-                        # 바로 응답 반환 (LLM 재생성 건너뛰기)
+                        # 구조화된 식단표 데이터를 응답에 포함
+                        meal_plan_data = {
+                            "duration_days": requested_days,
+                            "days": meal_days,
+                            "total_macros": meal_plan.get("total_macros", {}),
+                            "notes": meal_plan.get("notes", [])
+                        }
+                        
+                        # 응답에 구조화된 데이터 포함 (프론트엔드에서 파싱 가능)
                         state["response"] = response_text
+                        state["meal_plan_data"] = meal_plan_data  # 구조화된 데이터 추가
                         return state
                     else:
                         # tool_calls에서 days 정보 추출
@@ -1064,7 +1130,8 @@ class KetoCoachAgent:
         location: Optional[Dict[str, float]] = None,
         radius_km: float = 5.0,
         profile: Optional[Dict[str, Any]] = None,
-        chat_history: Optional[List[Dict[str, Any]]] = None
+        chat_history: Optional[List[Dict[str, Any]]] = None,
+        thread_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """메시지 처리 메인 함수"""
         
@@ -1103,7 +1170,8 @@ class KetoCoachAgent:
             "tool_calls": [],
             "profile": profile,
             "location": location,
-            "radius_km": radius_km or 5.0
+            "radius_km": radius_km or 5.0,
+            "thread_id": thread_id  # thread_id를 state에 저장
         }
         
         # 워크플로우 실행
@@ -1113,7 +1181,9 @@ class KetoCoachAgent:
             "response": final_state["response"],
             "intent": final_state["intent"],
             "results": final_state["results"],
-            "tool_calls": final_state["tool_calls"]
+            "tool_calls": final_state["tool_calls"],
+            "meal_plan_data": final_state.get("meal_plan_data"),  # 구조화된 식단표 데이터 포함
+            "save_to_calendar_data": final_state.get("save_to_calendar_data")  # 캘린더 저장 데이터 포함
         }
     
     async def stream_response(
