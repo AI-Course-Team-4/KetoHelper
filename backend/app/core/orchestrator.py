@@ -5,12 +5,13 @@ LangGraph 기반 키토 코치 에이전트 오케스트레이터
 """
 
 import asyncio
-from typing import Dict, Any, Optional, List, AsyncGenerator
+from typing import Dict, Any, Optional, AsyncGenerator
 from langgraph.graph import StateGraph, START, END
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import HumanMessage, AIMessage, BaseMessage
 import json
 import re
+from datetime import datetime
 
 from app.core.config import settings
 from app.core.intent_classifier import IntentClassifier, Intent  # 추가
@@ -37,7 +38,7 @@ from app.prompts.calendar import (
     CALENDAR_MEAL_PLAN_VALIDATION_PROMPT
 )
 
-from typing_extensions import TypedDict, NotRequired
+from typing_extensions import TypedDict, NotRequired, List
 
 class AgentState(TypedDict):
     """에이전트 상태 관리 클래스"""
@@ -55,6 +56,10 @@ class AgentState(TypedDict):
     save_to_calendar_data: NotRequired[Optional[Dict[str, Any]]]  # 캘린더 저장 데이터
     calendar_save_request: NotRequired[bool]  # 캘린더 저장 요청 여부 추가
     thread_id: NotRequired[Optional[str]]  # 현재 스레드 ID 추가
+    use_personalized: NotRequired[bool]  # 개인화 모드 플래그
+    use_meal_planner_recipe: NotRequired[bool]  # MealPlannerAgent 레시피 사용 플래그
+    fast_mode: NotRequired[bool]  # 빠른 모드 플래그
+    formatted_response: NotRequired[str]  # 포맷된 응답
 
 class KetoCoachAgent:
     """키토 코치 메인 에이전트 (LangGraph 오케스트레이터)"""
@@ -135,6 +140,35 @@ class KetoCoachAgent:
         workflow.add_edge("answer", END)
         
         return workflow.compile()
+    
+    def _determine_fast_mode(self, message: str) -> bool:
+        """메시지 내용에 따라 fast_mode 동적 결정"""
+        
+        # 정확한 검색이 필요한 키워드
+        accurate_keywords = ["정확한", "자세한", "맞춤", "개인", "추천", "최적", "신중하게", "꼼꼼하게"]
+        
+        # 빠른 응답이 필요한 키워드
+        fast_keywords = ["빠르게", "간단히", "대충", "아무거나", "급해", "빨리", "간단하게"]
+        
+        message_lower = message.lower()
+        
+        # 명시적 키워드 확인
+        if any(keyword in message_lower for keyword in accurate_keywords):
+            print("🔍 정확한 검색 모드 활성화")
+            return False
+        
+        if any(keyword in message_lower for keyword in fast_keywords):
+            print("⚡ 빠른 검색 모드 활성화")
+            return True
+        
+        # 시간대 기반 결정 (저녁/새벽은 빠르게)
+        current_hour = datetime.now().hour
+        if current_hour >= 22 or current_hour <= 6:
+            print("🌙 야간 시간대 - 빠른 모드")
+            return True
+        
+        # 기본값: 빠른 모드
+        return True
     
     def _map_intent_to_route(self, intent_enum: Intent, message: str, slots: Dict[str, Any]) -> str:
         """IntentClassifier의 Intent enum을 orchestrator 라우팅 키로 변환
@@ -232,8 +266,43 @@ class KetoCoachAgent:
                     return state
                 
                 # 나머지 기존 로직...
-                if intent_value == "meal_planning" or intent_value == "mealplan":
-                    state["intent"] = "mealplan"
+                if intent_value == "meal_planning":
+                    # 사용자 ID 추출
+                    user_id = state.get("profile", {}).get("user_id") if state.get("profile") else None
+                    
+                    # 개인화 키워드 확인
+                    if user_id and any(word in message.lower() for word in ["맞춤", "개인", "나한테", "내게", "나에게", "내 취향"]):
+                        state["intent"] = "mealplan"  # meal_plan_node로 라우팅
+                        state["use_personalized"] = True
+                        print("👤 개인화 식단 모드 활성화")
+                    else:
+                        # 기존 로직으로 mealplan vs recipe 구분
+                        mealplan_keywords = [
+                            "식단표", "식단 만들", "식단 생성", "식단 짜",
+                            "일주일", "하루치", "이틀치", "3일치", "사흘치",
+                            "주간", "일주일치", "메뉴 계획", "meal plan"
+                        ]
+                        
+                        recipe_keywords = [
+                            "레시피", "조리법", "만드는 법", "어떻게 만들",
+                            "요리 방법", "조리 방법", "recipe", "how to make"
+                        ]
+                        
+                        message_lower = message.lower()
+                        
+                        if any(keyword in message_lower for keyword in mealplan_keywords):
+                            state["intent"] = "mealplan"
+                            # fast_mode 동적 결정
+                            state["fast_mode"] = self._determine_fast_mode(message)
+                            print(f"🍽️ 식단표 모드 (fast_mode={state['fast_mode']})")
+                        elif any(keyword in message_lower for keyword in recipe_keywords):
+                            state["intent"] = "recipe"
+                            state["use_meal_planner_recipe"] = True  # MealPlannerAgent 사용 플래그
+                            print("🍳 레시피 모드 (MealPlannerAgent 사용)")
+                        else:
+                            # 기본값
+                            state["intent"] = "recipe"
+                            state["use_meal_planner_recipe"] = True
                 elif intent_value == "restaurant_search" or intent_value == "restaurant":
                     state["intent"] = "place"
                 elif intent_value == "both":
@@ -326,10 +395,30 @@ class KetoCoachAgent:
         return intent
     
     async def _recipe_search_node(self, state: AgentState) -> AgentState:
-        """레시피 검색 노드 (Hybrid Search 사용)"""
+        """레시피 검색 노드 - MealPlannerAgent 우선 사용"""
         
         try:
             message = state["messages"][-1].content if state["messages"] else ""
+            
+            # MealPlannerAgent 사용 플래그 확인
+            if state.get("use_meal_planner_recipe", False):
+                # handle_recipe_request 메서드가 있는지 확인
+                if hasattr(self.meal_planner, 'handle_recipe_request'):
+                    print("🍳 MealPlannerAgent.handle_recipe_request() 사용")
+                    
+                    # MealPlannerAgent에 위임
+                    result = await self.meal_planner.handle_recipe_request(
+                        message=message,
+                        state=state
+                    )
+                    
+                    # 결과 상태에 병합
+                    state.update(result)
+                    return state
+                else:
+                    print("⚠️ handle_recipe_request 메서드 없음, 기존 방식 사용")
+            
+            # 기존 하이브리드 검색 로직
             
             # 채팅에서 임시 불호 식재료 추출
             temp_dislikes = temp_dislikes_extractor.extract_from_message(message)
@@ -574,97 +663,34 @@ class KetoCoachAgent:
         return state
     
     async def _meal_plan_node(self, state: AgentState) -> AgentState:
-        """식단표 생성 노드"""
+        """식단표 생성 노드 - MealPlannerAgent가 모든 처리"""
         
         try:
             message = state["messages"][-1].content if state["messages"] else ""
             
-            # 채팅에서 임시 불호 식재료 추출
-            temp_dislikes = temp_dislikes_extractor.extract_from_message(message)
-            
-            # DateParser를 사용하여 정확한 일수 파싱
-            from app.tools.shared.date_parser import DateParser
-            date_parser = DateParser()
-            
-            print(f"🔍 DEBUG: 메시지: {message}")
-            print(f"🔍 DEBUG: 전체 슬롯: {state['slots']}")
-            
-            # DateParser를 사용하여 일수 추출
-            days = date_parser._extract_duration_days(message)
-            
-            if days is not None:
-                print(f"🔍 DEBUG: DateParser가 감지한 days: {days}")
-            else:
-                # 슬롯에서 가져오기 (DateParser 실행 실패한 경우)
-                slots_days = state["slots"].get("days")
-                if slots_days:
-                    days = int(slots_days)
-                    print(f"🔍 DEBUG: 슬롯에서 추출된 days: {days}")
-                else:
-                    # 기본값 없이 사용자에게 명확한 응답 요청
-                    days = None
-            
-            # 일수를 제대로 파악하지 못한 경우
-            if days is None:
-                # 식단표는 생성하지 않고 사용자에게 명확한 응답 요청
-                state["response"] = "몇 일치 식단표를 원하시는지 구체적으로 말씀해주세요. (예: 5일치, 일주일치, 3일치)"
-                return state
-            
-            print(f"🔍 DEBUG: 최종 days: {days}")
-            
-            # 프로필에서 제약 조건 추출
-            kcal_target = None
-            carbs_max = 30
-            allergies = []
-            dislikes = []
-            
-            if state["profile"]:
-                kcal_target = state["profile"].get("goals_kcal")
-                carbs_max = state["profile"].get("goals_carbs_g", 30)
-                allergies = state["profile"].get("allergies", [])
-                profile_dislikes = state["profile"].get("dislikes", [])
-                
-                # 임시 불호 식재료와 프로필 불호 식재료 합치기
-                dislikes = temp_dislikes_extractor.combine_with_profile_dislikes(
-                    temp_dislikes, profile_dislikes
-                )
-            else:
-                # 프로필이 없는 경우 임시 불호 식재료만 사용
-                dislikes = temp_dislikes
-            
-            # 식단표 생성
-            meal_plan = await self.meal_planner.generate_meal_plan(
-                days=days,
-                kcal_target=kcal_target,
-                carbs_max=carbs_max,
-                allergies=allergies,
-                dislikes=dislikes,
-                fast_mode=True  # 빠른 모드 활성화
+            # MealPlannerAgent에 전체 처리 위임
+            print("✅ MealPlannerAgent.handle_meal_request() 사용")
+            result = await self.meal_planner.handle_meal_request(
+                message=message,
+                state=state
             )
             
-            state["results"] = [meal_plan]
-            state["tool_calls"].append({
-                "tool": "meal_planner",
-                "days": days,
-                "constraints": {
-                    "kcal_target": kcal_target,
-                    "carbs_max": carbs_max,
-                    "allergies": allergies,
-                    "dislikes": dislikes
-                }
-            })
+            # 결과 상태에 병합
+            state.update(result)
             
-            # days 값을 state에 저장 (answer_node에서 사용하기 위해)
-            state["meal_plan_days"] = days
-            print(f"🔍 DEBUG: state에 meal_plan_days 저장: {days}")
+            # 개인화 모드였다면 로깅
+            if state.get("use_personalized"):
+                user_id = state.get("profile", {}).get("user_id")
+                print(f"✅ 개인화 식단 생성 완료: user_id={user_id}")
             
+            return state
+        
         except Exception as e:
-            print(f"Meal plan error: {e}")
+            print(f"❌ Meal plan error: {e}")
             state["results"] = []
             state["response"] = "죄송합니다. 식단표 생성 중 오류가 발생했습니다. 다시 시도해주세요."
-            # 에러 케이스에서는 days 값 저장하지 않음 (None이면 처리하지 않도록)
-        
-        return state
+            return state
+    
     
     async def _memory_update_node(self, state: AgentState) -> AgentState:
         """메모리/프로필 업데이트 노드"""
@@ -908,6 +934,12 @@ class KetoCoachAgent:
             # 캘린더 저장 요청 감지 및 처리
             if self.calendar_utils.is_calendar_save_request(message):
                 return await self._handle_calendar_save_request(state, message)
+            
+            # MealPlannerAgent가 이미 포맷한 응답이 있으면 그대로 사용
+            if state.get("formatted_response"):
+                print("✅ 포맷된 응답 사용")
+                state["response"] = state["formatted_response"]
+                return state
             
             # 결과 기반 응답 생성
             context = ""
