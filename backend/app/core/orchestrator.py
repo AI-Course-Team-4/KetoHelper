@@ -1028,7 +1028,8 @@ class KetoCoachAgent:
             "profile": profile,
             "location": location,
             "radius_km": radius_km or 5.0,
-            "thread_id": thread_id  # thread_id를 state에 저장
+            "thread_id": thread_id,  # thread_id를 state에 저장
+            "chat_history": [msg.message for msg in chat_history] if chat_history else []  # chat_history 추가
         }
         
         # 워크플로우 실행

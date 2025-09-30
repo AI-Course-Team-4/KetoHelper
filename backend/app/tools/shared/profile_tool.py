@@ -413,7 +413,18 @@ class UserProfileTool:
                 continue
             
             # 비선호 재료 체크
-            recipe_ingredients = set(recipe.get("ingredients", []))
+            ingredients_data = recipe.get("ingredients", [])
+            
+            # ingredients가 문자열인 경우 JSON 파싱
+            if isinstance(ingredients_data, str):
+                try:
+                    import json
+                    ingredients_data = json.loads(ingredients_data)
+                except (json.JSONDecodeError, ValueError):
+                    logger.warning(f"⚠️ ingredients 파싱 실패: {recipe.get('title', 'Unknown')} - {ingredients_data}")
+                    ingredients_data = []
+            
+            recipe_ingredients = set(ingredients_data)
             if user_dislikes and recipe_ingredients.intersection(user_dislikes):
                 logger.info(f"🚫 비선호 재료로 인해 제외: {recipe.get('title', 'Unknown')} - {recipe_ingredients.intersection(user_dislikes)}")
                 continue
