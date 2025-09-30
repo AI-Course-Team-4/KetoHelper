@@ -3,8 +3,8 @@ import {
   Message, 
   CalendarToday, 
   Person, 
-  BarChart,
-  Restaurant,
+  // BarChart,
+  // Restaurant,
   LocationOn as MapPin,
   CreditCard
 } from '@mui/icons-material'
@@ -93,7 +93,7 @@ export function Navigation() {
       </div>
 
       {/* 빠른 액션 */}
-      {!isCollapsed && (
+      {/* {!isCollapsed && (
         <div className="mt-8 pt-4 border-t border-border">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
             빠른 액션
@@ -113,7 +113,7 @@ export function Navigation() {
             </button>
           </div>
         </div>
-      )}
+      )} */}
 
       {/* 키토 팁 */}
       {!isCollapsed && (
