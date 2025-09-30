@@ -147,7 +147,7 @@ export function useGetChatHistory(threadId: string, limit = 20, before?: string)
       const response = await api.get(`/chat/history/${threadId}`, { params })
       return response.data
     },
-    enabled: !!threadId
+    enabled: !!threadId && threadId.trim() !== ''
   })
 }
 

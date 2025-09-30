@@ -440,8 +440,11 @@ export function ChatPage() {
       console.log('📥 API 응답 받음:', {
         response: response.response?.substring(0, 100) + '...',
         intent: response.intent,
+        thread_id: response.thread_id,
         timestamp: new Date().toISOString()
       })
+      
+      console.log('✅ handleSendMessage 성공 완료 - processingRef 해제 예정')
 
       // 응답에서 thread_id 업데이트
       if (response.thread_id && response.thread_id !== threadId) {
@@ -573,7 +576,12 @@ export function ChatPage() {
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // 한글/일본어 IME 조합 중 Enter 무시
+    // 일부 브라우저는 keyCode 229를 씀
+    // @ts-ignore
+    if (e.nativeEvent.isComposing || (e as any).keyCode === 229) return;
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSendMessage()
@@ -1205,7 +1213,7 @@ export function ChatPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        disabled={isLoading}
+                        disabled={isLoading || isProcessing || processingRef.current}
                         className={`opacity-0 group-hover:opacity-100 h-8 w-8 p-0 transition-all duration-200 ${currentThreadId === thread.id 
                           ? 'text-red-200 bg-red-500/20 border border-red-300/50 hover:bg-red-500/80 hover:text-white hover:border-red-400 hover:shadow-lg' 
                           : 'hover:bg-red-50 hover:text-red-600 border border-transparent hover:border-red-200 hover:shadow-md'
@@ -1263,7 +1271,7 @@ export function ChatPage() {
                         onKeyDown={handleKeyDown}
                         placeholder="키토 식단에 대해 무엇이든 물어보세요..."
                         className="h-14 lg:h-16 text-base lg:text-lg pl-6 lg:pl-8 pr-12 lg:pr-16 bg-white border-2 border-gray-200 focus:border-green-400 rounded-3xl shadow-lg focus:shadow-xl transition-all duration-300"
-                        disabled={isLoading}
+                        disabled={isLoading || isProcessing || processingRef.current}
                       />
                       {isLoading && (
                         <div className="absolute right-3 lg:right-4 top-1/2 -translate-y-1/2">
@@ -1293,7 +1301,7 @@ export function ChatPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleQuickMessage(quickMessage)}
-                        disabled={isLoading}
+                        disabled={isLoading || isProcessing || processingRef.current}
                         className="text-sm lg:text-base px-4 lg:px-6 py-2 lg:py-3 rounded-xl lg:rounded-2xl border-2 border-green-200 hover:bg-green-50 hover:border-green-300 hover:shadow-lg transition-all duration-300 font-medium text-green-700"
                       >
                         {quickMessage}
@@ -1633,7 +1641,7 @@ export function ChatPage() {
                         onKeyDown={handleKeyDown}
                         placeholder="키토 식단에 대해 무엇이든 물어보세요..."
                         className="h-12 lg:h-14 pl-4 lg:pl-6 pr-12 lg:pr-14 bg-white border-2 border-gray-200 focus:border-green-400 rounded-2xl shadow-lg focus:shadow-xl transition-all duration-300"
-                        disabled={isLoading}
+                        disabled={isLoading || isProcessing || processingRef.current}
                       />
                       {isLoading && (
                         <div className="absolute right-2 lg:right-3 top-1/2 -translate-y-1/2">
@@ -1663,7 +1671,7 @@ export function ChatPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleQuickMessage(quickMessage)}
-                        disabled={isLoading}
+                        disabled={isLoading || isProcessing || processingRef.current}
                         className="text-xs lg:text-sm px-3 lg:px-4 py-1 lg:py-2 rounded-lg lg:rounded-xl border-2 border-green-200 hover:bg-green-50 hover:border-green-300 hover:shadow-md transition-all duration-300 font-medium text-green-700"
                       >
                         {quickMessage}

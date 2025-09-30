@@ -103,8 +103,12 @@ async def update_thread_last_message(thread_id: str):
         print(f"❌ 스레드 업데이트 실패: {e}")
 
 # 중복 요청 방지를 위한 캐시 (메모리 기반)
-_request_cache = {}
+import hashlib
+import asyncio
 import time
+
+_request_cache = {}
+_dedupe_lock = asyncio.Lock()
 
 @router.post("/", response_model=ChatResponse)
 async def chat_endpoint(request: ChatMessage):
@@ -118,20 +122,23 @@ async def chat_endpoint(request: ChatMessage):
     import uuid
     request_id = str(uuid.uuid4())[:8]
     
-    # 중복 요청 방지: 동일한 메시지가 5초 내에 다시 들어오면 차단
-    cache_key = f"{request.user_id or request.guest_id}_{request.message}_{request.thread_id}"
+    # 중복 요청 방지: thread_id 제외하고 메시지 해시 사용
+    raw_user = request.user_id or request.guest_id or "anon"
+    msg_norm = (request.message or "").strip()
+    msg_hash = hashlib.sha256(msg_norm.encode("utf-8")).hexdigest()[:16]  # 짧게
+    
+    cache_key = f"{raw_user}:{msg_hash}"
     current_time = time.time()
     
-    if cache_key in _request_cache:
-        last_time = _request_cache[cache_key]
-        if current_time - last_time < 5:  # 5초 내 중복 요청
-            print(f"🚫 중복 요청 차단! [ID: {request_id}] 메시지: '{request.message}' (마지막 요청: {current_time - last_time:.1f}초 전)")
+    async with _dedupe_lock:
+        last_time = _request_cache.get(cache_key)
+        if last_time and (current_time - last_time) < 30:  # 30초로 연장
+            print(f"🚫 중복 요청 차단! [ID: {request_id}] '{request.message}' (Δ {current_time - last_time:.2f}s)")
             raise HTTPException(status_code=429, detail="Too many requests")
+        _request_cache[cache_key] = current_time
     
-    _request_cache[cache_key] = current_time
-    
-    # 1시간 이상 된 캐시 항목 정리
-    if len(_request_cache) > 1000:
+    # 오래된 캐시 간단 청소
+    if len(_request_cache) > 5000:
         _request_cache.clear()
     
     print(f"🔥 DEBUG: chat_endpoint 진입! [ID: {request_id}] 메시지: '{request.message}'")
@@ -442,7 +449,7 @@ async def chat_stream(request: ChatMessage):
         }
     )
 
-@router.get("/history/{session_id}")
+@router.get("/history_legacy/{session_id}")
 async def get_chat_history_legacy(session_id: str):
     """레거시 호환성을 위한 세션 기반 채팅 기록 조회"""
     try:

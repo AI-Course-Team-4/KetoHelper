@@ -17,9 +17,10 @@ from app.prompts.chat.intent_classification import get_intent_prompt
 
 class Intent(Enum):
     """의도 분류 열거형"""
-    MEAL_PLANNING = "meal_planning"      # 식단 계획/레시피 관련
-    RESTAURANT_SEARCH = "restaurant_search"  # 식당 찾기 관련
-    CALENDAR_SAVE = "calendar_save"      # 캘린더 저장 관련 (새로 추가!)
+    RECIPE_SEARCH = "recipe_search"      # 레시피 검색 관련
+    MEAL_PLAN = "meal_plan"              # 식단표 생성 관련
+    PLACE_SEARCH = "place_search"        # 식당 찾기 관련
+    CALENDAR_SAVE = "calendar_save"      # 캘린더 저장 관련
     BOTH = "both"                       # 두 기능 모두 필요
     GENERAL = "general"                 # 일반 대화
 
@@ -52,8 +53,9 @@ class IntentClassifier:
         # 최소한의 핵심 키워드만 유지 - LLM이 90% 담당
         self.critical_keywords = {
             "calendar_save": ["캘린더에 저장", "일정 등록", "캘린더 추가"],
-            "meal_planning": ["식단표", "레시피", "조리법"],
-            "restaurant_search": ["맛집", "식당", "근처"]
+            "recipe_search": ["레시피", "조리법", "만들어줘"],
+            "meal_plan": ["식단표", "식단 계획", "일주일", "7일"],
+            "place_search": ["맛집", "식당", "근처"]
         }
     
     async def classify(self, user_input: str, context: str = "") -> Dict[str, Any]:
@@ -96,8 +98,9 @@ class IntentClassifier:
             if any(kw in text for kw in keywords):
                 intent_map = {
                     "calendar_save": Intent.CALENDAR_SAVE,
-                    "meal_planning": Intent.MEAL_PLANNING,
-                    "restaurant_search": Intent.RESTAURANT_SEARCH
+                    "recipe_search": Intent.RECIPE_SEARCH,
+                    "meal_plan": Intent.MEAL_PLAN,
+                    "place_search": Intent.PLACE_SEARCH
                 }
                 return {
                     "intent": intent_map[intent_name],
@@ -137,8 +140,9 @@ class IntentClassifier:
                 
                 # Intent Enum으로 변환
                 intent_map = {
-                    "meal_planning": Intent.MEAL_PLANNING,
-                    "restaurant_search": Intent.RESTAURANT_SEARCH,
+                    "recipe_search": Intent.RECIPE_SEARCH,
+                    "meal_plan": Intent.MEAL_PLAN,
+                    "place_search": Intent.PLACE_SEARCH,
                     "calendar_save": Intent.CALENDAR_SAVE,
                     "general": Intent.GENERAL
                 }
