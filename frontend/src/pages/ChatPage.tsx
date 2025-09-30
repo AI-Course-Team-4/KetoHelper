@@ -29,6 +29,8 @@ export function ChatPage() {
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
   const [isSavingMeal, setIsSavingMeal] = useState<string | null>(null) // 저장 중인 메시지 ID
   const [isSaving, setIsSaving] = useState(false) // 중복 저장 방지를 위한 플래그
+  const [isProcessing, setIsProcessing] = useState(false) // 중복 요청 방지를 위한 플래그
+  const processingRef = useRef(false) // ref를 사용한 즉시 중복 방지
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [selectedPlaceIndexByMsg, setSelectedPlaceIndexByMsg] = useState<Record<string, number | null>>({})
 
@@ -353,8 +355,30 @@ export function ChatPage() {
 
 
   const handleSendMessage = async () => {
-    if (!message.trim() || isLoading) return
+    console.log('🔥 handleSendMessage 호출됨!', {
+      message: message.trim(),
+      isLoading,
+      isProcessing,
+      processingRef: processingRef.current,
+      timestamp: new Date().toISOString()
+    })
+    
+    if (!message.trim() || isLoading || isProcessing || processingRef.current) {
+      console.log('❌ handleSendMessage 조기 리턴:', {
+        messageEmpty: !message.trim(),
+        isLoading,
+        isProcessing,
+        processingRef: processingRef.current
+      })
+      return
+    }
+    
+    // 즉시 중복 실행 방지
+    processingRef.current = true
     setShouldAutoScroll(true)
+    setIsProcessing(true)
+    
+    console.log('✅ handleSendMessage 처리 시작')
 
     // 사용자/게스트 ID 준비
     const userId = user?.id
@@ -375,6 +399,14 @@ export function ChatPage() {
     setIsLoading(true)
 
     try {
+      console.log('📤 API 호출 시작:', {
+        message: userMessage.content,
+        threadId,
+        userId,
+        guestId,
+        timestamp: new Date().toISOString()
+      })
+      
       const response = await sendMessage.mutateAsync({
         message: userMessage.content,
         profile: profile ? {
@@ -388,6 +420,12 @@ export function ChatPage() {
         thread_id: threadId || undefined,
         user_id: userId,
         guest_id: guestId
+      })
+      
+      console.log('📥 API 응답 받음:', {
+        response: response.response?.substring(0, 100) + '...',
+        intent: response.intent,
+        timestamp: new Date().toISOString()
       })
 
       // 응답에서 thread_id 업데이트
@@ -515,6 +553,8 @@ export function ChatPage() {
       addMessage(errorMessage)
     } finally {
       setIsLoading(false)
+      setIsProcessing(false)
+      processingRef.current = false
     }
   }
 
@@ -1073,6 +1113,8 @@ export function ChatPage() {
       addMessage(errorMessage)
     } finally {
       setIsLoading(false)
+      setIsProcessing(false)
+      processingRef.current = false
     }
   }
 
@@ -1212,7 +1254,7 @@ export function ChatPage() {
                     </div>
                     <Button
                       onClick={handleSendMessage}
-                      disabled={!message.trim() || isLoading}
+                      disabled={!message.trim() || isLoading || isProcessing || processingRef.current}
                       className="h-14 lg:h-16 px-6 lg:px-8 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold rounded-2xl hover:shadow-xl transition-all duration-300"
                     >
                       <Send className="h-5 w-5 lg:h-6 lg:w-6" />
@@ -1582,7 +1624,7 @@ export function ChatPage() {
                     </div>
                     <Button
                       onClick={handleSendMessage}
-                      disabled={!message.trim() || isLoading}
+                      disabled={!message.trim() || isLoading || isProcessing || processingRef.current}
                       className="h-12 lg:h-14 px-4 lg:px-6 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300"
                     >
                       <Send className="h-4 w-4 lg:h-5 lg:w-5" />
