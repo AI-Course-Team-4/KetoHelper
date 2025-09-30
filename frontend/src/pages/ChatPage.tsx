@@ -967,7 +967,11 @@ export function ChatPage() {
 
   // 빠른 질문 메시지 전송
   const handleQuickMessage = async (quickMessage: string) => {
-    if (!quickMessage.trim() || isLoading) return
+    if (!quickMessage.trim() || isLoading || isProcessing || processingRef.current) return
+    
+    // 즉시 중복 실행 방지
+    processingRef.current = true
+    setIsProcessing(true)
     setShouldAutoScroll(true)
 
     // 사용자/게스트 ID 준비

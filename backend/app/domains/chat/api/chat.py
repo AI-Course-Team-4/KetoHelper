@@ -102,6 +102,10 @@ async def update_thread_last_message(thread_id: str):
     except Exception as e:
         print(f"❌ 스레드 업데이트 실패: {e}")
 
+# 중복 요청 방지를 위한 캐시 (메모리 기반)
+_request_cache = {}
+import time
+
 @router.post("/", response_model=ChatResponse)
 async def chat_endpoint(request: ChatMessage):
     """
@@ -113,6 +117,23 @@ async def chat_endpoint(request: ChatMessage):
     """
     import uuid
     request_id = str(uuid.uuid4())[:8]
+    
+    # 중복 요청 방지: 동일한 메시지가 5초 내에 다시 들어오면 차단
+    cache_key = f"{request.user_id or request.guest_id}_{request.message}_{request.thread_id}"
+    current_time = time.time()
+    
+    if cache_key in _request_cache:
+        last_time = _request_cache[cache_key]
+        if current_time - last_time < 5:  # 5초 내 중복 요청
+            print(f"🚫 중복 요청 차단! [ID: {request_id}] 메시지: '{request.message}' (마지막 요청: {current_time - last_time:.1f}초 전)")
+            raise HTTPException(status_code=429, detail="Too many requests")
+    
+    _request_cache[cache_key] = current_time
+    
+    # 1시간 이상 된 캐시 항목 정리
+    if len(_request_cache) > 1000:
+        _request_cache.clear()
+    
     print(f"🔥 DEBUG: chat_endpoint 진입! [ID: {request_id}] 메시지: '{request.message}'")
     
     # 게스트에서 로그인으로 전환 시 잘못된 요청 방지
