@@ -287,8 +287,13 @@ class MealPlannerAgent:
             return {
                 "days": simple_plan,
                 "duration_days": days,  # 요청된 일수 정보 추가
-                "total_macros": {"message": "간단 버전에서는 영양 계산이 제외됩니다"},
-                "notes": notes,
+                "total_macros": {
+                    "kcal": 0,
+                    "carb": 0,
+                    "protein": 0,
+                    "fat": 0
+                },
+                "notes": notes + ["⚠️ 간단 버전에서는 영양 계산이 제외됩니다"],
                 "constraints": {
                     "kcal_target": kcal_target,
                     "carbs_max": carbs_max,
@@ -734,7 +739,7 @@ class MealPlannerAgent:
                 return {
                     "type": "meal_plan",
                     "days": detailed_days,
-                    "duration_days": days,  # 요청된 일수 정보 추가
+                    "duration_days": days_count,  # 요청된 일수 정보 추가
                     "total_macros": total_macros,
                     "notes": notes,
                     "source": "ai_structure_plus_embeddings"
