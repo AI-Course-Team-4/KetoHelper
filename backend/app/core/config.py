@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     
     # LLM 설정 (Gemini 사용)
     google_api_key: str = os.getenv("GOOGLE_API_KEY", "")
-    llm_model: str = os.getenv("LLM_MODEL", "")
+    llm_model: str = os.getenv("GEMINI_MODEL", os.getenv("LLM_MODEL", "gemini-2.5-flash"))
     
     # Gemini 세부 설정 (선택사항 - 기본값 사용 가능)
     # GEMINI_TEMPERATURE: AI 응답의 창의성 조절 (0.0=일관성, 1.0=창의성)
