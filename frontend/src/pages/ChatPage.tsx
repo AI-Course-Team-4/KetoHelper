@@ -74,9 +74,23 @@ export function ChatPage() {
   }, [])
 
   // 로그인 상태 변화 감지 - 게스트에서 로그인으로 전환 시 채팅 데이터 초기화
+  const [lastUserId, setLastUserId] = useState<string | null>(null)
+  
   useEffect(() => {
-    if (user && !isGuest) {
-      console.log('🔐 로그인 감지 - 채팅 데이터 초기화')
+    if (user && !isGuest && user.id !== lastUserId) {
+      console.log('🔐 로그인 감지 - 채팅 데이터 초기화', { 
+        currentUserId: user.id, 
+        lastUserId,
+        isProcessing: processingRef.current 
+      })
+      
+      // 중복 실행 방지
+      if (processingRef.current) {
+        console.log('⚠️ 처리 중이므로 로그인 감지 무시')
+        return
+      }
+      
+      setLastUserId(user.id)
       
       // 채팅 메시지 클리어
       clearMessages()
@@ -92,7 +106,7 @@ export function ChatPage() {
       
       console.log('✅ 로그인 후 채팅 데이터 초기화 완료')
     }
-  }, [user, isGuest, clearMessages, refetchThreads])
+  }, [user, isGuest, clearMessages, refetchThreads, lastUserId])
 
   // 페이지 로드 시 이전 대화 불러오기
   useEffect(() => {
@@ -360,7 +374,8 @@ export function ChatPage() {
       isLoading,
       isProcessing,
       processingRef: processingRef.current,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      stackTrace: new Error().stack?.split('\n')[1] // 호출 위치 확인
     })
     
     if (!message.trim() || isLoading || isProcessing || processingRef.current) {
