@@ -88,8 +88,8 @@ class BaseCrawler(RestaurantCrawlerInterface):
             logger.error(f"Connection test failed for {self.source_name}: {e}")
             return False
 
-    async def crawl_restaurant_list(self, keywords: List[str], max_pages: int = 5) -> List[str]:
-        """키워드로 식당 URL 목록 크롤링"""
+    async def crawl_restaurant_list(self, keywords: List[str], max_pages: int = 5, target_count: int = 100) -> List[str]:
+        """키워드로 식당 URL 목록 크롤링 (무한 스크롤 시뮬레이션)"""
         await self.initialize()
         self._status = CrawlerStatus.RUNNING
         self._start_time = time.time()
@@ -100,27 +100,52 @@ class BaseCrawler(RestaurantCrawlerInterface):
             for keyword in keywords:
                 logger.info(f"Crawling restaurant list for keyword: {keyword}")
 
-                for page in range(1, max_pages + 1):
+                # 무한 스크롤 시뮬레이션: 여러 번 요청해서 더 많은 데이터 수집
+                for scroll_attempt in range(max_pages * 5):  # 5배 더 많이 시도
                     try:
-                        search_url = self.get_search_url(keyword, page)
+                        # 페이지 번호는 1로 고정하고, 스크롤 시뮬레이션을 위해 다른 파라미터 사용
+                        search_url = self.get_search_url(keyword, 1)
+                        
+                        # 스크롤 시뮬레이션을 위한 추가 파라미터 (다이닝코드에 따라 조정)
+                        if scroll_attempt > 0:
+                            # 다이닝코드의 무한 스크롤 파라미터 시뮬레이션
+                            search_url += f"&scroll={scroll_attempt}&offset={scroll_attempt * 20}"
+                        
                         page_urls = await self._crawl_search_page(search_url)
 
                         if not page_urls:
-                            logger.info(f"No more results for keyword '{keyword}' at page {page}")
+                            logger.info(f"No more results for keyword '{keyword}' at scroll attempt {scroll_attempt + 1}")
                             break
 
-                        restaurant_urls.extend(page_urls)
-                        logger.info(f"Found {len(page_urls)} URLs on page {page} for '{keyword}'")
+                        # 새로 발견된 URL만 추가
+                        new_urls = [url for url in page_urls if url not in restaurant_urls]
+                        restaurant_urls.extend(new_urls)
+                        
+                        logger.info(f"Scroll attempt {scroll_attempt + 1}: Found {len(new_urls)} new URLs, total: {len(restaurant_urls)}")
+
+                        # 목표 달성 시 중단
+                        if len(restaurant_urls) >= target_count:
+                            logger.info(f"Target count {target_count} reached, stopping")
+                            break
+                        
+                        # 새 URL이 없으면 중단
+                        if len(new_urls) == 0:
+                            logger.info(f"No new URLs found, stopping at scroll attempt {scroll_attempt + 1}")
+                            break
 
                     except Exception as e:
-                        logger.error(f"Error crawling page {page} for keyword '{keyword}': {e}")
+                        logger.error(f"Error in scroll attempt {scroll_attempt + 1} for keyword '{keyword}': {e}")
                         continue
+                
+                # 목표 달성 시 중단
+                if len(restaurant_urls) >= target_count:
+                    break
 
             # 중복 제거
             unique_urls = list(set(restaurant_urls))
             logger.info(f"Total unique restaurant URLs found: {len(unique_urls)}")
 
-            return unique_urls
+            return unique_urls[:target_count]
 
         finally:
             self._status = CrawlerStatus.IDLE

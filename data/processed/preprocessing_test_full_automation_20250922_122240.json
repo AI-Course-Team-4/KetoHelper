@@ -1,0 +1,637 @@
+[
+  {
+    "restaurant": {
+      "original_name": "신동궁 감자탕 역삼본점",
+      "cleaned_name": "신동궁 감자탕 역삼본점"
+    },
+    "menus": [
+      {
+        "original_name": "감자탕 소",
+        "cleaned_name": "감자탕 소",
+        "price": 5000
+      },
+      {
+        "original_name": "감자탕 중",
+        "cleaned_name": "감자탕 중",
+        "price": 2000
+      },
+      {
+        "original_name": "숯불",
+        "cleaned_name": "숯불",
+        "price": 2000
+      },
+      {
+        "original_name": "찜",
+        "cleaned_name": "찜",
+        "price": 2000
+      },
+      {
+        "original_name": "볶음밥",
+        "cleaned_name": "볶음밥",
+        "price": 3000
+      },
+      {
+        "original_name": "감자탕 대",
+        "cleaned_name": "감자탕 대",
+        "price": 9000
+      },
+      {
+        "original_name": "뼈 숯불구이 소",
+        "cleaned_name": "뼈 숯불구이 소",
+        "price": 8000
+      },
+      {
+        "original_name": "뼈 숯불구이 중",
+        "cleaned_name": "뼈 숯불구이 중",
+        "price": 5000
+      },
+      {
+        "original_name": "뼈 숯불구이 대",
+        "cleaned_name": "뼈 숯불구이 대",
+        "price": 2000
+      },
+      {
+        "original_name": "뼈찜 소",
+        "cleaned_name": "뼈찜 소",
+        "price": 8000
+      },
+      {
+        "original_name": "중",
+        "cleaned_name": "중",
+        "price": 5000
+      },
+      {
+        "original_name": "대",
+        "cleaned_name": "대",
+        "price": 2000
+      },
+      {
+        "original_name": "3명 뼈 숯불구이 중",
+        "cleaned_name": "3명 뼈 숯불구이 중",
+        "price": 5000
+      },
+      {
+        "original_name": "볶음밥 2개",
+        "cleaned_name": "볶음밥 2개",
+        "price": 3000
+      }
+    ]
+  },
+  {
+    "restaurant": {
+      "original_name": "불이아 역삼점",
+      "cleaned_name": "불이아"
+    },
+    "menus": [
+      {
+        "original_name": "팔순연 상차림 추천 소고기 정식",
+        "cleaned_name": "팔순연 상차림 추천 소고기 정식",
+        "price": 9000
+      },
+      {
+        "original_name": "라즈지",
+        "cleaned_name": "라즈지",
+        "price": 5000
+      },
+      {
+        "original_name": "고구마 빠스",
+        "cleaned_name": "고구마 빠스",
+        "price": 2000
+      },
+      {
+        "original_name": "점심특선",
+        "cleaned_name": "점심특선",
+        "price": 3000
+      },
+      {
+        "original_name": "불이아정식",
+        "cleaned_name": "불이아정식",
+        "price": 9000
+      },
+      {
+        "original_name": "홍백탕런치",
+        "cleaned_name": "홍백탕런치",
+        "price": 3000
+      },
+      {
+        "original_name": "버섯탕런치",
+        "cleaned_name": "버섯탕런치",
+        "price": 3000
+      },
+      {
+        "original_name": "꿔바로우",
+        "cleaned_name": "꿔바로우",
+        "price": 2000
+      },
+      {
+        "original_name": "마라 건두부 무침",
+        "cleaned_name": "마라 건두부 무침",
+        "price": 5000
+      },
+      {
+        "original_name": "양고기 정식",
+        "cleaned_name": "양고기 정식",
+        "price": 9000
+      },
+      {
+        "original_name": "한우정식",
+        "cleaned_name": "한우정식",
+        "price": 1000
+      },
+      {
+        "original_name": "해물정식",
+        "cleaned_name": "해물정식",
+        "price": 1000
+      },
+      {
+        "original_name": "생새우완자",
+        "cleaned_name": "생새우완자",
+        "price": 3000
+      },
+      {
+        "original_name": "샹라시아",
+        "cleaned_name": "샹라시아",
+        "price": 5000
+      },
+      {
+        "original_name": "6689 주차 발레파킹",
+        "cleaned_name": "6689 주차 발레파킹",
+        "price": 3000
+      }
+    ]
+  },
+  {
+    "restaurant": {
+      "original_name": "뱅뱅 막국수",
+      "cleaned_name": "뱅뱅 막국수"
+    },
+    "menus": [
+      {
+        "original_name": "물막국수 Buckwheat noodles",
+        "cleaned_name": "물막국수 Buckwheat noodles",
+        "price": 2000
+      },
+      {
+        "original_name": "국내산 참기름막국수",
+        "cleaned_name": "국내산 참기름막국수",
+        "price": 4000
+      },
+      {
+        "original_name": "Homemade Mini dumpling",
+        "cleaned_name": "Homemade Mini dumpling",
+        "price": 4000
+      },
+      {
+        "original_name": "메밀차 200g",
+        "cleaned_name": "메밀차 200g",
+        "price": 5000
+      },
+      {
+        "original_name": "메밀차 80g",
+        "cleaned_name": "메밀차 80g",
+        "price": 3000
+      },
+      {
+        "original_name": "소고기육전",
+        "cleaned_name": "소고기육전",
+        "price": 5000
+      },
+      {
+        "original_name": "국내산 들기름막국수",
+        "cleaned_name": "국내산 들기름막국수",
+        "price": 3000
+      },
+      {
+        "original_name": "소고기육전",
+        "cleaned_name": "소고기육전",
+        "price": 4000
+      },
+      {
+        "original_name": "코다리막국수 Spicy buckwheat noodles",
+        "cleaned_name": "코다리막국수 Spicy buckwheat no",
+        "price": 5000
+      },
+      {
+        "original_name": "소고기육전",
+        "cleaned_name": "소고기육전",
+        "price": 6000
+      },
+      {
+        "original_name": "비빔막국수",
+        "cleaned_name": "비빔막국수",
+        "price": 3000
+      },
+      {
+        "original_name": "미니육전 추가시",
+        "cleaned_name": "미니육전 추가시",
+        "price": 5500
+      },
+      {
+        "original_name": "떡국 떡과 국물은 일반 떡국 느낌이지만",
+        "cleaned_name": "떡국 떡과 국물은 일반 떡국 느낌이지만",
+        "price": 8000
+      }
+    ]
+  },
+  {
+    "restaurant": {
+      "original_name": "농민백암순대 강남역점",
+      "cleaned_name": "농민백암순대"
+    },
+    "menus": [
+      {
+        "original_name": "오소리감투",
+        "cleaned_name": "오소리감투",
+        "price": 8000
+      },
+      {
+        "original_name": "정식",
+        "cleaned_name": "정식",
+        "price": 5000
+      },
+      {
+        "original_name": "술국",
+        "cleaned_name": "술국",
+        "price": 9000
+      },
+      {
+        "original_name": "수육",
+        "cleaned_name": "수육",
+        "price": 6000
+      },
+      {
+        "original_name": "토종순대",
+        "cleaned_name": "토종순대",
+        "price": 3000
+      },
+      {
+        "original_name": "국밥 특",
+        "cleaned_name": "국밥 특",
+        "price": 2000
+      },
+      {
+        "original_name": "국밥 특1",
+        "cleaned_name": "국밥 특1",
+        "price": 2000
+      },
+      {
+        "original_name": "수육3",
+        "cleaned_name": "수육3",
+        "price": 6000
+      },
+      {
+        "original_name": "순대국 2인분 기름기 없는 고기 2배 판매가",
+        "cleaned_name": "순대국 2인분 기름기 없는 고기 2배 판매가",
+        "price": 2900
+      },
+      {
+        "original_name": "할인가",
+        "cleaned_name": "할인가",
+        "price": 4990
+      },
+      {
+        "original_name": "처음에 메뉴판만 보고",
+        "cleaned_name": "처음에 메뉴판만 보고",
+        "price": 6000
+      }
+    ]
+  },
+  {
+    "restaurant": {
+      "original_name": "오레노라멘 강남점",
+      "cleaned_name": "오레노라멘"
+    },
+    "menus": [
+      {
+        "original_name": "토리빠이탄",
+        "cleaned_name": "토리빠이탄",
+        "price": 2000
+      },
+      {
+        "original_name": "카라빠이탄",
+        "cleaned_name": "카라빠이탄",
+        "price": 2000
+      }
+    ]
+  },
+  {
+    "restaurant": {
+      "original_name": "위트앤미트 강남점",
+      "cleaned_name": "위트앤미트"
+    },
+    "menus": [
+      {
+        "original_name": "올마이티 버거",
+        "cleaned_name": "올마이티 버거",
+        "price": 1500
+      },
+      {
+        "original_name": "더블 올마이티 버거",
+        "cleaned_name": "더블 올마이티 버거",
+        "price": 6000
+      },
+      {
+        "original_name": "파스트라미 퀸즈",
+        "cleaned_name": "파스트라미 퀸즈",
+        "price": 5500
+      },
+      {
+        "original_name": "바질 루꼴라 잠봉뵈르",
+        "cleaned_name": "바질 루꼴라 잠봉뵈르",
+        "price": 2500
+      },
+      {
+        "original_name": "과카몰리 버거",
+        "cleaned_name": "과카몰리 버거",
+        "price": 2800
+      },
+      {
+        "original_name": "칠리 파스트라미 버거",
+        "cleaned_name": "칠리 파스트라미 버거",
+        "price": 2800
+      },
+      {
+        "original_name": "치즈버거",
+        "cleaned_name": "치즈버거",
+        "price": 9500
+      },
+      {
+        "original_name": "더블 치즈 버거",
+        "cleaned_name": "더블 치즈 버거",
+        "price": 4000
+      },
+      {
+        "original_name": "잠봉뵈르",
+        "cleaned_name": "잠봉뵈르",
+        "price": 1500
+      },
+      {
+        "original_name": "칠리치즈 프라이즈",
+        "cleaned_name": "칠리치즈 프라이즈",
+        "price": 9800
+      },
+      {
+        "original_name": "치폴레 프라이즈",
+        "cleaned_name": "치폴레 프라이즈",
+        "price": 6500
+      },
+      {
+        "original_name": "치즈 프라이즈",
+        "cleaned_name": "치즈 프라이즈",
+        "price": 6500
+      },
+      {
+        "original_name": "프렌치 프라이즈",
+        "cleaned_name": "프렌치 프라이즈",
+        "price": 5500
+      },
+      {
+        "original_name": "클램 차우더 스프",
+        "cleaned_name": "클램 차우더 스프",
+        "price": 7300
+      },
+      {
+        "original_name": "당근라페",
+        "cleaned_name": "당근라페",
+        "price": 4500
+      },
+      {
+        "original_name": "코울슬로",
+        "cleaned_name": "코울슬로",
+        "price": 3800
+      },
+      {
+        "original_name": "바나나 푸딩",
+        "cleaned_name": "바나나 푸딩",
+        "price": 5800
+      },
+      {
+        "original_name": "오리지날 르뱅쿠키",
+        "cleaned_name": "오리지날 르뱅쿠키",
+        "price": 4500
+      },
+      {
+        "original_name": "브루잉 커피",
+        "cleaned_name": "브루잉 커피",
+        "price": 4500
+      },
+      {
+        "original_name": "버드와이저",
+        "cleaned_name": "버드와이저",
+        "price": 4500
+      }
+    ]
+  },
+  {
+    "restaurant": {
+      "original_name": "갓덴스시",
+      "cleaned_name": "갓덴스시"
+    },
+    "menus": [
+      {
+        "original_name": "녹색접시",
+        "cleaned_name": "녹색접시",
+        "price": 1500
+      },
+      {
+        "original_name": "빨강접시",
+        "cleaned_name": "빨강접시",
+        "price": 2900
+      },
+      {
+        "original_name": "보라접시",
+        "cleaned_name": "보라접시",
+        "price": 3700
+      },
+      {
+        "original_name": "곤색접시",
+        "cleaned_name": "곤색접시",
+        "price": 4700
+      },
+      {
+        "original_name": "은색접시",
+        "cleaned_name": "은색접시",
+        "price": 5700
+      },
+      {
+        "original_name": "금색접시",
+        "cleaned_name": "금색접시",
+        "price": 6900
+      },
+      {
+        "original_name": "체크접시",
+        "cleaned_name": "체크접시",
+        "price": 8000
+      },
+      {
+        "original_name": "강남역 회전초밥 맛집 갓덴스시 강남점 메뉴 및 가격 녹색접시",
+        "cleaned_name": "녹색접시",
+        "price": 1500
+      },
+      {
+        "original_name": "빨강접시",
+        "cleaned_name": "빨강접시",
+        "price": 2900
+      },
+      {
+        "original_name": "보라접시",
+        "cleaned_name": "보라접시",
+        "price": 3700
+      },
+      {
+        "original_name": "곤색접시",
+        "cleaned_name": "곤색접시",
+        "price": 4700
+      },
+      {
+        "original_name": "은색접시",
+        "cleaned_name": "은색접시",
+        "price": 5700
+      },
+      {
+        "original_name": "금색접시",
+        "cleaned_name": "금색접시",
+        "price": 7900
+      },
+      {
+        "original_name": "체크접시",
+        "cleaned_name": "체크접시",
+        "price": 8000
+      }
+    ]
+  },
+  {
+    "restaurant": {
+      "original_name": "파이브가이즈 강남",
+      "cleaned_name": "파이브가이즈 강남"
+    },
+    "menus": [
+      {
+        "original_name": "햄버거",
+        "cleaned_name": "햄버거",
+        "price": 3400
+      },
+      {
+        "original_name": "치즈버거",
+        "cleaned_name": "치즈버거",
+        "price": 4900
+      },
+      {
+        "original_name": "베이컨버거",
+        "cleaned_name": "베이컨버거",
+        "price": 5900
+      },
+      {
+        "original_name": "베이컨치즈버거",
+        "cleaned_name": "베이컨치즈버거",
+        "price": 7400
+      },
+      {
+        "original_name": "비프핫도그",
+        "cleaned_name": "비프핫도그",
+        "price": 8900
+      },
+      {
+        "original_name": "페스츄리 아아가",
+        "cleaned_name": "페스츄리 아아가",
+        "price": 6500
+      },
+      {
+        "original_name": "900 핫도그",
+        "cleaned_name": "900 핫도그",
+        "price": 8900
+      },
+      {
+        "original_name": "쉐이크",
+        "cleaned_name": "쉐이크",
+        "price": 8900
+      },
+      {
+        "original_name": "감자튀김",
+        "cleaned_name": "감자튀김",
+        "price": 6900
+      }
+    ]
+  },
+  {
+    "restaurant": {
+      "original_name": "하이디라오",
+      "cleaned_name": "하이디라오"
+    },
+    "menus": [
+      {
+        "original_name": "탄탄면",
+        "cleaned_name": "탄탄면",
+        "price": 5000
+      },
+      {
+        "original_name": "우유마라탕",
+        "cleaned_name": "우유마라탕",
+        "price": 3000
+      },
+      {
+        "original_name": "버섯탕",
+        "cleaned_name": "버섯탕",
+        "price": 2000
+      },
+      {
+        "original_name": "똠양꿍탕",
+        "cleaned_name": "똠양꿍탕",
+        "price": 3000
+      },
+      {
+        "original_name": "소기름",
+        "cleaned_name": "소기름",
+        "price": 3000
+      },
+      {
+        "original_name": "청유마라",
+        "cleaned_name": "청유마라",
+        "price": 3000
+      },
+      {
+        "original_name": "토마토탕",
+        "cleaned_name": "토마토탕",
+        "price": 3000
+      }
+    ]
+  },
+  {
+    "restaurant": {
+      "original_name": "대우부대찌개",
+      "cleaned_name": "대우부대찌개"
+    },
+    "menus": [
+      {
+        "original_name": "부대찌개",
+        "cleaned_name": "부대찌개",
+        "price": 5000
+      },
+      {
+        "original_name": "등심부대찌개",
+        "cleaned_name": "등심부대찌개",
+        "price": 4000
+      },
+      {
+        "original_name": "소시지구이",
+        "cleaned_name": "소시지구이",
+        "price": 6000
+      },
+      {
+        "original_name": "등심구이",
+        "cleaned_name": "등심구이",
+        "price": 3000
+      },
+      {
+        "original_name": "안심구이",
+        "cleaned_name": "안심구이",
+        "price": 3000
+      },
+      {
+        "original_name": "엄청 비싸지도 않은 정도인 듯 물론 부대찌개라",
+        "cleaned_name": "엄청 비싸지도 않은 정도인 듯 물론 부대찌개라",
+        "price": 5000
+      }
+    ]
+  }
+]

@@ -55,7 +55,7 @@ class DataProcessor:
                 raise ValueError("Restaurant name is required")
 
             # 기본 정보 정규화
-            name = self._normalize_text(raw_data['name'])
+            name = self._clean_restaurant_name(raw_data['name'])
             phone = self._normalize_phone(raw_data.get('phone'))
 
             # 주소 처리
@@ -134,7 +134,13 @@ class DataProcessor:
                 return None
 
             # 기본 정보 정규화
-            name = self._normalize_text(raw_data['name'])
+            name = self._clean_menu_name(raw_data['name'])
+            
+            # 정제된 메뉴명이 비어있으면 건너뛰기
+            if not name or len(name.strip()) == 0:
+                logger.debug(f"Menu name is empty after cleaning: '{raw_data['name']}', skipping")
+                return None
+            
             description = None
             if raw_data.get('description'):
                 description = self._normalize_text(raw_data['description'])
@@ -238,6 +244,70 @@ class DataProcessor:
         text = re.sub(r'[^\w\s가-힣ㄱ-ㅎㅏ-ㅣ\-\(\)\[\]]', '', text)
 
         return text.strip()
+
+    def _clean_menu_name(self, menu_name: str) -> str:
+        """메뉴명 정제 (길이 제한 25자, 노이즈 제거)"""
+        if not menu_name:
+            return ""
+
+        # 1. 특정 패턴 추출 (맛집 설명에서 실제 메뉴명 추출)
+        # "강남역 회전초밥 맛집 갓덴스시 강남점 메뉴 및 가격 녹색접시" → "녹색접시"
+        if '맛집' in menu_name and '메뉴' in menu_name and '가격' in menu_name:
+            # 가격 뒤의 마지막 단어를 메뉴명으로 추출
+            parts = menu_name.split()
+            if len(parts) > 0:
+                menu_name = parts[-1]
+
+        # 2. 길이 제한 (25자 초과시 설명이 포함된 것으로 판단)
+        if len(menu_name) > 25:
+            # 문장 부호로 분리하여 첫 번째 부분만 사용
+            parts = re.split(r'[.!?]', menu_name)
+            menu_name = parts[0].strip()
+            
+            # 여전히 길면 첫 25자만 사용
+            if len(menu_name) > 25:
+                menu_name = menu_name[:25]
+        
+        # 3. 노이즈 제거
+        noise_patterns = [
+            r'먼저.*꿀팁.*',  # 설명 텍스트
+            r'^시그니처 아메리카노$',  # 공통 메뉴 제거 (정확히 일치)
+            r'.*시간.*매일.*라스트오더.*',  # 영업시간 정보
+        ]
+        
+        for pattern in noise_patterns:
+            menu_name = re.sub(pattern, '', menu_name)
+
+        # 4. 공백 정리
+        menu_name = re.sub(r'\s+', ' ', menu_name).strip()
+
+        # 5. 특수문자 정리
+        menu_name = re.sub(r'[^\w가-힣\s]', '', menu_name)
+
+        return menu_name.strip()
+
+    def _clean_restaurant_name(self, restaurant_name: str) -> str:
+        """식당명 정제"""
+        if not restaurant_name:
+            return ""
+
+        # 1. 지점명 제거
+        restaurant_name = re.sub(r'\s+(강남점|역삼점|강남역점|본점|본진)$', '', restaurant_name)
+
+        # 2. 주소 정보 제거
+        restaurant_name = re.sub(r'\s+서울.*$', '', restaurant_name)
+
+        # 3. 영업시간 정보 제거
+        restaurant_name = re.sub(r'\s+⏰.*$', '', restaurant_name)
+
+        # 4. 전화번호 제거
+        restaurant_name = re.sub(r'\s+0\d{2,3}-\d{3,4}-\d{4}', '', restaurant_name)
+
+        # 5. 기타 노이즈 제거
+        restaurant_name = re.sub(r'\s+지번.*$', '', restaurant_name)
+        restaurant_name = re.sub(r'\s+\d+층.*$', '', restaurant_name)
+
+        return restaurant_name.strip()
 
     def _normalize_phone(self, phone: str) -> Optional[str]:
         """전화번호 정규화"""

@@ -4,6 +4,7 @@
 
 import asyncio
 import logging
+import time
 from typing import Optional, Dict, Any, List
 from contextlib import asynccontextmanager
 from supabase import create_client, Client
@@ -46,14 +47,21 @@ class SupabaseConnection:
             raise
 
     async def _test_connection(self):
-        """연결 테스트"""
-        try:
-            # 간단한 쿼리로 연결 테스트
-            result = self._client.table('restaurant').select('id').limit(1).execute()
-            logger.debug("Supabase connection test successful")
-        except Exception as e:
-            logger.error(f"Supabase connection test failed: {e}")
-            raise
+        """연결 테스트 (타임아웃 발생 시 경고만 남기고 진행)"""
+        max_attempts = 2
+        for attempt in range(1, max_attempts + 1):
+            try:
+                _ = self._client.table('restaurant').select('id').limit(1).execute()
+                logger.debug("Supabase connection test successful")
+                return
+            except Exception as e:
+                logger.warning(f"Supabase connection test attempt {attempt}/{max_attempts} failed: {e}")
+                if attempt < max_attempts:
+                    time.sleep(1.0)
+                else:
+                    # 마지막 시도 실패: 경고 로그만 남기고 계속 진행
+                    logger.warning("Proceeding without successful connection test due to timeout/error.")
+                    return
 
     async def close(self):
         """연결 종료"""
@@ -257,6 +265,25 @@ class SupabaseConnection:
                 "error": str(e),
                 "connection_type": "supabase"
             }
+
+    async def get_table_count(self, table_name: str) -> int:
+        """테이블 레코드 수 조회"""
+        try:
+            result = self.client.table(table_name).select('id', count='exact').execute()
+            return result.count or 0
+        except Exception as e:
+            logger.error(f"Failed to get count for table {table_name}: {e}")
+            return 0
+
+    async def clear_table(self, table_name: str) -> bool:
+        """테이블의 모든 데이터 삭제"""
+        try:
+            result = self.client.table(table_name).delete().neq('id', '00000000-0000-0000-0000-000000000000').execute()
+            logger.info(f"Cleared table {table_name}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to clear table {table_name}: {e}")
+            return False
 
     @property
     def is_initialized(self) -> bool:

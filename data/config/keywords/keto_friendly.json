@@ -26,7 +26,12 @@
     "연어": {
       "weight": 25,
       "confidence": 0.95,
-      "aliases": ["살몬", "훈제연어"]
+      "aliases": ["살몬", "훈제연어", "생연어"]
+    },
+    "포케": {
+      "weight": 45,
+      "confidence": 0.9,
+      "aliases": ["poke", "포케볼", "연어포케", "생연어포케"]
     },
     "참치": {
       "weight": 22,

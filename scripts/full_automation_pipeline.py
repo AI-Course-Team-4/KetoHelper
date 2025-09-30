@@ -22,6 +22,10 @@ sys.path.insert(0, str(project_root))
 from core.domain.menu import Menu
 from core.domain.restaurant import Restaurant, Address
 from services.scorer.keto_scorer import KetoScorer
+from services.processor.data_processor import DataProcessor
+from services.processor.side_dish_classifier import SideDishClassifier
+from services.processor.geocoding_service import GeocodingService
+from services.cache.cache_manager import CacheManager
 from infrastructure.database.supabase_connection import SupabaseConnection
 from config.settings import settings
 from config.crawler_config import register_crawlers
@@ -44,10 +48,10 @@ async def full_automation_pipeline():
         await crawler.initialize()
         print("✅ DiningcodeCrawler 초기화 완료")
         
-        # 2단계: 강남역 주변 레스토랑 30개 검색
+        # 2단계: 강남역 주변 레스토랑 10개 검색 (테스트용)
         print("\n🔍 2단계: 강남역 주변 레스토랑 검색")
         search_keywords = ["강남역 맛집"]
-        target_count = 30
+        target_count = 10
         
         print(f"   검색어: {search_keywords}")
         print(f"   목표 개수: {target_count}개")
@@ -55,7 +59,7 @@ async def full_automation_pipeline():
         # 검색 결과 가져오기 (URL 목록)
         restaurant_urls = await crawler.crawl_restaurant_list(
             keywords=search_keywords,
-            max_pages=5  # 충분한 결과를 얻기 위해 5페이지까지
+            max_pages=2  # 테스트용으로 2페이지까지만
         )
         
         # 목표 개수만큼 제한
@@ -110,21 +114,38 @@ async def full_automation_pipeline():
         supabase = supabase_conn.client
         print("✅ Supabase 연결 성공")
         
-        # 5단계: 키토 스코어러 초기화
-        print(f"\n🧮 5단계: 키토 스코어러 초기화")
+        # 5단계: 데이터 처리기 및 키토 스코어러 초기화
+        print(f"\n🔧 5단계: 데이터 처리기 초기화")
+        data_processor = DataProcessor()
+        print("✅ 데이터 처리기 초기화 완료")
+        
+        print(f"\n🧮 6단계: 키토 스코어러 초기화")
         scorer = KetoScorer(settings)
         print("✅ 키토 스코어러 초기화 완료")
         
-        # 6단계: 레스토랑 데이터 업로드
-        print(f"\n🏪 6단계: 레스토랑 데이터 업로드")
+        print(f"\n🍽️  7단계: 사이드 분류기 초기화")
+        side_classifier = SideDishClassifier(industry="general")
+        print("✅ 사이드 분류기 초기화 완료")
+        
+        print(f"\n🗺️  7.5단계: 지오코딩 서비스 초기화")
+        cache_manager = CacheManager()
+        geocoding_service = GeocodingService(cache_manager)
+        print("✅ 지오코딩 서비스 초기화 완료")
+        
+        # 8단계: 레스토랑 데이터 업로드
+        print(f"\n🏪 8단계: 레스토랑 데이터 업로드")
         
         restaurant_count = 0
         restaurant_mapping = {}  # 원본 이름 → UUID 매핑
+        geocoding_stats = {"success": 0, "failed": 0}  # 지오코딩 통계
         
         for item in crawled_data:
             restaurant_info = item['restaurant']
             
             try:
+                # 식당명 전처리 적용
+                cleaned_restaurant_name = data_processor._clean_restaurant_name(restaurant_info['name'])
+                
                 # 기존 레스토랑 체크 (source_url 기준)
                 source_url = restaurant_info.get('source_url', '')
                 existing_restaurant = supabase.table('restaurant').select('id, name').eq('source_url', source_url).execute()
@@ -136,22 +157,51 @@ async def full_automation_pipeline():
                     restaurant_mapping[restaurant_info['name']] = restaurant_id
                     print(f"   🔄 기존 레스토랑 발견: {restaurant_name} (ID: {restaurant_id})")
                 else:
-                    # 새 레스토랑 생성
+                    # 새 레스토랑 생성 - 실제 지오코딩 수행
+                    address_text = restaurant_info['address']
+                    print(f"   🗺️  지오코딩 중: {address_text}")
+                    
+                    # 실제 지오코딩 수행
+                    try:
+                        geocoding_result = await geocoding_service.geocode(address_text)
+                        
+                        if geocoding_result:
+                            latitude = geocoding_result['lat']
+                            longitude = geocoding_result['lng']
+                            addr_norm = geocoding_result['formatted_address']
+                            geocoding_stats["success"] += 1
+                            print(f"   ✅ 지오코딩 성공: {latitude:.6f}, {longitude:.6f}")
+                        else:
+                            # 실패 시 기본값 (강남역 중심)
+                            latitude = 37.5665
+                            longitude = 127.0286
+                            addr_norm = None
+                            geocoding_stats["failed"] += 1
+                            print(f"   ⚠️  지오코딩 실패, 기본값 사용")
+                            
+                    except Exception as e:
+                        print(f"   ❌ 지오코딩 에러: {e}")
+                        # 기본값 사용
+                        latitude = 37.5665
+                        longitude = 127.0286
+                        addr_norm = None
+                        geocoding_stats["failed"] += 1
+                    
                     address = Address(
-                        addr_road=restaurant_info['address'],
-                        latitude=37.5665,  # 강남역 중심 좌표
-                        longitude=127.0286
+                        addr_road=address_text,
+                        latitude=latitude,
+                        longitude=longitude
                     )
                     
                     restaurant = Restaurant(
-                        name=restaurant_info['name'],
+                        name=cleaned_restaurant_name,  # 전처리된 이름 사용
                         address=address,
                         phone=restaurant_info.get('phone'),
                         source=restaurant_info.get('source_name', 'diningcode'),
                         source_url=source_url
                     )
                     
-                    # DB 저장 데이터 준비
+                    # DB 저장 데이터 준비 (addr_norm 제외 - DB에 해당 컬럼이 없음)
                     restaurant_data = {
                         'id': str(restaurant.id),
                         'name': restaurant.name,
@@ -179,12 +229,13 @@ async def full_automation_pipeline():
         
         print(f"✅ 총 {restaurant_count}개 레스토랑 업로드 완료")
         
-        # 7단계: 메뉴 데이터 업로드 및 키토 점수 계산
-        print(f"\n🍽️  7단계: 메뉴 업로드 및 키토 점수 계산")
+        # 9단계: 메뉴 데이터 업로드, 사이드 분류 및 키토 점수 계산
+        print(f"\n🍽️  9단계: 메뉴 업로드, 사이드 분류 및 키토 점수 계산")
         
         menu_count = 0
         keto_score_count = 0
         score_stats = []
+        side_stats = {"side": 0, "main": 0}
         
         for item in crawled_data:
             restaurant_info = item['restaurant']
@@ -197,34 +248,59 @@ async def full_automation_pipeline():
                 
             restaurant_id = restaurant_mapping[restaurant_name]
             
+            # 레스토랑의 모든 메뉴 가격 수집 (사이드 분류용)
+            restaurant_prices = [menu.get('price') for menu in item.get('menus', [])]
+            
             # 메뉴들 처리
             for menu_info in item.get('menus', []):
                 try:
-                    # 중복 메뉴 체크 먼저
-                    existing_menu = supabase.table('menu').select('id').eq('restaurant_id', restaurant_id).eq('name', menu_info['name']).execute()
+                    # 메뉴명 전처리 적용
+                    cleaned_menu_name = data_processor._clean_menu_name(menu_info['name'])
+                    
+                    # 전처리된 메뉴명이 비어있으면 건너뛰기
+                    if not cleaned_menu_name or len(cleaned_menu_name.strip()) == 0:
+                        print(f"   ⚠️  메뉴명이 전처리 후 비어있음: '{menu_info['name']}', 건너뛰기")
+                        continue
+                    
+                    # 사이드 분류 수행
+                    side_result = side_classifier.classify(
+                        name=cleaned_menu_name,
+                        description=menu_info.get('description'),
+                        price=menu_info.get('price'),
+                        restaurant_prices=restaurant_prices
+                    )
+                    
+                    # 중복 메뉴 체크 먼저 (전처리된 이름으로)
+                    existing_menu = supabase.table('menu').select('id').eq('restaurant_id', restaurant_id).eq('name', cleaned_menu_name).execute()
                     
                     if existing_menu.data:
-                        # 기존 메뉴가 있으면 해당 ID 사용
+                        # 기존 메뉴가 있으면 해당 ID 사용하고 is_side 업데이트
                         menu_id = existing_menu.data[0]['id']
-                        print(f"   🔄 기존 메뉴 발견: {menu_info['name']} (ID: {menu_id})")
+                        
+                        # 기존 메뉴의 is_side 값 업데이트
+                        update_data = {'is_side': side_result.is_side}
+                        supabase.table('menu').update(update_data).eq('id', menu_id).execute()
+                        
+                        print(f"   🔄 기존 메뉴 발견 및 업데이트: {cleaned_menu_name} (ID: {menu_id}, is_side: {side_result.is_side})")
                     else:
                         # 새 메뉴 생성
                         menu = Menu(
-                            name=menu_info['name'],
+                            name=cleaned_menu_name,  # 전처리된 이름 사용
                             price=menu_info.get('price'),
                             description=menu_info.get('description'),
                             restaurant_id=restaurant_id
                         )
                         menu_id = str(menu.id)
                         
-                        # 메뉴 DB 저장
+                        # 메뉴 DB 저장 (사이드 분류 결과 포함)
                         menu_data = {
                             'id': menu_id,
-                            'name': menu_info['name'],
+                            'name': cleaned_menu_name,  # 전처리된 이름 사용
                             'price': menu_info.get('price'),
                             'description': menu_info.get('description'),
                             'restaurant_id': restaurant_id,
-                            'currency': 'KRW'
+                            'currency': 'KRW',
+                            'is_side': side_result.is_side
                         }
                         
                         menu_result = supabase.table('menu').insert(menu_data).execute()
@@ -232,7 +308,7 @@ async def full_automation_pipeline():
                     
                     # 키토 점수 계산을 위한 Menu 객체 생성
                     menu_for_scoring = Menu(
-                        name=menu_info['name'],
+                        name=cleaned_menu_name,  # 전처리된 이름 사용
                         price=menu_info.get('price'),
                         description=menu_info.get('description'),
                         restaurant_id=restaurant_id
@@ -281,30 +357,56 @@ async def full_automation_pipeline():
                         # 기존 점수가 있으면 업데이트
                         score_id = existing_score.data[0]['id']
                         keto_result = supabase.table('keto_scores').update(keto_score_data).eq('id', score_id).execute()
-                        print(f"   🔄 키토 점수 업데이트: {menu_info['name']} -> {keto_score.final_score}점")
+                        print(f"   🔄 키토 점수 업데이트: {cleaned_menu_name} -> {keto_score.final_score}점")
                     else:
                         # 새로운 점수 생성
                         keto_result = supabase.table('keto_scores').insert(keto_score_data).execute()
-                        print(f"   ✅ 키토 점수 생성: {menu_info['name']} -> {keto_score.final_score}점")
+                        print(f"   ✅ 키토 점수 생성: {cleaned_menu_name} -> {keto_score.final_score}점")
                     keto_score_count += 1
                     score_stats.append(keto_score.final_score)
+                    
+                    # 사이드 분류 통계 업데이트
+                    if side_result.is_side:
+                        side_stats["side"] += 1
+                        print(f"   🥗 사이드: {cleaned_menu_name} (점수: {side_result.side_score}, 태그: {side_result.tags[:3]})")
+                    else:
+                        side_stats["main"] += 1
+                        print(f"   🍽️  메인: {cleaned_menu_name} (키토: {keto_score.final_score}점)")
                     
                     # 진행률 표시
                     if menu_count % 20 == 0:
                         print(f"   📊 진행률: {menu_count}개 메뉴 처리 완료...")
                         
                 except Exception as e:
-                    print(f"   ❌ 메뉴/점수 저장 실패: {menu_info['name']} - {e}")
+                    print(f"   ❌ 메뉴/점수 저장 실패: {menu_info.get('name', 'Unknown')} - {e}")
                     continue
         
         print(f"✅ 총 {menu_count}개 메뉴, {keto_score_count}개 키토 점수 저장 완료")
         
-        # 8단계: 최종 결과 요약
-        print(f"\n📊 8단계: 최종 결과 요약")
+        # 10단계: 최종 결과 요약
+        print(f"\n📊 10단계: 최종 결과 요약")
         print("=" * 60)
         print(f"🏪 레스토랑: {restaurant_count}개")
         print(f"🍽️  메뉴: {menu_count}개")
         print(f"🧮 키토 점수: {keto_score_count}개")
+        print(f"🥗 사이드 메뉴: {side_stats['side']}개")
+        print(f"🍽️  메인 메뉴: {side_stats['main']}개")
+        
+        # 지오코딩 통계 출력
+        print(f"\n🗺️  지오코딩 통계:")
+        print(f"   성공: {geocoding_stats['success']}개")
+        print(f"   실패: {geocoding_stats['failed']}개")
+        if geocoding_stats['success'] + geocoding_stats['failed'] > 0:
+            total_geocoding = geocoding_stats['success'] + geocoding_stats['failed']
+            success_rate = geocoding_stats['success'] / total_geocoding * 100
+            print(f"   성공률: {success_rate:.1f}%")
+        
+        if menu_count > 0:
+            side_percentage = side_stats['side'] / menu_count * 100
+            main_percentage = side_stats['main'] / menu_count * 100
+            print(f"\n🔍 사이드/메인 분포:")
+            print(f"   사이드: {side_stats['side']}개 ({side_percentage:.1f}%)")
+            print(f"   메인: {side_stats['main']}개 ({main_percentage:.1f}%)")
         
         if score_stats:
             print(f"\n📈 키토 점수 통계:")
@@ -325,8 +427,8 @@ async def full_automation_pipeline():
                 percentage = count / len(score_stats) * 100
                 print(f"   {category}: {count}개 ({percentage:.1f}%)")
         
-        # 9단계: 샘플 데이터 확인
-        print(f"\n🔍 9단계: 저장된 데이터 샘플 확인")
+        # 11단계: 샘플 데이터 확인
+        print(f"\n🔍 11단계: 저장된 데이터 샘플 확인")
         
         # 상위 키토 점수 메뉴들 조회
         sample_query = """

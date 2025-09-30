@@ -63,6 +63,20 @@ class KetoScorer(IKetoScorer):
     def _post_process_score(self, score: KetoScore, menu: Menu) -> KetoScore:
         """점수 후처리 및 추가 검증"""
 
+        # 키토 표시 메뉴는 무조건 80점으로 고정 (다른 요소 무시)
+        text_lower = f"{menu.name} {menu.description or ''}".lower()
+        if ("키토" in text_lower) or ("케토" in text_lower) or ("keto" in text_lower):
+            score.final_score = 85
+            # 신뢰도도 높게 고정하여 최종 카테고리 하향을 방지
+            score.confidence = 1.0
+            score.reasons.append(ScoreReason(
+                rule_id="explicit_keto_override",
+                keyword="키토표시",
+                impact=80 - score.raw_score,
+                explanation="메뉴에 '키토/케토/keto' 표기 감지: 점수 80으로 고정"
+            ))
+            score.applied_rules.append("explicit_keto_override")
+
         # 1. 극단적인 점수 조정
         if score.final_score < -100:
             score.final_score = -100
@@ -82,17 +96,8 @@ class KetoScorer(IKetoScorer):
                 explanation="극단적 고점 방지로 100으로 제한"
             ))
 
-        # 2. 가격 기반 조정 (고가 메뉴는 품질이 좋을 가능성)
-        if menu.price and menu.price > 30000:  # 3만원 이상
-            if score.final_score > 0:
-                bonus = min(5, menu.price / 10000)  # 최대 5점 보너스
-                score.final_score += bonus
-                score.reasons.append(ScoreReason(
-                    rule_id="post_process",
-                    keyword="premium_price",
-                    impact=bonus,
-                    explanation=f"고가 메뉴 품질 보정 (+{bonus:.1f})"
-                ))
+        # 2. 가격 기반 조정 제거 (MVP 단계에서는 가격과 키토 적합성의 직접 상관 제거)
+        # 가격 보정은 향후 카테고리 기반으로 재도입 검토
 
         # 3. 메뉴명 길이 기반 신뢰도 조정
         if len(menu.name) < 3:

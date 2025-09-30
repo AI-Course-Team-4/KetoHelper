@@ -46,6 +46,9 @@ class KeywordMatcher(IKeywordMatcher):
                     data = json.load(f)
                     self._process_keyword_file(category, data)
 
+        # 한국어 경계 기반 핵심 패턴 추가 (부분일치 오검출 완화)
+        self._add_korean_boundary_patterns()
+
     def _process_keyword_file(self, category: str, data: Dict):
         """키워드 파일 데이터를 내부 구조로 변환"""
         if category == 'high_carb':
@@ -272,6 +275,19 @@ class KeywordMatcher(IKeywordMatcher):
                         context=self._extract_context(text, match.group())
                     ))
 
+        # 한국어 경계 기반 고탄수 핵심 패턴들 (부분일치 방지용)
+        if 'boundary_high_carb' in self.patterns:
+            for pattern in self.patterns['boundary_high_carb']:
+                for match in re.finditer(pattern, text, re.IGNORECASE):
+                    matches.append(KeywordMatch(
+                        keyword=match.group(),
+                        match_type=MatchType.HIGH_CARB,
+                        weight=-12,  # 기본 패널티 (사전 키워드보다 과도하지 않게 설정)
+                        confidence=0.85,
+                        position=match.start(),
+                        context=self._extract_context(text, match.group())
+                    ))
+
         # 메뉴 타입 패턴들
         for pattern_key, patterns in self.patterns.items():
             if pattern_key.startswith('menu_'):
@@ -280,13 +296,29 @@ class KeywordMatcher(IKeywordMatcher):
                         matches.append(KeywordMatch(
                             keyword=match.group(),
                             match_type=MatchType.MENU_TYPE,
-                            weight=-10,  # 기본 메뉴 타입 패널티
+                            weight=-6,  # 완화된 기본 메뉴 타입 패널티
                             confidence=0.7,
                             position=match.start(),
                             context=self._extract_context(text, match.group())
                         ))
 
         return matches
+
+    def _add_korean_boundary_patterns(self):
+        """부분일치 오검출을 줄이기 위한 한국어 경계 패턴 최소 추가"""
+        # 핵심 고탄수 키워드에 대해 기본 경계 패턴을 동적으로 추가
+        boundary_patterns = [
+            r"(?<![가-힣a-zA-Z])(밥|볶음밥)(?![가-힣a-zA-Z])",
+            r"(?<![가-힣a-zA-Z])(국수|라면|우동)(?![가-힣a-zA-Z])",
+            r"(?<![가-힣a-zA-Z])(빵|파스타)(?![가-힣a-zA-Z])"
+        ]
+
+        if 'boundary_high_carb' not in self.patterns:
+            self.patterns['boundary_high_carb'] = []
+
+        for p in boundary_patterns:
+            if p not in self.patterns['boundary_high_carb']:
+                self.patterns['boundary_high_carb'].append(p)
 
     def _deduplicate_matches(self, matches: List[KeywordMatch]) -> List[KeywordMatch]:
         """중복 매치 제거 (위치 기반)"""

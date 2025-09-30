@@ -8,6 +8,8 @@ httpx==0.25.2                # 비동기 HTTP 클라이언트
 selectolax==0.3.17           # 빠른 HTML 파싱
 playwright==1.40.0           # 동적 페이지 처리 (필요시)
 beautifulsoup4==4.12.2       # HTML 파싱 백업
+selenium==4.15.2             # 브라우저 자동화 (무한 스크롤용)
+webdriver-manager==4.0.1     # WebDriver 자동 관리
 
 # 데이터 처리
 pandas>=2.2.0                # 데이터 분석 및 처리
@@ -32,3 +34,4 @@ toml==0.10.2                 # TOML 설정 파일
 python-dateutil==2.8.2      # 날짜 처리
 phonenumbers==8.13.26       # 전화번호 검증
 email-validator==2.1.0      # 이메일 검증
+aiofiles==23.2.1            # 비동기 파일 I/O

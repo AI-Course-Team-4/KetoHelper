@@ -98,12 +98,13 @@ class MenuRuleEngine(IRuleEngine):
         final_score = max(-100, min(100, context.current_score))
         confidence = self._calculate_overall_confidence(context)
 
+        # 카테고리 결정은 최종 단계(KetoScorer)에서 수행
         return KetoScore(
             menu_id=menu.id,
             raw_score=context.current_score,
             final_score=final_score,
             confidence=confidence,
-            category=self._determine_category(final_score),
+            category=ScoreCategory.KETO_AVOID,
             reasons=context.reasons,
             detected_keywords=[match.keyword for match in matches],
             applied_rules=context.applied_rules
@@ -155,8 +156,16 @@ class MenuRuleEngine(IRuleEngine):
                 carb_matches = self._find_nearby_carb_matches(context, neg_match)
 
                 for carb_match in carb_matches:
-                    # 패널티 50% 상쇄
-                    offset = abs(carb_match.weight) * rule.weight_multiplier
+                    # 거리 기반 가변 상쇄 (<=5: 100%, <=15: 70%, <=30: 50%)
+                    distance = abs(carb_match.position - neg_match.position)
+                    if distance <= 5:
+                        factor = 1.0
+                    elif distance <= 15:
+                        factor = 0.7
+                    else:
+                        factor = 0.5
+
+                    offset = abs(carb_match.weight) * factor
                     context.current_score += offset
 
                     context.reasons.append(ScoreReason(
@@ -238,6 +247,42 @@ class MenuRuleEngine(IRuleEngine):
         if len(context.text) > 50:
             description_bonus = 2
             adjustments.append(("detailed_description", description_bonus, "상세한 설명"))
+
+        # 4. 강한 키토 키워드 보너스 (샐러드/키토/저탄고지)
+        strong_keto_keywords = {"샐러드", "키토", "저탄고지", "케토", "salad", "keto"}
+        strong_hits = [
+            m for m in context.matches
+            if m.match_type == MatchType.KETO_FRIENDLY and any(sk in m.keyword.lower() for sk in strong_keto_keywords)
+        ]
+        if strong_hits:
+            # '키토/케토/keto'가 직접 포함된 경우는 더 강하게 가산
+            has_explicit_keto = any(
+                ("키토" in m.keyword) or ("케토" in m.keyword) or ("keto" in m.keyword.lower())
+                for m in strong_hits
+            )
+
+            # 포케 기반 강한키워드 트리거는 과도한 중복가산을 유발하므로 축소 처리
+            strong_hit_keywords = [m.keyword.lower() for m in strong_hits]
+            is_poke_based = any(("포케" in kw) or ("poke" in kw) for kw in strong_hit_keywords)
+
+            if has_explicit_keto:
+                default_bonus = 40 if high_carb_count == 0 else 25
+            else:
+                default_bonus = 30 if high_carb_count == 0 else 18
+
+            # 포케일 때는 강한 보너스를 크게 줄여 중복 보너스 누적을 방지
+            strong_bonus = min(default_bonus, (10 if high_carb_count == 0 else 6)) if is_poke_based else default_bonus
+            adjustments.append(("strong_keto_keyword", strong_bonus, "강한 키토 키워드 감지"))
+
+        # 5. 포케 조건부 보너스 (밥/라이스 등 존재 시 보너스 감쇄)
+        text_lower = context.text.lower()
+        has_poke = ("포케" in text_lower) or any("포케" in m.keyword for m in context.matches)
+        if has_poke:
+            carb_terms = ["밥", "라이스", "rice", "현미", "쌀", "잡곡"]
+            has_rice = any(term in text_lower for term in carb_terms)
+            poke_bonus = 40 if not has_rice else 25
+            if poke_bonus != 0:
+                adjustments.append(("poke_conditional", poke_bonus, "포케: 밥 여부에 따른 보너스"))
 
         # 조정사항 적용
         for adj_type, impact, explanation in adjustments:
