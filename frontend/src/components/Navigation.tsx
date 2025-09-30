@@ -3,8 +3,8 @@ import {
   Message, 
   CalendarToday, 
   Person, 
-  BarChart,
-  Restaurant,
+  // BarChart,
+  // Restaurant,
   LocationOn as MapPin,
   CreditCard
 } from '@mui/icons-material'
