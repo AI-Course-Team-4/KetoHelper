@@ -328,7 +328,7 @@ class MealPlannerAgent:
         constraints: str, 
         user_id: Optional[str], 
         used_recipes: set, 
-        max_results: int = 5
+        max_results: int = 35
     ) -> List[Dict[str, Any]]:
         """
         다양성을 고려한 레시피 검색 (중복 방지)
@@ -357,10 +357,12 @@ class MealPlannerAgent:
             
             # 중복되지 않은 레시피만 필터링
             unique_results = []
+            
             for result in search_results:
                 recipe_id = result.get('id', '')
                 if recipe_id and recipe_id not in used_recipes:
                     unique_results.append(result)
+                    used_recipes.add(recipe_id)  # 중복 방지를 위해 추가
                     if len(unique_results) >= max_results:
                         break
             
@@ -543,22 +545,13 @@ class MealPlannerAgent:
                 # 기본 키워드로 한 번에 여러 개 검색
                 search_query = f"{' '.join(strategy['primary_keywords'])} 키토"
                 search_results = await self._search_with_diversity(
-                    search_query, constraints, user_id, used_recipes, max_results=days * 2
+                    search_query, constraints, user_id, used_recipes, max_results=days * 3
                 )
                 
                 if search_results:
-                    # 중복 제거하고 필요한 개수만큼 선택
-                    unique_results = []
-                    for result in search_results:
-                        recipe_id = result.get('id', '')
-                        if recipe_id and recipe_id not in used_recipes:
-                            unique_results.append(result)
-                            used_recipes.add(recipe_id)
-                            if len(unique_results) >= days:
-                                break
-                    
-                    meal_collections[slot] = unique_results
-                    print(f"✅ {slot} 레시피 {len(unique_results)}개 수집 완료")
+                    # _search_with_diversity에서 이미 중복 체크 완료
+                    meal_collections[slot] = search_results
+                    print(f"✅ {slot} 레시피 {len(search_results)}개 수집 완료")
                 else:
                     meal_collections[slot] = []
                     print(f"❌ {slot} 레시피 검색 실패")
@@ -668,7 +661,7 @@ class MealPlannerAgent:
                     search_query = f"키토 {slot}"
                 
                 search_results = await self._search_with_diversity(
-                    search_query, constraints, user_id, used_recipes, max_results=days_count * 2
+                    search_query, constraints, user_id, used_recipes, max_results=days_count * 3
                 )
                 
                 if search_results:
@@ -1400,7 +1393,7 @@ class MealPlannerAgent:
     
     def _parse_days(self, message: str, state: Dict) -> Optional[int]:
         """
-        메시지에서 날짜/일수 파싱
+        메시지에서 날짜/일수 파싱 (LLM 기반)
         
         Args:
             message (str): 사용자 메시지
@@ -1409,14 +1402,17 @@ class MealPlannerAgent:
         Returns:
             Optional[int]: 파싱된 일수 또는 None
         """
-        # DateParser 사용
-        days = self.date_parser._extract_duration_days(message)
+        # LLM 파싱 시도 (대화 맥락 포함)
+        try:
+            chat_history = state.get("chat_history", [])
+            parsed_date = self.date_parser.parse_natural_date_with_context(message, chat_history)
+            if parsed_date and parsed_date.duration_days:
+                print(f"📅 DateParser LLM이 감지한 days: {parsed_date.duration_days}")
+                return parsed_date.duration_days
+        except Exception as e:
+            print(f"⚠️ DateParser LLM 파싱 오류: {e}")
         
-        if days is not None:
-            print(f"📅 DateParser가 감지한 days: {days}")
-            return days
-        
-        # 슬롯에서 가져오기
+        # 슬롯에서 가져오기 (백업)
         slots_days = state.get("slots", {}).get("days")
         if slots_days:
             days = int(slots_days)
