@@ -240,6 +240,8 @@ class KetoCoachAgent:
                 confidence = result["confidence"]
                 
                 print(f"🎯 의도 분류: {intent_value} (신뢰도: {confidence:.2f}, 방식: {result.get('method', 'unknown')})")
+                if result.get('reasoning'):
+                    print(f"💭 LLM 추론: {result['reasoning']}")
                 
                 # 캘린더 저장 요청 처리 (새로 추가!)
                 if intent_value == "calendar_save":
