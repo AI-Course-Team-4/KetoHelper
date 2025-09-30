@@ -32,6 +32,22 @@ const getMealText = (mealData: MealData | null, mealType: string): string => {
   }
 };
 
+// 백엔드 응답에서 식사 제목을 안전하게 추출하는 헬퍼 함수
+const extractMealTitle = (mealData: any): string => {
+  if (!mealData) return ''
+  
+  if (typeof mealData === 'string') {
+    return mealData
+  }
+  
+  if (typeof mealData === 'object' && mealData !== null) {
+    // 백엔드 응답 형식: {title: "...", type: "simple"}
+    return mealData.title || mealData.content || mealData.name || ''
+  }
+  
+  return ''
+}
+
 export function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [currentMonth, setCurrentMonth] = useState(new Date())
@@ -204,8 +220,59 @@ export function CalendarPage() {
 
       console.log('✅ AI 식단표 생성 완료:', mealPlanData)
 
+      // 백엔드 응답을 프론트엔드 형식으로 변환
+      let convertedMealPlan: Record<string, MealData> = {}
+      
+      try {
+        if (mealPlanData.days && Array.isArray(mealPlanData.days)) {
+          // 백엔드에서 받은 days 배열을 날짜 키 형식으로 변환
+          const startDate = new Date()
+          
+          mealPlanData.days.forEach((dayMeals: any, index: number) => {
+            try {
+              const currentDate = new Date(startDate)
+              currentDate.setDate(startDate.getDate() + index)
+              
+              // 날짜 유효성 검사
+              if (isNaN(currentDate.getTime())) {
+                console.warn(`⚠️ 유효하지 않은 날짜 (인덱스 ${index}):`, currentDate)
+                return
+              }
+              
+              const dateString = format(currentDate, 'yyyy-MM-dd')
+              
+              // 백엔드 응답을 프론트엔드 MealData 형식으로 변환
+              convertedMealPlan[dateString] = {
+                breakfast: extractMealTitle(dayMeals.breakfast) || '아침 메뉴',
+                lunch: extractMealTitle(dayMeals.lunch) || '점심 메뉴',
+                dinner: extractMealTitle(dayMeals.dinner) || '저녁 메뉴',
+                snack: extractMealTitle(dayMeals.snack) || '간식'
+              }
+            } catch (dayError) {
+              console.error(`❌ ${index}일차 데이터 변환 오류:`, dayError, dayMeals)
+            }
+          })
+          
+          console.log(`✅ ${Object.keys(convertedMealPlan).length}일치 식단표 변환 완료`)
+        } else {
+          // 폴백: 기존 형식 그대로 사용 (날짜 키가 있는 객체)
+          if (typeof mealPlanData === 'object' && mealPlanData !== null) {
+            convertedMealPlan = mealPlanData as Record<string, MealData>
+            console.log('📝 기존 형식 사용 (날짜 키 객체)')
+          } else {
+            console.warn('⚠️ 예상치 못한 데이터 형식:', mealPlanData)
+            throw new Error('식단 데이터 형식이 올바르지 않습니다.')
+          }
+        }
+      } catch (conversionError) {
+        console.error('❌ 식단표 변환 중 오류:', conversionError)
+        throw new Error('식단표 데이터 변환에 실패했습니다.')
+      }
+
+      console.log('🔄 변환된 식단표:', convertedMealPlan)
+
       // 생성된 식단을 상태에 저장하고 저장 모달 표시
-      setGeneratedMealPlan(mealPlanData)
+      setGeneratedMealPlan(convertedMealPlan)
       setShowMealPlanSaveModal(true)
 
     } catch (error) {
@@ -1283,12 +1350,26 @@ export function CalendarPage() {
 
             <div className="p-6">
               <div className="grid gap-4">
-                {Object.entries(generatedMealPlan).map(([dateString, mealData]) => (
-                  <div key={dateString} className="border border-gray-200 rounded-xl p-4 bg-gray-50">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                      <CalendarToday sx={{ fontSize: 20, color: 'green.600' }} />
-                      {format(new Date(dateString), 'M월 d일 (EEE)', { locale: ko })}
-                    </h3>
+                {Object.entries(generatedMealPlan).map(([dateString, mealData]) => {
+                  // 날짜 유효성 검사
+                  let displayDate = '날짜 오류'
+                  try {
+                    const dateObj = new Date(dateString)
+                    if (!isNaN(dateObj.getTime())) {
+                      displayDate = format(dateObj, 'M월 d일 (EEE)', { locale: ko })
+                    } else {
+                      console.warn('⚠️ 유효하지 않은 날짜:', dateString)
+                    }
+                  } catch (dateError) {
+                    console.error('❌ 날짜 포맷 오류:', dateError, dateString)
+                  }
+                  
+                  return (
+                    <div key={dateString} className="border border-gray-200 rounded-xl p-4 bg-gray-50">
+                      <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                        <CalendarToday sx={{ fontSize: 20, color: 'green.600' }} />
+                        {displayDate}
+                      </h3>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                       {[
@@ -1309,7 +1390,8 @@ export function CalendarPage() {
                       ))}
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
 
               <div className="flex gap-3 mt-6 pt-4 border-t border-gray-200">
