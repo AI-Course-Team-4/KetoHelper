@@ -738,7 +738,7 @@ class MealPlannerAgent:
                 return {
                     "type": "meal_plan",
                     "days": detailed_days,
-                    "duration_days": days,  # 요청된 일수 정보 추가
+                    "duration_days": days_count,  # 요청된 일수 정보 추가
                     "total_macros": total_macros,
                     "notes": notes,
                     "source": "ai_structure_plus_embeddings"

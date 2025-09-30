@@ -11,7 +11,7 @@ import { MealModal } from '@/components/MealModal'
 import { DateDetailModal } from '@/components/DateDetailModal'
 import { usePlansRange, useCreatePlan, useGenerateMealPlan, useUpdatePlan, useDeletePlan } from '@/hooks/useApi'
 import { useAuthStore } from '@/store/authStore'
-import { useProfileStore } from '@/store/profileStore'
+// import { useProfileStore } from '@/store/profileStore' // 개인화된 엔드포인트에서 자동 처리
 import { useQueryClient } from '@tanstack/react-query'
 
 // 컴포넌트 상단에 추가
@@ -54,7 +54,7 @@ export function CalendarPage() {
 
   // 사용자 인증 정보
   const { user } = useAuthStore()
-  const { profile } = useProfileStore()
+  // const { profile } = useProfileStore() // 개인화된 엔드포인트가 백엔드에서 자동으로 프로필 적용
   const createPlan = useCreatePlan()
   const generateMealPlan = useGenerateMealPlan()
   const updatePlan = useUpdatePlan()
@@ -196,14 +196,10 @@ export function CalendarPage() {
     try {
       console.log('🤖 AI 식단표 생성 시작...')
 
-      // AI 식단 생성 API 호출
+      // AI 식단 생성 API 호출 (개인화된 엔드포인트 사용 - 프로필 자동 적용)
       const mealPlanData = await generateMealPlan.mutateAsync({
         user_id: user.id,
-        days: selectedDays, // 선택된 일수만큼 식단표 생성
-        kcal_target: profile?.goals_kcal || 1800,
-        carbs_max: profile?.goals_carbs_g || 20,
-        allergies: profile?.allergy_names || [],
-        dislikes: profile?.dislike_names || []
+        days: selectedDays
       })
 
       console.log('✅ AI 식단표 생성 완료:', mealPlanData)
@@ -421,14 +417,10 @@ export function CalendarPage() {
       const newMealData: Record<string, MealData> = { ...generatedMealPlan }
 
       try {
-        // AI 식단 생성 API 호출 (추가 일수)
+        // AI 식단 생성 API 호출 (추가 일수, 개인화된 엔드포인트 사용)
         const additionalMealPlan = await generateMealPlan.mutateAsync({
           user_id: user.id,
-          days: additionalDays,
-          kcal_target: profile?.goals_kcal || 1800,
-          carbs_max: profile?.goals_carbs_g || 20,
-          allergies: profile?.allergy_names || [],
-          dislikes: profile?.dislike_names || []
+          days: additionalDays
         })
 
         // 기존 데이터와 합치기
