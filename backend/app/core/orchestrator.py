@@ -103,7 +103,7 @@ class KetoCoachAgent:
         workflow.add_node("place_search", self._place_search_node)
         workflow.add_node("meal_plan", self._meal_plan_node)
         workflow.add_node("calendar_save", self._calendar_save_node)  # 새로 추가!
-        workflow.add_node("general_chat", self._general_chat_node)
+        workflow.add_node("general", self._general_chat_node)
         workflow.add_node("answer", self._answer_node)
         
         # 시작점 설정
@@ -118,16 +118,16 @@ class KetoCoachAgent:
                 "place_search": "place_search", 
                 "meal_plan": "meal_plan",
                 "calendar_save": "calendar_save",
-                "general": "general_chat"
+                "general": "general"
             }
         )
         
-        # 모든 노드에서 answer로 (general_chat은 직접 END로)
+        # 모든 노드에서 answer로 (general은 직접 END로)
         workflow.add_edge("recipe_search", "answer")
         workflow.add_edge("place_search", "answer")
         workflow.add_edge("meal_plan", "answer")
         workflow.add_edge("calendar_save", "answer")  # 새로 추가!
-        workflow.add_edge("general_chat", END)
+        workflow.add_edge("general", END)
         workflow.add_edge("answer", END)
         
         return workflow.compile()
@@ -165,10 +165,11 @@ class KetoCoachAgent:
         """IntentClassifier의 Intent enum을 orchestrator 라우팅 키로 변환
         
         IntentClassifier Intent -> Orchestrator Route 매핑:
-        - MEAL_PLANNING -> recipe 또는 mealplan (세분화 필요)
-        - PLACE_SEARCH -> place
-        - BOTH -> 우선순위에 따라 결정
-        - GENERAL -> other
+        - RECIPE_SEARCH -> recipe_search
+        - MEAL_PLAN -> meal_plan
+        - PLACE_SEARCH -> place_search
+        - CALENDAR_SAVE -> calendar_save
+        - GENERAL -> general
         """
         
         if intent_enum == Intent.MEAL_PLANNING:
@@ -621,7 +622,7 @@ class KetoCoachAgent:
             state["response"] = response.content
             
             state["tool_calls"].append({
-                "tool": "general_chat",
+                "tool": "general",
                 "method": "context_aware",
                 "context_length": len(context_messages)
             })
