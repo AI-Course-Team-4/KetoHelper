@@ -8,7 +8,7 @@
 agents/
 ├── chat_agent.py          # 일반 채팅 에이전트
 ├── meal_planner.py        # 식단 계획 에이전트
-└── restaurant_agent.py    # 식당 추천 에이전트
+└── place_search_agent.py  # 식당 검색 에이전트
 ```
 
 ## 🎯 에이전트별 설명
@@ -61,25 +61,25 @@ recipe = await agent.generate_single_recipe(
 )
 ```
 
-### 🏪 Restaurant Agent (`restaurant_agent.py`)
-키토 친화적 식당 검색 및 추천 에이전트
+### 🏪 Place Search Agent (`place_search_agent.py`)
+키토 친화적 식당 검색 전용 에이전트
 
 **주요 기능:**
-- 위치 기반 식당 검색
+- RAG + 카카오 API 하이브리드 검색
 - 키토 친화도 점수 계산
-- 개인화된 식당 추천
-- 메뉴 주문 팁 제공
+- 병렬 검색으로 성능 최적화
+- 타임아웃 처리 및 에러 핸들링
 
 **사용 예시:**
 ```python
-from app.agents.restaurant_agent import RestaurantAgent
+from app.agents.place_search_agent import PlaceSearchAgent
 
-agent = RestaurantAgent()
-recommendations = await agent.recommend_restaurants(
+agent = PlaceSearchAgent()
+result = await agent.search_places(
     message="강남역 근처 키토 식당 추천해줘",
-    lat=37.4979,
-    lng=127.0276,
-    profile="알레르기: 해산물"
+    location={"lat": 37.4979, "lng": 127.0276},
+    radius_km=2.0,
+    profile={"allergies": ["해산물"]}
 )
 ```
 

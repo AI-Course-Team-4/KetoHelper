@@ -21,8 +21,8 @@ RESPONSE_GENERATION_PROMPT = """
 검색 결과가 없는 경우 일반적인 키토 식단 조언을 제공하세요.
 """
 
-# 식당 전용 응답 생성 프롬프트
-RESTAURANT_RESPONSE_GENERATION_PROMPT = """
+# 장소 검색 전용 응답 생성 프롬프트
+PLACE_RESPONSE_GENERATION_PROMPT = """
 사용자가 키토 친화적인 식당을 찾고 있습니다. 검색된 식당 정보를 바탕으로 개인화된 추천을 해주세요.
 
 사용자 질문: "{message}"
