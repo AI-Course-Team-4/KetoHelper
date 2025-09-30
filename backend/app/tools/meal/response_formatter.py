@@ -231,4 +231,4 @@ class MealResponseFormatter:
             if context.get("help_text"):
                 base_response += f"\n❓ 도움말: {context['help_text']}"
         
-        return base_responses
+        return base_response
