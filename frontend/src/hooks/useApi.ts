@@ -340,11 +340,16 @@ export interface MealPlanRequest {
 
 export function useGenerateMealPlan() {
   return useMutation({
-    mutationFn: async (data: MealPlanRequest & { user_id: string }) => {
-      const response = await api.post('/plans/generate', data, {
-        params: { user_id: data.user_id }
+    mutationFn: async (data: { user_id: string; days: number }) => {
+      // 개인화된 식단표 생성 (프로필 자동 적용)
+      const response = await fetch(`/api/v1/plans/generate/personalized?user_id=${data.user_id}&days=${data.days}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
       })
-      return response.data
+      if (!response.ok) throw new Error('식단 생성 실패')
+
+      const result = await response.json()
+      return result
     }
   })
 }

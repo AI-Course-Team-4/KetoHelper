@@ -26,6 +26,9 @@ from app.tools.shared.temporary_dislikes_extractor import temp_dislikes_extracto
 from app.tools.meal.response_formatter import MealResponseFormatter
 from config import get_personal_configs, get_agent_config
 
+# 기본값 상수 정의
+DEFAULT_MEAL_PLAN_DAYS = 7
+
 class MealPlannerAgent:
     """7일 키토 식단표 생성 에이전트"""
     
@@ -284,8 +287,13 @@ class MealPlannerAgent:
             return {
                 "days": simple_plan,
                 "duration_days": days,  # 요청된 일수 정보 추가
-                "total_macros": {"message": "간단 버전에서는 영양 계산이 제외됩니다"},
-                "notes": notes,
+                "total_macros": {
+                    "kcal": 0,
+                    "carb": 0,
+                    "protein": 0,
+                    "fat": 0
+                },
+                "notes": notes + ["⚠️ 간단 버전에서는 영양 계산이 제외됩니다"],
                 "constraints": {
                     "kcal_target": kcal_target,
                     "carbs_max": carbs_max,
@@ -731,7 +739,7 @@ class MealPlannerAgent:
                 return {
                     "type": "meal_plan",
                     "days": detailed_days,
-                    "duration_days": days,  # 요청된 일수 정보 추가
+                    "duration_days": days_count,  # 요청된 일수 정보 추가
                     "total_macros": total_macros,
                     "notes": notes,
                     "source": "ai_structure_plus_embeddings"
@@ -1259,10 +1267,9 @@ class MealPlannerAgent:
         # 1. 날짜 파싱
         days = self._parse_days(message, state)
         if days is None:
-            return {
-                "response": "몇 일치 식단표를 원하시는지 구체적으로 말씀해주세요. (예: 5일치, 일주일치, 3일치)",
-                "results": []
-            }
+            # plans.py의 기본값 상수 사용
+            days = DEFAULT_MEAL_PLAN_DAYS
+            print(f"📅 일수 파악 실패 → plans.py 기본값 {days}일 사용")
         
         # 2. 제약조건 추출
         constraints = self._extract_all_constraints(message, state)
