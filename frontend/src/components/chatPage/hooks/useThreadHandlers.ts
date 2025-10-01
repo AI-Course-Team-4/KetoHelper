@@ -104,7 +104,7 @@ export function useThreadHandlers({
         console.log('🗑️ 다른 스레드 삭제 - currentThreadId 유지:', currentThreadId)
       }
       
-      // 스레드 목록 새로고침 (useChatLogic에서 자동 선택 처리)
+      // 스레드 목록 새로고침
       refetchThreads()
       
       console.log('🗑️ 스레드 삭제 완료:', threadId)
