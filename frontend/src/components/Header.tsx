@@ -15,13 +15,17 @@ export function Header() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const [avatarError, setAvatarError] = useState(false)
   const { user } = useAuthStore()
-  const { clearProfile } = useProfileStore()
+  const { profile, clearProfile } = useProfileStore()
   const { toggleCollapsed } = useNavigationStore()
   const navigate = useNavigate()
   const location = useLocation()
-  const avatarSrc = user?.profileImage
-    ? user.profileImage.replace(/^http:/, 'https:')
+  
+  // 프로필 이미지 우선순위: profile.profile_image_url > user.profileImage
+  const profileImageUrl = profile?.profile_image_url || user?.profileImage
+  const avatarSrc = profileImageUrl
+    ? profileImageUrl.replace(/^http:/, 'https:')
     : undefined
+    
 
   const handleLogin = () => {
     setIsLoginModalOpen(true)

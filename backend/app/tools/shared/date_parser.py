@@ -591,6 +591,20 @@ JSON 형식:
         """텍스트에서 일수 정보를 추출 (예: 3일치, 2주치, 5주일치)"""
         import re
         
+        # 0. 특별한 표현들 먼저 처리
+        if '일주일' in text or '1주일' in text:
+            return 7
+        if '이주일' in text or '2주일' in text:
+            return 14
+        if '삼주일' in text or '3주일' in text:
+            return 21
+        if '한주' in text or '1주' in text:
+            return 7
+        if '이주' in text or '2주' in text:
+            return 14
+        if '삼주' in text or '3주' in text:
+            return 21
+        
         # 1. "N주치" 또는 "N주일치" 패턴 찾기 (주 단위)
         week_patterns = [
             r'(\d+)주일치',  # "2주일치", "3주일치", "5주일치"
