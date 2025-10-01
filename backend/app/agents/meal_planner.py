@@ -20,7 +20,6 @@ import importlib
 from app.core.config import settings
 from app.tools.shared.hybrid_search import hybrid_search_tool
 from app.tools.shared.profile_tool import user_profile_tool
-from app.tools.restaurant.place_search import PlaceSearchTool
 from app.tools.shared.date_parser import DateParser
 from app.tools.shared.temporary_dislikes_extractor import temp_dislikes_extractor
 from app.tools.meal.response_formatter import MealResponseFormatter
@@ -72,8 +71,6 @@ class MealPlannerAgent:
             print(f"Gemini AI 초기화 실패: {e}")
             self.llm = None
         
-        # 하이브리드 검색 도구 사용
-        self.place_search = PlaceSearchTool()
         
         # 새로운 도구들 초기화
         self.date_parser = DateParser()
