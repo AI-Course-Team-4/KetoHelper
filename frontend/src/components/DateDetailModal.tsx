@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -94,16 +94,15 @@ export function DateDetailModal({
   const ketoScore = calculateKetoScore()
 
   return (
-    <Dialog open={isOpen} onClose={onClose} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <CalendarToday sx={{ fontSize: 20 }} />
-            {format(selectedDate, 'yyyy년 M월 d일 (E)', { locale: ko })}
-          </DialogTitle>
-        </DialogHeader>
+    <Dialog open={isOpen} onClose={onClose} onOpenChange={onClose} maxWidth="md">
+      <DialogHeader>
+        <DialogTitle className="flex items-center gap-2">
+          <CalendarToday sx={{ fontSize: 20 }} />
+          {format(selectedDate, 'yyyy년 M월 d일 (E)', { locale: ko })}
+        </DialogTitle>
+      </DialogHeader>
 
-        <div className="space-y-6">
+      <div className="space-y-6">
           {/* 키토 점수 및 통계 */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card>
@@ -136,29 +135,42 @@ export function DateDetailModal({
                 식단 계획
               </CardTitle>
               <div className="flex items-center gap-2">
-                {onDeleteAllMeals && mealData && Object.values(mealData).some(meal => meal && meal.trim() !== '') && !isEditing && (
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => {
-                      if (confirm('이 날의 모든 식단을 삭제하시겠습니까?')) {
-                        onDeleteAllMeals(selectedDate)
-                      }
-                    }}
-                    className="border-red-300 text-red-600 hover:bg-red-50"
-                  >
-                    <Delete className="h-4 w-4 mr-2" />
-                    전체 삭제
-                  </Button>
+                {isEditing ? (
+                  <>
+                    <Button onClick={handleSave} size="sm">
+                      저장
+                    </Button>
+                    <Button variant="outline" onClick={handleCancel} size="sm">
+                      취소
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    {onDeleteAllMeals && mealData && Object.values(mealData).some(meal => meal && meal.trim() !== '') && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => {
+                          if (confirm('이 날의 모든 식단을 삭제하시겠습니까?')) {
+                            onDeleteAllMeals(selectedDate)
+                          }
+                        }}
+                        className="border-red-300 text-red-600 hover:bg-red-50"
+                      >
+                        <Delete className="h-4 w-4 mr-2" />
+                        전체 삭제
+                      </Button>
+                    )}
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setIsEditing(!isEditing)}
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      편집
+                    </Button>
+                  </>
                 )}
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setIsEditing(!isEditing)}
-                >
-                  <Edit className="h-4 w-4 mr-2" />
-                  {isEditing ? '취소' : '편집'}
-                </Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -280,17 +292,6 @@ export function DateDetailModal({
                   </div>
                 )
               })}
-
-              {isEditing && (
-                <div className="flex gap-2 pt-4">
-                  <Button onClick={handleSave} className="flex-1">
-                    저장
-                  </Button>
-                  <Button variant="outline" onClick={handleCancel} className="flex-1">
-                    취소
-                  </Button>
-                </div>
-              )}
             </CardContent>
           </Card>
 
@@ -345,7 +346,6 @@ export function DateDetailModal({
           </Card>
 
         </div>
-      </DialogContent>
 
       {/* 식단 상세정보 모달 */}
       {selectedMealForDetail && (

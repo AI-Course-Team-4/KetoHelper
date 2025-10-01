@@ -18,6 +18,12 @@ export function CalendarDay({
   onToggleMealCheck
 }: CalendarDayProps) {
   const isCurrentMonth = date.getMonth() === displayMonth.getMonth()
+  
+  // 오늘 날짜인지 확인
+  const today = new Date()
+  const isToday = date.getDate() === today.getDate() &&
+                  date.getMonth() === today.getMonth() &&
+                  date.getFullYear() === today.getFullYear()
 
   // 체크된 식사 개수 계산 (로컬 상태에서)
   const checkedCount = [
@@ -34,7 +40,9 @@ export function CalendarDay({
     >
       {isCurrentMonth && (
         <div className="date-number w-full flex items-center justify-between px-3">
-          <span>{date.getDate()}</span>
+          <span className={`font-semibold ${isToday ? 'bg-gray-700 text-white px-2 py-1 rounded' : ''}`}>
+            {date.getDate()}
+          </span>
           {checkedCount > 0 && (
             <div className="absolute -top-1 -right-1 bg-green-500 rounded-full w-4 h-4 flex items-center justify-center">
               <span className="text-white text-xs font-bold">✓</span>
