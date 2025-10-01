@@ -654,41 +654,11 @@ class KetoCoachAgent:
         return state
     
     async def _calendar_save_node(self, state: AgentState) -> AgentState:
-        """캘린더 저장 처리 노드 (CalendarSaver 사용, 충돌 해결 포함)"""
+        """캘린더 저장 처리 노드 (CalendarSaver 사용, 자동 덮어쓰기)"""
         
         try:
             message = state["messages"][-1].content if state["messages"] else ""
 
-            # 1. 충돌 해결 상태인지 먼저 확인
-            if state.get("calendar_conflict_info") and state.get("pending_meal_logs"):
-                print(f"🔄 캘린더 충돌 해결 처리 중: '{message}'")
-
-                # 충돌 해결 처리
-                conflict_result = await self.calendar_saver.handle_conflict_resolution(
-                    state, message,
-                    state["calendar_conflict_info"],
-                    state["pending_meal_logs"],
-                    state.get("save_to_calendar_data", {})
-                )
-
-                # 충돌 처리 완료 후 상태 정리
-                if "calendar_conflict_info" in state:
-                    del state["calendar_conflict_info"]
-                if "pending_meal_logs" in state:
-                    del state["pending_meal_logs"]
-
-                state["response"] = conflict_result["message"]
-
-                state["tool_calls"].append({
-                    "tool": "calendar_conflict_resolver",
-                    "success": conflict_result["success"],
-                    "action_taken": conflict_result.get("action_taken", "unknown"),
-                    "method": "handle_conflict_resolution"
-                })
-
-                return state
-
-            # 2. 일반 캘린더 저장 처리
             # 대화 히스토리 가져오기
             chat_history = []
             if state["messages"]:
@@ -708,16 +678,10 @@ class KetoCoachAgent:
                 if result["save_data"].get("meal_plan_data"):
                     state["meal_plan_data"] = result["save_data"]["meal_plan_data"]
 
-            # 충돌 정보가 있으면 상태에 저장 (다음 사용자 입력에서 처리)
-            if result.get("has_conflict"):
-                state["calendar_conflict_info"] = result.get("conflict_info")
-                state["pending_meal_logs"] = result.get("pending_meal_logs")
-
             state["tool_calls"].append({
                 "tool": "calendar_saver",
                 "success": result["success"],
-                "method": "save_meal_plan_to_calendar",
-                "has_conflict": result.get("has_conflict", False)
+                "method": "save_meal_plan_to_calendar"
             })
 
             return state
@@ -732,7 +696,7 @@ class KetoCoachAgent:
     # _is_calendar_save_request 함수 제거 - CalendarUtils로 이동
 
     async def _handle_calendar_save_request(self, state: AgentState, message: str) -> AgentState:
-        """캘린더 저장 요청 처리 (CalendarSaver 사용)"""
+        """캘린더 저장 요청 처리 (CalendarSaver 사용, 자동 덮어쓰기)"""
         try:
             # 대화 히스토리 가져오기
             chat_history = []
@@ -756,11 +720,6 @@ class KetoCoachAgent:
                 # meal_plan_data가 있으면 보존
                 if result["save_data"].get("meal_plan_data"):
                     state["meal_plan_data"] = result["save_data"]["meal_plan_data"]
-
-            # 충돌 정보가 있으면 상태에 저장 (다음 사용자 입력에서 처리)
-            if result.get("has_conflict"):
-                state["calendar_conflict_info"] = result.get("conflict_info")
-                state["pending_meal_logs"] = result.get("pending_meal_logs")
 
             return state
 
