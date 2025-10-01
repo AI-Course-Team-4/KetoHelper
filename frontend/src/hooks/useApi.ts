@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axiosClient from '@/lib/axiosClient'
 
 // axiosClient를 사용하여 토큰 갱신과 인증을 자동으로 처리
@@ -112,10 +112,118 @@ export interface ChatHistory {
 }
 
 export function useSendMessage() {
+  const queryClient = useQueryClient()
+  
   return useMutation({
     mutationFn: async (data: ChatRequest): Promise<ChatResponse> => {
       const response = await api.post('/chat/', data)
       return response.data
+    },
+    onMutate: async (variables) => {
+      console.log('🚀 Optimistic Update 시작:', variables)
+      
+      // Optimistic Update: 사용자 메시지를 즉시 UI에 추가
+      const tempUserMessage = {
+        id: `temp-${Date.now()}`,
+        role: 'user',
+        message: variables.message,
+        created_at: new Date().toISOString()
+      }
+      
+      // 새 채팅이든 기존 채팅이든 임시 메시지 추가
+      const threadId = variables.thread_id || `temp-thread-${Date.now()}`
+      
+      console.log('📝 임시 사용자 메시지:', { threadId, tempUserMessage })
+      
+      // 채팅 히스토리에 임시 메시지 추가 (새 채팅에서도 웰컴 스크린이 사라지도록)
+      const queryKey = ['chat-history', threadId, 20]
+      
+      queryClient.setQueryData(queryKey, (old: ChatHistory[] | undefined) => {
+        const newData = [...(old || []), tempUserMessage]
+        console.log('💾 사용자 메시지 캐시 업데이트:', { 
+          threadId, 
+          oldLength: old?.length, 
+          newLength: newData.length,
+          newData: newData.map(msg => ({ id: msg.id, message: msg.message }))
+        })
+        return newData
+      })
+      
+      // 즉시 refetch하여 사용자 메시지가 바로 표시되도록 함
+      setTimeout(() => {
+        queryClient.refetchQueries({ queryKey: ['chat-history', threadId, 20] })
+      }, 0)
+      
+      // 채팅 스레드 목록도 업데이트 (기존 스레드가 있는 경우만)
+      if (variables.thread_id) {
+        queryClient.setQueryData(['chat-threads'], (old: ChatThread[] | undefined) => {
+          if (!old) return old
+          return old.map(thread => 
+            thread.id === variables.thread_id 
+              ? { ...thread, updated_at: new Date().toISOString() }
+              : thread
+          )
+        })
+      }
+    },
+    onSuccess: (data, variables) => {
+      // 서버 응답 후 실제 데이터로 교체
+      if (data.thread_id) {
+        // 1. 임시 사용자 메시지를 실제 메시지로 교체
+        queryClient.setQueryData(['chat-history', data.thread_id, 20], (old: ChatHistory[] | undefined) => {
+          if (!old) return old
+          return old.map(msg => 
+            msg.id.toString().startsWith('temp-') 
+              ? { 
+                  id: `user-${Date.now()}`, 
+                  role: 'user', 
+                  message: variables.message, 
+                  created_at: new Date().toISOString() 
+                }
+              : msg
+          )
+        })
+        
+        // 2. AI 응답 추가 (로딩 인디케이터와 자연스럽게 교체)
+        if (data.response) {
+          console.log('🤖 AI 응답 추가:', data.response.substring(0, 50) + '...')
+          
+      // 전역 이벤트 제거: 로딩 상태는 호출 측에서 관리
+          
+          // AI 응답을 즉시 추가 (타이핑 애니메이션은 MessageItem에서 처리)
+          queryClient.setQueryData(['chat-history', data.thread_id, 20], (old: ChatHistory[] | undefined) => {
+              const newData = [
+                ...(old || []),
+                {
+                  id: `ai-${Date.now()}`,
+                  role: 'assistant',
+                  message: data.response, // 실제 메시지 내용으로 즉시 추가
+                  created_at: new Date().toISOString()
+                }
+              ]
+              console.log('✅ AI 응답 캐시 업데이트:', { 
+                oldLength: old?.length, 
+                newLength: newData.length 
+              })
+              return newData
+            })
+            
+            // AI 응답 추가 후 useGetChatHistory가 즉시 감지하도록 강제 refetch
+            queryClient.invalidateQueries({ queryKey: ['chat-history', data.thread_id, 20] })
+        }
+      }
+      
+      // 채팅 스레드 목록 새로고침
+      queryClient.invalidateQueries({ queryKey: ['chat-threads'] })
+    },
+    onError: (_error, variables) => {
+      // 에러 시 임시 메시지 제거
+      if (variables.thread_id) {
+        queryClient.setQueryData(['chat-history', variables.thread_id, 20], (old: ChatHistory[] | undefined) => {
+          if (!old) return old
+          return old.filter(msg => !msg.id.toString().startsWith('temp-'))
+        })
+      }
     }
   })
 }
@@ -132,7 +240,11 @@ export function useGetChatThreads(userId?: string, guestId?: string, limit = 20)
       const response = await api.get('/chat/threads', { params })
       return response.data
     },
-    enabled: !!(userId || guestId)
+    enabled: !!(userId || guestId),
+    staleTime: 60 * 1000, // 1분간 fresh 상태 유지
+    gcTime: 10 * 60 * 1000, // 10분간 캐시 유지
+    refetchOnWindowFocus: false, // 윈도우 포커스 시 자동 새로고침 비활성화
+    refetchOnMount: true // 컴포넌트 마운트 시 새로고침 활성화
   })
 }
 
@@ -147,7 +259,12 @@ export function useGetChatHistory(threadId: string, limit = 20, before?: string)
       const response = await api.get(`/chat/history/${threadId}`, { params })
       return response.data
     },
-    enabled: !!threadId
+    // temp-thread-* 는 서버 호출하지 않음 (신규 채팅 준비용 가상 ID)
+    enabled: !!threadId && threadId.length > 0 && !threadId.startsWith('temp-thread-'),
+    staleTime: 5 * 60 * 1000, // 5분간 fresh 상태 유지 (캐시 우선 사용)
+    gcTime: 10 * 60 * 1000, // 10분간 캐시 유지
+    refetchOnWindowFocus: false, // 윈도우 포커스 시 자동 새로고침 비활성화
+    refetchOnMount: true // 컴포넌트 마운트 시 새로고침 활성화
   })
 }
 

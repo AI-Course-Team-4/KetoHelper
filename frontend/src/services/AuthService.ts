@@ -1,6 +1,6 @@
 import { useAuthStore } from '@/store/authStore'
 import { commonToasts } from '@/lib/toast'
-import axios from 'axios'
+import axiosClient from '@/lib/axiosClient'
 
 // User 타입 정의
 interface User {
@@ -82,6 +82,7 @@ class AuthService {
     console.log('🧹 AuthService 메모리 초기화 완료')
     // 로그인 세션 플래그 제거
     this.setLoginSessionFlag(false)
+    try { sessionStorage.removeItem('session-expired') } catch {}
     
     // Zustand store도 함께 초기화 (전역 토큰 완전 초기화)
     const { clear } = useAuthStore.getState()
@@ -97,6 +98,24 @@ class AuthService {
   }
 
   async validateAndRefreshTokens() {
+    // 게스트 사용자인지 먼저 확인
+    const authData = localStorage.getItem('keto-auth')
+    let isGuest = true
+    
+    if (authData) {
+      try {
+        const parsed = JSON.parse(authData)
+        isGuest = parsed.state?.isGuest !== false
+      } catch (e) {
+        console.error('Auth 데이터 파싱 실패:', e)
+      }
+    }
+    
+    if (isGuest) {
+      console.log('🕊️ AuthService: 게스트 사용자 - 토큰 검증 스킵')
+      return { success: false, user: null, accessToken: null, refreshToken: null }
+    }
+    
     // 메모리에서 accessToken 확인
     const accessToken = this.getAccessToken()
     
@@ -144,6 +163,25 @@ class AuthService {
   }
 
   async refreshTokens(): Promise<{ success: boolean; user: any; accessToken: string | null; refreshToken: string | null }> {
+    console.log('🚨 refreshTokens 함수 호출됨!')
+    // 게스트 사용자인지 먼저 확인
+    const authData = localStorage.getItem('keto-auth')
+    let isGuest = true
+    
+    if (authData) {
+      try {
+        const parsed = JSON.parse(authData)
+        isGuest = parsed.state?.isGuest !== false
+      } catch (e) {
+        console.error('Auth 데이터 파싱 실패:', e)
+      }
+    }
+    
+    if (isGuest) {
+      console.log('🕊️ AuthService refreshTokens: 게스트 사용자 - refresh 스킵')
+      return { success: false, user: null, accessToken: null, refreshToken: null }
+    }
+    
     // 이미 갱신 중이면 기존 Promise 반환
     if (this.isRefreshing && this.refreshPromise) {
       return this.refreshPromise
@@ -162,7 +200,28 @@ class AuthService {
   }
 
   private async performRefresh(): Promise<{ success: boolean; user: any; accessToken: string | null; refreshToken: string | null }> {
+    console.log('🚨 performRefresh 함수 호출됨!')
     try {
+      // 게스트 사용자인지 먼저 확인
+      const authData = localStorage.getItem('keto-auth')
+      let isGuest = true
+      
+      if (authData) {
+        try {
+          const parsed = JSON.parse(authData)
+          isGuest = parsed.state?.isGuest !== false
+        } catch (e) {
+          console.error('Auth 데이터 파싱 실패:', e)
+        }
+      }
+      
+      if (isGuest) {
+        console.log('🕊️ AuthService performRefresh: 게스트 사용자 - refresh API 호출 스킵')
+        return { success: false, user: null, accessToken: null, refreshToken: null }
+      }
+      
+      console.log('🔍 AuthService performRefresh: 로그인 사용자 - refresh API 호출 진행')
+      
       console.log('🔄 쿠키 기반 토큰 갱신 시도...')
       const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
       const fullURL = `${baseURL}/api/v1/auth/refresh`
@@ -172,10 +231,7 @@ class AuthService {
       console.log('🔍 baseURL:', baseURL)
       console.log('🔍 VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL)
       
-      const res = await axios.post('/api/v1/auth/refresh', {}, {
-        withCredentials: true,
-        baseURL: baseURL
-      })
+      const res = await axiosClient.post('/auth/refresh', {})
       console.log('🔍 refresh API 응답:', res.data)
       console.log('🔍 refresh API 상태:', res.status)
       const { accessToken: newAccess, refreshToken: newRefresh, user } = res.data
@@ -333,8 +389,19 @@ class AuthService {
 
   // 로그아웃 (메모리 클리어)
   async logout(): Promise<void> {
-    this.clearMemory()
-    console.log('✅ 로그아웃 완료')
+    try {
+      const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+      // 서버에 refresh_token 쿠키 무효화 요청
+      await fetch(`${baseURL}/api/v1/auth/logout`, {
+        method: 'POST',
+        credentials: 'include'
+      })
+    } catch (e) {
+      console.warn('서버 로그아웃 요청 실패(무시 가능):', e)
+    } finally {
+      this.clearMemory()
+      console.log('✅ 로그아웃 완료 (쿠키 무효화 시도 포함)')
+    }
   }
 
   // 네이버 로그인 (API 호출)
@@ -396,6 +463,25 @@ class AuthService {
 
   // 토큰 갱신 (API 호출)
   async refresh(refreshToken: string): Promise<any> {
+    console.log('🚨 refresh 함수 호출됨! (fetch 사용)')
+    // 게스트 사용자인지 먼저 확인
+    const authData = localStorage.getItem('keto-auth')
+    let isGuest = true
+    
+    if (authData) {
+      try {
+        const parsed = JSON.parse(authData)
+        isGuest = parsed.state?.isGuest !== false
+      } catch (e) {
+        console.error('Auth 데이터 파싱 실패:', e)
+      }
+    }
+    
+    if (isGuest) {
+      console.log('🕊️ AuthService refresh: 게스트 사용자 - refresh API 호출 스킵')
+      throw new Error('게스트 사용자는 토큰 갱신할 수 없습니다')
+    }
+    
     const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
     const response = await fetch(`${baseURL}/api/v1/auth/refresh`, {
       method: 'POST',
