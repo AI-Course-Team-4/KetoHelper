@@ -25,9 +25,9 @@ async def ensure_thread(user_id: Optional[str], guest_id: Optional[str], thread_
         if thread_id:
             print(f"🔍 기존 스레드 조회 중: {thread_id}")
             response = supabase.table("chat_thread").select("*").eq("id", thread_id).execute()
-            print(f"🔍 스레드 조회 결과: {response.data}")
+            print(f"🔍 스레드 조회 결과: {len(response.data) if response.data else 0}개 스레드")
             if response.data:
-                print(f"✅ 기존 스레드 발견: {response.data[0]}")
+                print(f"✅ 기존 스레드 발견: id={response.data[0]['id']}, title={response.data[0]['title']}")
                 return response.data[0]
             else:
                 print("⚠️ 해당 스레드가 존재하지 않음, 새로 생성")
@@ -49,12 +49,12 @@ async def ensure_thread(user_id: Optional[str], guest_id: Optional[str], thread_
             "updated_at": datetime.utcnow().isoformat()
         }
         
-        print(f"🆕 새 스레드 생성 중: {new_thread}")
+        print(f"🆕 새 스레드 생성 중: id={new_thread['id']}, title={new_thread['title']}")
         result = supabase.table("chat_thread").insert(new_thread).execute()
-        print(f"🔍 스레드 생성 결과: {result.data}")
+        print(f"🔍 스레드 생성 결과: id={result.data[0]['id'] if result.data else 'None'}")
         
         created_thread = result.data[0] if result.data else new_thread
-        print(f"✅ 스레드 생성 완료: {created_thread}")
+        print(f"✅ 스레드 생성 완료: id={created_thread['id']}, title={created_thread['title']}")
         return created_thread
         
     except Exception as e:
@@ -83,9 +83,9 @@ async def insert_chat_message(thread_id: str, role: str, message: str, user_id: 
             "updated_at": datetime.utcnow().isoformat()
         }
         
-        print(f"💾 저장할 데이터: {chat_data}")
+        print(f"💾 저장할 데이터: thread_id={chat_data['thread_id']}, role={chat_data['role']}, message={chat_data['message'][:30]}...")
         result = supabase.table("chat").insert(chat_data).execute()
-        print(f"💾 저장 결과: {result.data}")
+        print(f"💾 저장 결과: id={result.data[0]['id'] if result.data else 'None'}")
         return result.data[0] if result.data else chat_data
         
     except Exception as e:
@@ -102,6 +102,14 @@ async def update_thread_last_message(thread_id: str):
     except Exception as e:
         print(f"❌ 스레드 업데이트 실패: {e}")
 
+# 중복 요청 방지를 위한 캐시 (메모리 기반)
+import hashlib
+import asyncio
+import time
+
+_request_cache = {}
+_dedupe_lock = asyncio.Lock()
+
 @router.post("/", response_model=ChatResponse)
 async def chat_endpoint(request: ChatMessage):
     """
@@ -111,7 +119,29 @@ async def chat_endpoint(request: ChatMessage):
     - 식당 찾기: "역삼역 근처 키토 가능한 식당 알려줘"
     - 식단표 생성: "7일 식단표 만들어줘"
     """
-    print(f"🔥 DEBUG: chat_endpoint 진입! 메시지: '{request.message}'")
+    import uuid
+    request_id = str(uuid.uuid4())[:8]
+    
+    # 중복 요청 방지: thread_id 제외하고 메시지 해시 사용
+    raw_user = request.user_id or request.guest_id or "anon"
+    msg_norm = (request.message or "").strip()
+    msg_hash = hashlib.sha256(msg_norm.encode("utf-8")).hexdigest()[:16]  # 짧게
+    
+    cache_key = f"{raw_user}:{msg_hash}"
+    current_time = time.time()
+    
+    async with _dedupe_lock:
+        last_time = _request_cache.get(cache_key)
+        if last_time and (current_time - last_time) < 30:  # 30초로 연장
+            print(f"🚫 중복 요청 차단! [ID: {request_id}] '{request.message}' (Δ {current_time - last_time:.2f}s)")
+            raise HTTPException(status_code=429, detail="Too many requests")
+        _request_cache[cache_key] = current_time
+    
+    # 오래된 캐시 간단 청소
+    if len(_request_cache) > 5000:
+        _request_cache.clear()
+    
+    print(f"🔥 DEBUG: chat_endpoint 진입! [ID: {request_id}] 메시지: '{request.message}'")
     
     # 게스트에서 로그인으로 전환 시 잘못된 요청 방지
     if request.user_id and request.guest_id:
@@ -136,8 +166,7 @@ async def chat_endpoint(request: ChatMessage):
         
         if thread_id:
             history_response = supabase.table("chat").select("*").eq("thread_id", thread_id).order("created_at", desc=True).limit(20).execute()
-            print(f"🔍 Supabase 응답: {history_response}")
-            print(f"🔍 응답 데이터: {history_response.data}")
+            print(f"🔍 Supabase 응답: {len(history_response.data) if history_response.data else 0}개 메시지")
         else:
             print("⚠️ thread_id가 None이므로 대화 히스토리 조회 건너뜀")
             history_response = type('obj', (object,), {'data': []})()
@@ -161,13 +190,15 @@ async def chat_endpoint(request: ChatMessage):
         
         # 디버그: 실제 조회된 데이터 확인
         if chat_history:
-            print(f"🔍 첫 번째 메시지: {chat_history[0]}")
-            print(f"🔍 마지막 메시지: {chat_history[-1]}")
+            first_msg = chat_history[0]
+            last_msg = chat_history[-1]
+            print(f"🔍 첫 번째 메시지: id={first_msg.id}, role={first_msg.role}, message={first_msg.message[:20]}...")
+            print(f"🔍 마지막 메시지: id={last_msg.id}, role={last_msg.role}, message={last_msg.message[:20]}...")
         else:
             print("⚠️ 대화 히스토리가 비어있습니다!")
         
         # 키토 코치 오케스트레이터 실행
-        print(f"🚀 DEBUG: chat API 요청 받음 - '{request.message}'")
+        print(f"🚀 DEBUG: chat API 요청 받음 [ID: {request_id}] - '{request.message}'")
         agent = KetoCoachAgent()
         # 오케스트레이터에 user_id 정보 포함해서 전달
         profile_with_user_id = request.profile or {}
@@ -182,7 +213,7 @@ async def chat_endpoint(request: ChatMessage):
             chat_history=chat_history,
             thread_id=thread_id
         )
-        print(f"✅ DEBUG: 오케스트레이터 결과 - intent: {result.get('intent', 'unknown')}")
+        print(f"✅ DEBUG: 오케스트레이터 결과 [ID: {request_id}] - intent: {result.get('intent', 'unknown')}")
         
         # AI 응답 저장
         await insert_chat_message(
@@ -418,7 +449,7 @@ async def chat_stream(request: ChatMessage):
         }
     )
 
-@router.get("/history/{session_id}")
+@router.get("/history_legacy/{session_id}")
 async def get_chat_history_legacy(session_id: str):
     """레거시 호환성을 위한 세션 기반 채팅 기록 조회"""
     try:

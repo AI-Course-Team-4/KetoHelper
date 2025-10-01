@@ -26,20 +26,33 @@ class CalendarUtils:
                 lines = msg.split('\n')
 
                 current_day = {}
+                day_number = 0
+                
                 for line in lines:
-                    if '아침:' in line:
-                        current_day['breakfast'] = {'title': line.split('아침:')[1].strip()}
-                    elif '점심:' in line:
-                        current_day['lunch'] = {'title': line.split('점심:')[1].strip()}
-                    elif '저녁:' in line:
-                        current_day['dinner'] = {'title': line.split('저녁:')[1].strip()}
-                    elif '간식:' in line:
-                        current_day['snack'] = {'title': line.split('간식:')[1].strip()}
-
-                    # 하루 단위로 저장
-                    if '일차:' in line and current_day:
-                        days.append(current_day)
+                    # 이모지 제거 (🌅, 🌞, 🌙, 🍎 등)
+                    clean_line = re.sub(r'[^\w\s:,.()/-]', '', line).strip()
+                    
+                    # 새로운 일차 시작
+                    if '일차:' in line:
+                        # 이전 day 저장
+                        if current_day:
+                            days.append(current_day)
                         current_day = {}
+                        day_number += 1
+                    
+                    # 식사 시간별 파싱 (이모지 제거된 라인 사용)
+                    if '아침:' in clean_line:
+                        title = clean_line.split('아침:')[1].strip() if ':' in clean_line else line.split('아침:')[1].strip()
+                        current_day['breakfast'] = {'title': title}
+                    elif '점심:' in clean_line:
+                        title = clean_line.split('점심:')[1].strip() if ':' in clean_line else line.split('점심:')[1].strip()
+                        current_day['lunch'] = {'title': title}
+                    elif '저녁:' in clean_line:
+                        title = clean_line.split('저녁:')[1].strip() if ':' in clean_line else line.split('저녁:')[1].strip()
+                        current_day['dinner'] = {'title': title}
+                    elif '간식:' in clean_line:
+                        title = clean_line.split('간식:')[1].strip() if ':' in clean_line else line.split('간식:')[1].strip()
+                        current_day['snack'] = {'title': title}
 
                 # 마지막 날 추가
                 if current_day:
