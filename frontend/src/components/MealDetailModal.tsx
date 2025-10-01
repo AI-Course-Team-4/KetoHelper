@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -101,15 +101,14 @@ export function MealDetailModal({
 
   return (
     <Dialog open={isOpen} onClose={onClose} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <span className="text-2xl">{mealInfo.icon}</span>
-            {mealInfo.label} 상세정보
-          </DialogTitle>
-        </DialogHeader>
+      <DialogHeader>
+        <DialogTitle className="flex items-center gap-2">
+          <span className="text-2xl">{mealInfo.icon}</span>
+          {mealInfo.label} 상세정보
+        </DialogTitle>
+      </DialogHeader>
 
-        <div className="space-y-4">
+      <div className="space-y-4">
           {/* 메뉴 정보 */}
           <Card>
             <CardHeader className="pb-3">
@@ -203,7 +202,6 @@ export function MealDetailModal({
             </Button>
           </div>
         </div>
-      </DialogContent>
     </Dialog>
   )
 }

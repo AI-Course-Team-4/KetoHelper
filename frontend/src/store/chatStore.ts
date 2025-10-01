@@ -85,8 +85,13 @@ export const useChatStore = create<ChatState>()(
               if (authData) {
                 try {
                   const parsed = JSON.parse(authData)
-                  // isGuest 상태를 직접 확인
-                  isGuest = parsed.state?.isGuest !== false
+                  // user가 없으면 게스트 사용자로 판단
+                  isGuest = !parsed.state?.user
+                  console.log('🔍 게스트 판단:', { 
+                    hasUser: !!parsed.state?.user, 
+                    isGuest, 
+                    authData: parsed.state 
+                  })
                 } catch (e) {
                   console.error('Auth 데이터 파싱 실패:', e)
                 }
@@ -112,8 +117,13 @@ export const useChatStore = create<ChatState>()(
           if (authData) {
             try {
               const parsed = JSON.parse(authData)
-              // isGuest 상태를 직접 확인
-              isGuest = parsed.state?.isGuest !== false
+              // user가 없으면 게스트 사용자로 판단
+              isGuest = !parsed.state?.user
+              console.log('🔍 게스트 판단 (setItem):', { 
+                hasUser: !!parsed.state?.user, 
+                isGuest, 
+                authData: parsed.state 
+              })
             } catch (e) {
               console.error('Auth 데이터 파싱 실패:', e)
             }
@@ -123,6 +133,8 @@ export const useChatStore = create<ChatState>()(
             const messageCount = (value as any)?.messages?.length || 0
             console.log('💾 게스트 사용자 - SessionStorage에 저장', { name: name + '-guest', messageCount })
             sessionStorage.setItem(name + '-guest', JSON.stringify(value))
+            // 세션 스토리지가 안정적으로 유지되므로 백업 로직 제거
+            // localStorage.setItem(name + '-guest-backup', JSON.stringify(value))
           } else {
             const messageCount = (value as any)?.messages?.length || 0
             console.log('💾 로그인 사용자 - LocalStorage에 저장', { name, messageCount })
@@ -150,7 +162,8 @@ export const useChatStore = create<ChatState>()(
           if (authData) {
             try {
               const parsed = JSON.parse(authData)
-              isGuest = parsed.state?.isGuest !== false
+              // user가 없으면 게스트 사용자로 판단
+              isGuest = !parsed.state?.user
             } catch (e) {
               console.error('Auth 데이터 파싱 실패:', e)
             }
@@ -174,6 +187,7 @@ export const useChatStore = create<ChatState>()(
               }
             } else {
               console.log('📭 게스트 SessionStorage에 데이터 없음')
+              // 세션 스토리지가 안정적으로 유지되므로 백업 복구 로직 제거
             }
           }
         }

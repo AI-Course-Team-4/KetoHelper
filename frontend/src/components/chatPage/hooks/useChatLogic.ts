@@ -18,6 +18,8 @@ export function useChatLogic() {
   const [selectedPlaceIndexByMsg, setSelectedPlaceIndexByMsg] = useState<Record<string, number | null>>({})
   const [isLoadingThread, setIsLoadingThread] = useState(false)
   const [isThread, setIsThread] = useState(false)
+  // 직전 로그인 상태 추적 (실제 로그아웃 전환만 감지하기 위함)
+  const prevIsLoggedInRef = useRef<boolean>(false)
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -104,22 +106,13 @@ export function useChatLogic() {
   // hasStartedChatting 제거 - 채팅 기록이 있으면 DB에서 조회되므로 불필요
 
   // 게스트 사용자 브라우저 탭 닫을 때만 채팅 데이터 삭제
+  // SPA 라우팅 문제로 인해 완전히 비활성화
   useEffect(() => {
     if (!isLoggedIn) {
-      const handleBeforeUnload = () => {
-        console.log('🚪 게스트 사용자 브라우저 탭 닫기 - 채팅 데이터 삭제')
-        clearMessages()
-        // SessionStorage도 삭제
-        if (typeof window !== 'undefined') {
-          sessionStorage.removeItem('keto-coach-chat-guest')
-        }
-      }
-
-      window.addEventListener('beforeunload', handleBeforeUnload)
+      console.log('🎭 게스트 사용자 - 탭 닫기 감지 완전 비활성화 (SPA 라우팅 문제 해결)')
       
-      return () => {
-        window.removeEventListener('beforeunload', handleBeforeUnload)
-      }
+      // beforeunload 이벤트를 완전히 제거하여 SPA 라우팅에서 세션 스토리지가 사라지는 문제 해결
+      // 실제 탭 닫기는 브라우저가 자동으로 세션 스토리지를 정리하므로 수동으로 할 필요 없음
     }
   }, [isLoggedIn, clearMessages])
 
@@ -170,6 +163,8 @@ export function useChatLogic() {
 
   // 로그인 상태 변화 감지
   useEffect(() => {
+    console.log('🔍 로그인 상태 체크:', { user: !!user, isGuest, isLoggedIn })
+    
     if (user && !isGuest) {
       console.log('🔐 로그인 감지 - 채팅 데이터 초기화')
       clearMessages()
@@ -177,13 +172,15 @@ export function useChatLogic() {
       refetchThreads()
       setSelectedPlaceIndexByMsg({})
       
-      // 게스트 사용자 SessionStorage 데이터 정리
-      if (typeof window !== 'undefined') {
+      // 게스트 사용자 SessionStorage 데이터 정리 (실제 로그인 시에만)
+      if (typeof window !== 'undefined' && user.id) {
         sessionStorage.removeItem('keto-coach-chat-guest')
         console.log('🗑️ 게스트 사용자 SessionStorage 데이터 정리 완료')
       }
       
       console.log('✅ 로그인 후 채팅 데이터 초기화 완료')
+    } else {
+      console.log('🎭 게스트 사용자 상태 유지 또는 로그인 아님')
     }
   }, [user, isGuest, clearMessages, refetchThreads])
 
@@ -204,15 +201,15 @@ export function useChatLogic() {
       return
     }
     
-    // 스레드가 변경되었을 때만 로딩 시작 (null로 변경되는 경우는 제외)
+    // 스레드가 변경되었을 때 로딩 시작
     if (currentThreadId) {
       setIsLoadingThread(true)
-      // 로딩 완료
-      setIsLoadingThread(false)
-    } else {
-      // 스레드가 null인 경우 로딩 상태 해제
-      setIsLoadingThread(false)
     }
+    
+    // 로그인한 사용자는 DB 메시지만 사용하므로 로컬 동기화 불필요
+    
+    // 로딩 완료
+    setIsLoadingThread(false)
   }, [currentThreadId, chatHistory, isLoggedIn])
 
   // 로그인한 사용자의 경우 메시지 동기화는 첫 번째 useEffect에서 처리
@@ -232,14 +229,16 @@ export function useChatLogic() {
     }
   }, [currentThreadId, isLoggedIn])
 
-  // 로그아웃 시 채팅 초기화 (게스트 사용자는 제외)
+  // 실제 로그인 → 로그아웃 전환에서만 초기화 (게스트에는 영향 없음)
   useEffect(() => {
-    if (!isLoggedIn && !isGuest) {
-      // 로그인 사용자가 로그아웃한 경우만 초기화
+    const wasLoggedIn = prevIsLoggedInRef.current
+    if (wasLoggedIn && !isLoggedIn) {
+      console.log('🔻 실제 로그아웃 전환 감지 - 채팅 초기화 진행')
       clearMessages()
       setCurrentThreadId(null)
     }
-  }, [isLoggedIn, isGuest, clearMessages, setCurrentThreadId])
+    prevIsLoggedInRef.current = isLoggedIn
+  }, [isLoggedIn, clearMessages])
 
   // 메시지 변경 시 자동 스크롤
   useEffect(() => {
