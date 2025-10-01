@@ -51,17 +51,21 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           </BrowserRouter>
         </QueryClientProvider>
       </GoogleOAuthProvider>
-      {/* 새로고침 후 1회성 세션 만료 토스트 처리 */}
+      {/* 새로고침 후 1회성 세션 만료 토스트 처리 (수동 로그아웃/게스트일 때는 표시 X) */}
       {(() => {
         try {
           const flag = sessionStorage.getItem('session-expired')
-          if (flag) {
+          const manual = (window as any)?.isManualLogout === true
+          const hasLoginSession = sessionStorage.getItem('has-login-session') === '1'
+          if (flag && !manual && hasLoginSession) {
             sessionStorage.removeItem('session-expired')
-            // 지연하여 렌더 안정화 후 토스트 표시
             setTimeout(async () => {
               const { commonToasts } = await import('@/lib/toast')
               commonToasts.sessionExpired()
             }, 50)
+          } else if (flag) {
+            // 수동 로그아웃 또는 세션 없음이면 플래그만 제거하고 무시
+            sessionStorage.removeItem('session-expired')
           }
         } catch {}
         return null

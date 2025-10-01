@@ -24,7 +24,7 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const { user, setAuth, clear } = useAuthStore()
+  const { user, setAuth, clear, ensureGuestId } = useAuthStore()
   const [loading, setLoading] = useState(true)
   const [isInitialized, setIsInitialized] = useState(false)
   
@@ -35,6 +35,37 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const initializeAuth = async () => {
       try {
         console.log('🚀 AuthProvider 초기화 시작...')
+        
+        // 게스트 사용자인지 확인 (isGuest 상태 확인)
+        const authData = localStorage.getItem('keto-auth')
+        let isGuest = true
+        
+        if (authData) {
+          try {
+            const parsed = JSON.parse(authData)
+            isGuest = parsed.state?.isGuest !== false
+          } catch (e) {
+            console.error('Auth 데이터 파싱 실패:', e)
+            isGuest = true
+          }
+        } else {
+          // localStorage에 auth 데이터가 없으면 게스트 사용자
+          console.log('🔍 localStorage에 auth 데이터 없음 - 게스트 사용자로 설정')
+          isGuest = true
+        }
+        
+        if (isGuest) {
+          console.log('🕊️ 게스트 사용자 - 토큰 검증 스킵')
+          // 게스트 사용자 ID 보장
+          const guestId = ensureGuestId()
+          console.log('🎭 게스트 사용자 ID 보장:', guestId)
+          
+          // 게스트 상태를 강제로 설정 (ensureGuestId가 이미 isGuest: true로 설정함)
+          console.log('🔍 게스트 상태 설정 완료')
+          return
+        }
+        
+        console.log('🔍 AuthContext: 로그인 사용자 - 토큰 검증 진행')
         
         const result = await authService.validateAndRefreshTokens()
         console.log('🔍 validateAndRefreshTokens 결과:', result)

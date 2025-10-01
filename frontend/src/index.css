@@ -3,6 +3,10 @@
 @tailwind utilities;
 
 /* CSS 변수 정의 */
+/* === chat layout base === */
+html, body, #root { height: 100%; }
+* { box-sizing: border-box; }
+
 @layer base {
   :root {
     --background: 0 0% 100%;
