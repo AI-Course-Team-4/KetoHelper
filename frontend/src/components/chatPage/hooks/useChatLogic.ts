@@ -161,6 +161,8 @@ export function useChatLogic() {
 
   // 로그인 상태 변화 감지
   useEffect(() => {
+    console.log('🔍 로그인 상태 체크:', { user: !!user, isGuest, isLoggedIn })
+    
     if (user && !isGuest) {
       console.log('🔐 로그인 감지 - 채팅 데이터 초기화')
       clearMessages()
@@ -168,13 +170,15 @@ export function useChatLogic() {
       refetchThreads()
       setSelectedPlaceIndexByMsg({})
       
-      // 게스트 사용자 SessionStorage 데이터 정리
-      if (typeof window !== 'undefined') {
+      // 게스트 사용자 SessionStorage 데이터 정리 (실제 로그인 시에만)
+      if (typeof window !== 'undefined' && user.id) {
         sessionStorage.removeItem('keto-coach-chat-guest')
         console.log('🗑️ 게스트 사용자 SessionStorage 데이터 정리 완료')
       }
       
       console.log('✅ 로그인 후 채팅 데이터 초기화 완료')
+    } else {
+      console.log('🎭 게스트 사용자 상태 유지 또는 로그인 아님')
     }
   }, [user, isGuest, clearMessages, refetchThreads])
 
