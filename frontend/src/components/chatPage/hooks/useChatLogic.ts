@@ -104,22 +104,13 @@ export function useChatLogic() {
   // hasStartedChatting 제거 - 채팅 기록이 있으면 DB에서 조회되므로 불필요
 
   // 게스트 사용자 브라우저 탭 닫을 때만 채팅 데이터 삭제
+  // SPA 라우팅 문제로 인해 완전히 비활성화
   useEffect(() => {
     if (!isLoggedIn) {
-      const handleBeforeUnload = () => {
-        console.log('🚪 게스트 사용자 브라우저 탭 닫기 - 채팅 데이터 삭제')
-        clearMessages()
-        // SessionStorage도 삭제
-        if (typeof window !== 'undefined') {
-          sessionStorage.removeItem('keto-coach-chat-guest')
-        }
-      }
-
-      window.addEventListener('beforeunload', handleBeforeUnload)
+      console.log('🎭 게스트 사용자 - 탭 닫기 감지 완전 비활성화 (SPA 라우팅 문제 해결)')
       
-      return () => {
-        window.removeEventListener('beforeunload', handleBeforeUnload)
-      }
+      // beforeunload 이벤트를 완전히 제거하여 SPA 라우팅에서 세션 스토리지가 사라지는 문제 해결
+      // 실제 탭 닫기는 브라우저가 자동으로 세션 스토리지를 정리하므로 수동으로 할 필요 없음
     }
   }, [isLoggedIn, clearMessages])
 
@@ -170,6 +161,8 @@ export function useChatLogic() {
 
   // 로그인 상태 변화 감지
   useEffect(() => {
+    console.log('🔍 로그인 상태 체크:', { user: !!user, isGuest, isLoggedIn })
+    
     if (user && !isGuest) {
       console.log('🔐 로그인 감지 - 채팅 데이터 초기화')
       clearMessages()
@@ -177,13 +170,15 @@ export function useChatLogic() {
       refetchThreads()
       setSelectedPlaceIndexByMsg({})
       
-      // 게스트 사용자 SessionStorage 데이터 정리
-      if (typeof window !== 'undefined') {
+      // 게스트 사용자 SessionStorage 데이터 정리 (실제 로그인 시에만)
+      if (typeof window !== 'undefined' && user.id) {
         sessionStorage.removeItem('keto-coach-chat-guest')
         console.log('🗑️ 게스트 사용자 SessionStorage 데이터 정리 완료')
       }
       
       console.log('✅ 로그인 후 채팅 데이터 초기화 완료')
+    } else {
+      console.log('🎭 게스트 사용자 상태 유지 또는 로그인 아님')
     }
   }, [user, isGuest, clearMessages, refetchThreads])
 
