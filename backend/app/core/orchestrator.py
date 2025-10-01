@@ -103,7 +103,7 @@ class KetoCoachAgent:
         workflow.add_node("place_search", self._place_search_node)
         workflow.add_node("meal_plan", self._meal_plan_node)
         workflow.add_node("calendar_save", self._calendar_save_node)  # 새로 추가!
-        workflow.add_node("general_chat", self._general_chat_node)
+        workflow.add_node("general", self._general_chat_node)
         workflow.add_node("answer", self._answer_node)
         
         # 시작점 설정
@@ -114,20 +114,20 @@ class KetoCoachAgent:
             "router",
             self._route_condition,
             {
-                "recipe": "recipe_search",
-                "place": "place_search", 
-                "mealplan": "meal_plan",
-                "calendar_save": "calendar_save",  # 새로 추가!
-                "other": "general_chat"
+                "recipe_search": "recipe_search",  # 의도 분류기와 일치
+                "place_search": "place_search", 
+                "meal_plan": "meal_plan",
+                "calendar_save": "calendar_save",
+                "general": "general"
             }
         )
         
-        # 모든 노드에서 answer로 (general_chat은 직접 END로)
+        # 모든 노드에서 answer로 (general은 직접 END로)
         workflow.add_edge("recipe_search", "answer")
         workflow.add_edge("place_search", "answer")
         workflow.add_edge("meal_plan", "answer")
         workflow.add_edge("calendar_save", "answer")  # 새로 추가!
-        workflow.add_edge("general_chat", END)
+        workflow.add_edge("general", END)
         workflow.add_edge("answer", END)
         
         return workflow.compile()
@@ -165,10 +165,11 @@ class KetoCoachAgent:
         """IntentClassifier의 Intent enum을 orchestrator 라우팅 키로 변환
         
         IntentClassifier Intent -> Orchestrator Route 매핑:
-        - MEAL_PLANNING -> recipe 또는 mealplan (세분화 필요)
-        - PLACE_SEARCH -> place
-        - BOTH -> 우선순위에 따라 결정
-        - GENERAL -> other
+        - RECIPE_SEARCH -> recipe_search
+        - MEAL_PLAN -> meal_plan
+        - PLACE_SEARCH -> place_search
+        - CALENDAR_SAVE -> calendar_save
+        - GENERAL -> general
         """
         
         if intent_enum == Intent.MEAL_PLANNING:
@@ -220,7 +221,7 @@ class KetoCoachAgent:
             return "recipe"
         
         else:  # Intent.GENERAL
-            return "other"
+            return "general"
     
     async def _router_node(self, state: AgentState) -> AgentState:
         """의도 기반 라우팅 (신규 기능 + 하이브리드 IntentClassifier)"""
@@ -240,6 +241,8 @@ class KetoCoachAgent:
                 confidence = result["confidence"]
                 
                 print(f"🎯 의도 분류: {intent_value} (신뢰도: {confidence:.2f}, 방식: {result.get('method', 'unknown')})")
+                if result.get('reasoning'):
+                    print(f"💭 LLM 추론: {result['reasoning']}")
                 
                 # 캘린더 저장 요청 처리 (새로 추가!)
                 if intent_value == "calendar_save":
@@ -257,55 +260,28 @@ class KetoCoachAgent:
                     return state
                 
                 # 나머지 기존 로직...
-                if intent_value == "meal_planning":
-                    # 사용자 ID 추출
-                    user_id = state.get("profile", {}).get("user_id") if state.get("profile") else None
-                    
-                    # 개인화 키워드 확인
-                    if user_id and any(word in message.lower() for word in ["맞춤", "개인", "나한테", "내게", "나에게", "내 취향"]):
-                        state["intent"] = "mealplan"  # meal_plan_node로 라우팅
-                        state["use_personalized"] = True
-                        print("👤 개인화 식단 모드 활성화")
-                    else:
-                        # 기존 로직으로 mealplan vs recipe 구분
-                        mealplan_keywords = [
-                            "식단표", "식단 만들", "식단 생성", "식단 짜",
-                            "일주일", "하루치", "이틀치", "3일치", "사흘치",
-                            "주간", "일주일치", "메뉴 계획", "meal plan"
-                        ]
-                        
-                        recipe_keywords = [
-                            "레시피", "조리법", "만드는 법", "어떻게 만들",
-                            "요리 방법", "조리 방법", "recipe", "how to make"
-                        ]
-                        
-                        message_lower = message.lower()
-                        
-                        if any(keyword in message_lower for keyword in mealplan_keywords):
-                            state["intent"] = "mealplan"
-                            # fast_mode 동적 결정
-                            state["fast_mode"] = self._determine_fast_mode(message)
-                            print(f"🍽️ 식단표 모드 (fast_mode={state['fast_mode']})")
-                        elif any(keyword in message_lower for keyword in recipe_keywords):
-                            state["intent"] = "recipe"
-                            state["use_meal_planner_recipe"] = True  # MealPlannerAgent 사용 플래그
-                            print("🍳 레시피 모드 (MealPlannerAgent 사용)")
-                        else:
-                            # 기본값
-                            state["intent"] = "recipe"
-                            state["use_meal_planner_recipe"] = True
-                elif intent_value == "restaurant_search" or intent_value == "place_search":
-                    state["intent"] = "place"
+                if intent_value == "recipe_search":
+                    # recipe_search 의도는 레시피 검색으로 처리
+                    state["intent"] = "recipe_search"
+                    state["use_meal_planner_recipe"] = True
+                    print("🍳 레시피 모드 (recipe_search 의도)")
+                elif intent_value == "meal_plan":
+                    # meal_plan 의도는 식단표 생성으로 처리
+                    state["intent"] = "meal_plan"
+                    state["fast_mode"] = self._determine_fast_mode(message)
+                    print(f"🍽️ 식단표 모드 (meal_plan 의도, fast_mode={state['fast_mode']})")
+                elif intent_value == "place_search":
+                    state["intent"] = "place_search"
                     print(f"🏪 식당 검색 모드 활성화 (intent_value: {intent_value})")
                 elif intent_value == "both":
                     # 식당 키워드가 더 강하면 place, 아니면 recipe
                     place_keywords = ["식당", "맛집", "음식점", "카페", "레스토랑", "근처", "주변"]
                     if any(keyword in message for keyword in place_keywords):
-                        state["intent"] = "place"
+                        state["intent"] = "place_search"
                     else:
-                        state["intent"] = "recipe"
+                        state["intent"] = "recipe_search"
                 else:
-                    state["intent"] = "other"
+                    state["intent"] = "general"
                 
                 # 기존 로직에서 확신도 검증도 필요하다면 추가
                 if intent_value != "calendar_save" and confidence >= 0.8:
@@ -323,7 +299,7 @@ class KetoCoachAgent:
             except Exception as e:
                 print(f"IntentClassifier 오류, SimpleAgent로 폴백: {e}")
                 # 폴백 로직 - 기본 intent로 처리
-                state["intent"] = "other"
+                state["intent"] = "general"
             
         return state
     
@@ -348,8 +324,8 @@ class KetoCoachAgent:
             
             has_plan_request = any(re.search(pattern, message, re.IGNORECASE) for pattern in plan_patterns)
             if not has_plan_request:
-                print(f"    🔍 검증: mealplan이지만 구체적 요청 없음 → other로 변경")
-                return "other"
+                print(f"    🔍 검증: mealplan이지만 구체적 요청 없음 → general로 변경")
+                return "general"
         
         # recipe 의도인데 구체적인 요리 요청이 아닌 경우
         if initial_intent == "recipe":
@@ -360,8 +336,8 @@ class KetoCoachAgent:
             
             has_recipe_request = any(re.search(pattern, message, re.IGNORECASE) for pattern in recipe_patterns)
             if not has_recipe_request:
-                print(f"    🔍 검증: recipe이지만 구체적 요청 없음 → other로 변경")
-                return "other"
+                print(f"    🔍 검증: recipe이지만 구체적 요청 없음 → general로 변경")
+                return "general"
         
         # place 의도인데 구체적인 장소 검색 요청이 아닌 경우
         if initial_intent == "place":
@@ -372,8 +348,8 @@ class KetoCoachAgent:
             
             has_place_request = any(re.search(pattern, message, re.IGNORECASE) for pattern in place_patterns)
             if not has_place_request:
-                print(f"    🔍 검증: place이지만 구체적 요청 없음 → other로 변경")
-                return "other"
+                print(f"    🔍 검증: place이지만 구체적 요청 없음 → general로 변경")
+                return "general"
         
         return initial_intent
     
@@ -384,7 +360,11 @@ class KetoCoachAgent:
         intent = state["intent"]
         if state.get("calendar_save_request", False):
             return "calendar_save"
-        return intent
+        
+        # Intent Enum을 문자열로 변환
+        if hasattr(intent, 'value'):
+            return intent.value
+        return str(intent)
     
     async def _recipe_search_node(self, state: AgentState) -> AgentState:
         """레시피 검색 노드 - MealPlannerAgent 우선 사용"""
@@ -642,7 +622,7 @@ class KetoCoachAgent:
             state["response"] = response.content
             
             state["tool_calls"].append({
-                "tool": "general_chat",
+                "tool": "general",
                 "method": "context_aware",
                 "context_length": len(context_messages)
             })

@@ -30,7 +30,6 @@ export function ChatPage() {
     chatThreads,
     isLoggedIn,
     isLoadingHistory,
-    isThread,
     isSaving,
     setIsSaving,
     addMessage,
@@ -210,7 +209,7 @@ export function ChatPage() {
                 <p className="text-sm text-gray-500">잠시만 기다려주세요</p>
               </div>
             </div>
-          ) : !isThread && isLoggedIn ? (
+          ) : isLoggedIn && chatThreads.length === 0 ? (
             // 로그인 사용자만 스레드가 없을 때 빈 웰컴
             <EmptyWelcome
               onCreateNewChat={handleCreateNewChat}

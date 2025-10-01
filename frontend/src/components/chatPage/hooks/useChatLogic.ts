@@ -204,15 +204,15 @@ export function useChatLogic() {
       return
     }
     
-    // 스레드가 변경되었을 때만 로딩 시작 (null로 변경되는 경우는 제외)
+    // 스레드가 변경되었을 때 로딩 시작
     if (currentThreadId) {
       setIsLoadingThread(true)
-      // 로딩 완료
-      setIsLoadingThread(false)
-    } else {
-      // 스레드가 null인 경우 로딩 상태 해제
-      setIsLoadingThread(false)
     }
+    
+    // 로그인한 사용자는 DB 메시지만 사용하므로 로컬 동기화 불필요
+    
+    // 로딩 완료
+    setIsLoadingThread(false)
   }, [currentThreadId, chatHistory, isLoggedIn])
 
   // 로그인한 사용자의 경우 메시지 동기화는 첫 번째 useEffect에서 처리
