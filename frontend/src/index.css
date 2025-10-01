@@ -3,6 +3,10 @@
 @tailwind utilities;
 
 /* CSS 변수 정의 */
+/* === chat layout base === */
+html, body, #root { height: 100%; }
+* { box-sizing: border-box; }
+
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -147,11 +151,13 @@
   }
   
   .rdp-custom .rdp-table {
-    @apply w-full border-separate border-spacing-0 rounded-2xl overflow-hidden;
+    @apply border-separate border-spacing-0 overflow-hidden;
     background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
     border: 1px solid #e2e8f0;
-    width: 700px;
+    width: 835px;
     margin: 0 auto;
+    flex-shrink: 0;
+    border-radius: 0 !important;
   }
   
   .rdp-custom .rdp-head_cell {
@@ -159,41 +165,24 @@
     text-transform: uppercase;
     letter-spacing: 0.8px;
     font-weight: 600;
-    border-bottom: 2px solid #e2e8f0;
-    border-right: 1px solid #e2e8f0;
-    border-left: 1px solid #e2e8f0;
-    width: 100px;
+    border: none;
+    width: 105px;
   }
   
-  .rdp-custom .rdp-head_cell:first-child {
-    border-left: none;
-  }
-  
-  .rdp-custom .rdp-head_cell:last-child {
-    border-right: none;
-  }
   
   .rdp-custom .rdp-cell {
     @apply text-center relative p-1 bg-white;
-    border-right: 1px solid #e2e8f0;
-    border-bottom: 1px solid #e2e8f0;
-    border-left: 1px solid #e2e8f0;
+    border: none;
     vertical-align: top;
-    width: 100px;
+    width: 105px;
     height: 130px !important;
     overflow: hidden;
   }
   
-  .rdp-custom .rdp-cell:first-child {
-    border-left: none;
-  }
-  
-  .rdp-custom .rdp-cell:last-child {
-    border-right: none;
-  }
   
   .rdp-custom .rdp-day {
-    @apply w-full h-full flex flex-col items-center justify-start rounded-xl cursor-pointer transition-all duration-200 font-medium text-sm;
+    @apply w-full h-full flex flex-col items-center justify-start cursor-pointer transition-all duration-200 font-medium text-sm;
+    border-radius: 0 !important;
     @apply hover:bg-blue-50 hover:scale-105;
     font-weight: 500;
     background: linear-gradient(135deg, transparent 0%, rgba(59, 130, 246, 0.05) 100%);

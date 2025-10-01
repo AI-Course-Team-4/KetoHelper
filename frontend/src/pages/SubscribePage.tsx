@@ -2,32 +2,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { CalendarToday, BarChart, Favorite, Security } from '@mui/icons-material'
-import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useAuthStore } from '@/store/authStore'
-import { LoginModal } from '@/components/LoginModal'
-import { toast } from 'react-hot-toast'
 
 export function SubscribePage() {
-    const { user } = useAuthStore()
-    const [loginOpen, setLoginOpen] = useState(false)
-    const notifiedRef = useRef(false)
-    const navigate = useNavigate()
-
-    useEffect(() => {
-        // 로그인 성공 시: 모달 닫고 다음 비로그인 전환을 위해 플래그 초기화
-        if (user) {
-            notifiedRef.current = false
-            setLoginOpen(false)
-            return
-        }
-        // 비로그인 상태 진입 시: 안내 및 모달 오픈 (중복 방지)
-        if (!user && !notifiedRef.current) {
-            notifiedRef.current = true
-            toast.error('로그인해야 이용할 수 있는 기능입니다.')
-            setLoginOpen(true)
-        }
-    }, [user])
+    // const navigate = useNavigate()
 
     return (
         <div className="space-y-8">
@@ -166,24 +143,7 @@ export function SubscribePage() {
                 </CardContent>
             </Card>
 
-            <LoginModal 
-                open={loginOpen} 
-                onOpenChange={(open) => {
-                    // Close attempt while not logged in: re-check after a tick to avoid race with login success
-                    if (!open) {
-                        setLoginOpen(false)
-                        setTimeout(() => {
-                            const currentUser = (useAuthStore as any).getState?.().user
-                            if (!currentUser) {
-                                if (window.history.length > 1) navigate(-1)
-                                else navigate('/')
-                            }
-                        }, 50)
-                        return
-                    }
-                    setLoginOpen(true)
-                }} 
-            />
+            {/* 로그인 모달은 라우트 가드(RequireAuthModalRoute)에서만 제어합니다. */}
         </div>
     )
 }

@@ -10,7 +10,6 @@ from datetime import datetime, timedelta
 
 from app.shared.utils.calendar_utils import CalendarUtils
 from app.tools.shared.date_parser import DateParser
-from app.tools.calendar.calendar_conflict_handler import CalendarConflictHandler, ConflictAction
 from app.core.database import supabase
 
 
@@ -20,7 +19,6 @@ class CalendarSaver:
     def __init__(self):
         self.date_parser = DateParser()
         self.calendar_utils = CalendarUtils()
-        self.conflict_handler = CalendarConflictHandler()
 
     async def save_meal_plan_to_calendar(
         self,
@@ -39,6 +37,7 @@ class CalendarSaver:
                     "message": "🔒 캘린더에 저장하려면 로그인이 필요합니다. 로그인 후 다시 시도해주세요!"
                 }
             
+
             # 날짜 파싱
             parsed_date = self.date_parser.extract_date_from_message_with_context(message, chat_history)
 
@@ -172,10 +171,7 @@ class CalendarSaver:
                 return {
                     "success": False,
                     "message": save_result["message"],
-                    "save_data": save_data,  # 프론트엔드에서 처리할 수 있도록
-                    "has_conflict": save_result.get("has_conflict", False),
-                    "conflict_info": save_result.get("conflict_info"),
-                    "pending_meal_logs": save_result.get("pending_meal_logs")
+                    "save_data": save_data
                 }
 
         except Exception as e:
@@ -209,7 +205,7 @@ class CalendarSaver:
         return None
 
     async def _save_to_supabase(self, state: Dict[str, Any], save_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Supabase에 실제 저장 수행 (충돌 처리 포함)"""
+        """Supabase에 실제 저장 수행 (기존 데이터 자동 덮어쓰기)"""
 
         try:
             # user_id 가져오기
@@ -236,61 +232,30 @@ class CalendarSaver:
             
             print(f"🔍 DEBUG: 생성된 meal_logs 개수: {len(meal_logs_to_create)}")
 
-            # 저장 직전에 충돌 체크 - 동시 저장만 방지하고 올바른 충돌 감지
-            conflict_info = await self.conflict_handler.check_existing_data(
-                user_id, start_date, duration_days, exclude_recent_minutes=1  # 30초 제외로 동시 저장만 방지
-            )
+            # 충돌 체크 없이 바로 저장 (upsert로 자동 덮어쓰기)
+            if meal_logs_to_create:
+                print(f"🔍 DEBUG: Supabase에 {len(meal_logs_to_create)}개 데이터 저장 시도 (덮어쓰기)")
+                result = supabase.table('meal_log').upsert(
+                    meal_logs_to_create,
+                    on_conflict='user_id,date,meal_type'
+                ).execute()
+                print(f"🔍 DEBUG: Supabase 저장 결과: {result}")
 
-            print(f"🔍 충돌 체크 결과: has_conflict={conflict_info.get('has_conflict', False)}")
-            print(f"🔍 충돌 세부정보: {conflict_info}")
-
-            # 충돌이 실제로 없는 경우에만 저장 진행
-            has_actual_conflict = (
-                conflict_info.get('has_conflict', False) and
-                conflict_info.get('total_conflicts', 0) > 0
-            )
-
-            if has_actual_conflict:
-                # 실제 충돌 있음 - 사용자에게 처리 방식 문의
-                print(f"🔍 실제 충돌 감지됨 - 사용자에게 문의")
-                conflict_message = self.conflict_handler.generate_conflict_message(
-                    conflict_info, start_date, duration_days
-                )
-
-                return {
-                    "success": False,
-                    "message": conflict_message,
-                    "has_conflict": True,
-                    "conflict_info": conflict_info,
-                    "pending_meal_logs": meal_logs_to_create,
-                    "save_data": save_data
-                }
-            else:
-                # 충돌 없음 - 바로 저장
-                print(f"🔍 충돌 없음 - 바로 저장 진행")
-                if meal_logs_to_create:
-                    print(f"🔍 DEBUG: Supabase에 {len(meal_logs_to_create)}개 데이터 저장 시도")
-                    result = supabase.table('meal_log').upsert(
-                        meal_logs_to_create,
-                        on_conflict='user_id,date,meal_type'
-                    ).execute()
-                    print(f"🔍 DEBUG: Supabase 저장 결과: {result}")
-
-                    if result.data:
-                        return {
-                            "success": True,
-                            "message": "캘린더에 성공적으로 저장되었습니다!"
-                        }
-                    else:
-                        return {
-                            "success": False,
-                            "message": "저장 중 오류가 발생했습니다. 다시 시도해주세요."
-                        }
+                if result.data:
+                    return {
+                        "success": True,
+                        "message": "캘린더에 성공적으로 저장되었습니다!"
+                    }
                 else:
                     return {
                         "success": False,
-                        "message": "저장할 식단 데이터를 찾을 수 없습니다."
+                        "message": "저장 중 오류가 발생했습니다. 다시 시도해주세요."
                     }
+            else:
+                return {
+                    "success": False,
+                    "message": "저장할 식단 데이터를 찾을 수 없습니다."
+                }
 
         except Exception as save_error:
             print(f"❌ Supabase 저장 중 오류 발생: {save_error}")
@@ -349,45 +314,4 @@ class CalendarSaver:
             return {
                 "success": False,
                 "message": "식당 캘린더 저장 중 오류가 발생했습니다."
-            }
-
-    async def handle_conflict_resolution(
-        self,
-        state: Dict[str, Any],
-        user_message: str,
-        conflict_info: Dict[str, Any],
-        pending_meal_logs: List[Dict[str, Any]],
-        save_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """충돌 해결 처리 (사용자 응답에 따른)"""
-
-        try:
-            # 사용자 메시지에서 처리 방식 파악
-            action = self.conflict_handler.parse_user_action(user_message)
-
-            # user_id 가져오기
-            user_id = self.calendar_utils.get_user_id_from_state(state)
-            if not user_id:
-                return {
-                    "success": False,
-                    "message": "사용자 정보를 찾을 수 없습니다."
-                }
-
-            # 날짜 파싱
-            start_date = datetime.fromisoformat(save_data["start_date"])
-            duration_days = save_data["duration_days"]
-
-            # 충돌 처리 실행
-            result = await self.conflict_handler.handle_conflict(
-                action, user_id, start_date, duration_days,
-                pending_meal_logs, conflict_info
-            )
-
-            return result
-
-        except Exception as e:
-            print(f"❌ 충돌 해결 처리 중 오류: {e}")
-            return {
-                "success": False,
-                "message": "충돌 해결 처리 중 오류가 발생했습니다. 다시 시도해주세요."
             }

@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Edit, CalendarToday, AccessTime, Restaurant, GpsFixed } from '@mui/icons-material'
+import { Edit, CalendarToday, AccessTime, Restaurant, GpsFixed, Delete } from '@mui/icons-material'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { MealData } from '@/data/ketoMeals'
@@ -17,6 +17,8 @@ interface DateDetailModalProps {
   onSaveMeal: (date: Date, mealData: MealData) => void
   onToggleComplete?: (date: Date, mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack') => void
   isMealChecked?: (date: Date, mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack') => boolean
+  onDeleteMeal?: (date: Date, mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack') => void
+  onDeleteAllMeals?: (date: Date) => void
 }
 
 export function DateDetailModal({ 
@@ -26,7 +28,9 @@ export function DateDetailModal({
   mealData, 
   onSaveMeal,
   onToggleComplete,
-  isMealChecked
+  isMealChecked,
+  onDeleteMeal,
+  onDeleteAllMeals
 }: DateDetailModalProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editedMealData, setEditedMealData] = useState<MealData>({
@@ -131,14 +135,31 @@ export function DateDetailModal({
                 <Restaurant sx={{ fontSize: 20 }} />
                 식단 계획
               </CardTitle>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setIsEditing(!isEditing)}
-              >
-                <Edit className="h-4 w-4 mr-2" />
-                {isEditing ? '취소' : '편집'}
-              </Button>
+              <div className="flex items-center gap-2">
+                {onDeleteAllMeals && mealData && Object.values(mealData).some(meal => meal && meal.trim() !== '') && !isEditing && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => {
+                      if (confirm('이 날의 모든 식단을 삭제하시겠습니까?')) {
+                        onDeleteAllMeals(selectedDate)
+                      }
+                    }}
+                    className="border-red-300 text-red-600 hover:bg-red-50"
+                  >
+                    <Delete className="h-4 w-4 mr-2" />
+                    전체 삭제
+                  </Button>
+                )}
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setIsEditing(!isEditing)}
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  {isEditing ? '취소' : '편집'}
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               {meals.map((meal) => {
@@ -207,6 +228,19 @@ export function DateDetailModal({
                                 <span className="text-gray-400 text-lg">⭕</span>
                               )}
                             </div>
+                            {onDeleteMeal && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  onDeleteMeal(selectedDate, meal.key as 'breakfast' | 'lunch' | 'dinner' | 'snack')
+                                }}
+                                className="h-6 w-6 p-0 border-red-300 text-red-600 hover:bg-red-50"
+                              >
+                                <Delete sx={{ fontSize: 14 }} />
+                              </Button>
+                            )}
                             <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
                               클릭해서 상세보기
                             </div>

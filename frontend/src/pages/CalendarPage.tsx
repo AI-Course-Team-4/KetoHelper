@@ -9,13 +9,15 @@ import 'react-day-picker/dist/style.css'
 import { MealData, generateRandomMeal } from '@/data/ketoMeals'
 import { MealModal } from '@/components/MealModal'
 import { DateDetailModal } from '@/components/DateDetailModal'
-import { usePlansRange } from '@/hooks/useApi'
+import { usePlansRange, useCreatePlan, useGenerateMealPlan, useUpdatePlan, useDeletePlan } from '@/hooks/useApi'
 import { useAuthStore } from '@/store/authStore'
+// import { useProfileStore } from '@/store/profileStore' // 개인화된 엔드포인트에서 자동 처리
+import { useQueryClient } from '@tanstack/react-query'
 
 // 컴포넌트 상단에 추가
 const getMealText = (mealData: MealData | null, mealType: string): string => {
   if (!mealData) return '';
-  
+
   switch (mealType) {
     case 'breakfast':
       return mealData.breakfast || '';
@@ -30,14 +32,32 @@ const getMealText = (mealData: MealData | null, mealType: string): string => {
   }
 };
 
+// 백엔드 응답에서 식사 제목을 안전하게 추출하는 헬퍼 함수
+const extractMealTitle = (mealData: any): string => {
+  if (!mealData) return ''
+  
+  if (typeof mealData === 'string') {
+    return mealData
+  }
+  
+  if (typeof mealData === 'object' && mealData !== null) {
+    // 백엔드 응답 형식: {title: "...", type: "simple"}
+    return mealData.title || mealData.content || mealData.name || ''
+  }
+  
+  return ''
+}
+
 export function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [mealData, setMealData] = useState<Record<string, MealData>>({})
+  const [planIds, setPlanIds] = useState<Record<string, Record<string, string>>>({}) // {dateKey: {breakfast: planId, lunch: planId, ...}}
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedMealType, setSelectedMealType] = useState<string | null>(null)
   const [isDateDetailModalOpen, setIsDateDetailModalOpen] = useState(false)
   const [clickedDate, setClickedDate] = useState<Date | null>(null)
+  const [selectedDays, setSelectedDays] = useState(7) // 기본 7일
   // 체크 상태만을 위한 로컬 state (UI용)
   const [mealCheckState, setMealCheckState] = useState<Record<string, {
     breakfastCompleted?: boolean
@@ -48,11 +68,18 @@ export function CalendarPage() {
 
   // 사용자 인증 정보
   const { user } = useAuthStore()
-  
+  // const { profile } = useProfileStore() // 개인화된 엔드포인트가 백엔드에서 자동으로 프로필 적용
+  const createPlan = useCreatePlan()
+  const generateMealPlan = useGenerateMealPlan()
+  const updatePlan = useUpdatePlan()
+  const deletePlan = useDeletePlan()
+  const queryClient = useQueryClient()
+  const [isGeneratingMealPlan, setIsGeneratingMealPlan] = useState(false)
+
   // 현재 월의 시작일과 종료일 계산
   const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1)
   const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0)
-  
+
   // API로 실제 데이터 가져오기
   const { data: plansData, isLoading, error } = usePlansRange(
     format(startOfMonth, 'yyyy-MM-dd'),
@@ -64,60 +91,94 @@ export function CalendarPage() {
   useEffect(() => {
     if (plansData && user?.id) {
       console.log('📅 API에서 식단 데이터 로드:', plansData)
-      
+
       const convertedData: Record<string, MealData> = {}
-      
+      const convertedPlanIds: Record<string, Record<string, string>> = {}
+
       plansData.forEach((plan: any) => {
-        const dateKey = formatDateKey(new Date(plan.date))
-        
-        if (!convertedData[dateKey]) {
-          convertedData[dateKey] = {
-            breakfast: '',
-            lunch: '',
-            dinner: '',
-            snack: ''
-          }
+        // 날짜 유효성 검사
+        if (!plan.date || !plan.id || !plan.slot) {
+          console.warn('⚠️ 유효하지 않은 plan 데이터:', plan)
+          return
         }
-        
-        // 슬롯에 맞는 식단 데이터 설정
-        if (plan.slot === 'breakfast') {
-          convertedData[dateKey].breakfast = plan.title
-          convertedData[dateKey].breakfastCompleted = plan.status === 'done'
-        } else if (plan.slot === 'lunch') {
-          convertedData[dateKey].lunch = plan.title
-          convertedData[dateKey].lunchCompleted = plan.status === 'done'
-        } else if (plan.slot === 'dinner') {
-          convertedData[dateKey].dinner = plan.title
-          convertedData[dateKey].dinnerCompleted = plan.status === 'done'
-        } else if (plan.slot === 'snack') {
-          convertedData[dateKey].snack = plan.title
-          convertedData[dateKey].snackCompleted = plan.status === 'done'
+
+        try {
+          const planDate = new Date(plan.date)
+          if (isNaN(planDate.getTime())) {
+            console.warn('⚠️ 유효하지 않은 날짜:', plan.date)
+            return
+          }
+
+          const dateKey = formatDateKey(planDate)
+
+          if (!convertedData[dateKey]) {
+            convertedData[dateKey] = {
+              breakfast: '',
+              lunch: '',
+              dinner: '',
+              snack: ''
+            }
+          }
+
+          if (!convertedPlanIds[dateKey]) {
+            convertedPlanIds[dateKey] = {}
+          }
+          // 슬롯에 맞는 식단 데이터 설정
+          if (plan.slot === 'breakfast') {
+            convertedData[dateKey].breakfast = plan.title || plan.notes || ''
+            convertedData[dateKey].breakfastCompleted = plan.status === 'done'
+            convertedPlanIds[dateKey].breakfast = plan.id
+          } else if (plan.slot === 'lunch') {
+            convertedData[dateKey].lunch = plan.title || plan.notes || ''
+            convertedData[dateKey].lunchCompleted = plan.status === 'done'
+            convertedPlanIds[dateKey].lunch = plan.id
+          } else if (plan.slot === 'dinner') {
+            convertedData[dateKey].dinner = plan.title || plan.notes || ''
+            convertedData[dateKey].dinnerCompleted = plan.status === 'done'
+            convertedPlanIds[dateKey].dinner = plan.id
+          } else if (plan.slot === 'snack') {
+            convertedData[dateKey].snack = plan.title || plan.notes || ''
+            convertedData[dateKey].snackCompleted = plan.status === 'done'
+            convertedPlanIds[dateKey].snack = plan.id
+          } else {
+            console.warn('⚠️ 알 수 없는 slot 타입:', plan.slot)
+          }
+        } catch (error) {
+          console.error('❌ 날짜 변환 오류:', error, plan)
+          return
         }
       })
-      
+
       setMealData(convertedData)
+      setPlanIds(convertedPlanIds)
       console.log('✅ API 데이터 변환 완료:', convertedData)
+      console.log('✅ Plan IDs 저장 완료:', convertedPlanIds)
     } else if (!user?.id) {
       // 사용자가 로그인하지 않은 경우 샘플 데이터 사용
+      console.log('👤 비로그인 사용자 - 샘플 데이터 로드')
       loadSampleMealData(currentMonth)
+    } else if (user?.id && !isLoading && !plansData) {
+      // 로그인했지만 데이터가 없는 경우
+      console.log('📭 로그인 사용자이지만 식단 데이터 없음')
+      setMealData({})
     }
-  }, [plansData, user?.id, currentMonth])
+  }, [plansData, user?.id, currentMonth, isLoading])
 
   // 샘플 데이터 생성 (UI 테스트용)
   const loadSampleMealData = (month: Date) => {
     console.log('🎨 샘플 데이터 로드 (UI 테스트용)')
-    
+
     // 간단한 샘플 데이터 생성
     const sampleData: Record<string, MealData> = {}
-    
+
     // 현재 월의 몇 개 날짜에 샘플 식단 추가
     for (let day = 1; day <= 10; day++) {
       const sampleDate = new Date(month.getFullYear(), month.getMonth(), day)
       const dateKey = formatDateKey(sampleDate)
-      
+
       sampleData[dateKey] = generateRandomMeal()
     }
-    
+
     setMealData(sampleData)
     console.log('✅ 샘플 데이터 로드 완료')
   }
@@ -136,33 +197,147 @@ export function CalendarPage() {
     setCurrentMonth(month)
   }
 
-  // 식단 생성 버튼 클릭 핸들러
-  const handleGenerateMealPlan = () => {
-    const newMealData = { ...mealData }
-    
-    // 현재 월의 모든 날짜에 랜덤 식단 생성
-    const year = currentMonth.getFullYear()
-    const month = currentMonth.getMonth()
-    const daysInMonth = new Date(year, month + 1, 0).getDate()
-    
-    for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(year, month, day)
-      const dateString = format(date, 'yyyy-MM-dd')
-      
-      // 모든 날짜에 식단 생성
-      newMealData[dateString] = generateRandomMeal()
+  // AI 식단표 생성 버튼 클릭 핸들러
+  const handleGenerateMealPlan = async () => {
+    if (!user?.id) {
+      alert('로그인이 필요합니다.')
+      return
     }
-    
-    setMealData(newMealData)
+
+    setIsGeneratingMealPlan(true)
+
+    try {
+      console.log('🤖 AI 식단표 생성 시작...')
+
+      // AI 식단 생성 API 호출 (개인화된 엔드포인트 사용 - 프로필 자동 적용)
+      const mealPlanData = await generateMealPlan.mutateAsync({
+        user_id: user.id,
+        days: selectedDays
+      })
+
+      console.log('✅ AI 식단표 생성 완료:', mealPlanData)
+
+      // 백엔드 응답을 프론트엔드 형식으로 변환
+      let convertedMealPlan: Record<string, MealData> = {}
+      
+      try {
+        if (mealPlanData.days && Array.isArray(mealPlanData.days)) {
+          // 백엔드에서 받은 days 배열을 날짜 키 형식으로 변환
+          const startDate = new Date()
+          
+          mealPlanData.days.forEach((dayMeals: any, index: number) => {
+            try {
+              const currentDate = new Date(startDate)
+              currentDate.setDate(startDate.getDate() + index)
+              
+              // 날짜 유효성 검사
+              if (isNaN(currentDate.getTime())) {
+                console.warn(`⚠️ 유효하지 않은 날짜 (인덱스 ${index}):`, currentDate)
+                return
+              }
+              
+              const dateString = format(currentDate, 'yyyy-MM-dd')
+              
+              // 백엔드 응답을 프론트엔드 MealData 형식으로 변환
+              convertedMealPlan[dateString] = {
+                breakfast: extractMealTitle(dayMeals.breakfast) || '아침 메뉴',
+                lunch: extractMealTitle(dayMeals.lunch) || '점심 메뉴',
+                dinner: extractMealTitle(dayMeals.dinner) || '저녁 메뉴',
+                snack: extractMealTitle(dayMeals.snack) || '간식'
+              }
+            } catch (dayError) {
+              console.error(`❌ ${index}일차 데이터 변환 오류:`, dayError, dayMeals)
+            }
+          })
+          
+          console.log(`✅ ${Object.keys(convertedMealPlan).length}일치 식단표 변환 완료`)
+        } else {
+          // 폴백: 기존 형식 그대로 사용 (날짜 키가 있는 객체)
+          if (typeof mealPlanData === 'object' && mealPlanData !== null) {
+            convertedMealPlan = mealPlanData as Record<string, MealData>
+            console.log('📝 기존 형식 사용 (날짜 키 객체)')
+          } else {
+            console.warn('⚠️ 예상치 못한 데이터 형식:', mealPlanData)
+            throw new Error('식단 데이터 형식이 올바르지 않습니다.')
+          }
+        }
+      } catch (conversionError) {
+        console.error('❌ 식단표 변환 중 오류:', conversionError)
+        throw new Error('식단표 데이터 변환에 실패했습니다.')
+      }
+
+      console.log('🔄 변환된 식단표:', convertedMealPlan)
+
+      // AI 식단표 생성 완료 후 자동으로 캘린더에 저장
+      await handleAutoSaveMealPlan(convertedMealPlan)
+
+    } catch (error) {
+      console.error('❌ AI 식단표 생성 실패:', error)
+
+      // 사용자에게 오류 메시지 표시
+      const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.'
+      alert(`AI 식단표 생성에 실패했습니다.\n${errorMessage}\n\n기본 식단으로 대체합니다.`)
+
+      // 폴백: 로컬 랜덤 식단 생성
+      console.log('📝 폴백: 로컬 랜덤 식단 생성')
+      const newMealData: Record<string, MealData> = {}
+
+      try {
+        // 선택된 일수만큼 랜덤 식단 생성
+        for (let day = 0; day < selectedDays; day++) {
+          const currentDate = new Date()
+          if (isNaN(currentDate.getTime())) {
+            console.error('❌ 현재 날짜가 유효하지 않습니다.')
+            break
+          }
+
+          currentDate.setDate(currentDate.getDate() + day)
+          const dateString = format(currentDate, 'yyyy-MM-dd')
+
+          // 선택된 일수만큼 식단 생성
+          newMealData[dateString] = generateRandomMeal()
+        }
+
+        if (Object.keys(newMealData).length > 0) {
+          // 폴백 식단도 자동 저장
+          await handleAutoSaveMealPlan(newMealData)
+        } else {
+          console.error('❌ 폴백 식단 생성 실패')
+          alert('식단 생성에 완전히 실패했습니다. 다시 시도해주세요.')
+        }
+      } catch (fallbackError) {
+        console.error('❌ 폴백 식단 생성 중 오류:', fallbackError)
+        alert('기본 식단 생성도 실패했습니다. 잠시 후 다시 시도해주세요.')
+      }
+
+    } finally {
+      setIsGeneratingMealPlan(false)
+    }
   }
 
   // 날짜 문자열로 변환하는 헬퍼 함수
-  const formatDateKey = (date: Date) => format(date, 'yyyy-MM-dd')
+  const formatDateKey = (date: Date) => {
+    try {
+      if (!date || isNaN(date.getTime())) {
+        console.warn('⚠️ 유효하지 않은 날짜:', date)
+        return format(new Date(), 'yyyy-MM-dd') // 기본값으로 오늘 날짜 사용
+      }
+      return format(date, 'yyyy-MM-dd')
+    } catch (error) {
+      console.error('❌ 날짜 포맷 변환 오류:', error, date)
+      return format(new Date(), 'yyyy-MM-dd') // 오류 시 오늘 날짜 반환
+    }
+  }
 
   // 특정 날짜의 식단 정보 가져오기
   const getMealForDate = (date: Date) => {
-    const dateKey = formatDateKey(date)
-    return mealData[dateKey] || null
+    try {
+      const dateKey = formatDateKey(date)
+      return mealData[dateKey] || null
+    } catch (error) {
+      console.error('❌ 식단 정보 조회 오류:', error, date)
+      return null
+    }
   }
 
   // 모달 열기 핸들러
@@ -183,54 +358,286 @@ export function CalendarPage() {
     setClickedDate(null)
   }
 
+
+  // AI 식단표 자동 저장 함수
+  const handleAutoSaveMealPlan = async (mealPlanData: Record<string, MealData>) => {
+    if (!user?.id) {
+      console.error('❌ 사용자 ID가 없습니다.')
+      return
+    }
+
+    // 저장 중 상태는 로컬 변수로 관리
+    
+    try {
+      console.log('💾 AI 식단표 자동 저장 시작...')
+      
+      let successCount = 0
+      const totalDays = Object.keys(mealPlanData).length
+      const savedDays: string[] = []
+
+      // 각 날짜별로 식단 저장
+      for (const [dateString, dayMeals] of Object.entries(mealPlanData)) {
+        try {
+          // 각 식사 시간대별로 개별 plan 생성
+          const mealSlots = ['breakfast', 'lunch', 'dinner', 'snack'] as const
+          let daySuccessCount = 0
+
+          for (const slot of mealSlots) {
+            const mealContent = dayMeals[slot]
+            if (mealContent && mealContent.trim()) {
+              try {
+                const planData = {
+                  user_id: user.id,
+                  date: dateString,
+                  slot: slot,
+                  type: 'recipe' as const,
+                  ref_id: '',
+                  title: mealContent.trim(),
+                  location: undefined,
+                  macros: undefined,
+                  notes: undefined
+                }
+
+                const result = await createPlan.mutateAsync(planData)
+                if (result) {
+                  daySuccessCount++
+                  console.log(`✅ ${dateString} ${slot} 저장 완료`)
+                }
+              } catch (slotError) {
+                console.error(`❌ ${dateString} ${slot} 저장 실패:`, slotError)
+              }
+            }
+          }
+
+          if (daySuccessCount > 0) {
+            successCount++
+            savedDays.push(dateString)
+            console.log(`✅ ${dateString} 식단 저장 완료 (${daySuccessCount}/4)`)
+          }
+
+        } catch (dayError) {
+          console.error(`❌ ${dateString} 날짜 저장 실패:`, dayError)
+        }
+      }
+
+      // 저장 결과 처리
+      if (successCount > 0) {
+        console.log(`🎉 AI 식단표 자동 저장 완료: ${successCount}/${totalDays}일`)
+        
+        // 캘린더 데이터 새로고침
+        queryClient.invalidateQueries({ queryKey: ['plans-range'] })
+        
+        // 성공 알림
+        alert(`✅ AI 식단표가 자동으로 저장되었습니다!\n\n📅 저장된 일수: ${successCount}일\n🗓️ 저장된 날짜: ${savedDays.slice(0, 3).join(', ')}${savedDays.length > 3 ? '...' : ''}`)
+        
+        // 생성된 식단 상태 초기화 (이미 자동 저장되었으므로)
+        
+      } else {
+        console.error('❌ 모든 식단 저장 실패')
+        alert('❌ 식단 저장에 실패했습니다. 다시 시도해주세요.')
+      }
+
+    } catch (error) {
+      console.error('❌ AI 식단표 자동 저장 중 오류:', error)
+      alert('❌ 식단 저장 중 오류가 발생했습니다. 다시 시도해주세요.')
+    } finally {
+      // 저장 완료
+    }
+  }
+
   // 간단한 체크 토글 함수 (로컬 UI만)
   const toggleMealCheck = (date: Date, mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack') => {
-    const dateKey = formatDateKey(date)
-    
-    setMealCheckState(prev => {
-      const currentState = prev[dateKey] || {}
-      const newState = { ...currentState }
-      
-      if (mealType === 'breakfast') newState.breakfastCompleted = !currentState.breakfastCompleted
-      else if (mealType === 'lunch') newState.lunchCompleted = !currentState.lunchCompleted
-      else if (mealType === 'dinner') newState.dinnerCompleted = !currentState.dinnerCompleted
-      else if (mealType === 'snack') newState.snackCompleted = !currentState.snackCompleted
-      
-      return {
-        ...prev,
-        [dateKey]: newState
-      }
-    })
-    
-    console.log(`✅ ${mealType} 체크 토글 (로컬 UI)`)
+    try {
+      const dateKey = formatDateKey(date)
+
+      setMealCheckState(prev => {
+        const currentState = prev[dateKey] || {}
+        const newState = { ...currentState }
+
+        if (mealType === 'breakfast') newState.breakfastCompleted = !currentState.breakfastCompleted
+        else if (mealType === 'lunch') newState.lunchCompleted = !currentState.lunchCompleted
+        else if (mealType === 'dinner') newState.dinnerCompleted = !currentState.dinnerCompleted
+        else if (mealType === 'snack') newState.snackCompleted = !currentState.snackCompleted
+
+        return {
+          ...prev,
+          [dateKey]: newState
+        }
+      })
+
+      console.log(`✅ ${mealType} 체크 토글 (로컬 UI)`)
+    } catch (error) {
+      console.error('❌ 식단 체크 토글 오류:', error, date, mealType)
+    }
   }
 
   // 체크 상태 확인 함수
   const isMealChecked = (date: Date, mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack') => {
-    const dateKey = formatDateKey(date)
-    const checkState = mealCheckState[dateKey]
-    
-    if (!checkState) return false
-    
-    if (mealType === 'breakfast') return checkState.breakfastCompleted || false
-    else if (mealType === 'lunch') return checkState.lunchCompleted || false
-    else if (mealType === 'dinner') return checkState.dinnerCompleted || false
-    else if (mealType === 'snack') return checkState.snackCompleted || false
-    
-    return false
+    try {
+      const dateKey = formatDateKey(date)
+      const checkState = mealCheckState[dateKey]
+
+      if (!checkState) return false
+
+      if (mealType === 'breakfast') return checkState.breakfastCompleted || false
+      else if (mealType === 'lunch') return checkState.lunchCompleted || false
+      else if (mealType === 'dinner') return checkState.dinnerCompleted || false
+      else if (mealType === 'snack') return checkState.snackCompleted || false
+
+      return false
+    } catch (error) {
+      console.error('❌ 식단 체크 상태 확인 오류:', error, date, mealType)
+      return false
+    }
   }
 
-  // 간단한 로컬 저장 (UI 테스트용)
-  const handleSaveMeal = (date: Date, newMealData: MealData) => {
-    console.log('💾 로컬 저장:', { date, newMealData })
-    
+  // 실제 API를 사용한 식단 저장/수정
+  const handleSaveMeal = async (date: Date, newMealData: MealData) => {
+    if (!user?.id) {
+      alert('로그인이 필요합니다.')
+      return
+    }
+
+    console.log('💾 API 저장/수정 시작:', { date, newMealData })
+
+    try {
+      const dateString = format(date, 'yyyy-MM-dd')
+      const dateKey = formatDateKey(date)
+      const mealSlots = ['breakfast', 'lunch', 'dinner', 'snack'] as const
+      const existingPlanIds = planIds[dateKey] || {}
+
+      for (const slot of mealSlots) {
+        const mealTitle = newMealData[slot]
+        const existingPlanId = existingPlanIds[slot]
+
+        if (mealTitle && mealTitle.trim()) {
+          // 식단이 있는 경우 - 새로 생성 또는 수정
+          try {
+            const planData = {
+              user_id: user.id,
+              date: dateString,
+              slot: slot,
+              type: 'recipe' as const,
+              ref_id: '',
+              title: mealTitle.trim(),
+              location: undefined,
+              macros: undefined,
+              notes: undefined
+            }
+
+            if (existingPlanId) {
+              // 기존 plan 업데이트
+              await updatePlan.mutateAsync({
+                planId: existingPlanId,
+                updates: { notes: mealTitle.trim() },
+                userId: user.id
+              })
+              console.log(`✅ ${slot} 수정 완료:`, mealTitle)
+            } else {
+              // 새 plan 생성
+              await createPlan.mutateAsync(planData)
+              console.log(`✅ ${slot} 생성 완료:`, mealTitle)
+            }
+          } catch (error) {
+            console.error(`❌ ${slot} 저장/수정 실패:`, error)
+          }
+        } else if (existingPlanId) {
+          // 식단이 비어있지만 기존 plan이 있는 경우 - 삭제
+          try {
+            await deletePlan.mutateAsync({
+              planId: existingPlanId,
+              userId: user.id
+            })
+            console.log(`✅ ${slot} 삭제 완료`)
+          } catch (error) {
+            console.error(`❌ ${slot} 삭제 실패:`, error)
+          }
+        }
+      }
+
+      // 캘린더 데이터 새로고침
+      queryClient.invalidateQueries({ queryKey: ['plans-range'] })
+
+      console.log('✅ 식단 저장/수정/삭제 완료!')
+    } catch (error) {
+      console.error('❌ 식단 처리 실패:', error)
+      alert('식단 처리에 실패했습니다. 다시 시도해주세요.')
+    }
+  }
+
+  // 개별 식단 삭제 함수
+  const handleDeleteMeal = async (date: Date, mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack') => {
+    if (!user?.id) {
+      alert('로그인이 필요합니다.')
+      return
+    }
+
     const dateKey = formatDateKey(date)
-    setMealData(prev => ({
-      ...prev,
-      [dateKey]: newMealData
-    }))
-    
-    console.log('✅ 로컬 저장 완료!')
+    const planId = planIds[dateKey]?.[mealType]
+
+    if (!planId) {
+      alert('삭제할 식단이 없습니다.')
+      return
+    }
+
+    if (!confirm('이 식단을 삭제하시겠습니까?')) {
+      return
+    }
+
+    try {
+      await deletePlan.mutateAsync({
+        planId: planId,
+        userId: user.id
+      })
+
+      // 캘린더 데이터 새로고침
+      queryClient.invalidateQueries({ queryKey: ['plans-range'] })
+
+      console.log(`✅ ${mealType} 삭제 완료`)
+    } catch (error) {
+      console.error(`❌ ${mealType} 삭제 실패:`, error)
+      alert('식단 삭제에 실패했습니다. 다시 시도해주세요.')
+    }
+  }
+
+  // 하루 전체 식단 삭제 함수
+  const handleDeleteAllMeals = async (date: Date) => {
+    if (!user?.id) {
+      alert('로그인이 필요합니다.')
+      return
+    }
+
+    const dateKey = formatDateKey(date)
+    const dayPlanIds = planIds[dateKey]
+
+    if (!dayPlanIds || Object.keys(dayPlanIds).length === 0) {
+      alert('삭제할 식단이 없습니다.')
+      return
+    }
+
+    try {
+      console.log('🗑️ 하루 전체 식단 삭제 시작...')
+
+      // 모든 식단 삭제를 병렬로 처리
+      const deletePromises = Object.entries(dayPlanIds).map(([, planId]) =>
+        deletePlan.mutateAsync({
+          planId: planId,
+          userId: user.id
+        })
+      )
+
+      await Promise.all(deletePromises)
+
+      // 캘린더 데이터 새로고침
+      queryClient.invalidateQueries({ queryKey: ['plans-range'] })
+
+      console.log(`✅ ${format(date, 'M월 d일')} 전체 식단 삭제 완료`)
+      alert(`${format(date, 'M월 d일')} 식단이 모두 삭제되었습니다.`)
+
+    } catch (error) {
+      console.error('❌ 전체 식단 삭제 실패:', error)
+      alert('전체 식단 삭제에 실패했습니다. 다시 시도해주세요.')
+    }
   }
 
   // UI 테스트 모드 (로그인 불필요)
@@ -248,14 +655,28 @@ export function CalendarPage() {
               </p>
             </div>
             
-            <Button 
-              onClick={handleGenerateMealPlan}
-              className="bg-white/20 hover:bg-white/30 text-white border-white/30"
-              variant="outline"
-            >
-              <Add sx={{ fontSize: 20, mr: 1 }} />
-              AI 식단표 생성
-            </Button>
+            <div className="flex items-center gap-3">
+              <select 
+                value={selectedDays} 
+                onChange={(e) => setSelectedDays(Number(e.target.value))}
+                disabled={isGeneratingMealPlan}
+                className="px-3 py-2 bg-white/20 border border-white/30 text-white rounded-lg disabled:opacity-50"
+              >
+                <option value={3} className="text-gray-800">3일</option>
+                <option value={7} className="text-gray-800">7일</option>
+                <option value={14} className="text-gray-800">14일</option>
+                <option value={30} className="text-gray-800">30일</option>
+              </select>
+              
+              <Button 
+                onClick={handleGenerateMealPlan}
+                disabled={isGeneratingMealPlan}
+                className="px-3 py-2 bg-white border border-white text-green-600 rounded-lg hover:bg-green-50 hover:text-green-700 font-semibold disabled:opacity-50 shadow-md"
+              >
+                <Add sx={{ fontSize: 20, mr: 1 }} />
+                {isGeneratingMealPlan ? '생성 중...' : `AI 식단표 생성`}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -275,7 +696,7 @@ export function CalendarPage() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card className="border border-gray-200 bg-gradient-to-br from-orange-50 to-amber-50">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -289,7 +710,7 @@ export function CalendarPage() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card className="border border-gray-200 bg-gradient-to-br from-blue-50 to-cyan-50">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -303,7 +724,7 @@ export function CalendarPage() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card className="border border-gray-200 bg-gradient-to-br from-purple-50 to-violet-50">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -360,7 +781,7 @@ export function CalendarPage() {
                 </div>
               </div>
             )}
-            
+
             {error && (
               <div className="flex items-center justify-center py-8">
                 <div className="text-center text-red-600">
@@ -369,258 +790,260 @@ export function CalendarPage() {
                 </div>
               </div>
             )}
-            
+
             {!isLoading && !error && (
               <div className="calendar-container w-full flex items-start justify-center overflow-x-auto">
                 <DayPicker
-                mode="single"
-                selected={selectedDate}
-                onSelect={handleDateSelect}
-                month={currentMonth}
-                onMonthChange={handleMonthChange}
-                locale={ko}
-                className="rdp-custom w-full"
-                modifiers={{
-                  hasMeal: Object.keys(mealData).map(date => new Date(date)),
-                  hasPartialMeal: Object.keys(mealData).filter(date => {
-                    const meal = mealData[date]
-                    const mealCount = [meal.breakfast, meal.lunch, meal.dinner].filter(Boolean).length
-                    return mealCount > 0 && mealCount < 3
-                  }).map(date => new Date(date)),
-                  hasCompleteMeal: Object.keys(mealData).filter(date => {
-                    const meal = mealData[date]
-                    return meal.breakfast && meal.lunch && meal.dinner
-                  }).map(date => new Date(date)),
-                  today: new Date() // 오늘 날짜 추가
-                }}
-                modifiersStyles={{
-                  hasPartialMeal: {
-                    backgroundColor: '#f59e0b',
-                    color: 'white',
-                    fontWeight: 'bold',
-                    borderRadius: '12px',
-                    boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)'
-                  },
-                  hasCompleteMeal: {
-                    backgroundColor: '#10b981',
-                    color: 'white',
-                    fontWeight: 'bold',
-                    borderRadius: '12px',
-                    boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)'
-                  },
-                  today: {
-                    backgroundColor: '#3b82f6',
-                    color: 'white',
-                    fontWeight: 'bold',
-                    borderRadius: '12px',
-                    boxShadow: '0 2px 8px rgba(59, 130, 246, 0.4)',
-                    border: '2px solid #1d4ed8'
-                  }
-                }}
-                components={{
-                  Day: ({ date, displayMonth }) => {
-                    const meal = getMealForDate(date)
-                    const isCurrentMonth = date.getMonth() === displayMonth.getMonth()
-                    
-                    
-                    
-                    // 체크된 식사 개수 계산 (로컬 상태에서)
-                    const checkedCount = [
-                      isMealChecked(date, 'breakfast'),
-                      isMealChecked(date, 'lunch'),
-                      isMealChecked(date, 'dinner'),
-                      isMealChecked(date, 'snack')
-                    ].filter(Boolean).length
-                    
-                    return (
-                      <div 
-                        className="relative w-full h-full flex flex-col cursor-pointer hover:bg-gray-50 transition-colors rounded-lg"
-                        onClick={() => isCurrentMonth && handleDateClick(date)}
-                      >
-                        {isCurrentMonth && (
-                          <div className="date-number w-full flex items-center justify-between px-1">
-                            <span>{date.getDate()}</span>
-                            {/* 체크된 식사가 있으면 체크 아이콘 표시 */}
-                            {checkedCount > 0 && (
-                              <div className="absolute -top-1 -right-1 bg-green-500 rounded-full w-4 h-4 flex items-center justify-center">
-                                <span className="text-white text-xs font-bold">✓</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        {meal && isCurrentMonth && (
-                          <div className="meal-info-container flex-1 p-1">
-                            {meal.breakfast && meal.breakfast.trim() !== '' && (
-                              <div className="meal-info text-xs flex items-center justify-between group">
-                                <span className="truncate mr-1 text-xs" title={meal.breakfast}>
-                                  <span className="hidden sm:inline">🌅</span>
-                                  <span className="sm:hidden">🌅</span>
-                                  <span className="hidden sm:inline ml-1">{meal.breakfast}</span>
-                                  <span className="sm:hidden ml-1 text-xs truncate">{meal.breakfast.length > 8 ? meal.breakfast.substring(0, 8) + '...' : meal.breakfast}</span>
-                                </span>
-                                <div
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    toggleMealCheck(date, 'breakfast')
-                                  }}
-                                  className="cursor-pointer opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                                >
-                                  {isMealChecked(date, 'breakfast') ? (
-                                    <span className="text-green-500 text-xs">✅</span>
-                                  ) : (
-                                    <span className="text-gray-400 text-xs">⭕</span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                            {meal.lunch && meal.lunch.trim() !== '' && (
-                              <div className="meal-info text-xs flex items-center justify-between group">
-                                <span className="truncate mr-1 text-xs" title={meal.lunch}>
-                                  <span className="hidden sm:inline">☀️</span>
-                                  <span className="sm:hidden">☀️</span>
-                                  <span className="hidden sm:inline ml-1">{meal.lunch}</span>
-                                  <span className="sm:hidden ml-1 text-xs truncate">{meal.lunch.length > 8 ? meal.lunch.substring(0, 8) + '...' : meal.lunch}</span>
-                                </span>
-                                <div
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    toggleMealCheck(date, 'lunch')
-                                  }}
-                                  className="cursor-pointer opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                                >
-                                  {isMealChecked(date, 'lunch') ? (
-                                    <span className="text-green-500 text-xs">✅</span>
-                                  ) : (
-                                    <span className="text-gray-400 text-xs">⭕</span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                            {meal.dinner && meal.dinner.trim() !== '' && (
-                              <div className="meal-info text-xs flex items-center justify-between group">
-                                <span className="truncate mr-1 text-xs" title={meal.dinner}>
-                                  <span className="hidden sm:inline">🌙</span>
-                                  <span className="sm:hidden">🌙</span>
-                                  <span className="hidden sm:inline ml-1">{meal.dinner}</span>
-                                  <span className="sm:hidden ml-1 text-xs truncate">{meal.dinner.length > 8 ? meal.dinner.substring(0, 8) + '...' : meal.dinner}</span>
-                                </span>
-                                <div
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    toggleMealCheck(date, 'dinner')
-                                  }}
-                                  className="cursor-pointer opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                                >
-                                  {isMealChecked(date, 'dinner') ? (
-                                    <span className="text-green-500 text-xs">✅</span>
-                                  ) : (
-                                    <span className="text-gray-400 text-xs">⭕</span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                            {meal.snack && meal.snack.trim() !== '' && (
-                              <div className="meal-info text-xs flex items-center justify-between group text-purple-600">
-                                <span className="truncate mr-1 text-xs" title={meal.snack}>
-                                  <span className="hidden sm:inline">🍎</span>
-                                  <span className="sm:hidden">🍎</span>
-                                  <span className="hidden sm:inline ml-1">{meal.snack}</span>
-                                  <span className="sm:hidden ml-1 text-xs truncate">{meal.snack.length > 8 ? meal.snack.substring(0, 8) + '...' : meal.snack}</span>
-                                </span>
-                                <div
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    toggleMealCheck(date, 'snack')
-                                  }}
-                                  className="cursor-pointer opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                                >
-                                  {isMealChecked(date, 'snack') ? (
-                                    <span className="text-green-500 text-xs">✅</span>
-                                  ) : (
-                                    <span className="text-gray-400 text-xs">⭕</span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  }
-                }}
-                 styles={{
-                   head_cell: {
-                     width: window.innerWidth < 640 ? '50px' : '70px',
-                     height: '40px',
-                     fontSize: window.innerWidth < 640 ? '12px' : '14px',
-                     color: '#374151',
-                     textTransform: 'uppercase',
-                     letterSpacing: '0.8px',
-                     backgroundColor: '#f8fafc',
-                     borderRight: '1px solid #e2e8f0',
-                     borderBottom: '2px solid #e2e8f0',
-                     borderTop: '1px solid #e2e8f0',
-                     borderLeft: '1px solid #e2e8f0',
-                     position: 'sticky',
-                     top: '0',
-                     zIndex: '10'
-                   },
-                   cell: {
-                     width: window.innerWidth < 640 ? '50px' : '70px',
-                     minHeight: window.innerWidth < 640 ? '60px' : '80px',
-                     fontSize: window.innerWidth < 640 ? '12px' : '15px',
-                     padding: '2px',
-                     borderRight: '1px solid #e2e8f0',
-                     borderBottom: '1px solid #e2e8f0',
-                     borderLeft: '1px solid #e2e8f0',
-                     backgroundColor: '#ffffff',
-                     position: 'relative',
-                     verticalAlign: 'top'
-                   },
-                   day: {
-                     borderRadius: '8px',
-                     transition: 'all 0.2s ease-in-out',
-                     width: window.innerWidth < 640 ? '46px' : '62px',
-                     minHeight: window.innerWidth < 640 ? '56px' : '72px',
-                     display: 'flex',
-                     alignItems: 'flex-start',
-                     justifyContent: 'center',
-                     cursor: 'pointer',
-                     position: 'relative',
-                     backgroundColor: 'transparent',
-                     border: 'none',
-                     color: '#374151',
-                     fontSize: window.innerWidth < 640 ? '12px' : '15px',
-                     flexDirection: 'column',
-                     padding: '2px'
-                   },
-                   table: {
-                     width: '100%',
-                     maxWidth: '100%',
-                     borderCollapse: 'separate',
-                     borderSpacing: '0',
-                     borderRadius: '16px',
-                     overflow: 'hidden',
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={handleDateSelect}
+                  month={currentMonth}
+                  onMonthChange={handleMonthChange}
+                  locale={ko}
+                  className="rdp-custom w-full"
+                  modifiers={{
+                    hasMeal: Object.keys(mealData).map(date => new Date(date)),
+                    hasPartialMeal: Object.keys(mealData).filter(date => {
+                      const meal = mealData[date]
+                      const mealCount = [meal.breakfast, meal.lunch, meal.dinner].filter(Boolean).length
+                      return mealCount > 0 && mealCount < 3
+                    }).map(date => new Date(date)),
+                    hasCompleteMeal: Object.keys(mealData).filter(date => {
+                      const meal = mealData[date]
+                      return meal.breakfast && meal.lunch && meal.dinner
+                    }).map(date => new Date(date)),
+                    today: new Date() // 오늘 날짜 추가
+                  }}
+                  modifiersStyles={{
+                    hasPartialMeal: {
+                      backgroundColor: '#f59e0b',
+                      color: 'white',
+                      fontWeight: 'bold',
+                      borderRadius: '12px',
+                      boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)'
+                    },
+                    hasCompleteMeal: {
+                      backgroundColor: '#10b981',
+                      color: 'white',
+                      fontWeight: 'bold',
+                      borderRadius: '12px',
+                      boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)'
+                    },
+                    today: {
+                      backgroundColor: '#3b82f6',
+                      color: 'white',
+                      fontWeight: 'bold',
+                      borderRadius: '12px',
+                      boxShadow: '0 2px 8px rgba(59, 130, 246, 0.4)',
+                      border: '2px solid #1d4ed8'
+                    }
+                  }}
+                  components={{
+                    Day: ({ date, displayMonth }) => {
+                      const meal = getMealForDate(date)
+                      const isCurrentMonth = date.getMonth() === displayMonth.getMonth()
 
-                     backgroundColor: '#ffffff'
-                   },
-                   months: {
-                     width: '100%'
-                   },
-                   month: {
-                     width: '100%'
-                   },
-                   caption: {
-                     display: 'none'
-                   },
-                   caption_label: {
-                     display: 'none'
-                   }
-                 }}
-              />
+
+
+                      // 체크된 식사 개수 계산 (로컬 상태에서)
+                      const checkedCount = [
+                        isMealChecked(date, 'breakfast'),
+                        isMealChecked(date, 'lunch'),
+                        isMealChecked(date, 'dinner'),
+                        isMealChecked(date, 'snack')
+                      ].filter(Boolean).length
+
+                      return (
+                        <div
+                          className="relative w-full h-full flex flex-col min-w-0 cursor-pointer hover:bg-gray-50 transition-colors rounded-lg"
+                          onClick={() => isCurrentMonth && handleDateClick(date)}
+                        >
+                          {isCurrentMonth && (
+                            <div className="date-number w-full flex items-center justify-between px-3">
+                              <span>{date.getDate()}</span>
+                              {checkedCount > 0 && (
+                                <div className="absolute -top-1 -right-1 bg-green-500 rounded-full w-4 h-4 flex items-center justify-center">
+                                  <span className="text-white text-xs font-bold">✓</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {meal && isCurrentMonth && (
+                            <div className="meal-info-container w-full min-w-0 flex flex-col p-1 gap-0.5">
+                              {/* 공통 줄 클래스 */}
+                              {/* grid-cols-[auto,1fr,auto] : 아이콘 | 텍스트 | 체크 */}
+                              {/* items-center : 수직 정렬, gap-1 : 간격 */}
+                              {/* text-xs 는 부모나 필요한 span에 */}
+                              {/* 아침 */}
+                              {meal.breakfast?.trim() && (
+                                <div className="w-full grid grid-cols-[auto,1fr,auto] items-center gap-1 group px-2">
+                                  <span className="text-xs">🌅</span>
+                                  <span className="min-w-0 truncate text-xs text-left" title={meal.breakfast}>
+                                    <span className="hidden sm:inline">{meal.breakfast}</span>
+                                    <span className="sm:hidden">
+                                      {meal.breakfast.length > 8 ? meal.breakfast.slice(0, 8) + '…' : meal.breakfast}
+                                    </span>
+                                  </span>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); toggleMealCheck(date, 'breakfast'); }}
+                                    className="justify-self-end opacity-60 group-hover:opacity-100 transition-opacity text-xs"
+                                    aria-label="breakfast done"
+                                  >
+                                    {isMealChecked(date, 'breakfast') ? <span className="text-green-500">✅</span> : <span className="text-gray-400">⭕</span>}
+                                  </button>
+                                </div>
+                              )}
+
+                              {/* 점심 */}
+                              {meal.lunch?.trim() && (
+                                <div className="w-full grid grid-cols-[auto,1fr,auto] items-center gap-1 group px-2">
+                                  <span className="text-xs">☀️</span>
+                                  <span className="min-w-0 truncate text-xs text-left" title={meal.lunch}>
+                                    <span className="hidden sm:inline">{meal.lunch}</span>
+                                    <span className="sm:hidden">
+                                      {meal.lunch.length > 8 ? meal.lunch.slice(0, 8) + '…' : meal.lunch}
+                                    </span>
+                                  </span>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); toggleMealCheck(date, 'lunch'); }}
+                                    className="justify-self-end opacity-60 group-hover:opacity-100 transition-opacity text-xs"
+                                    aria-label="lunch done"
+                                  >
+                                    {isMealChecked(date, 'lunch') ? <span className="text-green-500">✅</span> : <span className="text-gray-400">⭕</span>}
+                                  </button>
+                                </div>
+                              )}
+
+                              {/* 저녁 */}
+                              {meal.dinner?.trim() && (
+                                <div className="w-full grid grid-cols-[auto,1fr,auto] items-center gap-1 group px-2">
+                                  <span className="text-xs">🌙</span>
+                                  <span className="min-w-0 truncate text-xs text-left" title={meal.dinner}>
+                                    <span className="hidden sm:inline">{meal.dinner}</span>
+                                    <span className="sm:hidden">
+                                      {meal.dinner.length > 8 ? meal.dinner.slice(0, 8) + '…' : meal.dinner}
+                                    </span>
+                                  </span>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); toggleMealCheck(date, 'dinner'); }}
+                                    className="justify-self-end opacity-60 group-hover:opacity-100 transition-opacity text-xs"
+                                    aria-label="dinner done"
+                                  >
+                                    {isMealChecked(date, 'dinner') ? <span className="text-green-500">✅</span> : <span className="text-gray-400">⭕</span>}
+                                  </button>
+                                </div>
+                              )}
+
+                              {/* 간식 */}
+                              {meal.snack?.trim() && (
+                                <div className="w-full grid grid-cols-[auto,1fr,auto] items-center gap-1 group text-purple-600 px-2">
+                                  <span className="text-xs">🍎</span>
+                                  <span className="min-w-0 truncate text-xs text-left" title={meal.snack}>
+                                    <span className="hidden sm:inline">{meal.snack}</span>
+                                    <span className="sm:hidden">
+                                      {meal.snack.length > 8 ? meal.snack.slice(0, 8) + '…' : meal.snack}
+                                    </span>
+                                  </span>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); toggleMealCheck(date, 'snack'); }}
+                                    className="justify-self-end opacity-60 group-hover:opacity-100 transition-opacity text-xs"
+                                    aria-label="snack done"
+                                  >
+                                    {isMealChecked(date, 'snack') ? <span className="text-green-500">✅</span> : <span className="text-gray-400">⭕</span>}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    }
+                  }}
+                  styles={{
+                    head_cell: {
+                      width: '120px',
+                      height: '40px',
+                      minWidth: '120px',
+                      maxWidth: '120px',
+                      fontSize: '12px',
+                      color: '#374151',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.8px',
+                      backgroundColor: '#f8fafc',
+                      borderRight: '1px solid #e2e8f0',
+                      borderBottom: '2px solid #e2e8f0',
+                      borderTop: '1px solid #e2e8f0',
+                      borderLeft: '1px solid #e2e8f0',
+                      position: 'sticky',
+                      top: '0',
+                      zIndex: '10',
+                      textAlign: 'center'
+                    },
+                    cell: {
+                      width: '120px',
+                      height: '100px',
+                      minWidth: '120px',
+                      maxWidth: '120px',
+                      minHeight: '100px',
+                      maxHeight: '100px',
+                      fontSize: '12px',
+                      padding: '2px',
+                      borderRight: '1px solid #e2e8f0',
+                      borderBottom: '1px solid #e2e8f0',
+                      borderLeft: '1px solid #e2e8f0',
+                      backgroundColor: '#ffffff',
+                      position: 'relative',
+                      verticalAlign: 'top',
+                      overflow: 'hidden',
+                      boxSizing: 'border-box'
+                    },
+                    day: {
+                      borderRadius: '8px',
+                      transition: 'all 0.2s ease-in-out',
+                      width: '100%',
+                      height: '96px',
+                      maxHeight: '96px',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      position: 'relative',
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      color: '#374151',
+                      fontSize: '12px',
+                      flexDirection: 'column',
+                      padding: '2px',
+                      boxSizing: 'border-box',
+                      overflow: 'hidden'
+                    },
+                    table: {
+                      width: '100%',
+                      maxWidth: '100%',
+                      borderCollapse: 'separate',
+                      borderSpacing: '0',
+                      borderRadius: '16px',
+                      overflow: 'hidden',
+                      backgroundColor: '#ffffff'
+                    },
+                    months: {
+                      width: '100%'
+                    },
+                    month: {
+                      width: '100%'
+                    },
+                    caption: {
+                      display: 'none'
+                    },
+                    caption_label: {
+                      display: 'none'
+                    }
+                  }}
+                />
               </div>
             )}
-            
+
             {/* 캘린더 범례 */}
             {/* <div className="mt-4 p-4 bg-gray-50 rounded-lg">
               <h4 className="text-sm font-medium mb-3 text-gray-700">캘린더 사용법</h4>
@@ -649,14 +1072,14 @@ export function CalendarPage() {
         </Card>
 
         {/* 선택된 날짜의 식단 */}
-        <Card className="lg:col-span-1 border border-gray-200 bg-gradient-to-br from-white to-green-50/30">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-xl font-bold flex items-center gap-2">
-              <span className="text-2xl">📅</span>
+        <Card className="lg:col-span-1 border border-gray-200">
+          <CardHeader className="pb-4 h-[88px]">
+            <CardTitle className="flex items-center text-xl font-bold">
+              <CalendarToday sx={{ fontSize: 24, mr: 1.5, color: 'green.600' }} />
               {selectedDate ? format(selectedDate, 'M월 d일', { locale: ko }) : '오늘의'} 식단
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3 pt-0">
             {selectedDate ? (() => {
               const selectedMeal = getMealForDate(selectedDate)
               const meals = [
@@ -665,23 +1088,23 @@ export function CalendarPage() {
                 { key: 'dinner', label: '저녁', icon: '🌙' },
                 { key: 'snack', label: '간식', icon: '🍎' }
               ]
-              
+
               return meals.map((meal) => (
-                <div 
-                  key={meal.key} 
-                  className="border border-gray-200 rounded-xl p-4 cursor-pointer bg-gradient-to-r from-white to-gray-50 hover:from-green-50 hover:to-emerald-50 transition-all duration-300"
+                <div
+                  key={meal.key}
+                  className="border border-gray-200 rounded-lg p-3 cursor-pointer bg-white hover:bg-gray-50 transition-all duration-200"
                   onClick={() => handleOpenModal(meal.key)}
                 >
                   <div className="flex justify-between items-center">
-                    <h4 className="font-semibold flex items-center gap-3 text-gray-800">
-                      <span className="text-2xl">{meal.icon}</span>
+                    <h4 className="font-semibold flex items-center gap-2 text-gray-800">
+                      <span className="text-lg">{meal.icon}</span>
                       {meal.label}
                     </h4>
-                    <div className="w-8 h-8 rounded-full bg-green-100 hover:bg-green-200 flex items-center justify-center transition-colors">
-                      <Add sx={{ fontSize: 16, color: 'green.600' }} />
+                    <div className="w-6 h-6 rounded-full bg-green-100 hover:bg-green-200 flex items-center justify-center transition-colors">
+                      <Add sx={{ fontSize: 14, color: 'green.600' }} />
                     </div>
                   </div>
-                  <div className="text-sm text-gray-600 mt-2 ml-11">
+                  <div className="text-xs text-gray-600 mt-1 ml-8">
                     {(() => {
                       const mealText = getMealText(selectedMeal, meal.key);
                       return mealText.trim() !== '' ? mealText : '계획된 식단이 없습니다';
@@ -690,18 +1113,11 @@ export function CalendarPage() {
                 </div>
               ))
             })() : (
-              <div className="text-center text-muted-foreground py-8">
+              <div className="text-center text-gray-500 py-8 text-sm">
                 날짜를 선택하면 해당 날의 식단을 볼 수 있습니다
               </div>
             )}
-            
-            <Button 
-              className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold py-3 rounded-xl border border-gray-200 transition-all duration-300" 
-              onClick={handleGenerateMealPlan}
-            >
-              <span className="mr-2">🤖</span>
-              AI 식단표 생성
-            </Button>
+
           </CardContent>
         </Card>
       </div>
@@ -731,13 +1147,12 @@ export function CalendarPage() {
                     <div className="text-sm text-gray-500">{activity.date}</div>
                   </div>
                 </div>
-                <div className={`text-sm px-3 py-1 rounded-full font-medium flex-shrink-0 ${
-                  activity.status === 'completed' ? 'bg-green-100 text-green-700 border border-green-200' :
+                <div className={`text-sm px-3 py-1 rounded-full font-medium flex-shrink-0 ${activity.status === 'completed' ? 'bg-green-100 text-green-700 border border-green-200' :
                   activity.status === 'skipped' ? 'bg-red-100 text-red-700 border border-red-200' :
-                  'bg-blue-100 text-blue-700 border border-blue-200'
-                }`}>
+                    'bg-blue-100 text-blue-700 border border-blue-200'
+                  }`}>
                   {activity.status === 'completed' ? '완료' :
-                   activity.status === 'skipped' ? '스킵' : '계획'}
+                    activity.status === 'skipped' ? '스킵' : '계획'}
                 </div>
               </div>
             ))}
@@ -767,8 +1182,11 @@ export function CalendarPage() {
           onSaveMeal={handleSaveMeal}
           onToggleComplete={toggleMealCheck}
           isMealChecked={isMealChecked}
+          onDeleteMeal={handleDeleteMeal}
+          onDeleteAllMeals={handleDeleteAllMeals}
         />
       )}
+
     </div>
   )
 }

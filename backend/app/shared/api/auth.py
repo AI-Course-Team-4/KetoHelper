@@ -7,6 +7,7 @@ import httpx
 import json
 import os
 import jwt
+import re
 from app.core.jwt_utils import (
     create_access_token,
     create_refresh_token,
@@ -18,6 +19,19 @@ from app.core.database import supabase_admin
 import uuid
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+def _normalize_google_image_url(url: str) -> str:
+    """Google 프로필 이미지 URL을 영구적인 형태로 정규화"""
+    if not url or not url.startswith("https://lh3.googleusercontent.com/"):
+        return url
+    
+    # Google 이미지 URL에서 기본 부분만 추출 (파라미터 제거)
+    # 예: https://lh3.googleusercontent.com/a/ACg8ocLQY4rgxAdr9bJPrORkXg-OVVG7pElGI6LlDepZ9ePcYsuF1w=s96-c
+    # -> https://lh3.googleusercontent.com/a/ACg8ocLQY4rgxAdr9bJPrORkXg-OVVG7pElGI6LlDepZ9ePcYsuF1w
+    
+    # =s96-c 같은 파라미터 제거
+    base_url = url.split('=')[0] if '=' in url else url
+    return base_url
 
 
 class GoogleAccessRequest(BaseModel):
@@ -59,7 +73,7 @@ async def _upsert_user(profile: dict) -> dict:
             "email": profile.get("email", ""),
             "nickname": existing_user.get("nickname") or profile.get("name") or profile.get("nickname") or "",
             "social_nickname": existing_user.get("social_nickname") or profile.get("name") or profile.get("nickname") or "",
-            "profile_image_url": profile.get("picture") or profile.get("profile_image") or "",
+            "profile_image_url": _normalize_google_image_url(profile.get("picture") or profile.get("profile_image") or ""),
             "provider": provider,
         }
     else:
@@ -68,7 +82,7 @@ async def _upsert_user(profile: dict) -> dict:
             "email": profile.get("email", ""),
             "nickname": profile.get("name") or profile.get("nickname") or "",
             "social_nickname": profile.get("name") or profile.get("nickname") or "",
-            "profile_image_url": profile.get("picture") or profile.get("profile_image") or "",
+            "profile_image_url": _normalize_google_image_url(profile.get("picture") or profile.get("profile_image") or ""),
             "provider": provider,
         }
 
@@ -114,33 +128,32 @@ async def _upsert_user(profile: dict) -> dict:
 
 
 def _set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
-    secure = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+    # 환경별 쿠키 설정
+    is_production = os.getenv("ENVIRONMENT", "development") == "production"
+    
+    secure = os.getenv("COOKIE_SECURE", "true" if is_production else "false").lower() == "true"
     samesite = os.getenv("COOKIE_SAMESITE", "lax")  # "lax" | "none" | "strict"
-    domain = os.getenv("COOKIE_DOMAIN") or None
+    domain = os.getenv("COOKIE_DOMAIN") or (None if is_production else "localhost")
     # Align cookie lifetimes with JWT lifetimes (approx.)
     access_max_age = ACCESS_TOKEN_EXP_MINUTES * 60
     refresh_max_age = REFRESH_TOKEN_EXP_DAYS * 24 * 60 * 60
 
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,
-        secure=secure,
-        samesite=samesite,
-        max_age=access_max_age,
-        domain=domain,
-        path="/",
-    )
+    # Access Token은 메모리에만 저장 (쿠키 사용 안함)
+    # response.set_cookie() 제거 - Access Token은 Authorization 헤더로만 전송
+    
+    # Refresh Token만 HttpOnly 쿠키로 저장
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
-        httponly=True,
+        httponly=True,  # ✅ JavaScript에서 읽을 수 없음 (보안)
         secure=secure,
         samesite=samesite,
         max_age=refresh_max_age,
         domain=domain,
         path="/",
     )
+    
+    print(f'[DEBUG] 쿠키 설정 완료: refresh_token={refresh_token[:20]}..., domain={domain}, secure={secure}, samesite={samesite}, environment={"production" if is_production else "development"}')
 
 
 @router.post("/google")
@@ -259,7 +272,13 @@ async def naver_callback(code: str, state: str, request: Request, response: Resp
 
     # 브릿지 HTML: 메인 창에 알리고 닫기
     target_origin = os.getenv("FRONTEND_DOMAIN", "").rstrip("/") or "*"
-    payload = {"source": "naver_oauth", "type": "success"}
+    payload = {
+        "source": "naver_oauth", 
+        "type": "success",
+        "user": user,
+        "accessToken": access,
+        "refreshToken": refresh
+    }
     html = f"""
 <!doctype html><meta charset=\"utf-8\"><title>Naver Login</title>
 <script>
@@ -271,7 +290,7 @@ async def naver_callback(code: str, state: str, request: Request, response: Resp
       window.opener.postMessage(payload, target === '' ? '*' : target);
     }}
   }} catch(e) {{}}
-  try {{ window.close(); }} catch(e) {{}}
+  try {{ window.close(); }} catch(e) {{}}  // 디버깅용 주석 처리
 }})();
 </script>
 """
@@ -349,9 +368,18 @@ class RefreshRequest(BaseModel):
 
 @router.post("/refresh")
 async def refresh_token(payload: RefreshRequest, request: Request, response: Response):
+    print('[DEBUG] /auth/refresh 엔드포인트 호출됨')
+    print(f'[DEBUG] payload.refresh_token: {payload.refresh_token}')
+    print(f'[DEBUG] request.cookies: {request.cookies}')
+    print(f'[DEBUG] 쿠키에서 refresh_token: {request.cookies.get("refresh_token")}')
+    print(f'[DEBUG] request.headers: {dict(request.headers)}')
+    print(f'[DEBUG] request.url: {request.url}')
+    
     try:
         token = payload.refresh_token or request.cookies.get("refresh_token")
+        print(f'[DEBUG] 사용할 토큰: {token[:20] if token else "None"}...')
         if not token:
+            print('[DEBUG] 토큰이 없음 - 401 에러')
             raise HTTPException(status_code=401, detail="Missing refresh token")
         
         # 토큰 디코딩 및 검증
@@ -364,14 +392,32 @@ async def refresh_token(payload: RefreshRequest, request: Request, response: Res
             raise HTTPException(status_code=400, detail="Invalid token payload")
         
         # 사용자 정보 조회 (토큰에 포함할 claims 준비)
-        user_response = supabase_admin.table("users").select("email, nickname").eq("id", user_id).execute()
+        user_response = supabase_admin.table("users").select("email, nickname, profile_image_url").eq("id", user_id).execute()
+        print(f'[DEBUG] 사용자 정보 조회 결과: {user_response.data}')
         user_claims = {}
         if user_response.data:
             user_data = user_response.data[0]
+            print(f'[DEBUG] 사용자 데이터: {user_data}')
+            
+            # Google 이미지 URL 정규화
+            profile_image_url = user_data.get("profile_image_url") or ""
+            normalized_image_url = _normalize_google_image_url(profile_image_url)
+            
+            # 정규화된 URL이 다르면 데이터베이스 업데이트
+            if profile_image_url != normalized_image_url and normalized_image_url:
+                print(f'[DEBUG] 이미지 URL 정규화: {profile_image_url} -> {normalized_image_url}')
+                supabase_admin.table("users").update({
+                    "profile_image_url": normalized_image_url
+                }).eq("id", user_id).execute()
+                profile_image_url = normalized_image_url
+            
             user_claims = {
+                "id": user_id,
                 "email": user_data.get("email"),
-                "name": user_data.get("nickname") or user_data.get("email", "").split("@")[0]
+                "name": user_data.get("nickname") or user_data.get("email", "").split("@")[0],
+                "profile_image": profile_image_url
             }
+            print(f'[DEBUG] user_claims: {user_claims}')
         
         # 새로운 토큰들 생성
         access = create_access_token(user_id, user_claims)
@@ -381,7 +427,9 @@ async def refresh_token(payload: RefreshRequest, request: Request, response: Res
         _set_auth_cookies(response, access, refresh)
         
         # 응답 본문으로도 반환 (프론트엔드 호환성)
-        return {"accessToken": access, "refreshToken": refresh}
+        response_data = {"accessToken": access, "refreshToken": refresh, "user": user_claims}
+        print(f'[DEBUG] refresh 응답 데이터: {response_data}')
+        return response_data
         
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Refresh token expired")

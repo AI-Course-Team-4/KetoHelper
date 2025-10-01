@@ -112,6 +112,18 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'keto-auth',
       version: 4, // 토큰 로딩 문제 해결
+      onRehydrateStorage: () => () => {
+        // 다른 탭에서의 토큰 변경 감지 (임시 비활성화)
+        // 무한 루프 문제로 인해 일시적으로 비활성화
+        console.log('🔧 storage 이벤트 리스너 비활성화됨 (무한 루프 방지)')
+        
+        // TODO: 나중에 더 안전한 방식으로 구현
+        // if (typeof window !== 'undefined') {
+        //   let isProcessing = false
+        //   const handleStorageChange = (e: StorageEvent) => { ... }
+        //   window.addEventListener('storage', handleStorageChange)
+        // }
+      },
       // 보안을 위해 토큰들을 localStorage가 아닌 sessionStorage 사용하거나
       // 또는 HttpOnly 쿠키를 통해서만 관리하는 것이 더 좋지만,
       // 현재 구조를 유지하면서 개선

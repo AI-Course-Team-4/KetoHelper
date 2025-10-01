@@ -20,7 +20,7 @@ from app.shared.models.schemas import (
     MealPlanResponse, StatsSummary
 )
 # database_models.py 삭제로 인해 직접 Supabase 테이블 사용
-from app.agents.meal_planner import MealPlannerAgent
+from app.agents.meal_planner import MealPlannerAgent, DEFAULT_MEAL_PLAN_DAYS
 from app.tools.shared.profile_tool import user_profile_tool
 
 router = APIRouter(prefix="/plans", tags=["plans"])
@@ -243,7 +243,7 @@ async def generate_meal_plan(
 @router.post("/generate/personalized", response_model=MealPlanResponse)
 async def generate_personalized_meal_plan(
     user_id: str = Query(..., description="사용자 ID"),
-    days: int = Query(7, description="생성할 일수"),
+    days: int = Query(DEFAULT_MEAL_PLAN_DAYS, description="생성할 일수"),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -270,7 +270,7 @@ async def generate_personalized_meal_plan(
 @router.post("/generate/with-access-check", response_model=dict)
 async def generate_meal_plan_with_access_check(
     user_id: str = Query(..., description="사용자 ID"),
-    days: int = Query(7, description="생성할 일수"),
+    days: int = Query(DEFAULT_MEAL_PLAN_DAYS, description="생성할 일수"),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -657,3 +657,23 @@ def _categorize_ingredient(name: str) -> str:
             return '양념/조미료'
     
     return '기타'
+
+# 캘린더 페이지에서 입력한 텍스트를 식단으로 추가 (기존 생성 로직 재사용)
+@router.post("/calendar/add_meal", response_model=PlanResponse)
+async def add_meal_to_calendar(
+    plan: PlanCreate,
+    user_id: str = Query(..., description="사용자 ID")
+):
+    """
+    캘린더 입력창에서 받은 단일 식단을 저장합니다.
+    같은 날짜·끼니·user_id가 있으면 덮어쓰기(업서트),
+    없으면 새로 추가합니다.
+    """
+    normalized_note = (plan.title or plan.notes or "").strip()
+    if not normalized_note:
+        raise HTTPException(status_code=400, detail="빈 입력은 저장할 수 없습니다")
+
+    try:
+        return await create_or_update_plan(plan=plan, user_id=user_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"식단 저장 중 오류 발생: {str(e)}")
