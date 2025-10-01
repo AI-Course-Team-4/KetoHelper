@@ -46,7 +46,16 @@ export function useMessageHandlers({
 
   // 배포 환경 디버깅을 위한 세션 스토리지 모니터링 (백업 없이)
   useEffect(() => {
+    console.log('🔍 useMessageHandlers useEffect 실행:', { 
+      isGuest, 
+      user: !!user, 
+      isLoggedIn,
+      timestamp: new Date().toISOString()
+    })
+
     if (isGuest) {
+      console.log('✅ 게스트 사용자로 판단됨 - 세션 스토리지 모니터링 시작')
+      
       const checkSessionStorage = () => {
         const sessionData = sessionStorage.getItem('keto-coach-chat-guest')
         console.log('🔍 세션 스토리지 상태 체크 (백업 없음):', {
@@ -67,8 +76,10 @@ export function useMessageHandlers({
       return () => {
         window.removeEventListener('focus', checkSessionStorage)
       }
+    } else {
+      console.log('❌ 게스트 사용자가 아님 - 세션 스토리지 모니터링 건너뜀')
     }
-  }, [isGuest])
+  }, [isGuest, user, isLoggedIn])
 
   // 백업 로직 비활성화 - 순수 세션 스토리지만으로 테스트
   // useEffect(() => {
