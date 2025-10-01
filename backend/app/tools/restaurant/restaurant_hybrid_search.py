@@ -46,7 +46,7 @@ class RestaurantHybridSearchTool:
         keywords = [kw for kw in keywords if len(kw) >= 2]
         
         # 식당 관련 키워드 우선순위 부여
-        restaurant_keywords = ['구이', '찜', '탕', '볶음', '회', '스테이크', '샐러드', '치킨', '삼겹살']
+        restaurant_keywords = ['구이', '찜', '회', '스테이크', '샐러드', '치킨', '삼겹살']
         prioritized = []
         
         for keyword in keywords:
@@ -75,24 +75,25 @@ class RestaurantHybridSearchTool:
         """menu_embedding 테이블을 사용한 벡터 검색"""
         try:
             if isinstance(self.supabase, type(None)) or hasattr(self.supabase, '__class__') and 'DummySupabase' in str(self.supabase.__class__):
+                print("  ⚠️ Supabase 클라이언트 없음 - 벡터 검색 건너뜀")
                 return []
             
             # 실제 스키마 기반 RPC 함수 호출
             results = self.supabase.rpc('restaurant_menu_vector_search', {
                 'query_embedding': query_embedding,
                 'match_count': k,
-                'similarity_threshold': 0.1  # 임계값을 낮춤
+                'similarity_threshold': 0.4  # 의미 있는 유사도만 반환
             }).execute()
             
             if results.data:
-                print(f"✅ 식당 메뉴 벡터 검색 성공: {len(results.data)}개")
+                print(f"✅ 식당 메뉴 벡터 검색 성공: {len(results.data)}개 (임계값 0.4 이상)")
                 return results.data
             else:
-                print("⚠️ 식당 메뉴 벡터 검색 결과 없음")
+                print("⚠️ 식당 메뉴 벡터 검색 결과 없음 - 임계값 0.4 미만")
                 return []
                 
         except Exception as e:
-            print(f"식당 메뉴 벡터 검색 오류: {e}")
+            print(f"  ❌ Supabase 벡터 검색 실패: {e}")
             return []
     
     async def _supabase_keyword_search(self, query: str, k: int) -> List[Dict]:
@@ -235,6 +236,8 @@ class RestaurantHybridSearchTool:
             if query_embedding:
                 print("  🔄 벡터 검색 실행...")
                 vector_results = await self._supabase_vector_search(query_embedding, max_results)
+                if not vector_results:
+                    print("  ⚠️ 벡터 검색 결과 없음 - 키워드 검색에 의존")
             
             print("  🔄 키워드 검색 실행...")
             keyword_results = await self._supabase_keyword_search(query, max_results)
