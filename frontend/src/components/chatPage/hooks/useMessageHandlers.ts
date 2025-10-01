@@ -44,6 +44,59 @@ export function useMessageHandlers({
   const { profile } = useProfileStore()
   const { user, ensureGuestId, isGuest } = useAuthStore()
 
+  // 세션 스토리지가 안정적으로 유지되므로 복구 로직 제거
+  // useEffect(() => {
+  //   const handleStorageChange = () => {
+  //     const sessionData = sessionStorage.getItem('keto-coach-chat-guest')
+  //     const localBackup = localStorage.getItem('keto-coach-chat-guest-backup')
+  //     
+  //     console.log('🔍 스토리지 상태 확인:', {
+  //       currentURL: window.location.href,
+  //       hasSessionData: !!sessionData,
+  //       hasLocalBackup: !!localBackup,
+  //       isGuest,
+  //       sessionDataLength: sessionData ? JSON.parse(sessionData).state?.messages?.length : 0,
+  //       backupDataLength: localBackup ? JSON.parse(localBackup).state?.messages?.length : 0
+  //     })
+  //     
+  //     if (!sessionData && localBackup && isGuest) {
+  //       console.log('🔄 세션 스토리지 복구 중...')
+  //       try {
+  //         const backupData = JSON.parse(localBackup)
+  //         sessionStorage.setItem('keto-coach-chat-guest', JSON.stringify(backupData))
+  //         console.log('✅ 세션 스토리지 복구 완료')
+  //       } catch (error) {
+  //         console.error('❌ 세션 스토리지 복구 실패:', error)
+  //       }
+  //     }
+  //   }
+
+  //   handleStorageChange()
+  //   window.addEventListener('storage', handleStorageChange)
+  //   window.addEventListener('focus', handleStorageChange)
+
+  //   return () => {
+  //     window.removeEventListener('storage', handleStorageChange)
+  //     window.removeEventListener('focus', handleStorageChange)
+  //   }
+  // }, [isGuest])
+
+  // 세션 스토리지가 안정적으로 유지되므로 백업 로직 제거
+  // useEffect(() => {
+  //   if (isGuest && messages.length > 0) {
+  //     const recentMessages = messages.slice(-20)
+  //     const chatData = {
+  //       state: { 
+  //         messages: recentMessages, 
+  //         currentSessionId: currentThreadId, 
+  //         isLoading: false 
+  //       },
+  //       version: 0
+  //     }
+  //     localStorage.setItem('keto-coach-chat-guest-backup', JSON.stringify(chatData))
+  //   }
+  // }, [messages, currentThreadId, isGuest])
+
   // API 훅들
   const sendMessage = useSendMessage()
   const createNewThread = useCreateNewThread()
@@ -525,25 +578,39 @@ export function useMessageHandlers({
 
   // 최근 식단 데이터 찾기
   const findRecentMealData = useCallback((messages: ChatMessage[]): LLMParsedMeal | null => {
+    console.log('🔍 findRecentMealData 호출, 메시지 수:', messages.length)
+    
+    // 1. mealData 속성에서 직접 찾기
     for (let i = messages.length - 1; i >= Math.max(0, messages.length - 15); i--) {
       const msg = messages[i]
+      console.log(`🔍 메시지 ${i} 확인:`, { 
+        role: msg.role, 
+        hasMealData: !!msg.mealData,
+        contentPreview: msg.content?.substring(0, 50) + '...'
+      })
+      
       if (msg.role === 'assistant' && msg.mealData) {
-        console.log('🔍 최근 식단 데이터 발견:', msg.mealData)
+        console.log('✅ mealData 속성에서 식단 데이터 발견:', msg.mealData)
         return msg.mealData
       }
     }
     
+    // 2. 메시지 내용을 파싱해서 찾기
     for (let i = messages.length - 1; i >= Math.max(0, messages.length - 15); i--) {
       const msg = messages[i]
       if (msg.role === 'assistant' && msg.content) {
+        console.log(`🔍 메시지 ${i} 내용 파싱 시도:`, msg.content.substring(0, 100) + '...')
         const parsedMeal = MealParserService.parseMealFromResponse(msg.content)
         if (parsedMeal) {
-          console.log('🔍 메시지 내용에서 식단 데이터 파싱 성공:', parsedMeal)
+          console.log('✅ 메시지 내용에서 식단 데이터 파싱 성공:', parsedMeal)
           return parsedMeal
+        } else {
+          console.log('❌ 메시지 내용에서 식단 데이터 파싱 실패')
         }
       }
     }
     
+    console.log('❌ 최근 15개 메시지에서 식단 데이터를 찾을 수 없음')
     return null
   }, [])
 

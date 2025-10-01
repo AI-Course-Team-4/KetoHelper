@@ -104,22 +104,13 @@ export function useChatLogic() {
   // hasStartedChatting 제거 - 채팅 기록이 있으면 DB에서 조회되므로 불필요
 
   // 게스트 사용자 브라우저 탭 닫을 때만 채팅 데이터 삭제
+  // SPA 라우팅 문제로 인해 완전히 비활성화
   useEffect(() => {
     if (!isLoggedIn) {
-      const handleBeforeUnload = () => {
-        console.log('🚪 게스트 사용자 브라우저 탭 닫기 - 채팅 데이터 삭제')
-        clearMessages()
-        // SessionStorage도 삭제
-        if (typeof window !== 'undefined') {
-          sessionStorage.removeItem('keto-coach-chat-guest')
-        }
-      }
-
-      window.addEventListener('beforeunload', handleBeforeUnload)
+      console.log('🎭 게스트 사용자 - 탭 닫기 감지 완전 비활성화 (SPA 라우팅 문제 해결)')
       
-      return () => {
-        window.removeEventListener('beforeunload', handleBeforeUnload)
-      }
+      // beforeunload 이벤트를 완전히 제거하여 SPA 라우팅에서 세션 스토리지가 사라지는 문제 해결
+      // 실제 탭 닫기는 브라우저가 자동으로 세션 스토리지를 정리하므로 수동으로 할 필요 없음
     }
   }, [isLoggedIn, clearMessages])
 
