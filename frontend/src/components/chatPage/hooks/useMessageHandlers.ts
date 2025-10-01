@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { ChatMessage, LLMParsedMeal } from '@/store/chatStore'
 import { useProfileStore } from '@/store/profileStore'
 import { useAuthStore } from '@/store/authStore'
@@ -44,44 +44,33 @@ export function useMessageHandlers({
   const { profile } = useProfileStore()
   const { user, ensureGuestId, isGuest } = useAuthStore()
 
-  // 세션 스토리지가 안정적으로 유지되므로 복구 로직 제거
-  // useEffect(() => {
-  //   const handleStorageChange = () => {
-  //     const sessionData = sessionStorage.getItem('keto-coach-chat-guest')
-  //     const localBackup = localStorage.getItem('keto-coach-chat-guest-backup')
-  //     
-  //     console.log('🔍 스토리지 상태 확인:', {
-  //       currentURL: window.location.href,
-  //       hasSessionData: !!sessionData,
-  //       hasLocalBackup: !!localBackup,
-  //       isGuest,
-  //       sessionDataLength: sessionData ? JSON.parse(sessionData).state?.messages?.length : 0,
-  //       backupDataLength: localBackup ? JSON.parse(localBackup).state?.messages?.length : 0
-  //     })
-  //     
-  //     if (!sessionData && localBackup && isGuest) {
-  //       console.log('🔄 세션 스토리지 복구 중...')
-  //       try {
-  //         const backupData = JSON.parse(localBackup)
-  //         sessionStorage.setItem('keto-coach-chat-guest', JSON.stringify(backupData))
-  //         console.log('✅ 세션 스토리지 복구 완료')
-  //       } catch (error) {
-  //         console.error('❌ 세션 스토리지 복구 실패:', error)
-  //       }
-  //     }
-  //   }
+  // 배포 환경 디버깅을 위한 세션 스토리지 모니터링 (백업 없이)
+  useEffect(() => {
+    if (isGuest) {
+      const checkSessionStorage = () => {
+        const sessionData = sessionStorage.getItem('keto-coach-chat-guest')
+        console.log('🔍 세션 스토리지 상태 체크 (백업 없음):', {
+          currentURL: window.location.href,
+          hasSessionData: !!sessionData,
+          isGuest,
+          sessionDataLength: sessionData ? JSON.parse(sessionData).state?.messages?.length : 0,
+          timestamp: new Date().toISOString()
+        })
+      }
 
-  //   handleStorageChange()
-  //   window.addEventListener('storage', handleStorageChange)
-  //   window.addEventListener('focus', handleStorageChange)
+      // 페이지 로드 시 체크
+      checkSessionStorage()
 
-  //   return () => {
-  //     window.removeEventListener('storage', handleStorageChange)
-  //     window.removeEventListener('focus', handleStorageChange)
-  //   }
-  // }, [isGuest])
+      // 페이지 포커스 시 체크 (다른 페이지에서 돌아올 때)
+      window.addEventListener('focus', checkSessionStorage)
 
-  // 세션 스토리지가 안정적으로 유지되므로 백업 로직 제거
+      return () => {
+        window.removeEventListener('focus', checkSessionStorage)
+      }
+    }
+  }, [isGuest])
+
+  // 백업 로직 비활성화 - 순수 세션 스토리지만으로 테스트
   // useEffect(() => {
   //   if (isGuest && messages.length > 0) {
   //     const recentMessages = messages.slice(-20)
@@ -94,6 +83,7 @@ export function useMessageHandlers({
   //       version: 0
   //     }
   //     localStorage.setItem('keto-coach-chat-guest-backup', JSON.stringify(chatData))
+  //     console.log('💾 배포 환경 백업 저장:', { messageCount: recentMessages.length })
   //   }
   // }, [messages, currentThreadId, isGuest])
 
