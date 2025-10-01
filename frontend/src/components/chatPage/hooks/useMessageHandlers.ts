@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback } from 'react'
 import { ChatMessage, LLMParsedMeal } from '@/store/chatStore'
 import { useProfileStore } from '@/store/profileStore'
 import { useAuthStore } from '@/store/authStore'
