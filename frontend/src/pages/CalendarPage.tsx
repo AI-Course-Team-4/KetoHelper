@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { CalendarToday, Add, BarChart, ChevronLeft, ChevronRight } from '@mui/icons-material'
+import { Add, BarChart, CalendarToday, ChevronLeft, ChevronRight } from '@mui/icons-material'
 import { DayPicker } from 'react-day-picker'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
@@ -645,99 +645,38 @@ export function CalendarPage() {
   return (
     <div className="space-y-6">
       {/* 헤더 */}
-      <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white">
-        <div className="relative p-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold mb-2">🥑 식단 캘린더</h1>
-              <p className="text-green-100">
-                키토 식단 계획을 스마트하게 관리하고 기록하세요
-              </p>
-            </div>
+      <div>
+        <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+          <div className="flex-1">
+            <h1 className="text-2xl font-bold text-gradient">식단 캘린더</h1>
+            <p className="text-muted-foreground mt-1">
+              키토 식단 계획을 스마트하게 관리하고 기록하세요
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <select 
+              value={selectedDays} 
+              onChange={(e) => setSelectedDays(Number(e.target.value))}
+              disabled={isGeneratingMealPlan}
+              className="px-3 py-2 bg-white border-2 border-gray-200 text-gray-700 rounded-lg disabled:opacity-50 focus:border-green-400 focus:outline-none"
+            >
+              <option value={3}>3일</option>
+              <option value={7}>7일</option>
+              <option value={14}>14일</option>
+              <option value={30}>30일</option>
+            </select>
             
-            <div className="flex items-center gap-3">
-              <select 
-                value={selectedDays} 
-                onChange={(e) => setSelectedDays(Number(e.target.value))}
-                disabled={isGeneratingMealPlan}
-                className="px-3 py-2 bg-white/20 border border-white/30 text-white rounded-lg disabled:opacity-50"
-              >
-                <option value={3} className="text-gray-800">3일</option>
-                <option value={7} className="text-gray-800">7일</option>
-                <option value={14} className="text-gray-800">14일</option>
-                <option value={30} className="text-gray-800">30일</option>
-              </select>
-              
-              <Button 
-                onClick={handleGenerateMealPlan}
-                disabled={isGeneratingMealPlan}
-                className="px-3 py-2 bg-white border border-white text-green-600 rounded-lg hover:bg-green-50 hover:text-green-700 font-semibold disabled:opacity-50 shadow-md"
-              >
-                <Add sx={{ fontSize: 20, mr: 1 }} />
-                {isGeneratingMealPlan ? '생성 중...' : `AI 식단표 생성`}
-              </Button>
-            </div>
+            <Button 
+              onClick={handleGenerateMealPlan}
+              disabled={isGeneratingMealPlan}
+              className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-lg font-semibold disabled:opacity-50 shadow-lg hover:shadow-xl transition-all duration-300"
+            >
+              <Add sx={{ fontSize: 20, mr: 1 }} />
+              {isGeneratingMealPlan ? '생성 중...' : `AI 식단표 생성`}
+            </Button>
           </div>
         </div>
-      </div>
-
-      {/* 주간 통계 */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border border-gray-200 bg-gradient-to-br from-green-50 to-emerald-50">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-2xl font-bold text-green-600">85%</div>
-                <div className="text-sm font-medium text-green-700">이행률</div>
-              </div>
-              <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
-                <BarChart className="h-5 w-5 text-white" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-gray-200 bg-gradient-to-br from-orange-50 to-amber-50">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-2xl font-bold text-orange-600">22g</div>
-                <div className="text-sm font-medium text-orange-700">평균 탄수화물</div>
-              </div>
-              <div className="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center">
-                <span className="text-white font-bold text-lg">C</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-gray-200 bg-gradient-to-br from-blue-50 to-cyan-50">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-2xl font-bold text-blue-600">1,650</div>
-                <div className="text-sm font-medium text-blue-700">평균 칼로리</div>
-              </div>
-              <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-                <span className="text-white text-xl">🔥</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-gray-200 bg-gradient-to-br from-purple-50 to-violet-50">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-2xl font-bold text-purple-600">30%</div>
-                <div className="text-sm font-medium text-purple-700">외식 비중</div>
-              </div>
-              <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center">
-                <span className="text-white text-xl">🍽️</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
