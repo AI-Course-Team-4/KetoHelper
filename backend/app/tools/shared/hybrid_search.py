@@ -239,6 +239,7 @@ class HybridSearchTool:
                     search_message = result.get('search_message', '')
                 
                 formatted_results.append({
+                    'id': result.get('id', ''),
                     'title': result.get('title', '제목 없음'),
                     'content': result.get('content', ''),
                     'similarity': result.get('final_score', 0.0),

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { CalendarToday, Add, BarChart, ChevronLeft, ChevronRight, Close, Save } from '@mui/icons-material'
+import { CalendarToday, Add, BarChart, ChevronLeft, ChevronRight } from '@mui/icons-material'
 import { DayPicker } from 'react-day-picker'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
@@ -11,7 +11,7 @@ import { MealModal } from '@/components/MealModal'
 import { DateDetailModal } from '@/components/DateDetailModal'
 import { usePlansRange, useCreatePlan, useGenerateMealPlan, useUpdatePlan, useDeletePlan } from '@/hooks/useApi'
 import { useAuthStore } from '@/store/authStore'
-import { useProfileStore } from '@/store/profileStore'
+// import { useProfileStore } from '@/store/profileStore' // 개인화된 엔드포인트에서 자동 처리
 import { useQueryClient } from '@tanstack/react-query'
 
 // 컴포넌트 상단에 추가
@@ -32,6 +32,22 @@ const getMealText = (mealData: MealData | null, mealType: string): string => {
   }
 };
 
+// 백엔드 응답에서 식사 제목을 안전하게 추출하는 헬퍼 함수
+const extractMealTitle = (mealData: any): string => {
+  if (!mealData) return ''
+  
+  if (typeof mealData === 'string') {
+    return mealData
+  }
+  
+  if (typeof mealData === 'object' && mealData !== null) {
+    // 백엔드 응답 형식: {title: "...", type: "simple"}
+    return mealData.title || mealData.content || mealData.name || ''
+  }
+  
+  return ''
+}
+
 export function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [currentMonth, setCurrentMonth] = useState(new Date())
@@ -41,8 +57,6 @@ export function CalendarPage() {
   const [selectedMealType, setSelectedMealType] = useState<string | null>(null)
   const [isDateDetailModalOpen, setIsDateDetailModalOpen] = useState(false)
   const [clickedDate, setClickedDate] = useState<Date | null>(null)
-  const [generatedMealPlan, setGeneratedMealPlan] = useState<Record<string, MealData> | null>(null)
-  const [showMealPlanSaveModal, setShowMealPlanSaveModal] = useState(false)
   const [selectedDays, setSelectedDays] = useState(7) // 기본 7일
   // 체크 상태만을 위한 로컬 state (UI용)
   const [mealCheckState, setMealCheckState] = useState<Record<string, {
@@ -54,14 +68,13 @@ export function CalendarPage() {
 
   // 사용자 인증 정보
   const { user } = useAuthStore()
-  const { profile } = useProfileStore()
+  // const { profile } = useProfileStore() // 개인화된 엔드포인트가 백엔드에서 자동으로 프로필 적용
   const createPlan = useCreatePlan()
   const generateMealPlan = useGenerateMealPlan()
   const updatePlan = useUpdatePlan()
   const deletePlan = useDeletePlan()
   const queryClient = useQueryClient()
   const [isGeneratingMealPlan, setIsGeneratingMealPlan] = useState(false)
-  const [isSavingMealPlan, setIsSavingMealPlan] = useState(false)
 
   // 현재 월의 시작일과 종료일 계산
   const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1)
@@ -196,21 +209,67 @@ export function CalendarPage() {
     try {
       console.log('🤖 AI 식단표 생성 시작...')
 
-      // AI 식단 생성 API 호출
+      // AI 식단 생성 API 호출 (개인화된 엔드포인트 사용 - 프로필 자동 적용)
       const mealPlanData = await generateMealPlan.mutateAsync({
         user_id: user.id,
-        days: selectedDays, // 선택된 일수만큼 식단표 생성
-        kcal_target: profile?.goals_kcal || 1800,
-        carbs_max: profile?.goals_carbs_g || 20,
-        allergies: profile?.allergy_names || [],
-        dislikes: profile?.dislike_names || []
+        days: selectedDays
       })
 
       console.log('✅ AI 식단표 생성 완료:', mealPlanData)
 
-      // 생성된 식단을 상태에 저장하고 저장 모달 표시
-      setGeneratedMealPlan(mealPlanData)
-      setShowMealPlanSaveModal(true)
+      // 백엔드 응답을 프론트엔드 형식으로 변환
+      let convertedMealPlan: Record<string, MealData> = {}
+      
+      try {
+        if (mealPlanData.days && Array.isArray(mealPlanData.days)) {
+          // 백엔드에서 받은 days 배열을 날짜 키 형식으로 변환
+          const startDate = new Date()
+          
+          mealPlanData.days.forEach((dayMeals: any, index: number) => {
+            try {
+              const currentDate = new Date(startDate)
+              currentDate.setDate(startDate.getDate() + index)
+              
+              // 날짜 유효성 검사
+              if (isNaN(currentDate.getTime())) {
+                console.warn(`⚠️ 유효하지 않은 날짜 (인덱스 ${index}):`, currentDate)
+                return
+              }
+              
+              const dateString = format(currentDate, 'yyyy-MM-dd')
+              
+              // 백엔드 응답을 프론트엔드 MealData 형식으로 변환
+              convertedMealPlan[dateString] = {
+                breakfast: extractMealTitle(dayMeals.breakfast) || '아침 메뉴',
+                lunch: extractMealTitle(dayMeals.lunch) || '점심 메뉴',
+                dinner: extractMealTitle(dayMeals.dinner) || '저녁 메뉴',
+                snack: extractMealTitle(dayMeals.snack) || '간식'
+              }
+            } catch (dayError) {
+              console.error(`❌ ${index}일차 데이터 변환 오류:`, dayError, dayMeals)
+            }
+          })
+          
+          console.log(`✅ ${Object.keys(convertedMealPlan).length}일치 식단표 변환 완료`)
+        } else {
+          // 폴백: 기존 형식 그대로 사용 (날짜 키가 있는 객체)
+          if (typeof mealPlanData === 'object' && mealPlanData !== null) {
+            convertedMealPlan = mealPlanData as Record<string, MealData>
+            console.log('📝 기존 형식 사용 (날짜 키 객체)')
+          } else {
+            console.warn('⚠️ 예상치 못한 데이터 형식:', mealPlanData)
+            throw new Error('식단 데이터 형식이 올바르지 않습니다.')
+          }
+        }
+      } catch (conversionError) {
+        console.error('❌ 식단표 변환 중 오류:', conversionError)
+        throw new Error('식단표 데이터 변환에 실패했습니다.')
+      }
+
+      console.log('🔄 변환된 식단표:', convertedMealPlan)
+
+      // AI 식단표 생성 완료 후 자동으로 캘린더에 저장
+      await handleAutoSaveMealPlan(convertedMealPlan)
 
     } catch (error) {
       console.error('❌ AI 식단표 생성 실패:', error)
@@ -240,8 +299,8 @@ export function CalendarPage() {
         }
 
         if (Object.keys(newMealData).length > 0) {
-          setGeneratedMealPlan(newMealData)
-          setShowMealPlanSaveModal(true)
+          // 폴백 식단도 자동 저장
+          await handleAutoSaveMealPlan(newMealData)
         } else {
           console.error('❌ 폴백 식단 생성 실패')
           alert('식단 생성에 완전히 실패했습니다. 다시 시도해주세요.')
@@ -299,175 +358,90 @@ export function CalendarPage() {
     setClickedDate(null)
   }
 
-  // AI 생성 식단표 저장 핸들러 (병렬 처리 최적화)
-  const handleSaveGeneratedMealPlan = async () => {
-    if (!user?.id || !generatedMealPlan) {
-      alert('로그인이 필요하거나 저장할 식단이 없습니다.')
+
+  // AI 식단표 자동 저장 함수
+  const handleAutoSaveMealPlan = async (mealPlanData: Record<string, MealData>) => {
+    if (!user?.id) {
+      console.error('❌ 사용자 ID가 없습니다.')
       return
     }
 
-    setIsSavingMealPlan(true)
-
+    // 저장 중 상태는 로컬 변수로 관리
+    
     try {
-      console.log('💾 AI 생성 식단표 저장 시작... (병렬 처리)')
-      const startTime = Date.now()
+      console.log('💾 AI 식단표 자동 저장 시작...')
+      
+      let successCount = 0
+      const totalDays = Object.keys(mealPlanData).length
+      const savedDays: string[] = []
 
-      // 모든 저장 요청을 배열로 준비
-      const savePromises: Promise<any>[] = []
-      const saveInfo: Array<{ dateString: string, slot: string, title: string }> = []
+      // 각 날짜별로 식단 저장
+      for (const [dateString, dayMeals] of Object.entries(mealPlanData)) {
+        try {
+          // 각 식사 시간대별로 개별 plan 생성
+          const mealSlots = ['breakfast', 'lunch', 'dinner', 'snack'] as const
+          let daySuccessCount = 0
 
-      for (const [dateString, mealData] of Object.entries(generatedMealPlan)) {
-        const mealSlots = ['breakfast', 'lunch', 'dinner', 'snack'] as const
+          for (const slot of mealSlots) {
+            const mealContent = dayMeals[slot]
+            if (mealContent && mealContent.trim()) {
+              try {
+                const planData = {
+                  user_id: user.id,
+                  date: dateString,
+                  slot: slot,
+                  type: 'recipe' as const,
+                  ref_id: '',
+                  title: mealContent.trim(),
+                  location: undefined,
+                  macros: undefined,
+                  notes: undefined
+                }
 
-        for (const slot of mealSlots) {
-          const mealTitle = mealData[slot]
-          if (mealTitle && mealTitle.trim()) {
-            const planData = {
-              user_id: user.id,
-              date: dateString,
-              slot: slot,
-              type: 'recipe' as const,
-              ref_id: '',
-              title: mealTitle.trim(),
-              location: undefined,
-              macros: undefined,
-              notes: undefined
+                const result = await createPlan.mutateAsync(planData)
+                if (result) {
+                  daySuccessCount++
+                  console.log(`✅ ${dateString} ${slot} 저장 완료`)
+                }
+              } catch (slotError) {
+                console.error(`❌ ${dateString} ${slot} 저장 실패:`, slotError)
+              }
             }
-
-            // Promise를 배열에 추가 (즉시 실행되지 않음)
-            savePromises.push(createPlan.mutateAsync(planData))
-            saveInfo.push({ dateString, slot, title: mealTitle.trim() })
           }
+
+          if (daySuccessCount > 0) {
+            successCount++
+            savedDays.push(dateString)
+            console.log(`✅ ${dateString} 식단 저장 완료 (${daySuccessCount}/4)`)
+          }
+
+        } catch (dayError) {
+          console.error(`❌ ${dateString} 날짜 저장 실패:`, dayError)
         }
       }
 
-      console.log(`📊 총 ${savePromises.length}개 식단을 병렬로 저장 시작...`)
-
-      // 모든 API 호출을 병렬로 실행 (하나라도 실패하면 전체 실패)
-      try {
-        await Promise.all(savePromises)
-
-        const endTime = Date.now()
-        const duration = ((endTime - startTime) / 1000).toFixed(1)
-
-        console.log(`⚡ 전체 저장 완료! 소요시간: ${duration}초`)
-        console.log(`✅ 총 ${savePromises.length}개 식단 저장 성공`)
-
+      // 저장 결과 처리
+      if (successCount > 0) {
+        console.log(`🎉 AI 식단표 자동 저장 완료: ${successCount}/${totalDays}일`)
+        
         // 캘린더 데이터 새로고침
         queryClient.invalidateQueries({ queryKey: ['plans-range'] })
-
-        // 생성된 식단을 로컬 상태에도 반영
-        setMealData(prev => ({ ...prev, ...generatedMealPlan }))
-
-        // 모달 닫기
-        setShowMealPlanSaveModal(false)
-        setGeneratedMealPlan(null)
-
-        alert(`✅ AI 식단표 저장 완료! (${duration}초)\n총 ${savePromises.length}개 식단이 저장되었습니다.`)
-
-      } catch (error) {
-        const endTime = Date.now()
-        const duration = ((endTime - startTime) / 1000).toFixed(1)
-
-        console.error(`❌ 저장 실패! 소요시간: ${duration}초`, error)
-        throw new Error(`저장에 실패했습니다. (${duration}초)`)
+        
+        // 성공 알림
+        alert(`✅ AI 식단표가 자동으로 저장되었습니다!\n\n📅 저장된 일수: ${successCount}일\n🗓️ 저장된 날짜: ${savedDays.slice(0, 3).join(', ')}${savedDays.length > 3 ? '...' : ''}`)
+        
+        // 생성된 식단 상태 초기화 (이미 자동 저장되었으므로)
+        
+      } else {
+        console.error('❌ 모든 식단 저장 실패')
+        alert('❌ 식단 저장에 실패했습니다. 다시 시도해주세요.')
       }
 
     } catch (error) {
-      console.error('❌ AI 식단표 저장 실패:', error)
-      alert('식단표 저장에 실패했습니다. 다시 시도해주세요.')
+      console.error('❌ AI 식단표 자동 저장 중 오류:', error)
+      alert('❌ 식단 저장 중 오류가 발생했습니다. 다시 시도해주세요.')
     } finally {
-      setIsSavingMealPlan(false)
-    }
-  }
-
-  // AI 생성 식단표 저장 모달 닫기 핸들러
-  const handleCloseMealPlanSaveModal = () => {
-    setShowMealPlanSaveModal(false)
-    setGeneratedMealPlan(null)
-    setSelectedDays(7) // 기본값으로 재설정
-  }
-
-  // 추가 일수 식단 생성 핸들러
-  const handleGenerateMoreDays = async (additionalDays: number) => {
-    if (!user?.id || !generatedMealPlan) {
-      alert('오류가 발생했습니다.')
-      return
-    }
-
-    setIsGeneratingMealPlan(true)
-
-    try {
-      console.log(`🤖 추가 ${additionalDays}일 식단표 생성 시작...`)
-
-      // 현재 생성된 식단의 마지막 날짜 찾기
-      const existingDates = Object.keys(generatedMealPlan).sort()
-      if (existingDates.length === 0) {
-        console.error('❌ 기존 식단 데이터가 없습니다.')
-        alert('기존 식단 데이터가 없어 추가 생성할 수 없습니다.')
-        return
-      }
-
-      const lastDateString = existingDates[existingDates.length - 1]
-      const lastDate = new Date(lastDateString)
-
-      if (isNaN(lastDate.getTime())) {
-        console.error('❌ 마지막 날짜가 유효하지 않습니다:', lastDateString)
-        alert('날짜 정보가 올바르지 않아 추가 생성할 수 없습니다.')
-        return
-      }
-
-      // 추가 일수만큼 생성
-      const newMealData: Record<string, MealData> = { ...generatedMealPlan }
-
-      try {
-        // AI 식단 생성 API 호출 (추가 일수)
-        const additionalMealPlan = await generateMealPlan.mutateAsync({
-          user_id: user.id,
-          days: additionalDays,
-          kcal_target: profile?.goals_kcal || 1800,
-          carbs_max: profile?.goals_carbs_g || 20,
-          allergies: profile?.allergy_names || [],
-          dislikes: profile?.dislike_names || []
-        })
-
-        // 기존 데이터와 합치기
-        Object.assign(newMealData, additionalMealPlan)
-
-      } catch (error) {
-        console.error('❌ 추가 AI 식단 생성 실패, 폴백 사용:', error)
-
-        // 폴백: 로컬 랜덤 식단 생성
-        try {
-          for (let day = 1; day <= additionalDays; day++) {
-            const newDate = new Date(lastDate)
-            newDate.setDate(lastDate.getDate() + day)
-
-            if (isNaN(newDate.getTime())) {
-              console.error('❌ 새 날짜 생성 실패:', day)
-              continue
-            }
-
-            const dateString = format(newDate, 'yyyy-MM-dd')
-            newMealData[dateString] = generateRandomMeal()
-          }
-        } catch (fallbackError) {
-          console.error('❌ 폴백 식단 생성 실패:', fallbackError)
-          alert('추가 식단 생성에 실패했습니다.')
-          return
-        }
-      }
-
-      setGeneratedMealPlan(newMealData)
-      setSelectedDays(existingDates.length + additionalDays)
-
-      console.log(`✅ 추가 ${additionalDays}일 식단 생성 완료`)
-
-    } catch (error) {
-      console.error('❌ 추가 식단 생성 실패:', error)
-      alert('추가 식단 생성에 실패했습니다. 다시 시도해주세요.')
-    } finally {
-      setIsGeneratingMealPlan(false)
+      // 저장 완료
     }
   }
 
@@ -1144,31 +1118,6 @@ export function CalendarPage() {
               </div>
             )}
 
-            {/* 일수 선택 옵션 */}
-            <div className="mb-3">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                생성할 일수
-              </label>
-              <select
-                value={selectedDays}
-                onChange={(e) => setSelectedDays(Number(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
-                disabled={isGeneratingMealPlan}
-              >
-                <option value={3}>3일</option>
-                <option value={7}>7일</option>
-                <option value={14}>14일</option>
-                <option value={30}>30일</option>
-              </select>
-            </div>
-
-            <Button
-              className="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-2 rounded-lg transition-colors"
-              onClick={handleGenerateMealPlan}
-              disabled={isGeneratingMealPlan}
-            >
-              {isGeneratingMealPlan ? '생성 중...' : 'AI 식단표 생성'}
-            </Button>
           </CardContent>
         </Card>
       </div>
@@ -1238,119 +1187,6 @@ export function CalendarPage() {
         />
       )}
 
-      {/* AI 생성 식단표 저장 모달 */}
-      {showMealPlanSaveModal && generatedMealPlan && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                  <span className="text-3xl">🤖</span>
-                  AI 생성 식단표 미리보기
-                  <span className="text-lg font-normal text-gray-500">
-                    ({Object.keys(generatedMealPlan).length}일)
-                  </span>
-                </h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleCloseMealPlanSaveModal}
-                  className="hover:bg-gray-100"
-                  disabled={isGeneratingMealPlan || isSavingMealPlan}
-                >
-                  <Close sx={{ fontSize: 20 }} />
-                </Button>
-              </div>
-              <div className="flex items-center justify-between mt-3">
-                <p className="text-gray-600">
-                  생성된 식단표를 확인하고 캘린더에 저장하세요.
-                </p>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-500">더 필요하신가요?</span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleGenerateMoreDays(3)}
-                    disabled={isGeneratingMealPlan || isSavingMealPlan}
-                    className="text-xs border-green-300 text-green-700 hover:bg-green-50 disabled:opacity-50"
-                  >
-                    {isGeneratingMealPlan ? '생성중...' : '+3일'}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleGenerateMoreDays(7)}
-                    disabled={isGeneratingMealPlan || isSavingMealPlan}
-                    className="text-xs border-green-300 text-green-700 hover:bg-green-50 disabled:opacity-50"
-                  >
-                    {isGeneratingMealPlan ? '생성중...' : '+7일'}
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6">
-              <div className="grid gap-4">
-                {Object.entries(generatedMealPlan).map(([dateString, mealData]) => (
-                  <div key={dateString} className="border border-gray-200 rounded-xl p-4 bg-gray-50">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                      <CalendarToday sx={{ fontSize: 20, color: 'green.600' }} />
-                      {format(new Date(dateString), 'M월 d일 (EEE)', { locale: ko })}
-                    </h3>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                      {[
-                        { key: 'breakfast', label: '아침', icon: '🌅' },
-                        { key: 'lunch', label: '점심', icon: '☀️' },
-                        { key: 'dinner', label: '저녁', icon: '🌙' },
-                        { key: 'snack', label: '간식', icon: '🍎' }
-                      ].map((meal) => (
-                        <div key={meal.key} className="bg-white p-3 rounded-lg border border-gray-100">
-                          <div className="font-medium text-green-700 text-sm flex items-center gap-1 mb-1">
-                            <span>{meal.icon}</span>
-                            {meal.label}
-                          </div>
-                          <div className="text-sm text-gray-600">
-                            {mealData[meal.key as keyof MealData] || '없음'}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex gap-3 mt-6 pt-4 border-t border-gray-200">
-                <Button
-                  onClick={handleSaveGeneratedMealPlan}
-                  disabled={isSavingMealPlan}
-                  className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                  {isSavingMealPlan ? (
-                    <>
-                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-2"></div>
-                      저장 중...
-                    </>
-                  ) : (
-                    <>
-                      <Save sx={{ fontSize: 20, mr: 1 }} />
-                      캘린더에 저장하기
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleCloseMealPlanSaveModal}
-                  disabled={isSavingMealPlan}
-                  className="flex-1 py-3 rounded-xl border-2 border-gray-300 hover:bg-gray-50 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  취소
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
