@@ -30,7 +30,6 @@ export function ChatPage() {
     chatThreads,
     isLoggedIn,
     isLoadingHistory,
-    isThread,
     isSaving,
     setIsSaving,
     addMessage,
