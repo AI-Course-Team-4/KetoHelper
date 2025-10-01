@@ -28,16 +28,35 @@ console.log('axiosClient 설정:', {
 
 client.interceptors.request.use((config) => {
   // 단순히 메모리에 있는 토큰만 붙인다. 인증 판정/리다이렉트는 response 401에서만 처리
-  const { accessToken } = useAuthStore.getState()
+  const { accessToken, user, isGuest } = useAuthStore.getState()
   console.log('🔍 axios request 인터셉터:', {
     url: config.url,
     method: config.method,
     hasAccessToken: !!accessToken,
+    hasUser: !!user,
+    isGuest,
     tokenLength: accessToken?.length,
     tokenPreview: accessToken ? `${accessToken.substring(0, 20)}...` : 'null'
   })
   
-  if (accessToken) {
+  // 게스트 사용자에게는 refresh 관련 요청을 아예 차단
+  if (isGuest && config.url?.includes('/auth/refresh')) {
+    console.log('🕊️ 게스트 사용자 - refresh 요청 차단:', config.url)
+    return Promise.reject(new Error('게스트 사용자는 refresh 요청을 할 수 없습니다'))
+  }
+  
+  // refresh 요청이 들어오면 상세 로그 출력
+  if (config.url?.includes('/auth/refresh')) {
+    console.log('🔍 refresh 요청 감지:', {
+      url: config.url,
+      isGuest,
+      hasUser: !!user,
+      hasAccessToken: !!accessToken,
+      method: config.method
+    })
+  }
+  
+  if (accessToken && !isGuest) {
     // JWT 토큰 만료 시간 확인
     try {
       const payload = JSON.parse(atob(accessToken.split('.')[1]))
@@ -64,8 +83,21 @@ client.interceptors.request.use((config) => {
       tokenLength: accessToken.length,
       tokenPreview: `${accessToken.substring(0, 20)}...`
     })
+  } else if (isGuest) {
+    // 게스트 요청: 인증/쿠키 제거
+    config.headers = config.headers || {}
+    delete (config.headers as any).Authorization
+    config.withCredentials = false
+    console.log('🕊️ 게스트 사용자 요청(Authorization 제거, withCredentials=false):', {
+      url: config.url,
+      method: config.method
+    })
   } else {
-    console.log('❌ accessToken 없음 - 인증되지 않은 요청:', {
+    // 로그인 사용자이지만 토큰이 없는 경우
+    config.headers = config.headers || {}
+    delete (config.headers as any).Authorization
+    config.withCredentials = true
+    console.log('❌ accessToken 없음 - 로그인 사용자(Authorization 제거, withCredentials=true):', {
       url: config.url,
       method: config.method
     })
@@ -105,20 +137,43 @@ client.interceptors.response.use(
       return Promise.reject(error)
     }
     
-    // 수동 로그아웃 중이면 토스트 표시하지 않음
+    // 수동 로그아웃 중이면 토스트/리다이렉트 모두 표시하지 않음
     if (isManualLogout || (typeof window !== 'undefined' && (window as any).isManualLogout)) {
+      error._isHandled = true
+      error._suppressToast = true
       return Promise.reject(error)
     }
     
-    // 401 에러 처리
+    // 401 에러 처리 (로그인 사용자만)
     if (error.response?.status === 401 && !original._retry) {
-      console.log('🔑 401 에러 감지, 토큰 갱신 시도...')
+      // 게스트 사용자인지 먼저 확인
+      const { accessToken, user } = useAuthStore.getState()
+      const isGuest = !user?.id
+      
+      if (isGuest) {
+        console.log('🕊️ 게스트 사용자 401 에러 → refresh 시도하지 않음')
+        error._isHandled = true
+        error._suppressToast = true
+        return Promise.reject(createHandledError('Guest user 401 - no refresh'))
+      }
+      
+      console.log('🔑 로그인 사용자 401 에러 감지, 토큰 갱신 시도...')
       original._retry = true
       
       // 401 에러는 여기서 완전히 처리하므로 기본 에러 토스트 방지
       error._isHandled = true
       error._suppressToast = true // 추가 플래그로 토스트 억제
       
+      // 토큰 없음 + 세션 플래그도 없는 경우: 새로고침 초진입 등
+      // → 갱신 시도/토스트 모두 스킵하고 조용히 종료
+      try {
+        const hasSession = typeof window !== 'undefined' && sessionStorage.getItem('has-login-session') === '1'
+        if (!accessToken && !hasSession) {
+          console.log('🕊️ 비로그인 초진입 401 → refresh/토스트 스킵')
+          return Promise.reject(createHandledError('Unauthenticated initial load'))
+        }
+      } catch {}
+
       // 이미 갱신 중이면 기존 Promise 대기
       if (isRefreshing && refreshPromise) {
         try {
@@ -156,27 +211,27 @@ client.interceptors.response.use(
         } catch (refreshError) {
           console.log('❌ 토큰 갱신 실패, 로그아웃 처리')
           console.log('🔍 refreshError:', refreshError)
-          
+
+          const hasSession = (typeof window !== 'undefined') && sessionStorage.getItem('has-login-session') === '1'
           // 로그아웃 처리 (한 번만)
           if (!hasLoggedOut) {
             hasLoggedOut = true
-            // AuthService에서 토스트와 함께 메모리 초기화
-            authService.clearMemory(true)
-            
-            // 자동 로그아웃 시에도 수동 로그아웃과 동일하게 처리
-            const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/'
-            if (currentPath !== '/') {
-              // 페이지 새로고침 대신 React Router 사용
-              if (typeof window !== 'undefined') {
-                window.location.href = '/'
-                // 추가로 localStorage 완전 초기화
-                try {
-                  localStorage.removeItem('keto-auth')
-                  localStorage.removeItem('keto-coach-profile-v2')
-                  localStorage.removeItem('keto-coach-chat-v2')
-                  // 플래그들도 초기화
-                  hasLoggedOut = false
-                } catch {}
+            // 세션이 있었던 경우에만 만료 토스트 표시
+            authService.clearMemory(!!hasSession)
+
+            // 자동 로그아웃 시에도 수동 로그아웃과 동일하게 처리 (세션이 있었을 때만 리다이렉트)
+            if (hasSession) {
+              const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/'
+              if (currentPath !== '/') {
+                if (typeof window !== 'undefined') {
+                  window.location.href = '/'
+                  try {
+                    localStorage.removeItem('keto-auth')
+                    localStorage.removeItem('keto-coach-profile-v2')
+                    localStorage.removeItem('keto-coach-chat-v2')
+                    hasLoggedOut = false
+                  } catch {}
+                }
               }
             }
           }
