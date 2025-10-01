@@ -18,6 +18,8 @@ export function useChatLogic() {
   const [selectedPlaceIndexByMsg, setSelectedPlaceIndexByMsg] = useState<Record<string, number | null>>({})
   const [isLoadingThread, setIsLoadingThread] = useState(false)
   const [isThread, setIsThread] = useState(false)
+  // 직전 로그인 상태 추적 (실제 로그아웃 전환만 감지하기 위함)
+  const prevIsLoggedInRef = useRef<boolean>(false)
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -227,14 +229,16 @@ export function useChatLogic() {
     }
   }, [currentThreadId, isLoggedIn])
 
-  // 로그아웃 시 채팅 초기화 (게스트 사용자는 제외)
+  // 실제 로그인 → 로그아웃 전환에서만 초기화 (게스트에는 영향 없음)
   useEffect(() => {
-    if (!isLoggedIn && !isGuest) {
-      // 로그인 사용자가 로그아웃한 경우만 초기화
+    const wasLoggedIn = prevIsLoggedInRef.current
+    if (wasLoggedIn && !isLoggedIn) {
+      console.log('🔻 실제 로그아웃 전환 감지 - 채팅 초기화 진행')
       clearMessages()
       setCurrentThreadId(null)
     }
-  }, [isLoggedIn, isGuest, clearMessages, setCurrentThreadId])
+    prevIsLoggedInRef.current = isLoggedIn
+  }, [isLoggedIn, clearMessages])
 
   // 메시지 변경 시 자동 스크롤
   useEffect(() => {
