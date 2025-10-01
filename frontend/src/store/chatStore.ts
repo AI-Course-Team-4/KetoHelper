@@ -85,8 +85,13 @@ export const useChatStore = create<ChatState>()(
               if (authData) {
                 try {
                   const parsed = JSON.parse(authData)
-                  // isGuest 상태를 직접 확인
-                  isGuest = parsed.state?.isGuest !== false
+                  // user가 없으면 게스트 사용자로 판단
+                  isGuest = !parsed.state?.user
+                  console.log('🔍 게스트 판단:', { 
+                    hasUser: !!parsed.state?.user, 
+                    isGuest, 
+                    authData: parsed.state 
+                  })
                 } catch (e) {
                   console.error('Auth 데이터 파싱 실패:', e)
                 }
@@ -112,8 +117,13 @@ export const useChatStore = create<ChatState>()(
           if (authData) {
             try {
               const parsed = JSON.parse(authData)
-              // isGuest 상태를 직접 확인
-              isGuest = parsed.state?.isGuest !== false
+              // user가 없으면 게스트 사용자로 판단
+              isGuest = !parsed.state?.user
+              console.log('🔍 게스트 판단 (setItem):', { 
+                hasUser: !!parsed.state?.user, 
+                isGuest, 
+                authData: parsed.state 
+              })
             } catch (e) {
               console.error('Auth 데이터 파싱 실패:', e)
             }
