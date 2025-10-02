@@ -149,17 +149,7 @@ export function useMessageHandlers({
     setMessage('')
     setIsLoading(true)
 
-    // React Query Optimistic Update: 사용자 메시지 즉시 표시
-    const cacheKey: any[] = ['chat-history', threadId || currentThreadId, 20]
-    queryClient.setQueryData(cacheKey, (old: any[] = []) => [
-      ...old,
-      {
-        id: userMessage.id,
-        role: 'user',
-        message: userMessage.content,
-        created_at: new Date(now).toISOString()
-      }
-    ])
+    // React Query Optimistic Update는 useApi.ts의 onMutate에서 자동으로 처리됨
 
     try {
       const response = await sendMessage.mutateAsync({
@@ -334,18 +324,8 @@ export function useMessageHandlers({
     }
 
     setIsLoading(true)
-    
-    // React Query Optimistic Update: 빠른 메시지도 즉시 표시
-    const quickCacheKey: any[] = ['chat-history', threadId || currentThreadId, 20]
-    queryClient.setQueryData(quickCacheKey, (old: any[] = []) => [
-      ...old,
-      {
-        id: userMessage.id,
-        role: 'user',
-        message: userMessage.content,
-        created_at: new Date().toISOString()
-      }
-    ])
+
+    // React Query Optimistic Update는 useApi.ts의 onMutate에서 자동으로 처리됨
 
     try {
       const response = await sendMessage.mutateAsync({
