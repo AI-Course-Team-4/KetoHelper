@@ -113,9 +113,11 @@ class KoreanSearchTool:
                                 'id': str(row.get('id', '')),
                                 'title': row.get('title', '제목 없음'),
                                 'content': row.get('content', ''),
+                                'allergens': row.get('allergens', []),
+                                'ingredients': row.get('ingredients', []),
                                 'search_score': row.get('search_score', 1.0),
                                 'search_type': 'ilike_exact',
-                                'metadata': {kk: vv for kk, vv in row.items() if kk not in ['id','title','content','search_score']}
+                                'metadata': {kk: vv for kk, vv in row.items() if kk not in ['id','title','content','search_score','allergens','ingredients']}
                             })
                         return formatted
                 except Exception as e:
@@ -141,9 +143,11 @@ class KoreanSearchTool:
                     'id': str(result.get('id', '')),
                     'title': result.get('title', '제목 없음'),
                     'content': result.get('content', ''),
+                    'allergens': result.get('allergens', []),
+                    'ingredients': result.get('ingredients', []),
                     'search_score': result.get('search_score', 1.0),
                     'search_type': 'pgroonga',
-                    'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'search_score']}
+                    'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'search_score', 'allergens', 'ingredients']}
                 })
 
             return formatted_results
@@ -169,9 +173,11 @@ class KoreanSearchTool:
                     'id': str(result.get('id', '')),
                     'title': result.get('title', '제목 없음'),
                     'content': result.get('content', ''),
+                    'allergens': result.get('allergens', []),
+                    'ingredients': result.get('ingredients', []),
                     'search_score': result.get('search_score', result.get('fts_score', 0.0)),
                     'search_type': 'fts',
-                    'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'fts_score']}
+                    'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'fts_score', 'allergens', 'ingredients']}
                 })
             
             return formatted_results
@@ -198,9 +204,11 @@ class KoreanSearchTool:
                     'id': str(result.get('id', '')),
                     'title': result.get('title', '제목 없음'),
                     'content': result.get('content', ''),
+                    'allergens': result.get('allergens', []),
+                    'ingredients': result.get('ingredients', []),
                     'search_score': result.get('search_score', result.get('similarity_score', 0.0)),
                     'search_type': 'trigram',
-                    'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'similarity_score']}
+                    'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'similarity_score', 'allergens', 'ingredients']}
                 })
             
             return formatted_results
@@ -228,9 +236,11 @@ class KoreanSearchTool:
                     'id': str(result.get('id', '')),
                     'title': result.get('title', '제목 없음'),
                     'content': result.get('content', ''),
+                    'allergens': result.get('allergens', []),
+                    'ingredients': result.get('ingredients', []),
                     'search_score': result.get('search_score', result.get('similarity_score', 0.0)),
                     'search_type': 'vector',
-                    'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'similarity_score']}
+                    'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'similarity_score', 'allergens', 'ingredients']}
                 })
             
             return formatted_results
@@ -278,9 +288,11 @@ class KoreanSearchTool:
                     'id': str(result.get('id', '')),
                     'title': result.get('title', '제목 없음'),
                     'content': result.get('content', ''),
+                    'allergens': result.get('allergens', []),
+                    'ingredients': result.get('ingredients', []),
                     'search_score': 0.5,  # ILIKE 검색 기본 점수
                     'search_type': 'ilike',
-                    'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content']}
+                    'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'allergens', 'ingredients']}
                 })
             
             return formatted_results[:k]
@@ -452,8 +464,11 @@ class KoreanSearchTool:
                         search_message = f"'{meal_hint}' 키워드를 반영해 레시피를 추천했습니다."
                 
                 formatted_results.append({
+                    'id': result.get('id', ''),
                     'title': result.get('title', '제목 없음'),
                     'content': result.get('content', ''),
+                    'allergens': result.get('allergens', []),
+                    'ingredients': result.get('ingredients', []),
                     'similarity': result.get('final_score', 0.0),
                     'metadata': result.get('metadata', {}),
                     'search_types': [result.get('search_type', 'hybrid')],
