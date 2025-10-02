@@ -149,12 +149,16 @@ export function MessageItem({
               ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white max-w-2xl'
               : 'bg-white border-2 border-gray-100 max-w-3xl'
             }`}>
-            <p className="text-sm lg:text-base whitespace-pre-wrap leading-relaxed">
-              {msg.role === 'assistant' ? displayedText : msg.content}
+            <div className="text-sm lg:text-base whitespace-pre-wrap leading-relaxed">
+              {msg.role === 'assistant' ? (
+                <div dangerouslySetInnerHTML={{ __html: displayedText }} />
+              ) : (
+                <p>{msg.content}</p>
+              )}
               {msg.role === 'assistant' && isTyping && (
                 <span className="inline-block w-2 h-4 bg-green-500 ml-1 animate-pulse" />
               )}
-            </p>
+            </div>
           </div>
 
           {/* 타임스탬프 */}
