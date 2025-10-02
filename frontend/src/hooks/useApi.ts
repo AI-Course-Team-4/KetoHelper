@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axiosClient from '@/lib/axiosClient'
+import { useRef } from 'react'
 
 // axiosClient를 사용하여 토큰 갱신과 인증을 자동으로 처리
 export const api = axiosClient
@@ -113,11 +114,26 @@ export interface ChatHistory {
 
 export function useSendMessage() {
   const queryClient = useQueryClient()
-  
+  const isExecutingRef = useRef(false)
+
   return useMutation({
+    mutationKey: ['send-message'],
+    retry: false,
+
     mutationFn: async (data: ChatRequest): Promise<ChatResponse> => {
-      const response = await api.post('/chat/', data)
-      return response.data
+      // 중복 실행 방지 (동기 체크)
+      if (isExecutingRef.current) {
+        throw new Error('이전 요청이 진행 중입니다')
+      }
+
+      isExecutingRef.current = true
+
+      try {
+        const response = await api.post('/chat/', data)
+        return response.data
+      } finally {
+        isExecutingRef.current = false
+      }
     },
     onMutate: async (variables) => {
       console.log('🚀 Optimistic Update 시작:', variables)
@@ -205,12 +221,36 @@ export function useSendMessage() {
         }
       }
     },
-    onError: (_error, variables) => {
-      // 에러 시 임시 메시지 제거
+    onError: (error: any, variables) => {
+      // 에러 시 임시 메시지를 실제 메시지로 교체하고 에러 메시지 추가
       if (variables.thread_id) {
         queryClient.setQueryData(['chat-history', variables.thread_id, 20], (old: ChatHistory[] | undefined) => {
-          if (!old) return old
-          return old.filter(msg => !msg.id.toString().startsWith('temp-'))
+          if (!old) return []
+
+          // 임시 메시지를 실제 사용자 메시지로 교체
+          const withoutTemp = old.filter(msg => !msg.id.toString().startsWith('temp-'))
+
+          // 타임아웃 또는 네트워크 에러 판별
+          const isTimeout = error?.code === 'ECONNABORTED' || error?.message?.includes('timeout')
+          const errorMessage = isTimeout
+            ? '⏱️ 요청 처리 시간이 초과되었습니다. 복잡한 요청은 시간이 걸릴 수 있습니다. 잠시 후 다시 시도해주세요.'
+            : '❌ 메시지 전송에 실패했습니다. 네트워크 연결을 확인하고 다시 시도해주세요.'
+
+          return [
+            ...withoutTemp,
+            {
+              id: `user-${Date.now()}`,
+              role: 'user',
+              message: variables.message,
+              created_at: new Date().toISOString()
+            },
+            {
+              id: `error-${Date.now()}`,
+              role: 'assistant',
+              message: errorMessage,
+              created_at: new Date().toISOString()
+            }
+          ]
         })
       }
     }
