@@ -4,7 +4,6 @@
 """
 
 import os
-from typing import Optional
 try:
     from pydantic_settings import BaseSettings, SettingsConfigDict
 except ImportError:
@@ -20,19 +19,26 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
     
     # AI/LLM 설정
-    # OpenAI 설정 (임베딩용으로 유지)
+    # OpenAI 설정 (임베딩/LLM 공통 사용)
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     embedding_model: str = os.getenv("EMBEDDING_MODEL", "")
     
-    # LLM 설정 (Gemini 사용)
+    # 공통 LLM 설정
+    llm_provider: str = os.getenv("LLM_PROVIDER", "gemini").lower()
+    llm_model: str = os.getenv(
+        "LLM_MODEL",
+        os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    )
+    llm_temperature: float = float(
+        os.getenv("LLM_TEMPERATURE", os.getenv("GEMINI_TEMPERATURE", "0.1"))
+    )
+    llm_max_tokens: int = int(
+        os.getenv("LLM_MAX_TOKENS", os.getenv("GEMINI_MAX_TOKENS", "8192"))
+    )
+    llm_timeout: int = int(os.getenv("LLM_TIMEOUT", "60"))
+
+    # Gemini 설정
     google_api_key: str = os.getenv("GOOGLE_API_KEY", "")
-    llm_model: str = os.getenv("GEMINI_MODEL", os.getenv("LLM_MODEL", "gemini-2.5-flash"))
-    
-    # Gemini 세부 설정 (선택사항 - 기본값 사용 가능)
-    # GEMINI_TEMPERATURE: AI 응답의 창의성 조절 (0.0=일관성, 1.0=창의성)
-    # GEMINI_MAX_TOKENS: 최대 응답 길이 (토큰 수)
-    gemini_temperature: float = float(os.getenv("GEMINI_TEMPERATURE", "0.1"))
-    gemini_max_tokens: int = int(os.getenv("GEMINI_MAX_TOKENS", "8192"))
     
     # 외부 API 설정
     kakao_rest_key: str = os.getenv("KAKAO_REST_KEY", "")

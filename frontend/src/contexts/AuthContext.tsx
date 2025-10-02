@@ -26,13 +26,12 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const { user, setAuth, clear, ensureGuestId } = useAuthStore()
   const [loading, setLoading] = useState(true)
-  const [isInitialized, setIsInitialized] = useState(false)
   
-  // 앱 시작 시 토큰 검증 및 갱신 (한 번만 실행)
+  // 앱 시작 시 토큰 검증 및 갱신 (새로고침 시에도 실행)
   useEffect(() => {
-    if (isInitialized) return
-    
     const initializeAuth = async () => {
+      let hasStoredUserData = false
+      
       try {
         console.log('🚀 AuthProvider 초기화 시작...')
         
@@ -43,7 +42,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (authData) {
           try {
             const parsed = JSON.parse(authData)
-            isGuest = parsed.state?.isGuest !== false
+            // isGuest가 명시적으로 true인 경우에만 게스트 사용자로 판단
+            isGuest = parsed.state?.isGuest === true
+            hasStoredUserData = !isGuest && !!parsed.state?.user
+            console.log('🔍 Auth 데이터 파싱 결과:', { isGuest, hasUser: !!parsed.state?.user, hasToken: !!parsed.state?.accessToken })
+            
+            // 저장된 사용자 정보가 있으면 즉시 UI 표시
+            if (hasStoredUserData) {
+              console.log('👤 저장된 사용자 정보 발견 - 즉시 UI 표시')
+              setLoading(false) // 즉시 로딩 해제
+            }
           } catch (e) {
             console.error('Auth 데이터 파싱 실패:', e)
             isGuest = true
@@ -62,6 +70,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           
           // 게스트 상태를 강제로 설정 (ensureGuestId가 이미 isGuest: true로 설정함)
           console.log('🔍 게스트 상태 설정 완료')
+          setLoading(false) // 게스트 사용자도 로딩 해제
           return
         }
         
@@ -81,17 +90,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
         } else {
           console.log('❌ 인증 초기화 실패, 로그인 필요')
           console.log('🔍 실패 이유:', { success: result.success, hasUser: !!result.user, hasToken: !!result.accessToken })
+          
+          // 토큰 검증 실패 시 게스트 사용자로 전환
+          console.log('🔄 토큰 검증 실패로 게스트 사용자로 전환')
+          const guestId = ensureGuestId()
+          console.log('🎭 게스트 사용자 ID 보장:', guestId)
         }
       } catch (error) {
         console.error('❌ 인증 초기화 실패:', error)
       } finally {
-        setLoading(false)
-        setIsInitialized(true)
+        // 저장된 사용자 정보가 없었던 경우에만 로딩 해제
+        if (!hasStoredUserData) {
+          setLoading(false)
+        }
       }
     }
 
     initializeAuth()
-  }, [isInitialized])
+  }, []) // 의존성 배열을 비워서 컴포넌트 마운트 시에만 실행
   
   const login = (user: any, accessToken: string, refreshToken: string) => {
     // 메모리에 저장

@@ -7,13 +7,11 @@ LangGraph 기반 키토 코치 에이전트 오케스트레이터
 import asyncio
 from typing import Dict, Any, Optional, AsyncGenerator
 from langgraph.graph import StateGraph, START, END
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import HumanMessage, AIMessage, BaseMessage
 import json
 import re
 from datetime import datetime
 
-from app.core.config import settings
 from app.core.intent_classifier import IntentClassifier, Intent  # 추가
 from app.tools.shared.hybrid_search import hybrid_search_tool
 from app.tools.shared.temporary_dislikes_extractor import temp_dislikes_extractor
@@ -22,6 +20,7 @@ from app.agents.chat_agent import SimpleKetoCoachAgent
 from app.agents.place_search_agent import PlaceSearchAgent
 from app.shared.utils.calendar_utils import CalendarUtils
 from app.tools.calendar.calendar_saver import CalendarSaver
+from app.core.llm_factory import create_chat_llm
 
 # 프롬프트 모듈 import (중앙집중화된 구조)
 from app.prompts.chat.intent_classification import INTENT_CLASSIFICATION_PROMPT, get_intent_prompt
@@ -62,15 +61,10 @@ class KetoCoachAgent:
     
     def __init__(self):
         try:
-            # Gemini LLM 초기화
-            self.llm = ChatGoogleGenerativeAI(
-                model=settings.llm_model,
-                google_api_key=settings.google_api_key,
-                temperature=settings.gemini_temperature,
-                max_tokens=settings.gemini_max_tokens
-            )
+            # 공통 LLM 초기화
+            self.llm = create_chat_llm()
         except Exception as e:
-            print(f"Gemini AI 초기화 실패: {e}")
+            print(f"LLM 초기화 실패: {e}")
             self.llm = None
         
         # IntentClassifier 초기화 (하이브리드 방식용)
@@ -507,6 +501,11 @@ class KetoCoachAgent:
             # 결과를 state에 저장
             state["results"] = search_result.get("results", [])
             
+            # 🔧 PlaceSearchAgent가 생성한 응답을 formatted_response에 저장
+            if search_result.get("response"):
+                state["formatted_response"] = search_result["response"]
+                print("✅ PlaceSearchAgent 응답을 formatted_response에 저장")
+            
             # tool_calls 정보 추가
             if search_result.get("tool_calls"):
                 state["tool_calls"].extend(search_result["tool_calls"])
@@ -716,9 +715,14 @@ class KetoCoachAgent:
         try:
             message = state["messages"][-1].content if state["messages"] else ""
             
-            # 캘린더 저장 요청 감지 및 처리
-            if self.calendar_utils.is_calendar_save_request(message):
+            # 캘린더 저장 요청 감지 및 처리 (이미 calendar_save_node에서 처리했으면 스킵)
+            if self.calendar_utils.is_calendar_save_request(message) and state.get("intent") != "calendar_save":
                 return await self._handle_calendar_save_request(state, message)
+            
+            # 이미 응답이 설정되어 있으면 그대로 사용 (calendar_save_node 등에서 설정)
+            if state.get("response"):
+                print("✅ 기존 응답 사용 (이미 설정됨)")
+                return state
             
             # MealPlannerAgent가 이미 포맷한 응답이 있으면 그대로 사용
             if state.get("formatted_response"):

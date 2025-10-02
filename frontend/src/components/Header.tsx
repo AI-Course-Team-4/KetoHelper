@@ -1,10 +1,11 @@
-import { useState } from 'react'
-import { Menu, Person, Logout } from '@mui/icons-material'
+import { useState, useEffect } from 'react'
+import { Menu, Logout } from '@mui/icons-material'
 import { Button } from '@/components/ui/button'
 // DropdownMenu는 MUI Menu로 대체 예정
 import { useAuthStore } from '@/store/authStore'
 import { useProfileStore } from '@/store/profileStore'
 import { useNavigationStore } from '@/store/navigationStore'
+import { useAuth } from '@/contexts/AuthContext'
 import { authService } from '@/services/AuthService'
 import { toast } from 'react-hot-toast'
 import { LoginModal } from './LoginModal'
@@ -15,12 +16,21 @@ export function Header() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const [avatarError, setAvatarError] = useState(false)
   const { user } = useAuthStore()
-  const { profile, clearProfile } = useProfileStore()
+  const { loading } = useAuth()
+  const { profile, clearProfile, loadProfile, isLoading: profileLoading } = useProfileStore()
   const { toggleCollapsed } = useNavigationStore()
   const navigate = useNavigate()
   const location = useLocation()
   
+  // 사용자가 로그인되어 있을 때 프로필 데이터 로드
+  useEffect(() => {
+    if (user?.id && !profile && !profileLoading) {
+      loadProfile(user.id)
+    }
+  }, [user?.id, profile, profileLoading, loadProfile])
+  
   // 프로필 이미지 우선순위: profile.profile_image_url > user.profileImage
+  // 프로필이 로드되기 전까지는 user.profileImage 사용
   const profileImageUrl = profile?.profile_image_url || user?.profileImage
   const avatarSrc = profileImageUrl
     ? profileImageUrl.replace(/^http:/, 'https:')
@@ -102,10 +112,14 @@ export function Header() {
 
         {/* 사용자 메뉴 */}
         <div className="flex items-center space-x-2 pr-5">
-          {user ? (
+          {loading ? (
+            // 로딩 중일 때는 사용자 메뉴 영역을 숨김
+            null
+          ) : user ? (
+            // 로그인된 사용자
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={() => navigate('/profile')}>
-                {avatarSrc && !avatarError ? (
+              {avatarSrc && !avatarError ? (
+                <Button variant="ghost" size="sm" onClick={() => navigate('/profile')}>
                   <img
                     src={avatarSrc}
                     alt="profile"
@@ -113,15 +127,22 @@ export function Header() {
                     onError={() => setAvatarError(true)}
                     className="h-7 w-7 rounded-full object-cover"
                   />
-                ) : (
-                  <Person sx={{ fontSize: 28 }} />
-                )}
-              </Button>
+                </Button>
+              ) : (
+                <Button variant="ghost" size="sm" onClick={() => navigate('/profile')}>
+                  <div className="h-7 w-7 rounded-full bg-gray-200 flex items-center justify-center">
+                    <span className="text-gray-500 text-xs font-medium">
+                      {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                    </span>
+                  </div>
+                </Button>
+              )}
               <Button variant="ghost" size="sm" onClick={handleLogout}>
                 <Logout sx={{ fontSize: 16 }} />
               </Button>
             </div>
           ) : (
+            // 로그아웃 상태 - 로그인 버튼 표시
             <Button variant="default" size="sm" onClick={handleLogin}>
               로그인
             </Button>

@@ -94,10 +94,9 @@ result = await agent.search_places(
 """
 
 from typing import Dict, Any, Optional
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import HumanMessage
 
-from app.core.config import settings
+from app.core.llm_factory import create_chat_llm
 from app.prompts.domain.prompt_file import MAIN_PROMPT
 from app.tools.domain.tool_file import SomeTool
 
@@ -107,11 +106,7 @@ class MyCustomAgent:
     def __init__(self, agent_name: str = "My Custom Agent"):
         """에이전트 초기화"""
         self.agent_name = agent_name
-        self.llm = ChatGoogleGenerativeAI(
-            model=settings.gemini_model,
-            temperature=0.1,
-            google_api_key=settings.google_api_key
-        )
+        self.llm = create_chat_llm()
         self.tools = self._initialize_tools()
     
     def _initialize_tools(self) -> Dict[str, Any]:

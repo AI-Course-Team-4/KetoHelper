@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useChatLogic } from './hooks/useChatLogic'
 import { useMessageHandlers } from './hooks/useMessageHandlers'
 import { useThreadHandlers } from './hooks/useThreadHandlers'
@@ -10,10 +10,14 @@ import { ActiveWelcome } from './ActiveWelcome'
 import { CircularProgress } from '@mui/material'
 
 export function ChatPage() {
+  const inputRef = useRef<HTMLInputElement>(null)
+  
   const {
     message,
     setMessage,
     isLoading,
+    loadingStep,
+    setLoadingStep,
     currentThreadId,
     isSavingMeal,
     userLocation,
@@ -33,10 +37,7 @@ export function ChatPage() {
     isLoadingHistory,
     isSaving,
     setIsSaving,
-    addMessage,
-    clearMessages,
     refetchThreads,
-    refetchHistory,
     setCurrentThreadId,
     setIsLoading,
     setIsSavingMeal,
@@ -53,16 +54,17 @@ export function ChatPage() {
     setMessage,
     isLoading,
     setIsLoading,
+    setLoadingStep,
     currentThreadId,
     setCurrentThreadId,
     isSaving,
     setIsSaving,
     setIsSavingMeal,
+    chatHistory,
     messages,
-    addMessage,
+    isLoggedIn,
     refetchThreads,
-    refetchHistory,
-    isLoggedIn
+    inputRef
   })
 
   const {
@@ -72,11 +74,9 @@ export function ChatPage() {
   } = useThreadHandlers({
     currentThreadId,
     setCurrentThreadId,
-    clearMessages,
     setMessage,
     setIsLoadingThread,
-    refetchThreads,
-    refetchHistory
+    refetchThreads
   })
 
   // 실시간 타임스탬프 갱신을 위한 상태
@@ -251,7 +251,7 @@ export function ChatPage() {
             <EmptyWelcome
               onCreateNewChat={handleCreateNewChat}
             />
-          ) : (isLoggedIn ? chatHistory.length === 0 : messages.length === 0) ? (
+          ) : messages.length === 0 ? (
             // 스레드가 있지만 메시지가 없을 때 - 활성 웰컴 스크린
             <ActiveWelcome
               message={message}
@@ -270,6 +270,7 @@ export function ChatPage() {
                 chatHistory={chatHistory}
                 isLoggedIn={isLoggedIn}
                 isLoading={isLoading}
+                loadingStep={loadingStep}
                 scrollAreaRef={scrollAreaRef}
                 messagesEndRef={messagesEndRef}
                 shouldAutoScroll={shouldAutoScroll}
@@ -292,9 +293,10 @@ export function ChatPage() {
 
               {/* 입력 영역 */}
               <MessageInput
+                ref={inputRef}
                 message={message}
                 isLoading={isLoading}
-                isChatLimitReached={isLoggedIn ? chatHistory.length >= 20 : messages.length >= 10}
+                isChatLimitReached={isLoggedIn ? chatHistory.length >= 20 : messages.length >= 20}
                 onMessageChange={setMessage}
                 onSendMessage={handleSendMessage}
                 onKeyDown={handleKeyDown}

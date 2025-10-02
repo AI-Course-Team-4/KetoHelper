@@ -7,7 +7,9 @@ from dateutil.relativedelta import relativedelta
 import os
 import json
 import logging
-import google.generativeai as genai
+from langchain.schema import HumanMessage
+
+from app.core.llm_factory import create_chat_llm
 
 # 로거 설정
 logger = logging.getLogger(__name__)
@@ -32,29 +34,12 @@ class DateParser:
         self.today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         logger.info(f"DateParser 초기화 - 기준 날짜: {self.today.isoformat()}")
         
-        # 환경 변수 이름 수정: GEMINI_API_KEY -> GOOGLE_API_KEY
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            logger.warning("GOOGLE_API_KEY not found in environment variables - LLM 기능 비활성화")
-            self.model = None
-        else:
-            try:
-                genai.configure(api_key=api_key)
-                # LLM_MODEL 환경 변수 사용
-                model_name = os.getenv("LLM_MODEL", "gemini-1.5-flash")
-                
-                # Gemini 모델명 형식 맞추기
-                if model_name.startswith("gemini-"):
-                    # 이미 gemini- 접두사가 있는 경우
-                    self.model = genai.GenerativeModel(model_name)
-                else:
-                    # gemini- 접두사가 없는 경우 추가
-                    self.model = genai.GenerativeModel(f"gemini-{model_name}")
-                
-                logger.info(f"Gemini 모델 초기화 성공: {model_name}")
-            except Exception as e:
-                logger.error(f"Failed to initialize Gemini model: {e}")
-                self.model = None
+        try:
+            self.llm = create_chat_llm()
+            logger.info("LLM 초기화 성공")
+        except Exception as e:
+            logger.warning(f"LLM 초기화 실패 - LLM 기능 비활성화: {e}")
+            self.llm = None
 
     def parse_natural_date(self, input_text: str) -> Optional[ParsedDateInfo]:
         """
@@ -75,7 +60,7 @@ class DateParser:
         logger.debug(f"자연어 날짜 파싱 시작: '{normalized}' (맥락: {len(chat_history)}개 메시지)")
 
         # 1단계: LLM 우선 파싱 (오타 및 복잡한 표현 처리, 대화 맥락 포함)
-        if self.model:
+        if self.llm:
             logger.debug("LLM 우선 파싱 시도 (대화 맥락 포함)")
             llm_result = self._parse_with_llm_with_context(normalized, chat_history)
             if llm_result:
@@ -107,6 +92,11 @@ class DateParser:
                 else:
                     print(f"🔍 기존 duration 유지 보호: {rule_based_result.duration_days}일")
             
+            # duration_days가 없으면 기본값 7로 설정
+            if rule_based_result.duration_days is None:
+                rule_based_result.duration_days = 7
+                logger.debug("규칙 기반 파싱에서 duration_days가 없어서 기본값 7로 설정")
+            
             logger.debug(f"규칙 기반 파싱 성공: {rule_based_result.description} (신뢰도: {rule_based_result.confidence}, duration: {rule_based_result.duration_days}일)")
             return rule_based_result
 
@@ -120,7 +110,12 @@ class DateParser:
                 fallback_result.duration_days = context_duration
                 logger.debug(f"대화 맥락에서 일수 정보 적용: {context_duration}일")
             
-            logger.debug(f"폴백 파싱 성공: {fallback_result.description} (신뢰도: {fallback_result.confidence})")
+            # duration_days가 없으면 기본값 7로 설정
+            if fallback_result.duration_days is None:
+                fallback_result.duration_days = 7
+                logger.debug("폴백 파싱에서 duration_days가 없어서 기본값 7로 설정")
+            
+            logger.debug(f"폴백 파싱 성공: {fallback_result.description} (신뢰도: {fallback_result.confidence}, duration: {fallback_result.duration_days}일)")
         else:
             logger.debug(f"모든 파싱 방법 실패: '{normalized}'")
         
@@ -238,7 +233,7 @@ class DateParser:
         Gemini를 사용한 자연어 날짜 파싱
         LLM 관련 로직만 담당
         """
-        if not self.model:
+        if not self.llm:
             logger.debug("LLM 모델이 없어서 LLM 파싱 건너뜀")
             return None
             
@@ -322,8 +317,8 @@ JSON 형식:
 
 응답:"""
 
-            response = self.model.generate_content(prompt)
-            result_text = response.text.strip()
+            response = self.llm.invoke([HumanMessage(content=prompt)])
+            result_text = response.content.strip()
 
             # JSON 파싱 시도
             try:
@@ -338,13 +333,19 @@ JSON 형식:
                         date_str = result.get("date")
                         parsed_date = datetime.strptime(date_str, "%Y-%m-%d")
 
+                        # duration_days가 없으면 기본값 7로 설정
+                        duration_days = result.get("duration_days")
+                        if duration_days is None:
+                            duration_days = 7
+                            logger.warning("LLM 응답에 duration_days가 없어서 기본값 7로 설정")
+                        
                         return ParsedDateInfo(
                             date=parsed_date,
                             description=result.get("description", normalized),
                             is_relative=result.get("is_relative", True),
                             confidence=min(result.get("confidence", 0.7), 0.9),
                             method='llm-assisted',
-                            duration_days=result.get("duration_days")
+                            duration_days=duration_days
                         )
 
             except (json.JSONDecodeError, ValueError, KeyError) as e:
@@ -373,7 +374,7 @@ JSON 형식:
                 logger.debug(f"rule-based 다음주 파싱 성공: {rule_result.description} (신뢰도: {rule_result.confidence})")
                 return rule_result
             
-        if not self.model:
+        if not self.llm:
             logger.debug("LLM 모델이 없어서 LLM 파싱 건너뜀")
             return None
             
@@ -420,15 +421,23 @@ JSON 형식:
 - 기타 예상치 못한 모든 오타도 한국어 날짜 표현의 의도를 파악하여 교정하세요
 - 오타 교정 시 원본 입력을 description에 표시하되, 파싱은 교정된 결과로 진행하세요
 
+🔥 중요: duration_days 필드는 반드시 포함해야 합니다!
+- duration_days: 대화 맥락에서 추출한 일수 정보 (예: 1, 3, 7, 14)
+- 일수 정보가 없으면 7로 설정하세요 (기본값)
+- "오늘 식단표" → duration_days: 1
+- "3일치 식단표" → duration_days: 3
+- "다음주 식단표" → duration_days: 7
+- "2주치 식단표" → duration_days: 14
+
 응답 규칙:
 1. 반드시 JSON 형식으로만 응답하세요
 2. 날짜 파싱이 가능하면 success: true, 불가능하면 success: false
 3. 상대적 날짜 표현(오늘, 내일, 이번주 등)은 is_relative: true
 4. 절대적 날짜 표현(12월 25일 등)은 is_relative: false
 5. 날짜 표현이 없거나 애매한 경우 반드시 success: false
-6. duration_days: 대화 맥락에서 추출한 일수 정보를 포함하세요
+6. duration_days는 반드시 포함하세요 (기본값: 7)
 
-JSON 형식:
+JSON 형식 (duration_days 필드 필수):
 {{
     "success": true,
     "date": "2024-09-28",
@@ -437,6 +446,8 @@ JSON 형식:
     "confidence": 0.9,
     "duration_days": 7
 }}
+
+⚠️ 주의: duration_days 필드를 반드시 포함하세요! 없으면 파싱이 실패합니다.
 
 파싱 예시 (오타 교정 및 문맥 판단 포함):
 - "이번주 토요일" → 이번주 토요일 실제 날짜 (duration_days: 1)
@@ -467,8 +478,8 @@ JSON 형식:
 
 응답:"""
 
-            response = self.model.generate_content(prompt)
-            result_text = response.text.strip()
+            response = self.llm.invoke([HumanMessage(content=prompt)])
+            result_text = response.content.strip()
 
             # JSON 파싱 시도
             try:
@@ -483,13 +494,19 @@ JSON 형식:
                         date_str = result.get("date")
                         parsed_date = datetime.strptime(date_str, "%Y-%m-%d")
 
+                        # duration_days가 없으면 기본값 7로 설정
+                        duration_days = result.get("duration_days")
+                        if duration_days is None:
+                            duration_days = 7
+                            logger.warning("LLM 응답에 duration_days가 없어서 기본값 7로 설정")
+                        
                         return ParsedDateInfo(
                             date=parsed_date,
                             description=result.get("description", normalized),
                             is_relative=result.get("is_relative", True),
                             confidence=min(result.get("confidence", 0.7), 0.9),
                             method='llm-assisted',
-                            duration_days=result.get("duration_days")
+                            duration_days=duration_days
                         )
 
             except (json.JSONDecodeError, ValueError, KeyError) as e:
