@@ -10,6 +10,7 @@ interface MessageItemProps {
   msg: ChatMessage
   index: number
   totalMessages: number // 전체 메시지 수
+  isLoggedIn: boolean
   shouldShowTimestamp: (index: number) => boolean
   shouldShowDateSeparator: (index: number) => boolean
   formatMessageTime: (timestamp: Date) => string
@@ -27,6 +28,7 @@ interface MessageItemProps {
 export function MessageItem({
   msg,
   index,
+  isLoggedIn,
   shouldShowTimestamp,
   shouldShowDateSeparator,
   formatMessageTime,
@@ -162,9 +164,65 @@ export function MessageItem({
             <div className={`mt-1 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
               <span
                 className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                title={formatDetailedTime(msg.timestamp)}
+                title={(() => {
+                  let timestamp: Date
+                  
+                  if (isLoggedIn) {
+                    const created_at = (msg as any).created_at
+                    timestamp = created_at ? new Date(created_at) : new Date()
+                  } else {
+                    const msgTimestamp = (msg as any).timestamp
+                    timestamp = msgTimestamp instanceof Date 
+                      ? msgTimestamp 
+                      : new Date(msgTimestamp || Date.now())
+                  }
+                  
+                  if (isNaN(timestamp.getTime())) {
+                    timestamp = new Date()
+                  }
+                  
+                  return formatDetailedTime(timestamp)
+                })()}
               >
-                {formatMessageTime(msg.timestamp)}
+                {(() => {
+                  let timestamp: Date
+                  
+                  if (isLoggedIn) {
+                    // 로그인 사용자: MessageList에서 변환된 timestamp 사용
+                    const msgTimestamp = (msg as any).timestamp
+                    
+                    if (msgTimestamp) {
+                      timestamp = msgTimestamp instanceof Date 
+                        ? msgTimestamp 
+                        : new Date(msgTimestamp)
+                      if (isNaN(timestamp.getTime())) {
+                        console.error('❌ timestamp 파싱 실패:', msgTimestamp)
+                        timestamp = new Date()
+                      }
+                    } else {
+                      console.error('❌ 로그인 사용자의 timestamp가 없습니다:', msg)
+                      timestamp = new Date()
+                    }
+                  } else {
+                    // 게스트 사용자: timestamp 사용
+                    const msgTimestamp = (msg as any).timestamp
+                    timestamp = msgTimestamp instanceof Date 
+                      ? msgTimestamp 
+                      : new Date(msgTimestamp || Date.now())
+                  }
+                  
+                  // 유효하지 않은 날짜인 경우 현재 시간 사용
+                  if (isNaN(timestamp.getTime())) {
+                    console.warn('⚠️ 유효하지 않은 타임스탬프:', { 
+                      isLoggedIn, 
+                      created_at: (msg as any).created_at, 
+                      timestamp: (msg as any).timestamp 
+                    })
+                    timestamp = new Date()
+                  }
+                  
+                  return formatMessageTime(timestamp)
+                })()}
               </span>
             </div>
           )}

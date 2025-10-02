@@ -13,16 +13,15 @@ import asyncio
 import json
 from typing import Dict, Any, List, Optional
 from datetime import date, timedelta
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import HumanMessage
 import importlib
 
-from app.core.config import settings
 from app.tools.shared.hybrid_search import hybrid_search_tool
 from app.tools.shared.profile_tool import user_profile_tool
 from app.tools.shared.date_parser import DateParser
 from app.tools.shared.temporary_dislikes_extractor import temp_dislikes_extractor
 from app.tools.meal.response_formatter import MealResponseFormatter
+from app.core.llm_factory import create_chat_llm
 from config import get_personal_configs, get_agent_config
 
 # 기본값 상수 정의
@@ -62,13 +61,9 @@ class MealPlannerAgent:
         self.tools = self._load_tools()
         
         try:
-            self.llm = ChatGoogleGenerativeAI(
-                model=settings.llm_model,
-                google_api_key=settings.google_api_key,
-                temperature=settings.gemini_temperature
-            )
+            self.llm = create_chat_llm()
         except Exception as e:
-            print(f"Gemini AI 초기화 실패: {e}")
+            print(f"LLM 초기화 실패: {e}")
             self.llm = None
         
         
@@ -244,7 +239,8 @@ class MealPlannerAgent:
             
             # 1단계: 임베딩된 데이터에서 식단표 생성 시도
             print("🔍 1단계: 임베딩된 레시피 데이터에서 식단표 생성 시도")
-            embedded_plan = await self._generate_meal_plan_from_embeddings(days, constraints_text, user_id, fast_mode)
+            embedded_plan = await self._generate_meal_plan_from_embeddings(days, constraints_text, user_id, fast_mode,
+                                                                          allergies=allergies, dislikes=dislikes)
             
             if embedded_plan and len(embedded_plan.get("days", [])) > 0:
                 print(f"✅ 임베딩 데이터로 식단표 생성 성공: {len(embedded_plan['days'])}일")
@@ -256,7 +252,8 @@ class MealPlannerAgent:
             
             # 3단계: AI 구조를 바탕으로 임베딩 데이터에서 구체적 메뉴 검색
             print("🔍 3단계: AI 구조 + 임베딩 데이터로 구체적 메뉴 생성")
-            detailed_plan = await self._generate_detailed_meals_from_embeddings(meal_structure, constraints_text, user_id, fast_mode)
+            detailed_plan = await self._generate_detailed_meals_from_embeddings(meal_structure, constraints_text, user_id, fast_mode,
+                                                                                allergies=allergies, dislikes=dislikes)
             
             if detailed_plan and len(detailed_plan.get("days", [])) > 0:
                 print(f"✅ AI + 임베딩 데이터로 식단표 생성 성공: {len(detailed_plan['days'])}일")
@@ -328,23 +325,27 @@ class MealPlannerAgent:
         return " | ".join(constraints)
     
     async def _search_with_diversity(
-        self, 
-        search_query: str, 
-        constraints: str, 
-        user_id: Optional[str], 
-        used_recipes: set, 
-        max_results: int = 35
+        self,
+        search_query: str,
+        constraints: str,
+        user_id: Optional[str],
+        used_recipes: set,
+        max_results: int = 35,
+        allergies: Optional[List[str]] = None,
+        dislikes: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
         """
         다양성을 고려한 레시피 검색 (중복 방지)
-        
+
         Args:
             search_query: 검색 쿼리
             constraints: 제약 조건
             user_id: 사용자 ID
             used_recipes: 이미 사용된 레시피 ID 집합
             max_results: 최대 결과 수
-            
+            allergies: 알레르기 목록 (임시 + 프로필)
+            dislikes: 비선호 목록 (임시 + 프로필)
+
         Returns:
             중복되지 않은 레시피 목록
         """
@@ -353,8 +354,10 @@ class MealPlannerAgent:
             search_results = await hybrid_search_tool.search(
                 query=search_query,
                 profile=constraints,
-                max_results=min(max_results * 2, 10),  # 최대 10개로 제한
-                user_id=user_id
+                max_results=min(max_results * 2, 30),  # 최대 10개로 제한
+                user_id=user_id,
+                allergies=allergies,
+                dislikes=dislikes
             )
             
             if not search_results:
@@ -362,15 +365,27 @@ class MealPlannerAgent:
             
             # 중복되지 않은 레시피만 필터링
             unique_results = []
-            
+
             for result in search_results:
                 recipe_id = result.get('id', '')
+
+                # 디버깅: ID 확인
+                if not recipe_id:
+                    print(f"⚠️ ID 없는 레시피 발견: {result.get('title', 'Unknown')}")
+                    # ID가 없으면 title로 대체
+                    recipe_id = result.get('title', '')
+
                 if recipe_id and recipe_id not in used_recipes:
                     unique_results.append(result)
                     used_recipes.add(recipe_id)  # 중복 방지를 위해 추가
+                    print(f"  ✅ 수집: {result.get('title', 'Unknown')} (ID: {recipe_id})")
                     if len(unique_results) >= max_results:
                         break
-            
+                else:
+                    if recipe_id:
+                        print(f"  ⚠️ 중복 제외: {result.get('title', 'Unknown')} (ID: {recipe_id})")
+
+            print(f"🔍 _search_with_diversity 결과: 검색 {len(search_results)}개 → 중복제거 후 {len(unique_results)}개")
             return unique_results
             
         except Exception as e:
@@ -507,15 +522,18 @@ class MealPlannerAgent:
             "search_priority": ["primary_keywords", "cooking_methods", "secondary_keywords"]
         }
     
-    async def _generate_meal_plan_from_embeddings(self, days: int, constraints: str, user_id: Optional[str] = None, fast_mode: bool = True) -> Optional[Dict[str, Any]]:
+    async def _generate_meal_plan_from_embeddings(self, days: int, constraints: str, user_id: Optional[str] = None, fast_mode: bool = True,
+                                                  allergies: Optional[List[str]] = None, dislikes: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
         """
         1단계: 임베딩된 레시피 데이터에서 직접 식단표 생성
-        
+
         Args:
             days: 생성할 일수
             constraints: 제약 조건
             user_id: 사용자 ID
-            
+            allergies: 알레르기 목록
+            dislikes: 비선호 목록
+
         Returns:
             생성된 식단표 또는 None
         """
@@ -550,7 +568,8 @@ class MealPlannerAgent:
                 # 기본 키워드로 한 번에 여러 개 검색
                 search_query = f"{' '.join(strategy['primary_keywords'])} 키토"
                 search_results = await self._search_with_diversity(
-                    search_query, constraints, user_id, used_recipes, max_results=days * 3
+                    search_query, constraints, user_id, used_recipes, max_results=days * 3,
+                    allergies=allergies, dislikes=dislikes
                 )
                 
                 if search_results:
@@ -623,15 +642,18 @@ class MealPlannerAgent:
             print(f"❌ 임베딩 데이터 식단표 생성 실패: {e}")
             return None
     
-    async def _generate_detailed_meals_from_embeddings(self, structure: List[Dict[str, str]], constraints: str, user_id: Optional[str] = None, fast_mode: bool = True) -> Optional[Dict[str, Any]]:
+    async def _generate_detailed_meals_from_embeddings(self, structure: List[Dict[str, str]], constraints: str, user_id: Optional[str] = None, fast_mode: bool = True,
+                                                       allergies: Optional[List[str]] = None, dislikes: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
         """
         3단계: AI 구조를 바탕으로 임베딩 데이터에서 구체적 메뉴 생성
-        
+
         Args:
             structure: AI가 생성한 식단 구조
             constraints: 제약 조건
             user_id: 사용자 ID
-            
+            allergies: 알레르기 목록
+            dislikes: 비선호 목록
+
         Returns:
             생성된 식단표 또는 None
         """
@@ -666,22 +688,14 @@ class MealPlannerAgent:
                     search_query = f"키토 {slot}"
                 
                 search_results = await self._search_with_diversity(
-                    search_query, constraints, user_id, used_recipes, max_results=days_count * 3
+                    search_query, constraints, user_id, used_recipes, max_results=days_count * 3,
+                    allergies=allergies, dislikes=dislikes
                 )
-                
+
                 if search_results:
-                    # 중복 제거하고 필요한 개수만큼 선택
-                    unique_results = []
-                    for result in search_results:
-                        recipe_id = result.get('id', '')
-                        if recipe_id and recipe_id not in used_recipes:
-                            unique_results.append(result)
-                            used_recipes.add(recipe_id)
-                            if len(unique_results) >= days_count:
-                                break
-                    
-                    meal_collections[slot] = unique_results
-                    print(f"✅ {slot} 레시피 {len(unique_results)}개 수집 완료")
+                    # _search_with_diversity에서 이미 중복 제거 완료
+                    meal_collections[slot] = search_results
+                    print(f"✅ {slot} 레시피 {len(search_results)}개 수집 완료")
                 else:
                     meal_collections[slot] = []
                     print(f"❌ {slot} 레시피 검색 실패")
@@ -1318,9 +1332,34 @@ class MealPlannerAgent:
             meal_plan, days
         )
         
-        # 7. 결과 반환
-        return {
-            "results": [meal_plan],
+        # 7. 결과 반환 - 프론트엔드가 인식할 수 있는 형태로 results 구성
+        # 프론트엔드 MealParserService가 찾는 형태: result.type === 'meal_plan' || result.days
+        frontend_meal_result = {
+            "type": "meal_plan",
+            "days": meal_plan.get("days", []),
+            "duration_days": days,
+            "total_macros": meal_plan.get("total_macros"),
+            "notes": meal_plan.get("notes", []),
+            "source": meal_plan.get("source", "meal_planner")
+        }
+        
+        # 디버그: 프론트엔드로 전송될 데이터 로깅
+        print("🔍 DEBUG: 프론트엔드로 전송될 frontend_meal_result:")
+        print(f"  - type: {frontend_meal_result.get('type')}")
+        print(f"  - days length: {len(frontend_meal_result.get('days', []))}")
+        if frontend_meal_result.get("days") and len(frontend_meal_result["days"]) > 0:
+            first_day = frontend_meal_result["days"][0]
+            print(f"  - first_day keys: {list(first_day.keys())}")
+            for slot in ['breakfast', 'lunch', 'dinner', 'snack']:
+                if slot in first_day:
+                    slot_data = first_day[slot]
+                    if isinstance(slot_data, dict):
+                        print(f"  - {slot}: {slot_data.get('title', 'NO_TITLE')}")
+                    else:
+                        print(f"  - {slot}: {slot_data}")
+        
+        result_data = {
+            "results": [frontend_meal_result],  # 프론트엔드가 인식할 수 있는 형태
             "response": formatted_response,
             "formatted_response": formatted_response,  # 포맷된 응답 저장
             "meal_plan_days": days,
@@ -1333,6 +1372,12 @@ class MealPlannerAgent:
                 "personalized": state.get("use_personalized", False)
             }]
         }
+        
+        print("🔍 DEBUG: 최종 반환 데이터 구조:")
+        print(f"  - results length: {len(result_data.get('results', []))}")
+        print(f"  - meal_plan_data 존재: {bool(result_data.get('meal_plan_data'))}")
+        
+        return result_data
     
     async def handle_recipe_request(self, message: str, state: Dict[str, Any]) -> Dict[str, Any]:
         """

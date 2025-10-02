@@ -178,12 +178,13 @@ class HybridSearchTool:
             print(f"❌ 하이브리드 검색 오류: {e}")
             return []
     
-    async def search(self, query: str, profile: str = "", max_results: int = 5, user_id: Optional[str] = None) -> List[Dict]:
-        """간단한 검색 인터페이스 (한글 최적화) + 사용자 프로필 필터링"""
+    async def search(self, query: str, profile: str = "", max_results: int = 5, user_id: Optional[str] = None,
+                    allergies: Optional[List[str]] = None, dislikes: Optional[List[str]] = None) -> List[Dict]:
+        """간단한 검색 인터페이스 (한글 최적화) + 사용자 프로필 필터링 + 임시 제약조건"""
         try:
             # 한글 검색 최적화 도구 사용
             from app.tools.meal.korean_search import korean_search_tool
-            
+
             # 프로필에서 필터 추출
             filters = {}
             if profile:
@@ -191,14 +192,35 @@ class HybridSearchTool:
                     filters['category'] = '아침'
                 if "쉬운" in profile or "easy" in profile.lower():
                     filters['difficulty'] = '쉬움'
-            
+
             # 한글 최적화 검색 실행
             results = await korean_search_tool.korean_hybrid_search(query, max_results)
-            
-            # 사용자 프로필 필터링 (user_id가 제공된 경우)
-            if user_id and results:
-                user_preferences = await user_profile_tool.get_user_preferences(user_id)
-                if user_preferences["success"]:
+
+            # 사용자 프로필 필터링 (user_id가 제공된 경우 또는 임시 제약조건이 있는 경우)
+            if (user_id or allergies or dislikes) and results:
+                # 프로필 조회 (user_id가 있으면)
+                combined_allergies = list(allergies) if allergies else []
+                combined_dislikes = list(dislikes) if dislikes else []
+
+                if user_id:
+                    user_preferences = await user_profile_tool.get_user_preferences(user_id)
+                    if user_preferences["success"]:
+                        prefs = user_preferences["preferences"]
+                        # DB 프로필의 알레르기/비선호와 임시 제약조건 합치기
+                        profile_allergies = prefs.get("allergies", [])
+                        profile_dislikes = prefs.get("dislikes", [])
+
+                        combined_allergies = list(set(combined_allergies + profile_allergies))
+                        combined_dislikes = list(set(combined_dislikes + profile_dislikes))
+
+                        print(f"🔧 프로필 + 임시 제약조건 합침: 알레르기 {len(combined_allergies)}개, 비선호 {len(combined_dislikes)}개")
+                    else:
+                        print(f"⚠️ 프로필 조회 실패, 임시 제약조건만 사용")
+                else:
+                    print(f"🔧 임시 제약조건만 사용: 알레르기 {len(combined_allergies)}개, 비선호 {len(combined_dislikes)}개")
+
+                # 필터링 적용 (알레르기 또는 비선호가 하나라도 있으면)
+                if combined_allergies or combined_dislikes:
                     # 레시피 데이터 구조에 맞게 변환
                     recipe_results = []
                     for result in results:
@@ -211,10 +233,17 @@ class HybridSearchTool:
                             'metadata': result.get('metadata', {})
                         }
                         recipe_results.append(recipe_data)
-                    
-                    # 프로필 필터링 적용
-                    filtered_recipes = user_profile_tool.filter_recipes_by_preferences(recipe_results, user_preferences)
-                    
+
+                    # 합쳐진 제약조건으로 필터링
+                    combined_preferences = {
+                        "success": True,
+                        "preferences": {
+                            "allergies": combined_allergies,
+                            "dislikes": combined_dislikes
+                        }
+                    }
+                    filtered_recipes = user_profile_tool.filter_recipes_by_preferences(recipe_results, combined_preferences)
+
                     # 필터링된 결과를 원래 형식으로 변환
                     filtered_results = []
                     for recipe in filtered_recipes:
@@ -223,9 +252,9 @@ class HybridSearchTool:
                             if result.get('id') == recipe.get('id'):
                                 filtered_results.append(result)
                                 break
-                    
+
                     results = filtered_results
-                    print(f"🔧 프로필 필터링 적용: {len(results)}개 결과")
+                    print(f"✅ 필터링 완료: {len(results)}개 결과")
             
             # 결과 포맷팅 (검색 전략과 메시지 포함)
             formatted_results = []
@@ -242,6 +271,8 @@ class HybridSearchTool:
                     'id': result.get('id', ''),
                     'title': result.get('title', '제목 없음'),
                     'content': result.get('content', ''),
+                    'allergens': result.get('allergens', []),
+                    'ingredients': result.get('ingredients', []),
                     'similarity': result.get('final_score', 0.0),
                     'metadata': result.get('metadata', {}),
                     'search_types': [result.get('search_type', 'hybrid')],
@@ -276,8 +307,11 @@ class HybridSearchTool:
                 formatted_results = []
                 for result in results:
                     formatted_results.append({
+                        'id': result.get('id', ''),
                         'title': result.get('title', '제목 없음'),
                         'content': result.get('content', ''),
+                        'allergens': result.get('allergens', []),
+                        'ingredients': result.get('ingredients', []),
                         'similarity': result.get('hybrid_score', 0.0),
                         'metadata': result.get('metadata', {}),
                         'search_types': [result.get('search_type', 'hybrid')]
