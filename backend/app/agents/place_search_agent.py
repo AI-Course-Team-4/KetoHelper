@@ -77,9 +77,9 @@ class PlaceSearchAgent:
                 
                 # 다양한 프롬프트 속성명 지원
                 possible_names = [
-                    f"{key.upper()}_PROMPT",
-                    f"RESTAURANT_{key.upper()}_PROMPT",
-                    f"PLACE_{key.upper()}_PROMPT",
+                    f"{key.upper()}_PROMPT",  # RECOMMENDATION_PROMPT
+                    f"RESTAURANT_{key.upper()}_PROMPT",  # RESTAURANT_RECOMMENDATION_PROMPT
+                    f"PLACE_{key.upper()}_PROMPT",  # PLACE_RECOMMENDATION_PROMPT
                     "RESTAURANT_RECOMMENDATION_PROMPT",  # recommendation의 경우
                     "PROMPT",
                     filename.upper().replace("_", "_") + "_PROMPT"
@@ -319,11 +319,35 @@ class PlaceSearchAgent:
                 profile=profile_text
             )
             
-            # 타임아웃 적용하여 LLM 호출
+            # 🔍 디버깅: 실제 프롬프트 내용 확인
+            print(f"\n{'='*60}")
+            print("🔍 LLM에 전달되는 프롬프트:")
+            print(f"{'='*60}")
+            print(structured_prompt[:500])  # 처음 500자만 출력
+            print(f"{'='*60}")
+            print(f"✅ 프롬프트 길이: {len(structured_prompt)} 글자")
+            print(f"✅ '냥체' 포함 여부: {'냥체' in structured_prompt}")
+            print(f"✅ '응답 형식' 포함 여부: {'응답 형식' in structured_prompt}")
+            print(f"✅ '키토 점수' 포함 여부: {'키토 점수' in structured_prompt}")
+            print(f"{'='*60}\n")
+            
+            # 타임아웃 적용하여 LLM 호출 (타임아웃 증가)
             llm_response = await asyncio.wait_for(
                 self.llm.ainvoke([HumanMessage(content=structured_prompt)]),
                 timeout=20.0  # 20초 타임아웃
             )
+            
+            # 🔍 디버깅: LLM 응답 확인
+            print(f"\n{'='*60}")
+            print("🤖 LLM 응답 (처음 300자):")
+            print(f"{'='*60}")
+            print(llm_response.content[:300])
+            print(f"{'='*60}")
+            print(f"✅ 응답 길이: {len(llm_response.content)} 글자")
+            print(f"✅ '🍽️' 포함 여부: {'🍽️' in llm_response.content}")
+            print(f"✅ '냥' 포함 여부: {'냥' in llm_response.content}")
+            print(f"✅ '키토 점수' 포함 여부: {'키토 점수' in llm_response.content}")
+            print(f"{'='*60}\n")
             
             return llm_response.content
             
