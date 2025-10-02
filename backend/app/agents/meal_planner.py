@@ -1313,9 +1313,34 @@ class MealPlannerAgent:
             meal_plan, days
         )
         
-        # 7. 결과 반환
-        return {
-            "results": [meal_plan],
+        # 7. 결과 반환 - 프론트엔드가 인식할 수 있는 형태로 results 구성
+        # 프론트엔드 MealParserService가 찾는 형태: result.type === 'meal_plan' || result.days
+        frontend_meal_result = {
+            "type": "meal_plan",
+            "days": meal_plan.get("days", []),
+            "duration_days": days,
+            "total_macros": meal_plan.get("total_macros"),
+            "notes": meal_plan.get("notes", []),
+            "source": meal_plan.get("source", "meal_planner")
+        }
+        
+        # 디버그: 프론트엔드로 전송될 데이터 로깅
+        print("🔍 DEBUG: 프론트엔드로 전송될 frontend_meal_result:")
+        print(f"  - type: {frontend_meal_result.get('type')}")
+        print(f"  - days length: {len(frontend_meal_result.get('days', []))}")
+        if frontend_meal_result.get("days") and len(frontend_meal_result["days"]) > 0:
+            first_day = frontend_meal_result["days"][0]
+            print(f"  - first_day keys: {list(first_day.keys())}")
+            for slot in ['breakfast', 'lunch', 'dinner', 'snack']:
+                if slot in first_day:
+                    slot_data = first_day[slot]
+                    if isinstance(slot_data, dict):
+                        print(f"  - {slot}: {slot_data.get('title', 'NO_TITLE')}")
+                    else:
+                        print(f"  - {slot}: {slot_data}")
+        
+        result_data = {
+            "results": [frontend_meal_result],  # 프론트엔드가 인식할 수 있는 형태
             "response": formatted_response,
             "formatted_response": formatted_response,  # 포맷된 응답 저장
             "meal_plan_days": days,
@@ -1328,6 +1353,12 @@ class MealPlannerAgent:
                 "personalized": state.get("use_personalized", False)
             }]
         }
+        
+        print("🔍 DEBUG: 최종 반환 데이터 구조:")
+        print(f"  - results length: {len(result_data.get('results', []))}")
+        print(f"  - meal_plan_data 존재: {bool(result_data.get('meal_plan_data'))}")
+        
+        return result_data
     
     async def handle_recipe_request(self, message: str, state: Dict[str, Any]) -> Dict[str, Any]:
         """
