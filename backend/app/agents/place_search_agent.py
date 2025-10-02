@@ -13,13 +13,12 @@
 import asyncio
 import importlib
 from typing import Dict, Any, List, Optional
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import HumanMessage
 
-from app.core.config import settings
 from app.tools.restaurant.restaurant_hybrid_search import restaurant_hybrid_search_tool
 from app.tools.meal.keto_score import KetoScoreCalculator
 from config import get_personal_configs, get_agent_config
+from app.core.llm_factory import create_chat_llm
 
 class PlaceSearchAgent:
     """키토 친화적 식당 검색 전용 에이전트"""
@@ -49,15 +48,10 @@ class PlaceSearchAgent:
         print(f"✅ {self.agent_name} 초기화 (프롬프트: {list(self.prompts.keys())})")
         
         try:
-            # Gemini LLM 초기화
-            self.llm = ChatGoogleGenerativeAI(
-                model=settings.llm_model,
-                google_api_key=settings.google_api_key,
-                temperature=settings.gemini_temperature,
-                max_tokens=settings.gemini_max_tokens
-            )
+            # 공통 LLM 초기화
+            self.llm = create_chat_llm()
         except Exception as e:
-            print(f"❌ Gemini AI 초기화 실패: {e}")
+            print(f"❌ LLM 초기화 실패: {e}")
             self.llm = None
         
         # 도구들 초기화
