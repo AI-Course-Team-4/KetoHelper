@@ -10,6 +10,7 @@ export function useChatLogic() {
   // 상태 관리
   const [message, setMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [loadingStep, setLoadingStep] = useState<'thinking' | 'analyzing' | 'generating' | 'finalizing'>('thinking')
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(null)
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
   const [isSavingMeal, setIsSavingMeal] = useState<string | null>(null)
@@ -269,6 +270,8 @@ export function useChatLogic() {
     setMessage,
     isLoading,
     setIsLoading,
+    loadingStep,
+    setLoadingStep,
     currentThreadId,
     setCurrentThreadId,
     shouldAutoScroll,
