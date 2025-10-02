@@ -274,6 +274,10 @@ class PlaceSearchAgent:
             return response
         
         try:
+            # 시간 측정 시작
+            import time
+            start_time = time.time()
+            
             # 구조화된 프롬프트로 LLM 응답 생성
             restaurant_list = ""
             for i, restaurant in enumerate(results[:3], 1):
@@ -331,11 +335,21 @@ class PlaceSearchAgent:
             print(f"✅ '키토 점수' 포함 여부: {'키토 점수' in structured_prompt}")
             print(f"{'='*60}\n")
             
+            # LLM 호출 시간 측정
+            llm_start_time = time.time()
+            
             # 타임아웃 적용하여 LLM 호출 (타임아웃 증가)
             llm_response = await asyncio.wait_for(
                 self.llm.ainvoke([HumanMessage(content=structured_prompt)]),
                 timeout=60.0  # 60초 타임아웃으로 증가
             )
+            
+            llm_end_time = time.time()
+            llm_duration = llm_end_time - llm_start_time
+            
+            # 시간 측정 종료
+            end_time = time.time()
+            total_time = end_time - start_time
             
             # 🔍 디버깅: LLM 응답 확인
             print(f"\n{'='*60}")
@@ -347,6 +361,7 @@ class PlaceSearchAgent:
             print(f"✅ '🍽️' 포함 여부: {'🍽️' in llm_response.content}")
             print(f"✅ '냥' 포함 여부: {'냥' in llm_response.content}")
             print(f"✅ '키토 점수' 포함 여부: {'키토 점수' in llm_response.content}")
+            print(f"⏱️ 총 생성 시간: {total_time:.2f}초")
             print(f"{'='*60}\n")
             
             return llm_response.content
