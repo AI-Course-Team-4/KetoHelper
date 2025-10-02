@@ -95,17 +95,46 @@ export const useProfileStore = create<ProfileState>()(
       updateProfile: async (userId, updates) => {
         set({ isLoading: true, error: null })
         try {
-          const current = get().profile
-          // 서버가 PUT 기반으로 전체 자원을 덮어쓰는 경우를 대비해 안전 병합
-          const payload: UserProfileUpdate = {
-            nickname: updates.nickname ?? current?.nickname,
-            goals_kcal: updates.goals_kcal ?? current?.goals_kcal,
-            goals_carbs_g: updates.goals_carbs_g ?? current?.goals_carbs_g,
-            selected_allergy_ids: updates.selected_allergy_ids ?? current?.selected_allergy_ids,
-            selected_dislike_ids: updates.selected_dislike_ids ?? current?.selected_dislike_ids,
+          // 변경된 필드만 포함하는 payload 생성
+          const payload: UserProfileUpdate = {}
+          
+          // 각 필드가 명시적으로 전달된 경우에만 포함
+          if (updates.nickname !== undefined) {
+            payload.nickname = updates.nickname
           }
+          if (updates.goals_kcal !== undefined) {
+            payload.goals_kcal = updates.goals_kcal
+          }
+          if (updates.goals_carbs_g !== undefined) {
+            payload.goals_carbs_g = updates.goals_carbs_g
+          }
+          if (updates.selected_allergy_ids !== undefined) {
+            payload.selected_allergy_ids = updates.selected_allergy_ids
+          }
+          if (updates.selected_dislike_ids !== undefined) {
+            payload.selected_dislike_ids = updates.selected_dislike_ids
+          }
+          
+          console.log('🔍 ProfileStore: 변경된 필드만 전송:', payload)
+          
+          // 현재 프로필을 미리 저장
+          const currentProfile = get().profile
+          
           const updatedProfile = await profileService.updateProfile(userId, payload)
-          set({ profile: updatedProfile, isLoading: false })
+          
+          // 현재 프로필을 기반으로 업데이트된 필드만 변경
+          const mergedProfile = {
+            ...currentProfile,
+            // 업데이트된 필드만 서버 응답으로 덮어쓰기
+            ...(payload.nickname !== undefined && { nickname: updatedProfile.nickname }),
+            ...(payload.goals_kcal !== undefined && { goals_kcal: updatedProfile.goals_kcal }),
+            ...(payload.goals_carbs_g !== undefined && { goals_carbs_g: updatedProfile.goals_carbs_g }),
+            ...(payload.selected_allergy_ids !== undefined && { selected_allergy_ids: updatedProfile.selected_allergy_ids }),
+            ...(payload.selected_dislike_ids !== undefined && { selected_dislike_ids: updatedProfile.selected_dislike_ids }),
+          } as UserProfile
+          
+          console.log('🔍 ProfileStore: 로컬 상태만 업데이트:', mergedProfile)
+          set({ profile: mergedProfile, isLoading: false })
         } catch (error) {
           set({ 
             error: error instanceof Error ? error.message : '프로필 업데이트 실패',
@@ -190,7 +219,7 @@ export const useProfileStore = create<ProfileState>()(
       }
     }),
     {
-      name: 'keto-coach-profile-v2',
+      name: 'keto-coach-profile',
       partialize: (state) => ({ 
         profile: state.profile,
         currentUserId: state.currentUserId,
