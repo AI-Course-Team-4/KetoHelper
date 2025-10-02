@@ -172,10 +172,10 @@ class PlaceSearchAgent:
             try:
                 return await asyncio.wait_for(
                     self._execute_search_with_timeout(message, lat, lng, radius_km, profile),
-                    timeout=30.0  # 30초 타임아웃
+                    timeout=90.0  # 90초 타임아웃으로 증가
                 )
             except asyncio.TimeoutError:
-                print(f"⏰ 검색 타임아웃 (30초)")
+                print(f"⏰ 검색 타임아웃 (90초)")
                 return self._get_timeout_response()
             
         except Exception as e:
@@ -334,7 +334,7 @@ class PlaceSearchAgent:
             # 타임아웃 적용하여 LLM 호출 (타임아웃 증가)
             llm_response = await asyncio.wait_for(
                 self.llm.ainvoke([HumanMessage(content=structured_prompt)]),
-                timeout=20.0  # 20초 타임아웃
+                timeout=60.0  # 60초 타임아웃으로 증가
             )
             
             # 🔍 디버깅: LLM 응답 확인
