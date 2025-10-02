@@ -507,6 +507,11 @@ class KetoCoachAgent:
             # 결과를 state에 저장
             state["results"] = search_result.get("results", [])
             
+            # 🔧 PlaceSearchAgent가 생성한 응답을 formatted_response에 저장
+            if search_result.get("response"):
+                state["formatted_response"] = search_result["response"]
+                print("✅ PlaceSearchAgent 응답을 formatted_response에 저장")
+            
             # tool_calls 정보 추가
             if search_result.get("tool_calls"):
                 state["tool_calls"].extend(search_result["tool_calls"])

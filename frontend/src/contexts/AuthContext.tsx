@@ -81,6 +81,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         } else {
           console.log('❌ 인증 초기화 실패, 로그인 필요')
           console.log('🔍 실패 이유:', { success: result.success, hasUser: !!result.user, hasToken: !!result.accessToken })
+          
+          // 토큰 검증 실패 시 게스트 사용자로 전환
+          console.log('🔄 토큰 검증 실패로 게스트 사용자로 전환')
+          const guestId = ensureGuestId()
+          console.log('🎭 게스트 사용자 ID 보장:', guestId)
         }
       } catch (error) {
         console.error('❌ 인증 초기화 실패:', error)
