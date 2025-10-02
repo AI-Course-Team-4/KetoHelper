@@ -13,16 +13,15 @@ import asyncio
 import json
 from typing import Dict, Any, List, Optional
 from datetime import date, timedelta
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import HumanMessage
 import importlib
 
-from app.core.config import settings
 from app.tools.shared.hybrid_search import hybrid_search_tool
 from app.tools.shared.profile_tool import user_profile_tool
 from app.tools.shared.date_parser import DateParser
 from app.tools.shared.temporary_dislikes_extractor import temp_dislikes_extractor
 from app.tools.meal.response_formatter import MealResponseFormatter
+from app.core.llm_factory import create_chat_llm
 from config import get_personal_configs, get_agent_config
 
 # 기본값 상수 정의
@@ -62,13 +61,9 @@ class MealPlannerAgent:
         self.tools = self._load_tools()
         
         try:
-            self.llm = ChatGoogleGenerativeAI(
-                model=settings.llm_model,
-                google_api_key=settings.google_api_key,
-                temperature=settings.gemini_temperature
-            )
+            self.llm = create_chat_llm()
         except Exception as e:
-            print(f"Gemini AI 초기화 실패: {e}")
+            print(f"LLM 초기화 실패: {e}")
             self.llm = None
         
         
