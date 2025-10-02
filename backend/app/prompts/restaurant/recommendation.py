@@ -70,7 +70,7 @@ RESTAURANT_RECOMMENDATION_PROMPT = """
 <table style="border-collapse: collapse; width: 100%; margin: 10px 0;">
   <tr>
     <td style="border: 1px solid #ddd; padding: 8px; background-color: #f8f9fa; font-weight: bold; width: 25%;">추천 메뉴</td>
-    <td style="border: 1px solid #ddd; padding: 8px;">[메뉴명]</td>
+    <td style="border: 1px solid #ddd; padding: 8px;"><b>[메뉴명]</b></td>
   </tr>
   <tr>
     <td style="border: 1px solid #ddd; padding: 8px; background-color: #f8f9fa; font-weight: bold; width: 25%;">주문 팁</td>
@@ -94,7 +94,7 @@ RESTAURANT_RECOMMENDATION_PROMPT = """
 <table style="border-collapse: collapse; width: 100%; margin: 10px 0;">
   <tr>
     <td style="border: 1px solid #ddd; padding: 8px; background-color: #f8f9fa; font-weight: bold; width: 25%;">추천 메뉴</td>
-    <td style="border: 1px solid #ddd; padding: 8px;">[메뉴명]</td>
+    <td style="border: 1px solid #ddd; padding: 8px;"><b>[메뉴명]</b></td>
   </tr>
   <tr>
     <td style="border: 1px solid #ddd; padding: 8px; background-color: #f8f9fa; font-weight: bold;">주문 팁</td>
