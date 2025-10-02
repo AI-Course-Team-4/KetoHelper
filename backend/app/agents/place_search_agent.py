@@ -13,13 +13,12 @@
 import asyncio
 import importlib
 from typing import Dict, Any, List, Optional
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import HumanMessage
 
-from app.core.config import settings
 from app.tools.restaurant.restaurant_hybrid_search import restaurant_hybrid_search_tool
 from app.tools.meal.keto_score import KetoScoreCalculator
 from config import get_personal_configs, get_agent_config
+from app.core.llm_factory import create_chat_llm
 
 class PlaceSearchAgent:
     """키토 친화적 식당 검색 전용 에이전트"""
@@ -49,15 +48,10 @@ class PlaceSearchAgent:
         print(f"✅ {self.agent_name} 초기화 (프롬프트: {list(self.prompts.keys())})")
         
         try:
-            # Gemini LLM 초기화
-            self.llm = ChatGoogleGenerativeAI(
-                model=settings.llm_model,
-                google_api_key=settings.google_api_key,
-                temperature=settings.gemini_temperature,
-                max_tokens=settings.gemini_max_tokens
-            )
+            # 공통 LLM 초기화
+            self.llm = create_chat_llm()
         except Exception as e:
-            print(f"❌ Gemini AI 초기화 실패: {e}")
+            print(f"❌ LLM 초기화 실패: {e}")
             self.llm = None
         
         # 도구들 초기화
@@ -274,6 +268,10 @@ class PlaceSearchAgent:
             return response
         
         try:
+            # 시간 측정 시작
+            import time
+            start_time = time.time()
+            
             # 구조화된 프롬프트로 LLM 응답 생성
             restaurant_list = ""
             for i, restaurant in enumerate(results[:3], 1):
@@ -331,11 +329,21 @@ class PlaceSearchAgent:
             print(f"✅ '키토 점수' 포함 여부: {'키토 점수' in structured_prompt}")
             print(f"{'='*60}\n")
             
+            # LLM 호출 시간 측정
+            llm_start_time = time.time()
+            
             # 타임아웃 적용하여 LLM 호출 (타임아웃 증가)
             llm_response = await asyncio.wait_for(
                 self.llm.ainvoke([HumanMessage(content=structured_prompt)]),
                 timeout=60.0  # 60초 타임아웃으로 증가
             )
+            
+            llm_end_time = time.time()
+            llm_duration = llm_end_time - llm_start_time
+            
+            # 시간 측정 종료
+            end_time = time.time()
+            total_time = end_time - start_time
             
             # 🔍 디버깅: LLM 응답 확인
             print(f"\n{'='*60}")
@@ -347,6 +355,7 @@ class PlaceSearchAgent:
             print(f"✅ '🍽️' 포함 여부: {'🍽️' in llm_response.content}")
             print(f"✅ '냥' 포함 여부: {'냥' in llm_response.content}")
             print(f"✅ '키토 점수' 포함 여부: {'키토 점수' in llm_response.content}")
+            print(f"⏱️ 총 생성 시간: {total_time:.2f}초")
             print(f"{'='*60}\n")
             
             return llm_response.content

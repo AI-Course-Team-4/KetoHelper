@@ -6,13 +6,13 @@
 
 from enum import Enum
 from typing import Dict, Any, List, Optional
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import HumanMessage
 import re
 import json
 
 from app.core.config import settings
 from app.prompts.chat.intent_classification import get_intent_prompt
+from app.core.llm_factory import create_chat_llm
 
 
 class Intent(Enum):
@@ -34,20 +34,13 @@ class IntentClassifier:
     
     def __init__(self):
         try:
-            if not settings.google_api_key:
-                raise ValueError("GOOGLE_API_KEY가 설정되지 않았습니다")
-            
-            self.llm = ChatGoogleGenerativeAI(
-                model=settings.llm_model,
-                google_api_key=settings.google_api_key,
-                temperature=settings.gemini_temperature
-            )
-            print(f"[OK] Gemini LLM 초기화 성공: {settings.llm_model}")
+            self.llm = create_chat_llm()
+            print(f"[OK] LLM 초기화 성공: {settings.llm_provider}::{settings.llm_model}")
         except Exception as e:
-            print(f"[ERROR] Gemini AI 초기화 실패: {str(e)}")
-            print(f"   - API Key 존재: {'예' if settings.google_api_key else '아니오'}")
+            print(f"[ERROR] LLM 초기화 실패: {str(e)}")
+            print(f"   - 공급자: {settings.llm_provider}")
             print(f"   - 모델: {settings.llm_model}")
-            print(f"   - 온도: {settings.gemini_temperature}")
+            print(f"   - 온도: {settings.llm_temperature}")
             self.llm = None
         
         # 최소한의 핵심 키워드만 유지 - LLM이 90% 담당
