@@ -12,6 +12,7 @@ interface UseMessageHandlersProps {
   setMessage: (message: string) => void
   isLoading: boolean
   setIsLoading: (loading: boolean) => void
+  setLoadingStep: (step: 'thinking' | 'analyzing' | 'generating' | 'finalizing') => void
   currentThreadId: string | null
   setCurrentThreadId: (threadId: string | null) => void
   isSaving: boolean
@@ -29,6 +30,7 @@ export function useMessageHandlers({
   setMessage,
   isLoading,
   setIsLoading,
+  setLoadingStep,
   currentThreadId,
   setCurrentThreadId,
   isSaving,
@@ -142,6 +144,8 @@ export function useMessageHandlers({
     
     setMessage('')
     setIsLoading(true)
+    setLoadingStep('thinking')
+    console.log('🔄 로딩 단계: thinking')
 
     // 1) 낙관적 추가 (로그인/게스트 분기)
     if (isLoggedIn) {
@@ -162,6 +166,15 @@ export function useMessageHandlers({
     }
 
     try {
+      // 분석 단계
+      setLoadingStep('analyzing')
+      console.log('🔄 로딩 단계: analyzing')
+      await new Promise(resolve => setTimeout(resolve, 500)) // 0.5초 대기
+      
+      // 생성 단계
+      setLoadingStep('generating')
+      console.log('🔄 로딩 단계: generating')
+      
       const response = await sendMessage.mutateAsync({
         message: userMessage.content,
         profile: profile ? {
@@ -177,6 +190,11 @@ export function useMessageHandlers({
         user_id: userId,
         guest_id: guestId
       })
+      
+      // 마무리 단계
+      setLoadingStep('finalizing')
+      console.log('🔄 로딩 단계: finalizing')
+      await new Promise(resolve => setTimeout(resolve, 300)) // 0.3초 대기
 
       // 서버가 새 스레드를 발급했다면 최신 ID로 교체
       if (response.thread_id && response.thread_id !== threadId) {
@@ -358,8 +376,19 @@ export function useMessageHandlers({
     }
     
     setIsLoading(true)
+    setLoadingStep('thinking')
+    console.log('🔄 QuickMessage 로딩 단계: thinking')
 
     try {
+      // 분석 단계
+      setLoadingStep('analyzing')
+      console.log('🔄 QuickMessage 로딩 단계: analyzing')
+      await new Promise(resolve => setTimeout(resolve, 500)) // 0.5초 대기
+      
+      // 생성 단계
+      setLoadingStep('generating')
+      console.log('🔄 QuickMessage 로딩 단계: generating')
+      
       const response = await sendMessage.mutateAsync({
         message: userMessage.content,
         profile: profile ? {
@@ -374,6 +403,11 @@ export function useMessageHandlers({
         user_id: userId,
         guest_id: guestId
       })
+      
+      // 마무리 단계
+      setLoadingStep('finalizing')
+      console.log('🔄 QuickMessage 로딩 단계: finalizing')
+      await new Promise(resolve => setTimeout(resolve, 300)) // 0.3초 대기
 
       if (response.thread_id && response.thread_id !== threadId) {
         setCurrentThreadId(response.thread_id)
