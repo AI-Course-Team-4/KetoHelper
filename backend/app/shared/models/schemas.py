@@ -41,6 +41,7 @@ class ChatHistory(BaseModel):
     role: str = Field(..., description="역할 (user/assistant)")
     message: str = Field(..., description="메시지 내용")
     created_at: datetime = Field(..., description="생성 시간")
+    results: Optional[List[Dict[str, Any]]] = Field(None, description="검색 결과 (식당, 레시피)")
 
 class RecipeBase(BaseModel):
     """레시피 기본 스키마"""
