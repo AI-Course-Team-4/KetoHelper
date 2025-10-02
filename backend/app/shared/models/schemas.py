@@ -17,6 +17,7 @@ class ChatMessage(BaseModel):
     thread_id: Optional[str] = Field(None, description="대화 스레드 ID")
     user_id: Optional[str] = Field(None, description="사용자 ID (로그인 시)")
     guest_id: Optional[str] = Field(None, description="게스트 ID (비로그인 시)")
+    chat_history: Optional[List[Dict[str, Any]]] = Field(None, description="게스트 사용자용 채팅 히스토리")
 
 class ChatResponse(BaseModel):
     """채팅 응답 스키마"""
