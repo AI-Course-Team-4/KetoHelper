@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { useChatLogic } from './hooks/useChatLogic'
 import { useMessageHandlers } from './hooks/useMessageHandlers'
 import { useThreadHandlers } from './hooks/useThreadHandlers'
@@ -78,6 +79,18 @@ export function ChatPage() {
     refetchHistory
   })
 
+  // 실시간 타임스탬프 갱신을 위한 상태
+  const [, forceUpdate] = useState(0)
+
+  // 1분마다 타임스탬프 갱신
+  useEffect(() => {
+    const interval = setInterval(() => {
+      forceUpdate((prev: number) => prev + 1)
+    }, 60000) // 1분마다 갱신
+
+    return () => clearInterval(interval)
+  }, [])
+
   // 시간 포맷팅 함수들
   const formatMessageTime = (timestamp: Date) => {
     const date = timestamp instanceof Date ? timestamp : new Date(timestamp)
@@ -121,28 +134,52 @@ export function ChatPage() {
   const shouldShowTimestamp = (currentIndex: number) => {
     if (currentIndex === 0) return true
 
-    const currentMessage = messages[currentIndex]
-    const previousMessage = messages[currentIndex - 1]
+    // 로그인 상태에 따라 올바른 배열 사용
+    const messageList = isLoggedIn ? chatHistory : messages
+    const currentMessage = messageList[currentIndex]
+    const previousMessage = messageList[currentIndex - 1]
 
     if (!currentMessage || !previousMessage) return true
 
-    const currentTime = currentMessage.timestamp instanceof Date ? currentMessage.timestamp : new Date(currentMessage.timestamp)
-    const previousTime = previousMessage.timestamp instanceof Date ? previousMessage.timestamp : new Date(previousMessage.timestamp)
+    // 로그인 사용자: created_at 사용, 게스트 사용자: timestamp 사용
+    const currentTime = isLoggedIn
+      ? new Date((currentMessage as any).created_at)
+      : (currentMessage as any).timestamp instanceof Date 
+        ? (currentMessage as any).timestamp 
+        : new Date((currentMessage as any).timestamp)
+    
+    const previousTime = isLoggedIn
+      ? new Date((previousMessage as any).created_at)
+      : (previousMessage as any).timestamp instanceof Date 
+        ? (previousMessage as any).timestamp 
+        : new Date((previousMessage as any).timestamp)
 
     const timeDiff = currentTime.getTime() - previousTime.getTime()
-    return timeDiff > 300000
+    return timeDiff > 60000
   }
 
   const shouldShowDateSeparator = (currentIndex: number) => {
     if (currentIndex === 0) return true
 
-    const currentMessage = messages[currentIndex]
-    const previousMessage = messages[currentIndex - 1]
+    // 로그인 상태에 따라 올바른 배열 사용
+    const messageList = isLoggedIn ? chatHistory : messages
+    const currentMessage = messageList[currentIndex]
+    const previousMessage = messageList[currentIndex - 1]
 
     if (!currentMessage || !previousMessage) return false
 
-    const currentTime = currentMessage.timestamp instanceof Date ? currentMessage.timestamp : new Date(currentMessage.timestamp)
-    const previousTime = previousMessage.timestamp instanceof Date ? previousMessage.timestamp : new Date(previousMessage.timestamp)
+    // 로그인 사용자: created_at 사용, 게스트 사용자: timestamp 사용
+    const currentTime = isLoggedIn
+      ? new Date((currentMessage as any).created_at)
+      : (currentMessage as any).timestamp instanceof Date 
+        ? (currentMessage as any).timestamp 
+        : new Date((currentMessage as any).timestamp)
+    
+    const previousTime = isLoggedIn
+      ? new Date((previousMessage as any).created_at)
+      : (previousMessage as any).timestamp instanceof Date 
+        ? (previousMessage as any).timestamp 
+        : new Date((previousMessage as any).timestamp)
 
     const currentDate = currentTime.toDateString()
     const previousDate = previousTime.toDateString()

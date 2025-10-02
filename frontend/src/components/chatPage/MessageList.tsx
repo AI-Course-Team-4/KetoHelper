@@ -171,6 +171,7 @@ export function MessageList({
                     msg={msg}
                     index={index}
                     totalMessages={totalMessages}
+                    isLoggedIn={isLoggedIn}
                     shouldShowTimestamp={shouldShowTimestamp}
                     shouldShowDateSeparator={shouldShowDateSeparator}
                     formatMessageTime={formatMessageTime}
