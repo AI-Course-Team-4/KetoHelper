@@ -720,6 +720,11 @@ class KetoCoachAgent:
             if self.calendar_utils.is_calendar_save_request(message) and state.get("intent") != "calendar_save":
                 return await self._handle_calendar_save_request(state, message)
             
+            # 이미 응답이 설정되어 있으면 그대로 사용 (calendar_save_node 등에서 설정)
+            if state.get("response"):
+                print("✅ 기존 응답 사용 (이미 설정됨)")
+                return state
+            
             # MealPlannerAgent가 이미 포맷한 응답이 있으면 그대로 사용
             if state.get("formatted_response"):
                 print("✅ 포맷된 응답 사용")

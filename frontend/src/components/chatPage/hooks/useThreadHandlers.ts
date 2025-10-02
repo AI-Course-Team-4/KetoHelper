@@ -10,7 +10,6 @@ interface UseThreadHandlersProps {
   setMessage: (message: string) => void
   setIsLoadingThread: (loading: boolean) => void
   refetchThreads: () => void
-  refetchHistory: () => void
 }
 
 export function useThreadHandlers({
@@ -19,8 +18,7 @@ export function useThreadHandlers({
   clearMessages,
   setMessage,
   setIsLoadingThread,
-  refetchThreads,
-  refetchHistory
+  refetchThreads
 }: UseThreadHandlersProps) {
   const { user, ensureGuestId } = useAuthStore()
   const createNewThread = useCreateNewThread()
@@ -58,7 +56,7 @@ export function useThreadHandlers({
       clearMessages()
       setMessage('')
     }
-  }, [createNewThread, user, ensureGuestId, setCurrentThreadId, clearMessages, setMessage, refetchThreads])
+  }, [createNewThread, user, ensureGuestId, setCurrentThreadId, clearMessages, setMessage])
 
   // 스레드 선택
   const handleSelectThread = useCallback((threadId: string) => {
@@ -70,9 +68,8 @@ export function useThreadHandlers({
     setIsLoadingThread(true)
     setCurrentThreadId(threadId)
     setMessage('')
-    refetchHistory()
     console.log('🔄 스레드 전환:', threadId)
-  }, [currentThreadId, setIsLoadingThread, setCurrentThreadId, setMessage, refetchHistory])
+  }, [currentThreadId, setIsLoadingThread, setCurrentThreadId, setMessage])
 
   // 스레드 삭제
   const handleDeleteThread = useCallback(async (threadId: string) => {
@@ -112,7 +109,7 @@ export function useThreadHandlers({
       console.error('❌ 스레드 삭제 실패:', error)
       alert('⚠️ 채팅 삭제 실패\n\n스레드 삭제에 실패했습니다.\n잠시 후 다시 시도해주세요.')
     }
-  }, [deleteThread, currentThreadId, setCurrentThreadId, clearMessages, setMessage, refetchThreads])
+  }, [deleteThread, currentThreadId, setCurrentThreadId, clearMessages, setMessage])
 
   return {
     handleCreateNewChat,

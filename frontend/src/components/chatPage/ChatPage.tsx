@@ -24,6 +24,7 @@ export function ChatPage() {
     messagesEndRef,
     scrollAreaRef,
     messages,
+    clearMessages,
     chatHistory,
     profile,
     user,
@@ -32,10 +33,7 @@ export function ChatPage() {
     isLoadingHistory,
     isSaving,
     setIsSaving,
-    addMessage,
-    clearMessages,
     refetchThreads,
-    refetchHistory,
     setCurrentThreadId,
     setIsLoading,
     setIsSavingMeal,
@@ -57,10 +55,7 @@ export function ChatPage() {
     isSaving,
     setIsSaving,
     setIsSavingMeal,
-    messages,
-    addMessage,
-    refetchThreads,
-    refetchHistory,
+    chatHistory,
     isLoggedIn
   })
 
@@ -74,8 +69,7 @@ export function ChatPage() {
     clearMessages,
     setMessage,
     setIsLoadingThread,
-    refetchThreads,
-    refetchHistory
+    refetchThreads
   })
 
   // 시간 포맷팅 함수들
@@ -121,13 +115,13 @@ export function ChatPage() {
   const shouldShowTimestamp = (currentIndex: number) => {
     if (currentIndex === 0) return true
 
-    const currentMessage = messages[currentIndex]
-    const previousMessage = messages[currentIndex - 1]
+    const currentMessage = chatHistory[currentIndex]
+    const previousMessage = chatHistory[currentIndex - 1]
 
     if (!currentMessage || !previousMessage) return true
 
-    const currentTime = currentMessage.timestamp instanceof Date ? currentMessage.timestamp : new Date(currentMessage.timestamp)
-    const previousTime = previousMessage.timestamp instanceof Date ? previousMessage.timestamp : new Date(previousMessage.timestamp)
+    const currentTime = new Date(currentMessage.created_at)
+    const previousTime = new Date(previousMessage.created_at)
 
     const timeDiff = currentTime.getTime() - previousTime.getTime()
     return timeDiff > 300000
@@ -136,13 +130,13 @@ export function ChatPage() {
   const shouldShowDateSeparator = (currentIndex: number) => {
     if (currentIndex === 0) return true
 
-    const currentMessage = messages[currentIndex]
-    const previousMessage = messages[currentIndex - 1]
+    const currentMessage = chatHistory[currentIndex]
+    const previousMessage = chatHistory[currentIndex - 1]
 
     if (!currentMessage || !previousMessage) return false
 
-    const currentTime = currentMessage.timestamp instanceof Date ? currentMessage.timestamp : new Date(currentMessage.timestamp)
-    const previousTime = previousMessage.timestamp instanceof Date ? previousMessage.timestamp : new Date(previousMessage.timestamp)
+    const currentTime = new Date(currentMessage.created_at)
+    const previousTime = new Date(previousMessage.created_at)
 
     const currentDate = currentTime.toDateString()
     const previousDate = previousTime.toDateString()
@@ -214,7 +208,7 @@ export function ChatPage() {
             <EmptyWelcome
               onCreateNewChat={handleCreateNewChat}
             />
-          ) : (isLoggedIn ? chatHistory.length === 0 : messages.length === 0) ? (
+          ) : chatHistory.length === 0 ? (
             // 스레드가 있지만 메시지가 없을 때 - 활성 웰컴 스크린
             <ActiveWelcome
               message={message}

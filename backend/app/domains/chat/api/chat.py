@@ -241,14 +241,21 @@ async def chat_endpoint(request: ChatMessage):
             "message": result.get("response", "")
         }]
         
-        return ChatResponse(
-            response=result.get("response", "죄송합니다. 응답을 생성할 수 없습니다."),
-            intent=result.get("intent", "unknown"),
-            results=result.get("results"),
-            session_id=thread_id,  # 호환성을 위해 session_id로도 반환
-            thread_id=thread_id,
-            assistantBatch=assistant_batch
-        )
+        # ChatResponse 스키마 대신 딕셔너리로 반환하여 meal_plan_data 포함
+        response_data = {
+            "response": result.get("response", "죄송합니다. 응답을 생성할 수 없습니다."),
+            "intent": result.get("intent", "unknown"),
+            "results": result.get("results"),
+            "session_id": thread_id,  # 호환성을 위해 session_id로도 반환
+            "thread_id": thread_id,
+            "assistantBatch": assistant_batch
+        }
+        
+        # 식단 관련 응답인 경우 meal_plan_data 추가
+        if result.get("meal_plan_data"):
+            response_data["meal_plan_data"] = result.get("meal_plan_data")
+        
+        return response_data
         
     except Exception as e:
         print(f"❌ 채팅 처리 실패: {e}")

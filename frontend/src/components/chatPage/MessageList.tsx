@@ -74,7 +74,7 @@ export function MessageList({
 
   // 메시지가 변경될 때마다 자동 스크롤
   useEffect(() => {
-    const currentLength = isLoggedIn ? chatHistory.length : messages.length
+    const currentLength = chatHistory.length
     const prevLength = prevMessageLengthRef.current
     
     // 새 메시지가 추가되었을 때만 자동 스크롤 활성화
@@ -87,35 +87,10 @@ export function MessageList({
     
     // 항상 하단 고정 (일반 채팅 UX)
     scrollToBottom()
-  }, [isLoggedIn, chatHistory.length, messages.length])
+  }, [chatHistory.length])
 
-  // 정렬에 사용할 표준화 리스트 계산 (오름차순 렌더)
-  let normalizedList: ChatMessage[] = (isLoggedIn
-    ? chatHistory.map((msg: ChatHistory) => ({
-        id: msg.id.toString(),
-        role: msg.role as 'user' | 'assistant',
-        content: msg.message,
-        timestamp: new Date(msg.created_at),
-        results: messages.find(m => m.id === msg.id.toString())?.results,
-        mealData: messages.find(m => m.id === msg.id.toString())?.mealData
-      }))
-    : messages) as unknown as ChatMessage[]
-
-  // 로그인 사용자의 경우: 캐시 반영 전에 로컬 에코(user 메시지)가 보이도록 로컬 메시지를 병합
-  if (isLoggedIn) {
-    const existingIds = new Set(normalizedList.map(m => m.id))
-    const localExtras = (messages || []).filter(m => !existingIds.has(m.id)).map(m => ({
-      id: m.id,
-      role: m.role,
-      content: m.content,
-      timestamp: m.timestamp,
-      results: m.results,
-      mealData: m.mealData || null
-    }))
-    if (localExtras.length) {
-      normalizedList = [...normalizedList, ...localExtras]
-    }
-  }
+  // messages는 이미 chatHistory 기반으로 변환되어 전달됨
+  const normalizedList: ChatMessage[] = messages
 
   const orderedList: ChatMessage[] = normalizedList
     .slice()
@@ -144,7 +119,7 @@ export function MessageList({
     const el = messagesEndRef.current
     if (!el) return
     el.scrollIntoView({ block: 'end', behavior: 'smooth' })
-  }, [isLoggedIn ? chatHistory.length : messages.length, isLoading])
+  }, [chatHistory.length, isLoading])
 
   // 로딩 시작(= assistant 응답 중) 시 하단 고정 재개
   useEffect(() => {
@@ -164,7 +139,7 @@ export function MessageList({
         <div className="max-w-4xl mx-auto">
           <div className={`space-y-4 lg:space-y-6`}>
             {orderedList.map((msg: ChatMessage, index: number) => {
-              const totalMessages = isLoggedIn ? chatHistory.length : messages.length
+              const totalMessages = chatHistory.length
               return (
                 <div key={msg.id} data-msg-id={String(msg.id)} data-role={msg.role}>
                   <MessageItem
@@ -188,7 +163,7 @@ export function MessageList({
               )
             })}
             {/* 채팅 제한 알림 */}
-            {((isLoggedIn && chatHistory.length >= 20) || (!isLoggedIn && messages.length >= 10)) && (
+            {chatHistory.length >= 20 && (
               <div className="flex items-start gap-3 lg:gap-4 animate-in slide-in-from-bottom-2 fade-in duration-300">
                 <div className="flex-shrink-0 w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white flex items-center justify-center shadow-md">
                   <span className="text-sm lg:text-lg">⚠️</span>
