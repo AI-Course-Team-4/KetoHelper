@@ -6,6 +6,7 @@ import { Person, GpsFixed, Warning, ThumbDown } from '@mui/icons-material'
 import { CircularProgress, Box, Typography, Stack, Card, CardContent, CardHeader, Autocomplete, Chip, TextField, Checkbox } from '@mui/material'
 import { useProfileStore, useProfileHelpers } from '@/store/profileStore'
 import { useAuthStore } from '@/store/authStore'
+import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'react-hot-toast'
 
 interface OptionType {
@@ -20,17 +21,24 @@ export function ProfilePage() {
   const navigation = useContext(UNSAFE_NavigationContext)?.navigator as any
   const navigate = useNavigate()
   const { user, updateUser } = useAuthStore()
+  const { loading } = useAuth()
+  
+  // user가 있을 때만 프로필 스토어 사용
+  const profileStore = useProfileStore()
+  const profileHelpers = useProfileHelpers()
+  
   const { 
     profile, 
     error,
     loadMasterData,
     loadProfile,
     updateProfile
-  } = useProfileStore()
+  } = profileStore
+  
   const { 
     getAllergiesByCategory,
     getDislikesByCategory 
-  } = useProfileHelpers()
+  } = profileHelpers
 
   const [nickname, setNickname] = useState('')
   const [goalsKcal, setGoalsKcal] = useState('')
@@ -52,8 +60,9 @@ export function ProfilePage() {
   const isNavigatingRef = useRef<boolean>(false)
 
 
-  // 알레르기/비선호 재료 옵션들을 미리 계산
+  // 알레르기/비선호 재료 옵션들을 미리 계산 (user가 있을 때만)
   const allergyOptions = useMemo(() => {
+    if (!user) return []
     return Object.entries(getAllergiesByCategory()).flatMap(([category, allergies]) => 
       allergies.map(allergy => ({
         id: allergy.id,
@@ -63,9 +72,10 @@ export function ProfilePage() {
         description: allergy.description
       }))
     )
-  }, [getAllergiesByCategory])
+  }, [user, getAllergiesByCategory])
 
   const dislikeOptions = useMemo(() => {
+    if (!user) return []
     return Object.entries(getDislikesByCategory()).flatMap(([category, dislikes]) => 
       dislikes.map(dislike => ({
         id: dislike.id,
@@ -75,21 +85,23 @@ export function ProfilePage() {
         description: dislike.description
       }))
     )
-  }, [getDislikesByCategory])
+  }, [user, getDislikesByCategory])
 
-  // 선택된 알레르기/비선호 재료 객체들
+  // 선택된 알레르기/비선호 재료 객체들 (user가 있을 때만)
   const selectedAllergies = useMemo(() => {
+    if (!user) return []
     return localAllergyIds.map(id => allergyOptions.find(option => option.id === id)).filter(Boolean) as OptionType[]
-  }, [localAllergyIds, allergyOptions])
+  }, [user, localAllergyIds, allergyOptions])
 
   const selectedDislikes = useMemo(() => {
+    if (!user) return []
     return localDislikeIds.map(id => dislikeOptions.find(option => option.id === id)).filter(Boolean) as OptionType[]
-  }, [localDislikeIds, dislikeOptions])
+  }, [user, localDislikeIds, dislikeOptions])
 
-  // 마스터 데이터 및 프로필 로드
+  // 마스터 데이터 및 프로필 로드 (user가 있을 때만)
   useEffect(() => {
-    loadMasterData()
     if (user?.id) {
+      loadMasterData()
       loadProfile(user.id)
     }
   }, [user?.id, loadProfile, loadMasterData])
@@ -136,14 +148,15 @@ export function ProfilePage() {
     }
   }, [profile, user?.name, user?.id, isInitialLoad])
 
-  // 로그인 상태 확인 - 로그인하지 않은 경우 메인 페이지로 리다이렉트
+  // 로그인 상태 확인 - 로그인하지 않은 경우 메인 페이지로 리다이렉트 (로딩 완료 후에만)
   useEffect(() => {
-    if (!user) {
+    // AuthContext의 loading이 완료된 후에만 체크
+    if (!user && !loading) {
       alert('로그아웃 되었습니다. 메인 페이지로 이동합니다.')
       navigate('/')
       return
     }
-  }, [user, navigate])
+  }, [user, loading, navigate])
 
   // 로그아웃 시 상태 초기화 (실제로는 위에서 리다이렉트되므로 실행되지 않음)
   useEffect(() => {
