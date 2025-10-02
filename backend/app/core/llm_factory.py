@@ -22,6 +22,9 @@ def create_chat_llm(
     selected_temperature = settings.llm_temperature if temperature is None else temperature
     selected_max_tokens = settings.llm_max_tokens if max_tokens is None else max_tokens
     selected_timeout = settings.llm_timeout if timeout is None else timeout
+    
+    # 디버깅: 설정값 확인
+    print(f"🔧 LLM Factory 설정: provider={provider_name}, model={selected_model}, max_tokens={selected_max_tokens}")
 
     common_kwargs: Dict[str, Any] = {
         "model": selected_model,
@@ -35,10 +38,15 @@ def create_chat_llm(
         if not settings.openai_api_key:
             raise ValueError("OPENAI_API_KEY is not set")
 
+        # OpenAI ChatOpenAI에서는 max_tokens 대신 max_tokens를 직접 전달
+        openai_kwargs = common_kwargs.copy()
+        
         return ChatOpenAI(
             api_key=settings.openai_api_key,
             timeout=float(selected_timeout),
-            **common_kwargs,
+            max_tokens=int(selected_max_tokens),  # 명시적으로 max_tokens 설정
+            model=selected_model,
+            temperature=float(selected_temperature),
         )
 
     # 기본: Gemini
