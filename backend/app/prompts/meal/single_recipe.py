@@ -4,9 +4,13 @@
 """
 
 SINGLE_RECIPE_GENERATION_PROMPT = """
+<<<<<<< HEAD
 당신은 키토 식단 전문가입니다냥~ '{message}'에 맞는 맞춤 키토 레시피를 만들어주세요냥~
 
 <b>사용자 정보:</b> {profile_context}
+=======
+당신은 키토 식단 전문가입니다. '{message}'에 대한 맞춤 키토 레시피를 생성해주세요.
+>>>>>>> 89ecc00aa37a7104ab3df07b72b49573ad200a6a
 
 <hr>
 

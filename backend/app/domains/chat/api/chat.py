@@ -84,6 +84,12 @@ async def insert_chat_message(thread_id: str, role: str, message: str, user_id: 
         }
         
         print(f"💾 저장할 데이터: thread_id={chat_data['thread_id']}, role={chat_data['role']}, message={chat_data['message'][:30]}...")
+        
+        # 게스트 사용자는 데이터베이스에 저장하지 않음 (SessionStorage만 사용)
+        if guest_id and not user_id:
+            print(f"🎭 게스트 사용자 - 데이터베이스 저장 건너뛰기: guest_id={guest_id}")
+            return chat_data  # 데이터베이스 저장 없이 데이터만 반환
+        
         result = supabase.table("chat").insert(chat_data).execute()
         print(f"💾 저장 결과: id={result.data[0]['id'] if result.data else 'None'}")
         return result.data[0] if result.data else chat_data
@@ -122,24 +128,24 @@ async def chat_endpoint(request: ChatMessage):
     import uuid
     request_id = str(uuid.uuid4())[:8]
     
-    # 중복 요청 방지: thread_id 제외하고 메시지 해시 사용
-    raw_user = request.user_id or request.guest_id or "anon"
-    msg_norm = (request.message or "").strip()
-    msg_hash = hashlib.sha256(msg_norm.encode("utf-8")).hexdigest()[:16]  # 짧게
-    
-    cache_key = f"{raw_user}:{msg_hash}"
-    current_time = time.time()
-    
-    async with _dedupe_lock:
-        last_time = _request_cache.get(cache_key)
-        if last_time and (current_time - last_time) < 30:  # 30초로 연장
-            print(f"🚫 중복 요청 차단! [ID: {request_id}] '{request.message}' (Δ {current_time - last_time:.2f}s)")
-            raise HTTPException(status_code=429, detail="Too many requests")
-        _request_cache[cache_key] = current_time
-    
-    # 오래된 캐시 간단 청소
-    if len(_request_cache) > 5000:
-        _request_cache.clear()
+    # 중복 요청 방지 임시 비활성화 (게스트 사용자 테스트용)
+    # raw_user = request.user_id or request.guest_id or "anon"
+    # msg_norm = (request.message or "").strip()
+    # msg_hash = hashlib.sha256(msg_norm.encode("utf-8")).hexdigest()[:16]  # 짧게
+    # 
+    # cache_key = f"{raw_user}:{msg_hash}"
+    # current_time = time.time()
+    # 
+    # async with _dedupe_lock:
+    #     last_time = _request_cache.get(cache_key)
+    #     if last_time and (current_time - last_time) < 30:  # 30초로 연장
+    #         print(f"🚫 중복 요청 차단! [ID: {request_id}] '{request.message}' (Δ {current_time - last_time:.2f}s)")
+    #         raise HTTPException(status_code=429, detail="Too many requests")
+    #     _request_cache[cache_key] = current_time
+    # 
+    # # 오래된 캐시 간단 청소
+    # if len(_request_cache) > 5000:
+    #     _request_cache.clear()
     
     print(f"🔥 DEBUG: chat_endpoint 진입! [ID: {request_id}] 메시지: '{request.message}'")
     
@@ -160,20 +166,42 @@ async def chat_endpoint(request: ChatMessage):
         thread_user_id = thread.get("user_id")
         thread_guest_id = thread.get("guest_id")
         
-        # 먼저 이전 대화 내용 가져오기 (현재 메시지 저장 전)
-        print(f"📚 이전 대화 내용 조회 중... (thread_id: {thread_id})")
-        print(f"🔍 thread_id 타입: {type(thread_id)}, 값: {repr(thread_id)}")
-        
-        if thread_id:
-            history_response = supabase.table("chat").select("*").eq("thread_id", thread_id).order("created_at", desc=True).limit(20).execute()
-            print(f"🔍 Supabase 응답: {len(history_response.data) if history_response.data else 0}개 메시지")
+        # 게스트 사용자의 경우 전달받은 chat_history 사용, 로그인 사용자는 DB에서 조회
+        if request.guest_id and request.chat_history:
+            # 게스트 사용자: 프론트엔드에서 전달받은 SessionStorage 데이터를 ChatHistory 객체로 변환
+            converted_history = []
+            for msg in request.chat_history:
+                try:
+                    # SessionStorage 데이터를 ChatHistory 형식으로 변환
+                    chat_msg = ChatHistory(
+                        id=int(msg.get('id', 0)) if msg.get('id') else 0,
+                        thread_id=thread_id,
+                        role=msg.get('role', ''),
+                        message=msg.get('message', ''),
+                        created_at=datetime.fromisoformat(msg.get('created_at', '').replace('Z', '+00:00'))
+                    )
+                    converted_history.append(chat_msg)
+                except Exception as e:
+                    print(f"⚠️ 게스트 메시지 변환 오류: {e}, 메시지: {msg}")
+                    continue
+            
+            chat_history = converted_history
+            print(f"🎭 게스트 사용자 채팅 히스토리 변환 완료: {len(chat_history)}개 메시지")
         else:
-            print("⚠️ thread_id가 None이므로 대화 히스토리 조회 건너뜀")
-            history_response = type('obj', (object,), {'data': []})()
-        
-        # 대화 히스토리를 역순으로 정렬 (오래된 것부터)
-        chat_history = list(reversed(history_response.data)) if history_response.data else []
-        print(f"📖 조회된 대화 히스토리: {len(chat_history)}개 메시지")
+            # 로그인 사용자: DB에서 조회
+            print(f"📚 로그인 사용자 대화 내용 조회 중... (thread_id: {thread_id})")
+            print(f"🔍 thread_id 타입: {type(thread_id)}, 값: {repr(thread_id)}")
+            
+            if thread_id:
+                history_response = supabase.table("chat").select("*").eq("thread_id", thread_id).order("created_at", desc=True).limit(20).execute()
+                print(f"🔍 Supabase 응답: {len(history_response.data) if history_response.data else 0}개 메시지")
+            else:
+                print("⚠️ thread_id가 None이므로 대화 히스토리 조회 건너뜀")
+                history_response = type('obj', (object,), {'data': []})()
+            
+            # 대화 히스토리를 역순으로 정렬 (오래된 것부터)
+            chat_history = list(reversed(history_response.data)) if history_response.data else []
+            print(f"📖 조회된 대화 히스토리: {len(chat_history)}개 메시지")
         
         # 사용자 메시지 저장
         await insert_chat_message(
@@ -184,18 +212,22 @@ async def chat_endpoint(request: ChatMessage):
             guest_id=thread_guest_id
         )
         
-        # 저장 후 다시 히스토리 조회 (저장된 메시지 포함)
-        chat_history = await get_chat_history(thread_id, limit=50)
-        print(f"📚 저장 후 히스토리 조회: {len(chat_history)}개 메시지")
-        
-        # 디버그: 실제 조회된 데이터 확인
-        if chat_history:
-            first_msg = chat_history[0]
-            last_msg = chat_history[-1]
-            print(f"🔍 첫 번째 메시지: id={first_msg.id}, role={first_msg.role}, message={first_msg.message[:20]}...")
-            print(f"🔍 마지막 메시지: id={last_msg.id}, role={last_msg.role}, message={last_msg.message[:20]}...")
+        # 게스트 사용자가 아닌 경우에만 저장 후 히스토리 재조회
+        if not (request.guest_id and request.chat_history):
+            # 로그인 사용자만 저장 후 다시 히스토리 조회 (저장된 메시지 포함)
+            chat_history = await get_chat_history(thread_id, limit=50)
+            print(f"📚 저장 후 히스토리 조회: {len(chat_history)}개 메시지")
+            
+            # 디버그: 실제 조회된 데이터 확인
+            if chat_history:
+                first_msg = chat_history[0]
+                last_msg = chat_history[-1]
+                print(f"🔍 첫 번째 메시지: id={first_msg.id}, role={first_msg.role}, message={first_msg.message[:20]}...")
+                print(f"🔍 마지막 메시지: id={last_msg.id}, role={last_msg.role}, message={last_msg.message[:20]}...")
+            else:
+                print("⚠️ 대화 히스토리가 비어있습니다!")
         else:
-            print("⚠️ 대화 히스토리가 비어있습니다!")
+            print(f"🎭 게스트 사용자 - 기존 chat_history 유지: {len(chat_history)}개 메시지")
         
         # 키토 코치 오케스트레이터 실행
         print(f"🚀 DEBUG: chat API 요청 받음 [ID: {request_id}] - '{request.message}'")
@@ -224,8 +256,8 @@ async def chat_endpoint(request: ChatMessage):
             guest_id=thread_guest_id
         )
         
-        # 스레드 제목 업데이트 (첫 메시지인 경우)
-        if thread["title"] == "새 채팅":
+        # 스레드 제목 업데이트 (첫 메시지인 경우 또는 새 채팅인 경우)
+        if thread["title"] == "새 채팅" or not thread["title"] or thread["title"].strip() == "":
             title = request.message[:30] + ("..." if len(request.message) > 30 else "")
             supabase.table("chat_thread").update({
                 "title": title,
@@ -241,14 +273,21 @@ async def chat_endpoint(request: ChatMessage):
             "message": result.get("response", "")
         }]
         
-        return ChatResponse(
-            response=result.get("response", "죄송합니다. 응답을 생성할 수 없습니다."),
-            intent=result.get("intent", "unknown"),
-            results=result.get("results"),
-            session_id=thread_id,  # 호환성을 위해 session_id로도 반환
-            thread_id=thread_id,
-            assistantBatch=assistant_batch
-        )
+        # ChatResponse 스키마 대신 딕셔너리로 반환하여 meal_plan_data 포함
+        response_data = {
+            "response": result.get("response", "죄송합니다. 응답을 생성할 수 없습니다."),
+            "intent": result.get("intent", "unknown"),
+            "results": result.get("results"),
+            "session_id": thread_id,  # 호환성을 위해 session_id로도 반환
+            "thread_id": thread_id,
+            "assistantBatch": assistant_batch
+        }
+        
+        # 식단 관련 응답인 경우 meal_plan_data 추가
+        if result.get("meal_plan_data"):
+            response_data["meal_plan_data"] = result.get("meal_plan_data")
+        
+        return response_data
         
     except Exception as e:
         print(f"❌ 채팅 처리 실패: {e}")
@@ -346,7 +385,13 @@ async def get_chat_history(
     try:
         print(f"🔍 get_chat_history 호출: thread_id={thread_id}, limit={limit}, before={before} (type: {type(before)})")
         
-        # 쿼리 구성
+        # 게스트 사용자 처리: SessionStorage만 사용하므로 빈 배열 반환
+        if thread_id.startswith("guest-"):
+            guest_id = thread_id.replace("guest-", "")
+            print(f"🎭 게스트 사용자 채팅 히스토리 조회: guest_id={guest_id} - SessionStorage만 사용하므로 빈 배열 반환")
+            return []  # 게스트는 데이터베이스에서 조회하지 않음
+        
+        # 로그인 사용자는 thread_id로 조회
         query = supabase.table("chat").select("*").eq("thread_id", thread_id)
         
         # 페이징 처리 (before 매개변수가 올바른 문자열일 때만)

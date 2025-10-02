@@ -262,19 +262,47 @@ export class MealParserService {
    */
   static parseMealFromBackendResponse(chatResponse: any): LLMParsedMeal | null {
     try {
+      console.log('🔍 DEBUG: MealParserService.parseMealFromBackendResponse 시작')
+      console.log('🔍 DEBUG: chatResponse 구조:', {
+        hasResults: !!chatResponse.results,
+        resultsLength: chatResponse.results?.length,
+        hasMealPlanData: !!chatResponse.meal_plan_data,
+        responseLength: chatResponse.response?.length
+      })
+      
       // 1. results 배열에서 식단 데이터 찾기
       if (chatResponse.results && Array.isArray(chatResponse.results)) {
-        for (const result of chatResponse.results) {
+        console.log('🔍 DEBUG: results 배열 확인, 길이:', chatResponse.results.length)
+        for (let i = 0; i < chatResponse.results.length; i++) {
+          const result = chatResponse.results[i]
+          console.log(`🔍 DEBUG: results[${i}] 구조:`, {
+            type: result.type,
+            hasDays: !!result.days,
+            daysLength: result.days?.length,
+            keys: Object.keys(result)
+          })
+          
           if (result.type === 'meal_plan' || result.days) {
+            console.log('🔍 DEBUG: meal_plan 조건 만족!')
             // 7일 식단표 형태
             if (result.days && Array.isArray(result.days) && result.days.length > 0) {
               const firstDay = result.days[0]
-              return {
+              console.log('🔍 DEBUG: firstDay 구조:', {
+                keys: Object.keys(firstDay),
+                breakfast: firstDay.breakfast,
+                lunch: firstDay.lunch,
+                dinner: firstDay.dinner,
+                snack: firstDay.snack
+              })
+              
+              const parsedMeal = {
                 breakfast: firstDay.breakfast?.title || firstDay.breakfast || '',
                 lunch: firstDay.lunch?.title || firstDay.lunch || '',
                 dinner: firstDay.dinner?.title || firstDay.dinner || '',
                 snack: firstDay.snack?.title || firstDay.snack || ''
               }
+              console.log('🔍 DEBUG: 파싱된 식단 데이터:', parsedMeal)
+              return parsedMeal
             }
           }
 
