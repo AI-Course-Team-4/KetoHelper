@@ -53,7 +53,7 @@ try:
         supabase: Client = create_client(supabase_url, supabase_key)
         print("Supabase 클라이언트 연결 성공")
     else:
-        print("⚠️ Supabase 환경변수 없음 또는 빈 값 - 키워드 검색 비활성화")
+        print("WARNING: Supabase 환경변수 없음 또는 빈 값 - 키워드 검색 비활성화")
         print(f"   SUPABASE_URL: {repr(supabase_url)}")
         print(f"   SUPABASE_ANON_KEY: {repr(supabase_key)}")
         supabase = None
@@ -63,12 +63,12 @@ try:
     if supabase_url and service_role_key and supabase_url.strip() and service_role_key.strip():
         try:
             supabase_admin = create_client(supabase_url, service_role_key)
-            print("✅ Supabase 서비스 롤 클라이언트 연결 성공")
+            print("SUCCESS: Supabase 서비스 롤 클라이언트 연결 성공")
         except Exception as e:
-            print(f"⚠️ 서비스 롤 클라이언트 생성 실패: {e}")
+            print(f"WARNING: 서비스 롤 클라이언트 생성 실패: {e}")
             supabase_admin = None
 except Exception as e:
-    print(f"⚠️ Supabase 연결 실패: {e}")
+    print(f"WARNING: Supabase 연결 실패: {e}")
     supabase = None
     supabase_admin = None
 
@@ -108,7 +108,7 @@ async def get_db() -> AsyncGenerator[object, None]:
     try:
         yield supabase
     except Exception as e:
-        print(f"❌ Supabase 연결 실패: {e}")
+        print(f"ERROR: Supabase 연결 실패: {e}")
         raise
 
 async def init_db() -> None:
@@ -119,19 +119,19 @@ async def init_db() -> None:
             try:
                 # Supabase 연결 테스트
                 test_response = supabase.table('recipe_blob_emb').select('id').limit(1).execute()
-                print("✅ Supabase 연결 성공")
-                print("✅ 하이브리드 검색 시스템 정상 작동")
-                print("✅ 벡터 검색 + 키워드 검색 사용 가능")
+                print("SUCCESS: Supabase 연결 성공")
+                print("SUCCESS: 하이브리드 검색 시스템 정상 작동")
+                print("SUCCESS: 벡터 검색 + 키워드 검색 사용 가능")
             except Exception as e:
-                print(f"⚠️ Supabase 연결 실패: {e}")
-                print("💡 오프라인 모드로 실행됩니다.")
+                print(f"WARNING: Supabase 연결 실패: {e}")
+                print("INFO: 오프라인 모드로 실행됩니다.")
         else:
-            print("⚠️ Supabase 연결 없음 - 하이브리드 검색 비활성화")
-            print("💡 오프라인 모드로 실행됩니다.")
+            print("WARNING: Supabase 연결 없음 - 하이브리드 검색 비활성화")
+            print("INFO: 오프라인 모드로 실행됩니다.")
         
     except Exception as e:
-        print(f"❌ 데이터베이스 초기화 실패: {e}")
-        print("💡 오프라인 모드로 실행됩니다.")
+        print(f"ERROR: 데이터베이스 초기화 실패: {e}")
+        print("INFO: 오프라인 모드로 실행됩니다.")
 
 async def test_connection() -> bool:
     """Supabase 연결 테스트"""

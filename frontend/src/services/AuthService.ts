@@ -117,7 +117,30 @@ class AuthService {
     }
     
     // 메모리에서 accessToken 확인
-    const accessToken = this.getAccessToken()
+    let accessToken = this.getAccessToken()
+    
+    // 메모리에 토큰이 없으면 Zustand store에서 복원 시도
+    if (!accessToken) {
+      console.log('🔍 메모리에 accessToken 없음, Zustand store에서 복원 시도...')
+      try {
+        const { accessToken: storeToken, user: storeUser } = useAuthStore.getState()
+        if (storeToken && storeUser) {
+          console.log('✅ Zustand store에서 토큰 복원 성공')
+          this.setAccessToken(storeToken)
+          // AuthUser를 User 타입으로 변환
+          const user: User = {
+            id: storeUser.id,
+            email: storeUser.email || '',
+            name: storeUser.name || '',
+            profileImage: storeUser.profileImage || ''
+          }
+          this.setUser(user)
+          accessToken = storeToken
+        }
+      } catch (error) {
+        console.error('Zustand store에서 토큰 복원 실패:', error)
+      }
+    }
     
     // HttpOnly 쿠키는 JavaScript에서 읽을 수 없음
     // refresh_token은 백엔드에서 자동으로 처리됨
@@ -365,7 +388,30 @@ class AuthService {
 
   // 중앙 토큰 검증 및 갱신 (API 호출 전에 호출)
   async checkTokenAndRefresh(): Promise<boolean> {
-    const accessToken = this.getAccessToken()
+    let accessToken = this.getAccessToken()
+    
+    // 메모리에 토큰이 없으면 Zustand store에서 복원 시도
+    if (!accessToken) {
+      console.log('🔍 메모리에 accessToken 없음, Zustand store에서 복원 시도...')
+      try {
+        const { accessToken: storeToken, user: storeUser } = useAuthStore.getState()
+        if (storeToken && storeUser) {
+          console.log('✅ Zustand store에서 토큰 복원 성공')
+          this.setAccessToken(storeToken)
+          // AuthUser를 User 타입으로 변환
+          const user: User = {
+            id: storeUser.id,
+            email: storeUser.email || '',
+            name: storeUser.name || '',
+            profileImage: storeUser.profileImage || ''
+          }
+          this.setUser(user)
+          accessToken = storeToken
+        }
+      } catch (error) {
+        console.error('Zustand store에서 토큰 복원 실패:', error)
+      }
+    }
     
     if (!accessToken) {
       if (!this.hasLoginSessionFlag()) {
