@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Menu, Person, Logout } from '@mui/icons-material'
+import { Menu, Logout } from '@mui/icons-material'
 import { Button } from '@/components/ui/button'
 // DropdownMenu는 MUI Menu로 대체 예정
 import { useAuthStore } from '@/store/authStore'
