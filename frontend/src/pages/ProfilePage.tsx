@@ -58,7 +58,6 @@ export function ProfilePage() {
   // 일괄 저장 중 토스트 중복 방지 플래그
   const isBulkSavingRef = useRef<boolean>(false)
   const isNavigatingRef = useRef<boolean>(false)
-  const isInitialLoadRef = useRef<boolean>(true)
 
 
   // 알레르기/비선호 재료 옵션들을 미리 계산 (user가 있을 때만)
