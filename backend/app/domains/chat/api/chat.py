@@ -84,6 +84,12 @@ async def insert_chat_message(thread_id: str, role: str, message: str, user_id: 
         }
         
         print(f"💾 저장할 데이터: thread_id={chat_data['thread_id']}, role={chat_data['role']}, message={chat_data['message'][:30]}...")
+        
+        # 게스트 사용자는 데이터베이스에 저장하지 않음 (SessionStorage만 사용)
+        if guest_id and not user_id:
+            print(f"🎭 게스트 사용자 - 데이터베이스 저장 건너뛰기: guest_id={guest_id}")
+            return chat_data  # 데이터베이스 저장 없이 데이터만 반환
+        
         result = supabase.table("chat").insert(chat_data).execute()
         print(f"💾 저장 결과: id={result.data[0]['id'] if result.data else 'None'}")
         return result.data[0] if result.data else chat_data
@@ -122,24 +128,24 @@ async def chat_endpoint(request: ChatMessage):
     import uuid
     request_id = str(uuid.uuid4())[:8]
     
-    # 중복 요청 방지: thread_id 제외하고 메시지 해시 사용
-    raw_user = request.user_id or request.guest_id or "anon"
-    msg_norm = (request.message or "").strip()
-    msg_hash = hashlib.sha256(msg_norm.encode("utf-8")).hexdigest()[:16]  # 짧게
-    
-    cache_key = f"{raw_user}:{msg_hash}"
-    current_time = time.time()
-    
-    async with _dedupe_lock:
-        last_time = _request_cache.get(cache_key)
-        if last_time and (current_time - last_time) < 30:  # 30초로 연장
-            print(f"🚫 중복 요청 차단! [ID: {request_id}] '{request.message}' (Δ {current_time - last_time:.2f}s)")
-            raise HTTPException(status_code=429, detail="Too many requests")
-        _request_cache[cache_key] = current_time
-    
-    # 오래된 캐시 간단 청소
-    if len(_request_cache) > 5000:
-        _request_cache.clear()
+    # 중복 요청 방지 임시 비활성화 (게스트 사용자 테스트용)
+    # raw_user = request.user_id or request.guest_id or "anon"
+    # msg_norm = (request.message or "").strip()
+    # msg_hash = hashlib.sha256(msg_norm.encode("utf-8")).hexdigest()[:16]  # 짧게
+    # 
+    # cache_key = f"{raw_user}:{msg_hash}"
+    # current_time = time.time()
+    # 
+    # async with _dedupe_lock:
+    #     last_time = _request_cache.get(cache_key)
+    #     if last_time and (current_time - last_time) < 30:  # 30초로 연장
+    #         print(f"🚫 중복 요청 차단! [ID: {request_id}] '{request.message}' (Δ {current_time - last_time:.2f}s)")
+    #         raise HTTPException(status_code=429, detail="Too many requests")
+    #     _request_cache[cache_key] = current_time
+    # 
+    # # 오래된 캐시 간단 청소
+    # if len(_request_cache) > 5000:
+    #     _request_cache.clear()
     
     print(f"🔥 DEBUG: chat_endpoint 진입! [ID: {request_id}] 메시지: '{request.message}'")
     
@@ -353,7 +359,13 @@ async def get_chat_history(
     try:
         print(f"🔍 get_chat_history 호출: thread_id={thread_id}, limit={limit}, before={before} (type: {type(before)})")
         
-        # 쿼리 구성
+        # 게스트 사용자 처리: SessionStorage만 사용하므로 빈 배열 반환
+        if thread_id.startswith("guest-"):
+            guest_id = thread_id.replace("guest-", "")
+            print(f"🎭 게스트 사용자 채팅 히스토리 조회: guest_id={guest_id} - SessionStorage만 사용하므로 빈 배열 반환")
+            return []  # 게스트는 데이터베이스에서 조회하지 않음
+        
+        # 로그인 사용자는 thread_id로 조회
         query = supabase.table("chat").select("*").eq("thread_id", thread_id)
         
         # 페이징 처리 (before 매개변수가 올바른 문자열일 때만)

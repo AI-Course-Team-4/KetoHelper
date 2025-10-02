@@ -76,7 +76,7 @@ export function MessageList({
 
   // 메시지가 변경될 때마다 자동 스크롤
   useEffect(() => {
-    const currentLength = chatHistory.length
+    const currentLength = messages.length // messages 길이를 사용 (게스트/로그인 통합)
     const prevLength = prevMessageLengthRef.current
     
     // 새 메시지가 추가되었을 때만 자동 스크롤 활성화
@@ -89,7 +89,7 @@ export function MessageList({
     
     // 항상 하단 고정 (일반 채팅 UX)
     scrollToBottom()
-  }, [chatHistory.length])
+  }, [messages.length])
 
   // messages는 이미 chatHistory 기반으로 변환되어 전달됨
   const normalizedList: ChatMessage[] = messages
@@ -121,7 +121,7 @@ export function MessageList({
     const el = messagesEndRef.current
     if (!el) return
     el.scrollIntoView({ block: 'end', behavior: 'smooth' })
-  }, [chatHistory.length, isLoading])
+  }, [messages.length, isLoading])
 
   // 로딩 시작(= assistant 응답 중) 시 하단 고정 재개
   useEffect(() => {
@@ -131,9 +131,9 @@ export function MessageList({
   // 로딩 상태 디버깅
   useEffect(() => {
     if (isLoading) {
-      console.log('🔄 로딩 인디케이터 표시:', { isLoading, chatHistoryLength: chatHistory.length, messagesLength: messages.length })
+      console.log('🔄 로딩 인디케이터 표시:', { isLoading, messagesLength: messages.length, orderedListLength: orderedList.length })
     }
-  }, [isLoading, chatHistory.length, messages.length])
+  }, [isLoading, messages.length, orderedList.length])
 
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
@@ -141,7 +141,7 @@ export function MessageList({
         <div className="max-w-4xl mx-auto">
           <div className={`space-y-4 lg:space-y-6`}>
             {orderedList.map((msg: ChatMessage, index: number) => {
-              const totalMessages = chatHistory.length
+              const totalMessages = messages.length // messages 길이를 사용 (게스트/로그인 통합)
               return (
                 <div key={msg.id} data-msg-id={String(msg.id)} data-role={msg.role}>
                   <MessageItem

@@ -6,7 +6,6 @@ import { useQueryClient } from '@tanstack/react-query'
 interface UseThreadHandlersProps {
   currentThreadId: string | null
   setCurrentThreadId: (threadId: string | null) => void
-  clearMessages: () => void
   setMessage: (message: string) => void
   setIsLoadingThread: (loading: boolean) => void
   refetchThreads: () => void
@@ -15,7 +14,6 @@ interface UseThreadHandlersProps {
 export function useThreadHandlers({
   currentThreadId,
   setCurrentThreadId,
-  clearMessages,
   setMessage,
   setIsLoadingThread,
   refetchThreads
@@ -36,7 +34,6 @@ export function useThreadHandlers({
         })
         
         setCurrentThreadId(newThread.id)
-        clearMessages()
         setMessage('')
         
         refetchThreads()
@@ -45,7 +42,6 @@ export function useThreadHandlers({
       } else {
         // 게스트 사용자: 스레드 생성 없이 바로 채팅 시작 가능하도록 설정
         setCurrentThreadId(null) // 게스트는 currentThreadId를 null로 유지
-        clearMessages()
         setMessage('')
         
         console.log('🆕 게스트 사용자 새 채팅 시작 (스레드 없음)')
@@ -53,10 +49,9 @@ export function useThreadHandlers({
     } catch (error) {
       console.error('❌ 새 채팅 시작 실패:', error)
       setCurrentThreadId(null)
-      clearMessages()
       setMessage('')
     }
-  }, [createNewThread, user, ensureGuestId, setCurrentThreadId, clearMessages, setMessage])
+  }, [createNewThread, user, ensureGuestId, setCurrentThreadId, setMessage])
 
   // 스레드 선택
   const handleSelectThread = useCallback((threadId: string) => {
@@ -88,7 +83,6 @@ export function useThreadHandlers({
       if (currentThreadId === threadId) {
         console.log('🗑️ 현재 스레드 삭제 - currentThreadId를 null로 설정')
         setCurrentThreadId(null)
-        clearMessages()
         setMessage('')
         setIsLoadingThread(false) // 로딩 상태 해제
         
@@ -109,7 +103,7 @@ export function useThreadHandlers({
       console.error('❌ 스레드 삭제 실패:', error)
       alert('⚠️ 채팅 삭제 실패\n\n스레드 삭제에 실패했습니다.\n잠시 후 다시 시도해주세요.')
     }
-  }, [deleteThread, currentThreadId, setCurrentThreadId, clearMessages, setMessage])
+  }, [deleteThread, currentThreadId, setCurrentThreadId, setMessage])
 
   return {
     handleCreateNewChat,

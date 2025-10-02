@@ -26,7 +26,6 @@ export function ChatPage() {
     messagesEndRef,
     scrollAreaRef,
     messages,
-    clearMessages,
     chatHistory,
     profile,
     user,
@@ -59,6 +58,7 @@ export function ChatPage() {
     setIsSaving,
     setIsSavingMeal,
     chatHistory,
+    messages,
     isLoggedIn
   })
 
@@ -69,7 +69,6 @@ export function ChatPage() {
   } = useThreadHandlers({
     currentThreadId,
     setCurrentThreadId,
-    clearMessages,
     setMessage,
     setIsLoadingThread,
     refetchThreads
@@ -211,7 +210,7 @@ export function ChatPage() {
             <EmptyWelcome
               onCreateNewChat={handleCreateNewChat}
             />
-          ) : chatHistory.length === 0 ? (
+          ) : messages.length === 0 ? (
             // 스레드가 있지만 메시지가 없을 때 - 활성 웰컴 스크린
             <ActiveWelcome
               message={message}

@@ -121,18 +121,18 @@ export function useSendMessage() {
     retry: false,
 
     mutationFn: async (data: ChatRequest): Promise<ChatResponse> => {
-      // 중복 실행 방지 (동기 체크)
-      if (isExecutingRef.current) {
-        throw new Error('이전 요청이 진행 중입니다')
-      }
+      // 중복 실행 방지 임시 비활성화 (게스트 사용자 테스트용)
+      // if (isExecutingRef.current) {
+      //   throw new Error('이전 요청이 진행 중입니다')
+      // }
 
-      isExecutingRef.current = true
+      // isExecutingRef.current = true
 
       try {
         const response = await api.post('/chat/', data)
         return response.data
       } finally {
-        isExecutingRef.current = false
+        // isExecutingRef.current = false
       }
     },
     onMutate: async (variables) => {
@@ -146,18 +146,20 @@ export function useSendMessage() {
         created_at: new Date().toISOString()
       }
       
-      // 새 채팅이든 기존 채팅이든 임시 메시지 추가
-      const threadId = variables.thread_id || `temp-thread-${Date.now()}`
+      // 게스트/로그인 사용자별 캐시 키 결정
+      const cacheKey = variables.guest_id 
+        ? `guest-${variables.guest_id}` // 게스트는 guest_id 기반
+        : (variables.thread_id || `temp-thread-${Date.now()}`) // 로그인은 thread_id 기반
       
-      console.log('📝 임시 사용자 메시지:', { threadId, tempUserMessage })
+      console.log('📝 임시 사용자 메시지:', { cacheKey, tempUserMessage })
       
       // 채팅 히스토리에 임시 메시지 추가 (새 채팅에서도 웰컴 스크린이 사라지도록)
-      const queryKey = ['chat-history', threadId, 20]
+      const queryKey = ['chat-history', cacheKey, 20]
       
       queryClient.setQueryData(queryKey, (old: ChatHistory[] | undefined) => {
         const newData = [...(old || []), tempUserMessage]
         console.log('💾 사용자 메시지 캐시 업데이트:', { 
-          threadId, 
+          cacheKey, 
           oldLength: old?.length, 
           newLength: newData.length,
           newData: newData.map(msg => ({ id: msg.id, message: msg.message }))
@@ -181,9 +183,14 @@ export function useSendMessage() {
     },
     onSuccess: (data, variables) => {
       // 서버 응답 후 실제 데이터로 교체
-      if (data.thread_id) {
+      // 게스트/로그인 사용자별 캐시 키 결정
+      const cacheKey = variables.guest_id 
+        ? `guest-${variables.guest_id}` // 게스트는 guest_id 기반
+        : (data.thread_id || variables.thread_id || `temp-thread-${Date.now()}`) // 로그인은 thread_id 기반
+      
+      if (cacheKey) {
         // 1. 임시 사용자 메시지를 실제 메시지로 교체하고 AI 응답 추가
-        queryClient.setQueryData(['chat-history', data.thread_id, 20], (old: ChatHistory[] | undefined) => {
+        queryClient.setQueryData(['chat-history', cacheKey, 20], (old: ChatHistory[] | undefined) => {
           if (!old) return []
 
           // 임시 메시지를 실제 메시지로 교체
@@ -223,8 +230,13 @@ export function useSendMessage() {
     },
     onError: (error: any, variables) => {
       // 에러 시 임시 메시지를 실제 메시지로 교체하고 에러 메시지 추가
-      if (variables.thread_id) {
-        queryClient.setQueryData(['chat-history', variables.thread_id, 20], (old: ChatHistory[] | undefined) => {
+      // 게스트/로그인 사용자별 캐시 키 결정
+      const cacheKey = variables.guest_id 
+        ? `guest-${variables.guest_id}` // 게스트는 guest_id 기반
+        : (variables.thread_id || `temp-thread-${Date.now()}`) // 로그인은 thread_id 기반
+      
+      if (cacheKey) {
+        queryClient.setQueryData(['chat-history', cacheKey, 20], (old: ChatHistory[] | undefined) => {
           if (!old) return []
 
           // 임시 메시지를 실제 사용자 메시지로 교체
@@ -269,7 +281,7 @@ export function useGetChatThreads(userId?: string, guestId?: string, limit = 20)
       const response = await api.get('/chat/threads', { params })
       return response.data
     },
-    enabled: false, // 수동으로만 호출 (자동 호출 완전 차단)
+    enabled: false, //수동으로만 호출 (자동 호출 완전 차단)
     staleTime: Infinity, // 절대 stale 되지 않음
     gcTime: 10 * 60 * 1000, // 10분간 캐시 유지
     refetchOnWindowFocus: false,

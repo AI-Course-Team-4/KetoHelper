@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useProfileStore } from '@/store/profileStore'
 import { useAuthStore } from '@/store/authStore'
@@ -42,51 +42,119 @@ export function useChatLogic() {
 
   // 로그인 상태 확인 (isGuest 상태도 고려)
   const isLoggedIn = useMemo(() => !!user?.id && !isGuest, [user?.id, isGuest])
-
-  // 게스트 사용자 ID 보장
-  useEffect(() => {
-    if (!isLoggedIn) {
-      const guestId = ensureGuestId()
-      console.log('🎭 게스트 사용자 ID 보장:', guestId)
-      console.log('🔍 useChatLogic 게스트 상태:', { isLoggedIn, isGuest, hasUser: !!user })
-    }
-  }, [isLoggedIn, ensureGuestId, isGuest, user])
   
   // userId 안정화 (매번 새로운 값으로 인식되어 refetch되는 것 방지)
   const stableUserId = useMemo(() => isLoggedIn ? user?.id : undefined, [isLoggedIn, user?.id])
   
-  // currentThreadId 안정화 (빈 문자열 매번 생성 방지)
-  const stableThreadId = useMemo(() => {
-    if (!isLoggedIn) return ''
-    return currentThreadId || ''
-  }, [isLoggedIn, currentThreadId])
-  
+  // 게스트/로그인 사용자별 캐시 키 관리
+  const stableCacheKey = useMemo(() => {
+    if (!isLoggedIn) {
+      return `guest-${ensureGuestId()}` // 게스트는 guest_id 기반
+    }
+    return currentThreadId || '' // 로그인은 thread_id 기반
+  }, [isLoggedIn, currentThreadId, ensureGuestId])
+
   // 채팅 스레드 관련 훅 (로그인 사용자만) - 수동 호출로 변경
   const { data: chatThreads = [], refetch: refetchThreads } = useGetChatThreads(
     stableUserId,
     undefined
   ) as { data: ChatThread[], refetch: () => void }
 
+  // 로그인 사용자만 백엔드 채팅 히스토리 조회
   const { data: chatHistory = [], refetch: refetchHistory, isLoading: isLoadingHistory } = useGetChatHistory(
-    stableThreadId,
+    isLoggedIn ? stableCacheKey : '', // 게스트는 빈 문자열로 비활성화
     20
   ) as { data: ChatHistory[], refetch: () => void, isLoading: boolean, error: any }
+
+  // 게스트 사용자용 SessionStorage 기반 채팅 히스토리
+  const [guestChatHistory, setGuestChatHistory] = useState<ChatHistory[]>([])
   
-  // React Query 캐시 클리어 함수
-  const clearMessages = useCallback(() => {
-    console.log('🗑️ 메시지 클리어 - React Query 캐시 삭제')
-    queryClient.setQueryData(['chat-history', stableThreadId, 20], [])
-  }, [queryClient, stableThreadId])
+  // 게스트 사용자 ID 보장 및 SessionStorage에서 채팅 히스토리 로드
+  useEffect(() => {
+    if (!isLoggedIn) {
+      const guestId = ensureGuestId()
+      console.log('🎭 게스트 사용자 ID 보장:', guestId)
+      console.log('🔍 ensureGuestId 함수 타입:', typeof ensureGuestId)
+      console.log('🔍 useChatLogic 게스트 상태:', { isLoggedIn, isGuest, hasUser: !!user })
+      console.log('🎭 게스트 사용자 - SessionStorage만 사용, 백엔드 API 호출 안함')
+      
+      // SessionStorage에서 게스트 채팅 히스토리 로드
+      const loadGuestHistory = () => {
+        console.log('🔍 loadGuestHistory 호출됨, guestId:', guestId)
+        if (guestId) {
+          try {
+            const key = `guest-chat-${guestId}`
+            console.log('🔍 SessionStorage 키:', key)
+            const stored = sessionStorage.getItem(key)
+            console.log('🔍 SessionStorage 저장된 데이터:', stored)
+            if (stored) {
+              const parsedHistory = JSON.parse(stored)
+              console.log('🔍 파싱된 히스토리:', parsedHistory)
+              setGuestChatHistory(parsedHistory)
+              console.log('🎭 SessionStorage에서 게스트 채팅 히스토리 로드:', parsedHistory.length, '개')
+            } else {
+              setGuestChatHistory([])
+              console.log('🎭 SessionStorage에 게스트 채팅 히스토리 없음')
+            }
+          } catch (error) {
+            console.error('🎭 SessionStorage 파싱 오류:', error)
+            setGuestChatHistory([])
+          }
+        }
+      }
+      
+      // 초기 로드
+      loadGuestHistory()
+      
+      // SessionStorage 변경 감지를 위한 주기적 체크 (더 자주 체크)
+      const interval = setInterval(() => {
+        try {
+          const stored = sessionStorage.getItem(`guest-chat-${guestId}`)
+          if (stored) {
+            const parsedHistory = JSON.parse(stored)
+            setGuestChatHistory(prev => {
+              // 상태가 다를 때만 업데이트
+              if (JSON.stringify(prev) !== JSON.stringify(parsedHistory)) {
+                console.log('🎭 주기적 체크로 게스트 채팅 히스토리 업데이트:', parsedHistory.length, '개')
+                return parsedHistory
+              }
+              return prev
+            })
+          }
+        } catch (error) {
+          console.error('🎭 SessionStorage 주기적 체크 오류:', error)
+        }
+      }, 500) // 0.5초마다 체크
+      
+      return () => clearInterval(interval)
+    }
+  }, [isLoggedIn, ensureGuestId, isGuest, user])
   
+  
+  // 통합된 채팅 히스토리 (로그인: 백엔드, 게스트: SessionStorage)
+  const unifiedChatHistory = useMemo(() => {
+    console.log('🔍 unifiedChatHistory 계산:', { isLoggedIn, chatHistoryLength: chatHistory.length, guestChatHistoryLength: guestChatHistory.length })
+    if (isLoggedIn) {
+      console.log('🔍 로그인 사용자 - chatHistory 반환:', chatHistory)
+      return chatHistory // 로그인 사용자: 백엔드에서 조회
+    } else {
+      console.log('🔍 게스트 사용자 - guestChatHistory 반환:', guestChatHistory)
+      return guestChatHistory // 게스트 사용자: SessionStorage에서 조회
+    }
+  }, [isLoggedIn, chatHistory, guestChatHistory])
+
   // chatHistory를 messages 형태로 변환 (하위 호환성)
-  const messages = useMemo(() => 
-    chatHistory.map((msg: any) => ({
+  const messages = useMemo(() => {
+    console.log('🔍 messages 계산:', { unifiedChatHistoryLength: unifiedChatHistory.length, unifiedChatHistory })
+    const result = unifiedChatHistory.map((msg: any) => ({
       id: msg.id?.toString() || '',
       role: msg.role,
       content: msg.message,
       timestamp: new Date(msg.created_at)
     }))
-  , [chatHistory])
+    console.log('🔍 변환된 messages:', result)
+    return result
+  }, [unifiedChatHistory])
   
   console.log('🔍 useGetChatHistory 상태:', {
     currentThreadId,
@@ -134,7 +202,7 @@ export function useChatLogic() {
       // beforeunload 이벤트를 완전히 제거하여 SPA 라우팅에서 세션 스토리지가 사라지는 문제 해결
       // 실제 탭 닫기는 브라우저가 자동으로 세션 스토리지를 정리하므로 수동으로 할 필요 없음
     }
-  }, [isLoggedIn, clearMessages])
+  }, [isLoggedIn])
 
   // 게스트 사용자 메시지 상태 디버깅 (SessionStorage 무관)
   useEffect(() => {
@@ -192,7 +260,6 @@ export function useChatLogic() {
       console.log('🔐 로그인 감지 - 채팅 데이터 초기화')
       prevUserIdRef.current = userId
 
-      clearMessages()
       setCurrentThreadId(null)
       setSelectedPlaceIndexByMsg({})
 
@@ -222,61 +289,37 @@ export function useChatLogic() {
   }, [isLoggedIn, firstThreadId, currentThreadId, setCurrentThreadId])
 
   // 스레드가 선택되면 채팅 히스토리 수동 로드
-  const prevThreadIdRef = useRef<string>('')
+  const prevCacheKeyRef = useRef<string>('')
   useEffect(() => {
-    if (stableThreadId && isLoggedIn && stableThreadId !== prevThreadIdRef.current) {
-      console.log('📝 스레드 선택됨 - 채팅 히스토리 로드:', stableThreadId)
-      prevThreadIdRef.current = stableThreadId
+    if (stableCacheKey && stableCacheKey !== prevCacheKeyRef.current) {
+      console.log('📝 캐시 키 변경됨 - 채팅 히스토리 로드:', stableCacheKey)
+      prevCacheKeyRef.current = stableCacheKey
       refetchHistory()
     }
-  }, [stableThreadId, isLoggedIn])
+  }, [stableCacheKey, refetchHistory])
 
   // 채팅 히스토리 로딩 로직
   useEffect(() => {
-    // 로그인하지 않은 경우 무시
-    if (!isLoggedIn) {
-      setIsLoadingThread(false)
-      return
-    }
-    
-    // 스레드가 변경되었을 때 로딩 시작
-    if (currentThreadId) {
+    // 캐시 키가 변경되었을 때 로딩 시작
+    if (stableCacheKey) {
       setIsLoadingThread(true)
     }
-    
-    // 로그인한 사용자는 DB 메시지만 사용하므로 로컬 동기화 불필요
     
     // 로딩 완료
     setIsLoadingThread(false)
-  }, [currentThreadId, chatHistory, isLoggedIn])
+  }, [stableCacheKey, chatHistory])
 
-  // 로그인한 사용자의 경우 메시지 동기화는 첫 번째 useEffect에서 처리
-
-  // 게스트 사용자의 경우 스레드 변경 시 로딩 상태 관리
-  useEffect(() => {
-    if (!isLoggedIn && currentThreadId) {
-      // 게스트 사용자의 경우 로딩 시작
-      setIsLoadingThread(true)
-      
-      // 약간의 지연 후 로딩 완료
-      const timer = setTimeout(() => {
-        setIsLoadingThread(false)
-      }, 300)
-
-      return () => clearTimeout(timer)
-    }
-  }, [currentThreadId, isLoggedIn])
+  // 게스트 사용자는 스레드 개념이 없으므로 별도 로딩 관리 불필요
 
   // 실제 로그인 → 로그아웃 전환에서만 초기화 (게스트에는 영향 없음)
   useEffect(() => {
     const wasLoggedIn = prevIsLoggedInRef.current
     if (wasLoggedIn && !isLoggedIn) {
       console.log('🔻 실제 로그아웃 전환 감지 - 채팅 초기화 진행')
-      clearMessages()
       setCurrentThreadId(null)
     }
     prevIsLoggedInRef.current = isLoggedIn
-  }, [isLoggedIn, clearMessages])
+  }, [isLoggedIn])
 
   // 메시지 변경 시 자동 스크롤
   useEffect(() => {
@@ -329,7 +372,6 @@ export function useChatLogic() {
     
     // 스토어
     messages,
-    clearMessages,
     profile,
     user,
     ensureGuestId,

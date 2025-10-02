@@ -19,6 +19,7 @@ interface UseMessageHandlersProps {
   setIsSaving: (saving: boolean) => void
   setIsSavingMeal: (saving: string | null) => void
   chatHistory?: any[]
+  messages: any[]
   isLoggedIn: boolean
 }
 
@@ -34,6 +35,7 @@ export function useMessageHandlers({
   setIsSaving,
   setIsSavingMeal,
   chatHistory,
+  messages,
   isLoggedIn
 }: UseMessageHandlersProps) {
   // 스토어
@@ -101,19 +103,45 @@ export function useMessageHandlers({
   const parseDateFromMessage = useParseDateFromMessage()
   const queryClient = useQueryClient()
   
-  // 헬퍼: 메시지를 React Query 캐시에 추가
+  // 헬퍼: 메시지를 캐시에 추가 (로그인: React Query, 게스트: SessionStorage)
   const addMessageToCache = useCallback((content: string, role: 'user' | 'assistant' = 'assistant') => {
-    const cacheKey: any[] = ['chat-history', currentThreadId, 20]
-    queryClient.setQueryData(cacheKey, (old: any[] = []) => [
-      ...old,
-      {
-        id: Date.now().toString(),
-        role,
-        message: content,
-        created_at: new Date().toISOString()
+    if (isLoggedIn) {
+      // 로그인 사용자: React Query 캐시 사용
+      const cacheKey = currentThreadId || ''
+      queryClient.setQueryData(['chat-history', cacheKey, 20], (old: any[] = []) => [
+        ...old,
+        {
+          id: Date.now().toString(),
+          role,
+          message: content,
+          created_at: new Date().toISOString()
+        }
+      ])
+    } else {
+      // 게스트 사용자: SessionStorage 사용
+      const guestId = ensureGuestId()
+      if (guestId) {
+        try {
+          const stored = sessionStorage.getItem(`guest-chat-${guestId}`)
+          const existingHistory = stored ? JSON.parse(stored) : []
+          
+          const newMessage = {
+            id: Date.now().toString(),
+            role,
+            message: content,
+            created_at: new Date().toISOString()
+          }
+          
+          const updatedHistory = [...existingHistory, newMessage]
+          sessionStorage.setItem(`guest-chat-${guestId}`, JSON.stringify(updatedHistory))
+          console.log('🎭 게스트 메시지 SessionStorage 저장:', { role, content: content.substring(0, 30) + '...' })
+          
+        } catch (error) {
+          console.error('🎭 SessionStorage 저장 오류:', error)
+        }
       }
-    ])
-  }, [currentThreadId, queryClient])
+    }
+  }, [currentThreadId, queryClient, isLoggedIn, ensureGuestId])
 
   // 메시지 전송 핸들러
   const handleSendMessage = useCallback(async () => {
@@ -153,6 +181,12 @@ export function useMessageHandlers({
     setLoadingStep('thinking')
     console.log('🔄 로딩 단계: thinking')
 
+    // 게스트 사용자의 경우 사용자 메시지를 즉시 SessionStorage에 저장
+    if (!isLoggedIn) {
+      addMessageToCache(userMessage.content, 'user')
+      console.log('🎭 게스트 사용자 메시지 SessionStorage 저장:', userMessage.content)
+    }
+
     // React Query Optimistic Update는 useApi.ts의 onMutate에서 자동으로 처리됨
 
     try {
@@ -175,8 +209,8 @@ export function useMessageHandlers({
         } : undefined,
         location: undefined,
         radius_km: 5,
-        // 이미 없으면 방금 생성된 threadId 사용
-        thread_id: (threadId || currentThreadId || undefined),
+        // 게스트는 thread_id 없이, 로그인은 thread_id 사용
+        thread_id: isLoggedIn ? (threadId || currentThreadId || undefined) : undefined,
         user_id: userId,
         guest_id: guestId
       })
@@ -192,11 +226,20 @@ export function useMessageHandlers({
         threadId = response.thread_id
       }
 
-      // 채팅 제한 감지: chatHistory 길이로 통일
-      const currentMessageCount = chatHistory?.length || 0
+      // 채팅 제한 감지: 게스트/로그인 통합 (messages 길이 기준)
+      const currentMessageCount = messages?.length || 0
       const messageLimit = 20
       if (currentMessageCount >= messageLimit) {
         console.log('⚠️ 채팅 제한 도달:', { currentMessageCount, limit: messageLimit })
+        
+        // 채팅 제한 메시지를 AI 응답으로 표시
+        const limitMessage = "죄송합니다. 게스트 사용자는 하루에 20개의 메시지까지만 보낼 수 있습니다. 더 많은 채팅을 이용하려면 로그인해주세요!"
+        
+        // 게스트 사용자의 경우 SessionStorage에 저장
+        if (!isLoggedIn) {
+          addMessageToCache(limitMessage, 'assistant')
+        }
+        
         setIsLoading(false)
         return
       }
@@ -218,6 +261,12 @@ export function useMessageHandlers({
         console.log('⚠️ 기존 파싱 방식 사용:', parsedMeal)
       }
 
+      // 게스트 사용자의 경우 AI 응답을 SessionStorage에 저장
+      if (!isLoggedIn) {
+        addMessageToCache(response.response || '', 'assistant')
+        console.log('🎭 게스트 AI 응답 SessionStorage 저장:', (response.response || '').substring(0, 30) + '...')
+      }
+      
       // AI 응답은 useApi.ts의 onSuccess에서 자동으로 처리됨
       // (React Query Optimistic Updates)
 
@@ -271,7 +320,10 @@ export function useMessageHandlers({
 
         if (isSaveRequest) {
           // 최신 chatHistory를 queryClient에서 직접 가져오기 (dependency 문제 방지)
-          const latestChatHistory = queryClient.getQueryData<any[]>(['chat-history', threadId || currentThreadId, 20]) || []
+          const cacheKey = isLoggedIn 
+            ? (threadId || currentThreadId || '')
+            : `guest-${ensureGuestId()}`
+          const latestChatHistory = queryClient.getQueryData<any[]>(['chat-history', cacheKey, 20]) || []
           const messagesToSearch = latestChatHistory.map((h: any) => ({
             id: h.id?.toString() || '',
             role: h.role,
@@ -353,7 +405,8 @@ export function useMessageHandlers({
         } : undefined,
         location: undefined,
         radius_km: 5,
-        thread_id: currentThreadId && currentThreadId.startsWith('temp-thread-') ? undefined : (currentThreadId || undefined),
+        // 게스트는 thread_id 없이, 로그인은 thread_id 사용
+        thread_id: isLoggedIn ? (currentThreadId && currentThreadId.startsWith('temp-thread-') ? undefined : (currentThreadId || undefined)) : undefined,
         user_id: userId,
         guest_id: guestId
       })
@@ -437,7 +490,10 @@ export function useMessageHandlers({
 
         if (isSaveRequest) {
           // 최신 chatHistory를 queryClient에서 직접 가져오기 (dependency 문제 방지)
-          const latestChatHistory = queryClient.getQueryData<any[]>(['chat-history', threadId || currentThreadId, 20]) || []
+          const cacheKey = isLoggedIn 
+            ? (threadId || currentThreadId || '')
+            : `guest-${ensureGuestId()}`
+          const latestChatHistory = queryClient.getQueryData<any[]>(['chat-history', cacheKey, 20]) || []
           const messagesToSearch = latestChatHistory.map((h: any) => ({
             id: h.id?.toString() || '',
             role: h.role,
@@ -594,7 +650,10 @@ export function useMessageHandlers({
 
       try {
         // 최신 chatHistory 가져오기 (dependency 문제 방지)
-        const latestChatHistory = queryClient.getQueryData<any[]>(['chat-history', currentThreadId, 20]) || []
+        const cacheKey = isLoggedIn 
+          ? (currentThreadId || '')
+          : `guest-${ensureGuestId()}`
+        const latestChatHistory = queryClient.getQueryData<any[]>(['chat-history', cacheKey, 20]) || []
         const recentMessages = latestChatHistory.slice(-5).map((h: any) => ({ content: h.message }))
         const has7DayMealPlan = recentMessages.some((msg: any) =>
           msg.content.includes('7일') && msg.content.includes('식단') ||
