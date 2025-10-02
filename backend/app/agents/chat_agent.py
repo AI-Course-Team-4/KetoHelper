@@ -9,11 +9,10 @@
 """
 
 from typing import Dict, Any, Optional
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import HumanMessage
 import importlib
 
-from app.core.config import settings
+from app.core.llm_factory import create_chat_llm
 from config import get_personal_configs, get_agent_config
 
 class SimpleKetoCoachAgent:
@@ -36,14 +35,9 @@ class SimpleKetoCoachAgent:
         self.prompt_template = self._load_prompt_template()
         
         try:
-            self.llm = ChatGoogleGenerativeAI(
-                model=settings.llm_model,
-                google_api_key=settings.google_api_key,
-                temperature=settings.gemini_temperature,
-                max_tokens=settings.gemini_max_tokens
-            )
+            self.llm = create_chat_llm()
         except Exception as e:
-            print(f"Gemini AI 초기화 실패: {e}")
+            print(f"LLM 초기화 실패: {e}")
             self.llm = None
     
     def _load_prompt_template(self) -> str:
