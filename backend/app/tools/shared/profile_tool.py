@@ -408,13 +408,21 @@ class UserProfileTool:
         for recipe in recipes:
             # 알레르기 체크
             recipe_allergens = set(recipe.get("allergens", []))
+
+            # 제목(title)에서도 알레르기 검색 (fallback)
+            recipe_title = recipe.get("title", "")
+            for allergy in user_allergies:
+                if allergy in recipe_title:
+                    logger.info(f"🚫 알레르기(제목)로 인해 제외: {recipe_title} - '{allergy}' 포함")
+                    recipe_allergens.add(allergy)
+
             if user_allergies and recipe_allergens.intersection(user_allergies):
                 logger.info(f"🚫 알레르기로 인해 제외: {recipe.get('title', 'Unknown')} - {recipe_allergens.intersection(user_allergies)}")
                 continue
             
             # 비선호 재료 체크
             ingredients_data = recipe.get("ingredients", [])
-            
+
             # ingredients가 문자열인 경우 JSON 파싱
             if isinstance(ingredients_data, str):
                 try:
@@ -423,8 +431,27 @@ class UserProfileTool:
                 except (json.JSONDecodeError, ValueError):
                     logger.warning(f"⚠️ ingredients 파싱 실패: {recipe.get('title', 'Unknown')} - {ingredients_data}")
                     ingredients_data = []
-            
-            recipe_ingredients = set(ingredients_data)
+
+            # ingredients에서 재료명 추출 (딕셔너리 리스트 또는 문자열 리스트 지원)
+            recipe_ingredients = set()
+            if ingredients_data:
+                for item in ingredients_data:
+                    if isinstance(item, dict):
+                        # 딕셔너리 형태: {"name": "토마토", "amount": "2개"}
+                        if "name" in item:
+                            recipe_ingredients.add(item["name"])
+                    elif isinstance(item, str):
+                        # 문자열 리스트: ["토마토", "계란"]
+                        recipe_ingredients.add(item)
+
+            # 제목(title)에서도 비선호 재료 검색 (fallback)
+            recipe_title = recipe.get("title", "")
+            for dislike in user_dislikes:
+                if dislike in recipe_title:
+                    logger.info(f"🚫 비선호 재료(제목)로 인해 제외: {recipe_title} - '{dislike}' 포함")
+                    recipe_ingredients.add(dislike)  # 제목에 있으면 추가
+
+            # 비선호 재료와 교집합 체크
             if user_dislikes and recipe_ingredients.intersection(user_dislikes):
                 logger.info(f"🚫 비선호 재료로 인해 제외: {recipe.get('title', 'Unknown')} - {recipe_ingredients.intersection(user_dislikes)}")
                 continue
