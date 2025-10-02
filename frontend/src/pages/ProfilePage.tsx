@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useContext, useRef } from 'react'
+import { useState, useEffect, useMemo, useContext, useRef, useCallback } from 'react'
 import { useNavigate, UNSAFE_NavigationContext } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -110,13 +110,16 @@ export function ProfilePage() {
 
 
   // 프로필 데이터가 변경되면 로컬 상태 업데이트 (초기 로드 시에만)
+  const [isInitialLoad, setIsInitialLoad] = useState(true)
+  
   useEffect(() => {
-    if (profile && user?.id && isInitialLoadRef.current) {
+    if (profile && user?.id && isInitialLoad) {
       const nicknameOrUndefined = profile.nickname && profile.nickname.trim() !== '' ? profile.nickname : undefined
       const newNickname = nicknameOrUndefined ?? profile.social_nickname ?? user?.name ?? ''
       const newGoalsKcal = profile.goals_kcal ? profile.goals_kcal.toLocaleString() : ''
       const newGoalsCarbsG = profile.goals_carbs_g ? String(profile.goals_carbs_g) : ''
       
+      console.log('🔍 초기 프로필 로드:', { newNickname, newGoalsKcal, newGoalsCarbsG })
       
       setNickname(newNickname)
       setGoalsKcal(newGoalsKcal)
@@ -133,8 +136,7 @@ export function ProfilePage() {
       setSavedAllergyIds(profile.selected_allergy_ids || [])
       setSavedDislikeIds(profile.selected_dislike_ids || [])
       
-      // 초기 로드 완료 표시
-      isInitialLoadRef.current = false
+      setIsInitialLoad(false)
     } else if (!user) {
       // 로그아웃 시 상태 클리어
       setNickname('')
@@ -143,14 +145,9 @@ export function ProfilePage() {
       setSavedNickname('')
       setSavedGoalsKcal('')
       setSavedGoalsCarbsG('')
-      setLocalAllergyIds([])
-      setLocalDislikeIds([])
-      setSavedAllergyIds([])
-      setSavedDislikeIds([])
-      // 로그아웃 시 초기 로드 플래그 리셋
-      isInitialLoadRef.current = true
+      setIsInitialLoad(true)
     }
-  }, [profile, user?.name, user?.id])
+  }, [profile, user?.name, user?.id, isInitialLoad])
 
   // 로그인 상태 확인 - 로그인하지 않은 경우 메인 페이지로 리다이렉트 (로딩 완료 후에만)
   useEffect(() => {
@@ -199,8 +196,148 @@ export function ProfilePage() {
   const hasDislikeChanged = JSON.stringify(localDislikeIds.sort()) !== JSON.stringify(savedDislikeIds.sort())
   const hasAnyChanges = hasBasicInfoChanged || hasKetoGoalsChanged || hasAllergyChanged || hasDislikeChanged
 
+
+
+  // 내부 라우팅 차단 훅 제거됨: 링크 클릭시 저장 후 이동 로직으로 대체
+
+  const handleSaveBasicInfo = useCallback(async () => {
+    if (!user?.id) {
+      toast.error("로그인이 필요합니다")
+      return
+    }
+
+    // 입력값 정제
+    const inputNickname = (nickname ?? '').trim()
+    // 요구사항: 빈값으로 저장하되, 화면/초기화 시에는 social_nickname으로 표시
+    const nextNickname = inputNickname === '' ? '' : inputNickname
+
+    // 닉네임 미완성 한글 검증 (선택사항)
+    if (nextNickname && /[ㄱ-ㅎㅏ-ㅣ]/.test(nextNickname)) {
+      toast.error("닉네임에 미완성 한글이 포함되어 있습니다")
+      return
+    }
+
+    setIsBasicInfoLoading(true)
+    try {
+      // 닉네임만 전송 (다른 필드는 undefined로 전달하지 않음)
+      console.log('🔍 handleSaveBasicInfo: 전송할 데이터:', { nickname: nextNickname })
+      await updateProfile(user.id, {
+        nickname: nextNickname, // 빈 문자열도 그대로 저장
+      })
+      
+      // 저장 성공 시 저장된 데이터 업데이트 (로컬 상태만)
+      setSavedNickname(nextNickname)
+      
+      // 헤더 등 표시 이름 업데이트: 닉네임이 비어 있으면 socialNickname 사용
+      updateUser({ name: nextNickname || (user as any)?.socialNickname || user.name })
+      
+      console.log('✅ 기본 정보 저장 완료, 다른 필드는 그대로 유지')
+      
+      if (!isBulkSavingRef.current) toast.success("기본 정보가 저장되었습니다")
+    } catch (error) {
+      toast.error('기본 정보 저장에 실패했습니다')
+    } finally {
+      setIsBasicInfoLoading(false)
+    }
+  }, [user?.id, nickname, updateProfile, updateUser, isBulkSavingRef])
+
+  const handleSaveKetoGoals = useCallback(async () => {
+    if (!user?.id) {
+      toast.error("로그인이 필요합니다")
+      return
+    }
+
+    // 입력값 검증 (콤마 제거 후 숫자 변환)
+    const kcalValue = goalsKcal ? Number(String(goalsKcal).replace(/,/g, '')) : undefined
+    const carbsValue = goalsCarbsG ? Number(String(goalsCarbsG).replace(/,/g, '')) : undefined
+
+    if (goalsKcal && (isNaN(kcalValue!) || kcalValue! <= 0)) {
+      toast.error("일일 목표 칼로리는 올바른 숫자여야 합니다")
+      return
+    }
+
+    if (goalsCarbsG && (isNaN(carbsValue!) || carbsValue! < 0)) {
+      toast.error("일일 최대 탄수화물은 올바른 숫자여야 합니다")
+      return
+    }
+
+    setIsKetoGoalsLoading(true)
+    try {
+      // 키토 목표 필드만 전송
+      console.log('🔍 handleSaveKetoGoals: 전송할 데이터:', { goals_kcal: kcalValue, goals_carbs_g: carbsValue })
+      await updateProfile(user.id, {
+        goals_kcal: kcalValue,
+        goals_carbs_g: carbsValue,
+      })
+      
+      // 저장 성공 시 저장된 데이터 업데이트 (로컬 상태만)
+      setSavedGoalsKcal(goalsKcal)
+      setSavedGoalsCarbsG(goalsCarbsG)
+      
+      console.log('✅ 키토 목표 저장 완료, 다른 필드는 그대로 유지')
+      
+      if (!isBulkSavingRef.current) toast.success("키토 목표가 저장되었습니다")
+    } catch (error) {
+      // 에러는 스토어에서 처리됨
+    } finally {
+      setIsKetoGoalsLoading(false)
+    }
+  }, [user?.id, goalsKcal, goalsCarbsG, updateProfile, isBulkSavingRef])
+
+  const handleSaveAllergy = useCallback(async () => {
+    if (!user?.id) {
+      toast.error("로그인이 필요합니다")
+      return
+    }
+
+    setIsAllergyLoading(true)
+    try {
+      // 알레르기 필드만 전송
+      await updateProfile(user.id, {
+        selected_allergy_ids: localAllergyIds
+      })
+      
+      // 저장 성공 시 저장된 데이터 업데이트 (로컬 상태만)
+      setSavedAllergyIds([...localAllergyIds])
+      
+      console.log('✅ 알레르기 정보 저장 완료, 다른 필드는 그대로 유지')
+      
+      if (!isBulkSavingRef.current) toast.success("알레르기 정보가 저장되었습니다")
+    } catch (error) {
+      // 에러는 스토어에서 처리됨
+    } finally {
+      setIsAllergyLoading(false)
+    }
+  }, [user?.id, localAllergyIds, updateProfile, isBulkSavingRef])
+
+  const handleSaveDislike = useCallback(async () => {
+    if (!user?.id) {
+      toast.error("로그인이 필요합니다")
+      return
+    }
+
+    setIsDislikeLoading(true)
+    try {
+      // 비선호 재료 필드만 전송
+      await updateProfile(user.id, {
+        selected_dislike_ids: localDislikeIds
+      })
+      
+      // 저장 성공 시 저장된 데이터 업데이트 (로컬 상태만)
+      setSavedDislikeIds([...localDislikeIds])
+      
+      console.log('✅ 비선호 재료 정보 저장 완료, 다른 필드는 그대로 유지')
+      
+      if (!isBulkSavingRef.current) toast.success("비선호 재료 정보가 저장되었습니다")
+    } catch (error) {
+      // 에러는 스토어에서 처리됨
+    } finally {
+      setIsDislikeLoading(false)
+    }
+  }, [user?.id, localDislikeIds, updateProfile, isBulkSavingRef])
+
   // 공통 확인/저장 유틸 - 최신 상태로 변경분만 순차 저장
-  const confirmAndSaveIfNeeded = async (): Promise<boolean> => {
+  const confirmAndSaveIfNeeded = useCallback(async (): Promise<boolean> => {
     if (!hasAnyChanges) return true
     isBulkSavingRef.current = true
     isNavigatingRef.current = true
@@ -223,7 +360,7 @@ export function ProfilePage() {
     // 전역 Toaster의 기본 지속 시간을 사용
     toast.success('변경사항이 저장되었습니다')
     return true
-  }
+  }, [hasAnyChanges, hasBasicInfoChanged, hasKetoGoalsChanged, hasAllergyChanged, hasDislikeChanged, nickname, savedNickname, goalsKcal, savedGoalsKcal, goalsCarbsG, savedGoalsCarbsG, localAllergyIds, savedAllergyIds, localDislikeIds, savedDislikeIds, handleSaveBasicInfo, handleSaveKetoGoals, handleSaveAllergy, handleSaveDislike])
 
   // 라우터 차단 방식: 모든 내부 네비게이션에서 확실히 개입
   useEffect(() => {
@@ -238,7 +375,7 @@ export function ProfilePage() {
       }, 80)
     })
     return unblock
-  }, [navigation, hasAnyChanges, hasBasicInfoChanged, hasKetoGoalsChanged, hasAllergyChanged, hasDislikeChanged, nickname, savedNickname, goalsKcal, savedGoalsKcal, goalsCarbsG, savedGoalsCarbsG, localAllergyIds, savedAllergyIds, localDislikeIds, savedDislikeIds])
+  }, [navigation, hasAnyChanges, confirmAndSaveIfNeeded])
 
   // 보조 가드: a/Link 클릭을 캡처해 확인/저장을 보장 (SPA 내부 전환 유지)
   useEffect(() => {
@@ -263,153 +400,8 @@ export function ProfilePage() {
     return () => document.removeEventListener('click', handler, true)
   }, [hasAnyChanges, confirmAndSaveIfNeeded, navigate])
 
-  // 내부 라우팅 차단 훅 제거됨: 링크 클릭시 저장 후 이동 로직으로 대체
-
-  const handleSaveBasicInfo = async () => {
-    if (!user?.id) {
-      toast.error("로그인이 필요합니다")
-      return
-    }
-
-    // 입력값 정제
-    const inputNickname = (nickname ?? '').trim()
-    // 요구사항: 빈값으로 저장하되, 화면/초기화 시에는 social_nickname으로 표시
-    const nextNickname = inputNickname === '' ? '' : inputNickname
-
-    // 닉네임 미완성 한글 검증 (선택사항)
-    if (nextNickname && /[ㄱ-ㅎㅏ-ㅣ]/.test(nextNickname)) {
-      toast.error("닉네임에 미완성 한글이 포함되어 있습니다")
-      return
-    }
-
-    setIsBasicInfoLoading(true)
-    try {
-      await updateProfile(user.id, {
-        nickname: nextNickname, // 빈 문자열도 그대로 저장
-        goals_kcal: profile?.goals_kcal,
-        goals_carbs_g: profile?.goals_carbs_g,
-        selected_allergy_ids: profile?.selected_allergy_ids,
-        selected_dislike_ids: profile?.selected_dislike_ids,
-      })
-      
-      // 저장 성공 시 저장된 데이터 업데이트
-      setSavedNickname(nextNickname)
-      
-      // 헤더 등 표시 이름 업데이트: 닉네임이 비어 있으면 socialNickname 사용
-      updateUser({ name: nextNickname || (user as any)?.socialNickname || user.name })
-      
-      if (!isBulkSavingRef.current) toast.success("기본 정보가 저장되었습니다")
-    } catch (error) {
-      toast.error('기본 정보 저장에 실패했습니다')
-    } finally {
-      setIsBasicInfoLoading(false)
-    }
-  }
-
-  const handleSaveKetoGoals = async () => {
-    if (!user?.id) {
-      toast.error("로그인이 필요합니다")
-      return
-    }
-
-    // 입력값 검증 (콤마 제거 후 숫자 변환)
-    const kcalValue = goalsKcal ? Number(String(goalsKcal).replace(/,/g, '')) : undefined
-    const carbsValue = goalsCarbsG ? Number(String(goalsCarbsG).replace(/,/g, '')) : undefined
-
-    if (goalsKcal && (isNaN(kcalValue!) || kcalValue! <= 0)) {
-      toast.error("일일 목표 칼로리는 올바른 숫자여야 합니다")
-      return
-    }
-
-    if (goalsCarbsG && (isNaN(carbsValue!) || carbsValue! < 0)) {
-      toast.error("일일 최대 탄수화물은 올바른 숫자여야 합니다")
-      return
-    }
-
-    setIsKetoGoalsLoading(true)
-    try {
-      await updateProfile(user.id, {
-        goals_kcal: kcalValue,
-        goals_carbs_g: carbsValue,
-      })
-      
-      // 저장 성공 시 저장된 데이터 업데이트
-      setSavedGoalsKcal(goalsKcal)
-      setSavedGoalsCarbsG(goalsCarbsG)
-      
-      if (!isBulkSavingRef.current) toast.success("키토 목표가 저장되었습니다")
-    } catch (error) {
-      // 에러는 스토어에서 처리됨
-    } finally {
-      setIsKetoGoalsLoading(false)
-    }
-  }
-
-  const handleSaveAllergy = async () => {
-    if (!user?.id) {
-      toast.error("로그인이 필요합니다")
-      return
-    }
-
-    setIsAllergyLoading(true)
-    try {
-      await updateProfile(user.id, {
-        selected_allergy_ids: localAllergyIds
-      })
-      
-      // 저장 성공 시 저장된 데이터 업데이트
-      setSavedAllergyIds([...localAllergyIds])
-      
-      if (!isBulkSavingRef.current) toast.success("알레르기 정보가 저장되었습니다")
-    } catch (error) {
-      // 에러는 스토어에서 처리됨
-    } finally {
-      setIsAllergyLoading(false)
-    }
-  }
-
-  const handleSaveDislike = async () => {
-    if (!user?.id) {
-      toast.error("로그인이 필요합니다")
-      return
-    }
-
-    setIsDislikeLoading(true)
-    try {
-      await updateProfile(user.id, {
-        selected_dislike_ids: localDislikeIds
-      })
-      
-      // 저장 성공 시 저장된 데이터 업데이트
-      setSavedDislikeIds([...localDislikeIds])
-      
-      if (!isBulkSavingRef.current) toast.success("비선호 재료 정보가 저장되었습니다")
-    } catch (error) {
-      // 에러는 스토어에서 처리됨
-    } finally {
-      setIsDislikeLoading(false)
-    }
-  }
-
-
-
-
-  // 로딩 중이거나 사용자 정보가 불완전한 경우 처리
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-        <CircularProgress />
-      </Box>
-    )
-  }
-  
-  // 로딩이 완료되었지만 사용자 정보가 없는 경우 (게스트 사용자)
-  if (!user || !user.id || !user.email) {
-    return null // 리다이렉트가 처리될 때까지 아무것도 렌더링하지 않음
-  }
-  
-  // 네비게이션 중이면 아무것도 렌더링하지 않음
-  if (isNavigatingRef.current) {
+  // 로그인하지 않은 경우 아무것도 렌더링하지 않음 (리다이렉트 중)
+  if (!user || isNavigatingRef.current) {
     return null
   }
 
