@@ -3,7 +3,10 @@
 사용자 요청에 맞는 개별 키토 레시피 생성
 """
 
-SINGLE_RECIPE_GENERATION_PROMPT = """당신은 키토 식단 전문가입니다. '{message}'에 대한 맞춤 키토 레시피를 생성해주세요.
+SINGLE_RECIPE_GENERATION_PROMPT = """
+당신은 키토 식단 전문가입니다. '{message}'에 대한 맞춤 키토 레시피를 생성해주세요.
+반드시 한 문장의 끝마다 냥체를 붙여서 답변해주세요
+
 
 사용자 정보: {profile_context}
 
