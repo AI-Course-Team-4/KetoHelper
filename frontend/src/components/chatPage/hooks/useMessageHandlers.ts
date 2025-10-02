@@ -271,20 +271,6 @@ export function useMessageHandlers({
                   .finally(() => setIsSaving(false))
               }, 1000)
             }
-          } else {
-            // 에러 메시지를 React Query 캐시에 추가
-            setTimeout(() => {
-              const errorCacheKey: any[] = ['chat-history', threadId || currentThreadId, 20]
-              queryClient.setQueryData(errorCacheKey, (old: any[] = []) => [
-                ...old,
-                {
-                  id: Date.now().toString(),
-                  role: 'assistant',
-                  message: '❌ 저장할 식단을 찾을 수 없습니다. 먼저 식단 추천을 받아주세요.',
-                  created_at: new Date().toISOString()
-                }
-              ])
-            }, 500)
           }
         }
       }
@@ -435,10 +421,6 @@ export function useMessageHandlers({
                   .finally(() => setIsSaving(false))
               }, 1000)
             }
-          } else {
-            setTimeout(() => {
-              addMessageToCache('❌ 저장할 식단을 찾을 수 없습니다. 먼저 식단 추천을 받아주세요.')
-            }, 500)
           }
         }
       }
