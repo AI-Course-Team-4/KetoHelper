@@ -48,10 +48,10 @@ MEAL_PLANNER_CONFIG = {
 RESTAURANT_AGENT_CONFIG = {
     "agent_name": "수빈의 맛집 헌터", 
     "prompts": {
-        "search_improvement": "soobin_search_improvement",  # 검색 키워드 개선 프롬프트
-        "search_failure": "soobin_search_failure",          # 검색 실패 처리 프롬프트
-        "recommendation": "soobin_recommendation",          # 식당 추천 프롬프트
-        "fallback": "soobin_fallback"                       # 폴백 프롬프트
+        "search_improvement": "search_improvement",  # 검색 키워드 개선 프롬프트
+        "search_failure": "search_failure",          # 검색 실패 처리 프롬프트
+        "recommendation": "recommendation",          # 식당 추천 프롬프트
+        "fallback": "fallback"                       # 폴백 프롬프트
     },
     "tools": {
         "place_search": "soobin_place_search",              # 장소 검색 도구
