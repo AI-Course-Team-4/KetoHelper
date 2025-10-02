@@ -12,15 +12,15 @@ class MealResponseFormatter:
     
     def __init__(self):
         self.slot_names = {
-            "breakfast": "🌅 아침",
-            "lunch": "🌞 점심", 
-            "dinner": "🌙 저녁",
-            "snack": "🍎 간식"
+            "breakfast": "아침",
+            "lunch": "점심", 
+            "dinner": "저녁",
+            "snack": "간식"
         }
     
     def format_meal_plan(self, meal_plan: Dict[str, Any], days: int) -> str:
         """
-        식단표를 사용자 친화적인 텍스트로 포맷팅
+        식단표를 하루별로 분리된 HTML 테이블(그레이 톤)로 포맷팅
         
         Args:
             meal_plan (Dict): 생성된 식단표 데이터
@@ -35,24 +35,25 @@ class MealResponseFormatter:
         # 일수 텍스트 생성
         day_text = "일" if days == 1 else f"{days}일"
         
-        # 응답 시작
-        response_text = f"## ✨ {day_text} 키토 식단표\n\n"
+        # 제목
+        response_text = f"""<span style=\"font-weight: bold; color: #374151;\"><b>{day_text} 키토 식단표</b></span><br>"""
         
-        # 요청된 일수만큼만 출력
+        # 요청된 일수만큼만 출력 (하루씩 개별 테이블)
         meal_days = meal_plan.get("days", [])[:days]
         
         for day_idx, day_meals in enumerate(meal_days, 1):
-            response_text += f"**{day_idx}일차:**\n"
+            # 섹션 타이틀 (1일차, 2일차 ...)
+            response_text += f"""
+<div style=\"font-weight: 700; color: #16a34a; margin-top: 10px;\">{day_idx}일차</div>
+<table style=\"border-collapse: collapse; width: 100%; margin: 8px 0;\">"""
             
-            # 각 끼니별 메뉴
+            # 각 끼니별 행
             for slot in ['breakfast', 'lunch', 'dinner', 'snack']:
+                label = self.slot_names[slot]
+                title = "-"
                 if slot in day_meals and day_meals[slot]:
                     meal = day_meals[slot]
-                    slot_name = self.slot_names[slot]
-                    
-                    # 기본 정보
-                    title = meal.get('title', '메뉴 없음')
-                    response_text += f"- {slot_name}: {title}"
+                    title = meal.get('title', '메뉴 없음') or '메뉴 없음'
                     
                     # 영양 정보 추가 (있을 경우)
                     nutrition_info = []
@@ -60,38 +61,54 @@ class MealResponseFormatter:
                         nutrition_info.append(f"탄수화물 {meal['carbs']}g")
                     if meal.get('calories'):
                         nutrition_info.append(f"{meal['calories']}kcal")
-                    
                     if nutrition_info:
-                        response_text += f" ({', '.join(nutrition_info)})"
-                    
-                    response_text += "\n"
+                        title += f" ({', '.join(nutrition_info)})"
+                
+                response_text += f"""
+  <tr>
+    <td style=\"border: 1px solid #ddd; padding: 8px; background-color: #f8f9fa; font-weight: bold; width: 22%; color: #374151;\">{label}</td>
+    <td style=\"border: 1px solid #ddd; padding: 8px; color: #111827;\">{title}</td>
+  </tr>"""
             
-            response_text += "\n"
+            response_text += """
+</table>"""
+            
+            # 일차별 추천 이유 추가 (AI가 생성한 이유 사용)
+            day_reasons = meal_plan.get("day_reasons", [])
+            
+            if day_idx <= len(day_reasons):
+                reason = day_reasons[day_idx - 1]
+                response_text += f"""<div style=\"font-size: 0.9em; color: #6b7280; margin: 6px 0; padding: 8px; background-color: #f9fafb; border-radius: 4px;\"><strong>추천 이유:</strong> {reason}</div>"""
         
-        # 핵심 조언 추가
+        # 핵심 조언 추가 (그레이 박스)
         notes = meal_plan.get("notes", [])
         if notes:
-            response_text += "### 💡 키토 팁\n"
+            response_text += """
+<ul style=\"background-color: #f8f9fa; padding: 14px; border-radius: 8px; margin: 10px 0; color: #374151; display: flex; flex-direction: column; justify-content: center;\">\n<strong>키토 팁</strong><br>"""
             for note in notes[:3]:  # 최대 3개만
-                response_text += f"- {note}\n"
-            response_text += "\n"
+                response_text += f"<li>→ {note}</li>"
+            response_text += """
+</ul>"""
         
-        # 총 영양 정보 (있을 경우)
+        # 총 영양 정보 (그레이 박스)
         if meal_plan.get("total_nutrition"):
             nutrition = meal_plan["total_nutrition"]
-            response_text += "### 📊 일일 평균 영양 정보\n"
+            response_text += """
+<div style=\"background-color: #f8f9fa; padding: 14px; border-radius: 8px; margin: 10px 0; color: #374151; display: flex; flex-direction: column; justify-content: center;\">\n<strong>일일 평균 영양 정보</strong><br>"""
             if nutrition.get("calories"):
-                response_text += f"- 칼로리: {nutrition['calories']}kcal\n"
+                response_text += f"• 칼로리: {nutrition['calories']}kcal<br>"
             if nutrition.get("carbs"):
-                response_text += f"- 탄수화물: {nutrition['carbs']}g\n"
+                response_text += f"• 탄수화물: {nutrition['carbs']}g<br>"
             if nutrition.get("protein"):
-                response_text += f"- 단백질: {nutrition['protein']}g\n"
+                response_text += f"• 단백질: {nutrition['protein']}g<br>"
             if nutrition.get("fat"):
-                response_text += f"- 지방: {nutrition['fat']}g\n"
-            response_text += "\n"
+                response_text += f"• 지방: {nutrition['fat']}g<br>"
+            response_text += """
+</div>"""
         
-        # 캘린더 저장 안내
-        response_text += "📅 이 식단표를 캘린더에 저장하시려면 '캘린더에 저장해줘'라고 말씀해주세요!"
+        # 캘린더 저장 안내 (그레이 박스)
+        response_text += """
+<div style=\"background-color: #f8f9fa; padding: 14px; border-radius: 8px; margin: 10px 0; color: #374151; display: flex; flex-direction: column; justify-content: center;\"><strong>캘린더 저장</strong><br>이 식단표를 캘린더에 저장하시려면 캘린더에 저장해줘! 라고 말씀해주세요!</div>"""
         
         return response_text
     
@@ -114,12 +131,12 @@ class MealResponseFormatter:
             return recipe
         
         # 기본 포맷 추가
-        formatted = f"🍳 **{query} 레시피**\n\n"
+        formatted = f"**{query} 레시피**\n\n"
         formatted += recipe
         
         # 추가 안내 문구
         if "재료" in recipe and "만드는 법" in recipe:
-            formatted += "\n\n💡 **키토 팁**: 탄수화물을 최소화하면서도 맛있게 즐기세요!"
+            formatted += "\n\n**키토 팁**: 탄수화물을 최소화하면서도 맛있게 즐기세요!"
         
         return formatted
     
@@ -227,8 +244,8 @@ class MealResponseFormatter:
         # 컨텍스트 추가
         if context:
             if context.get("suggestion"):
-                base_response += f"\n💡 제안: {context['suggestion']}"
+                base_response += f"\n**제안**: {context['suggestion']}"
             if context.get("help_text"):
-                base_response += f"\n❓ 도움말: {context['help_text']}"
+                base_response += f"\n도움말: {context['help_text']}"
         
         return base_response

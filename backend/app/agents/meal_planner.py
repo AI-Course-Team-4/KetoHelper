@@ -598,11 +598,15 @@ class MealPlannerAgent:
                     "키토 식단의 핵심은 탄수화물 제한입니다"
                 ]
                 
+                # 일차별 추천 이유 생성
+                day_reasons = await self._generate_day_reasons(meal_plan_days, constraints)
+                
                 return {
                     "days": meal_plan_days,
                     "duration_days": days,  # 요청된 일수 정보 추가
                     "total_macros": total_macros,
                     "notes": notes,
+                    "day_reasons": day_reasons,  # 일차별 추천 이유 추가
                     "source": "embeddings",
                     "constraints": {
                         "kcal_target": None,  # 임베딩 데이터에서는 정확한 목표 설정 어려움
@@ -1541,3 +1545,60 @@ class MealPlannerAgent:
             return True
         
         return False
+    
+    async def _generate_day_reasons(self, meal_plan_days: List[Dict], constraints: str) -> List[str]:
+        """
+        각 일차별로 AI가 간단한 1줄 추천 이유 생성
+        
+        Args:
+            meal_plan_days: 생성된 식단표 데이터
+            constraints: 사용자 제약 조건
+            
+        Returns:
+            List[str]: 각 일차별 추천 이유
+        """
+        try:
+            day_reasons = []
+            
+            for day_idx, day_meals in enumerate(meal_plan_days, 1):
+                # 해당 일차의 메뉴 정보 수집
+                menu_info = []
+                slot_names = {
+                    "breakfast": "아침",
+                    "lunch": "점심", 
+                    "dinner": "저녁",
+                    "snack": "간식"
+                }
+                for slot, meal in day_meals.items():
+                    if meal:
+                        slot_name = slot_names.get(slot, slot)
+                        menu_info.append(f"{slot_name}: {meal.get('title', 'Unknown')}")
+                
+                menu_text = ", ".join(menu_info)
+                
+                # AI가 간단한 1줄 이유 생성
+                reason_prompt = f"""
+{day_idx}일차 메뉴: {menu_text}
+
+이 메뉴 조합의 핵심 영양적 장점을 한 줄로 간단히 설명해주세요.
+예시: "고단백 저탄수화물 조합으로 키토시스 유지에 도움됩니다."
+"""
+                
+                if self.llm:
+                    response = await self.llm.ainvoke([HumanMessage(content=reason_prompt)])
+                    reason = response.content.strip()
+                    day_reasons.append(reason)
+                    print(f"✅ {day_idx}일차 추천 이유 생성: {reason[:30]}...")
+                else:
+                    # LLM이 없으면 기본 이유
+                    day_reasons.append(f"{day_idx}일차는 키토 식단에 적합한 메뉴로 구성했습니다.")
+            
+            return day_reasons
+            
+        except Exception as e:
+            print(f"❌ 일차별 추천 이유 생성 실패: {e}")
+            # 폴백: 기본 이유들
+            return [
+                f"{i+1}일차는 키토 식단에 적합한 메뉴로 구성했습니다."
+                for i in range(len(meal_plan_days))
+            ]
