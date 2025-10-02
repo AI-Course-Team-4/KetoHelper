@@ -9,6 +9,7 @@ interface MessageListProps {
   chatHistory: ChatHistory[]
   isLoggedIn: boolean
   isLoading: boolean
+  loadingStep: 'thinking' | 'analyzing' | 'generating' | 'finalizing'
   scrollAreaRef: React.RefObject<HTMLDivElement>
   messagesEndRef: React.RefObject<HTMLDivElement>
   shouldAutoScroll: boolean
@@ -32,6 +33,7 @@ export function MessageList({
   chatHistory,
   isLoggedIn,
   isLoading,
+  loadingStep,
   scrollAreaRef,
   messagesEndRef,
   shouldAutoScroll,
@@ -212,7 +214,12 @@ export function MessageList({
             {isLoading && lastMessage?.role === 'user' && (
               <div className="py-2 flex items-center justify-center text-muted-foreground">
                 <CircularProgress size={14} sx={{ mr: 1 }} />
-                <span className="text-xs">키토 코치가 답변을 준비하고 있어요…</span>
+                <span className="text-xs">
+                  {loadingStep === 'thinking' && '키토 코치가 생각하고 있어요...'}
+                  {loadingStep === 'analyzing' && '사용자 정보를 분석하고 있어요...'}
+                  {loadingStep === 'generating' && '맞춤형 답변을 생성하고 있어요...'}
+                  {loadingStep === 'finalizing' && '답변을 마무리하고 있어요...'}
+                </span>
               </div>
             )}
 
