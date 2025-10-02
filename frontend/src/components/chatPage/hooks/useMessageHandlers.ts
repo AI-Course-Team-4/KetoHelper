@@ -157,6 +157,7 @@ export function useMessageHandlers({
         }
       ])
     } else {
+      // 게스트 사용자만 로컬 스토어에 사용자 메시지 추가
       addMessage(userMessage)
     }
 
@@ -213,9 +214,9 @@ export function useMessageHandlers({
         console.log('⚠️ 기존 파싱 방식 사용:', parsedMeal)
       }
 
-      // 3) 응답 도착: 임시 assistant 메시지 교체
+      // 3) 응답 도착: assistant 메시지 추가 (게스트 사용자만)
       if (!isLoggedIn) {
-        // 게스트: 응답 메시지 추가
+        // 게스트 사용자만 로컬 스토어에 AI 응답 추가
         addMessage({
           id: (Date.now() + 1).toString(),
           role: 'assistant',
@@ -225,6 +226,8 @@ export function useMessageHandlers({
           mealData: parsedMeal
         })
       }
+      
+      // 로그인 사용자는 React Query가 자동으로 처리
 
       // 백엔드에서 제공하는 save_to_calendar_data가 있으면 우선 사용
       if (response.save_to_calendar_data && user?.id) {
@@ -349,7 +352,7 @@ export function useMessageHandlers({
       // 게스트 사용자: currentThreadId는 null로 유지
     }
     
-    // 게스트 사용자는 로컬 스토어에 사용자 메시지 추가
+    // 게스트 사용자만 로컬 스토어에 사용자 메시지 추가
     if (!isLoggedIn) {
       addMessage(userMessage)
     }
@@ -402,12 +405,12 @@ export function useMessageHandlers({
         mealData: parsedMeal
       }
 
-      // 게스트 사용자만 로컬 스토어에 AI 응답 저장
+      // 게스트 사용자만 로컬 스토어에 AI 응답 추가
       if (!isLoggedIn) {
         addMessage(assistantMessage)
       }
       
-      // 로그인 사용자는 React Query Optimistic Updates가 자동으로 처리
+      // 로그인 사용자는 React Query가 자동으로 처리
 
       // 백엔드에서 제공하는 save_to_calendar_data가 있으면 우선 사용
       if (response.save_to_calendar_data && user?.id) {
