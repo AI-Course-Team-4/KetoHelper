@@ -21,6 +21,8 @@ interface UseMessageHandlersProps {
   chatHistory?: any[]
   messages: any[]
   isLoggedIn: boolean
+  refetchThreads: () => void
+  inputRef: React.RefObject<HTMLInputElement>
 }
 
 export function useMessageHandlers({
@@ -34,13 +36,21 @@ export function useMessageHandlers({
   isSaving,
   setIsSaving,
   setIsSavingMeal,
-  chatHistory,
   messages,
-  isLoggedIn
+  isLoggedIn,
+  refetchThreads,
+  inputRef
 }: UseMessageHandlersProps) {
   // 스토어
   const { profile } = useProfileStore()
   const { user, ensureGuestId, isGuest } = useAuthStore()
+
+  // 채팅창 포커스 함수
+  const focusInput = useCallback(() => {
+    if (inputRef.current) {
+      inputRef.current.focus()
+    }
+  }, [inputRef])
 
   // 배포 환경 디버깅을 위한 세션 스토리지 모니터링 (백업 없이)
   useEffect(() => {
@@ -199,6 +209,20 @@ export function useMessageHandlers({
       setLoadingStep('generating')
       console.log('🔄 로딩 단계: generating')
       
+      // 게스트 사용자의 경우 SessionStorage 채팅 히스토리를 백엔드로 전달
+      let guestChatHistory = []
+      if (!isLoggedIn && guestId) {
+        try {
+          const stored = sessionStorage.getItem(`guest-chat-${guestId}`)
+          if (stored) {
+            guestChatHistory = JSON.parse(stored)
+            console.log('🎭 게스트 채팅 히스토리를 백엔드로 전달:', guestChatHistory.length, '개')
+          }
+        } catch (error) {
+          console.error('🎭 게스트 채팅 히스토리 파싱 오류:', error)
+        }
+      }
+
       const response = await sendMessage.mutateAsync({
         message: userMessage.content,
         profile: profile ? {
@@ -212,7 +236,9 @@ export function useMessageHandlers({
         // 게스트는 thread_id 없이, 로그인은 thread_id 사용
         thread_id: isLoggedIn ? (threadId || currentThreadId || undefined) : undefined,
         user_id: userId,
-        guest_id: guestId
+        guest_id: guestId,
+        // 게스트 사용자의 경우 SessionStorage 채팅 히스토리 전달
+        chat_history: !isLoggedIn ? guestChatHistory : undefined
       })
       
       // 마무리 단계
@@ -345,6 +371,12 @@ export function useMessageHandlers({
         }
       }
 
+      // 로그인 사용자의 경우 스레드 목록 업데이트
+      if (isLoggedIn && response.thread_id) {
+        console.log('🔄 스레드 목록 업데이트 중...')
+        refetchThreads()
+      }
+
       // React Query Optimistic Updates가 자동으로 처리
     } catch (error: any) {
       const status = error?.response?.status
@@ -353,8 +385,12 @@ export function useMessageHandlers({
       // (필요 시 토스트로 안내)
     } finally {
       setIsLoading(false)
+      // 로딩 완료 후 채팅창에 포커스
+      setTimeout(() => {
+        focusInput()
+      }, 100)
     }
-  }, [message, isLoading, currentThreadId, user, isGuest, ensureGuestId, setMessage, setIsLoading, sendMessage, profile, isSaving, setIsSaving, createPlan, parseDateFromMessage, queryClient, isLoggedIn, addMessageToCache])
+  }, [message, isLoading, currentThreadId, user, isGuest, ensureGuestId, setMessage, setIsLoading, sendMessage, profile, isSaving, setIsSaving, createPlan, parseDateFromMessage, queryClient, isLoggedIn, addMessageToCache, refetchThreads, focusInput])
 
   // 키보드 이벤트 핸들러
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -383,6 +419,12 @@ export function useMessageHandlers({
     setLoadingStep('thinking')
     console.log('🔄 QuickMessage 로딩 단계: thinking')
 
+    // 게스트 사용자의 경우 사용자 메시지를 즉시 SessionStorage에 저장
+    if (!isLoggedIn) {
+      addMessageToCache(userMessage.content, 'user')
+      console.log('🎭 게스트 퀵 메시지 SessionStorage 저장:', userMessage.content)
+    }
+
     // React Query Optimistic Update는 useApi.ts의 onMutate에서 자동으로 처리됨
 
     try {
@@ -395,6 +437,20 @@ export function useMessageHandlers({
       setLoadingStep('generating')
       console.log('🔄 QuickMessage 로딩 단계: generating')
       
+      // 게스트 사용자의 경우 SessionStorage 채팅 히스토리를 백엔드로 전달
+      let guestChatHistory = []
+      if (!isLoggedIn && guestId) {
+        try {
+          const stored = sessionStorage.getItem(`guest-chat-${guestId}`)
+          if (stored) {
+            guestChatHistory = JSON.parse(stored)
+            console.log('🎭 퀵메시지 게스트 채팅 히스토리를 백엔드로 전달:', guestChatHistory.length, '개')
+          }
+        } catch (error) {
+          console.error('🎭 퀵메시지 게스트 채팅 히스토리 파싱 오류:', error)
+        }
+      }
+
       const response = await sendMessage.mutateAsync({
         message: userMessage.content,
         profile: profile ? {
@@ -408,7 +464,9 @@ export function useMessageHandlers({
         // 게스트는 thread_id 없이, 로그인은 thread_id 사용
         thread_id: isLoggedIn ? (currentThreadId && currentThreadId.startsWith('temp-thread-') ? undefined : (currentThreadId || undefined)) : undefined,
         user_id: userId,
-        guest_id: guestId
+        guest_id: guestId,
+        // 게스트 사용자의 경우 SessionStorage 채팅 히스토리 전달
+        chat_history: !isLoggedIn ? guestChatHistory : undefined
       })
       
       // 마무리 단계
@@ -419,6 +477,12 @@ export function useMessageHandlers({
       if (response.thread_id && response.thread_id !== threadId) {
         setCurrentThreadId(response.thread_id)
         threadId = response.thread_id
+      }
+
+      // 로그인 사용자의 경우 스레드 목록 업데이트
+      if (isLoggedIn && response.thread_id) {
+        console.log('🔄 퀵메시지 스레드 목록 업데이트 중...')
+        refetchThreads()
       }
 
       let parsedMeal: LLMParsedMeal | null = null
@@ -437,6 +501,12 @@ export function useMessageHandlers({
         console.log('⚠️ 기존 파싱 방식 사용:', parsedMeal)
       }
 
+      // 게스트 사용자의 경우 AI 응답을 SessionStorage에 저장
+      if (!isLoggedIn) {
+        addMessageToCache(response.response || '', 'assistant')
+        console.log('🎭 게스트 퀵 메시지 AI 응답 SessionStorage 저장:', (response.response || '').substring(0, 30) + '...')
+      }
+      
       // AI 응답은 useApi.ts의 onSuccess에서 자동으로 처리됨
       // (React Query Optimistic Updates - 로그인/게스트 구분 없음)
 
@@ -522,8 +592,12 @@ export function useMessageHandlers({
       // 게스트/서버 오류: 말풍선 추가하지 않고 로깅만
     } finally {
       setIsLoading(false)
+      // 로딩 완료 후 채팅창에 포커스
+      setTimeout(() => {
+        focusInput()
+      }, 100)
     }
-  }, [isLoading, user, isGuest, ensureGuestId, setIsLoading, sendMessage, profile, isSaving, setIsSaving, createPlan, parseDateFromMessage, queryClient, isLoggedIn, currentThreadId, setCurrentThreadId, addMessageToCache])
+  }, [isLoading, user, isGuest, ensureGuestId, setIsLoading, sendMessage, profile, isSaving, setIsSaving, createPlan, parseDateFromMessage, queryClient, isLoggedIn, currentThreadId, setCurrentThreadId, addMessageToCache, refetchThreads, focusInput])
 
   // 식단 저장 핸들러
   const handleSaveMealToCalendar = useCallback(async (messageId: string, mealData: LLMParsedMeal, targetDate?: string) => {

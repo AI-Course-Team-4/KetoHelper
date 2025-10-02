@@ -30,7 +30,6 @@ interface MessageListProps {
 
 export function MessageList({
   messages,
-  chatHistory,
   isLoggedIn,
   isLoading,
   loadingStep,
@@ -165,7 +164,7 @@ export function MessageList({
               )
             })}
             {/* 채팅 제한 알림 */}
-            {chatHistory.length >= 20 && (
+            {messages.length >= 20 && (
               <div className="flex items-start gap-3 lg:gap-4 animate-in slide-in-from-bottom-2 fade-in duration-300">
                 <div className="flex-shrink-0 w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white flex items-center justify-center shadow-md">
                   <span className="text-sm lg:text-lg">⚠️</span>

@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axiosClient from '@/lib/axiosClient'
-import { useRef } from 'react'
 
 // axiosClient를 사용하여 토큰 갱신과 인증을 자동으로 처리
 export const api = axiosClient
@@ -61,6 +60,12 @@ export interface ChatRequest {
   thread_id?: string
   user_id?: string
   guest_id?: string
+  chat_history?: Array<{
+    id: string
+    role: string
+    message: string
+    created_at: string
+  }>
 }
 
 export interface ChatResponse {
@@ -114,7 +119,6 @@ export interface ChatHistory {
 
 export function useSendMessage() {
   const queryClient = useQueryClient()
-  const isExecutingRef = useRef(false)
 
   return useMutation({
     mutationKey: ['send-message'],

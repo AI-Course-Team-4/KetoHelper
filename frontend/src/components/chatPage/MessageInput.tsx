@@ -3,6 +3,7 @@ import { CircularProgress } from '@mui/material'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { QuickActions } from './QuickActions'
+import { forwardRef } from 'react'
 
 interface MessageInputProps {
   message: string
@@ -14,7 +15,7 @@ interface MessageInputProps {
   onQuickMessage: (message: string) => void
 }
 
-export function MessageInput({
+export const MessageInput = forwardRef<HTMLInputElement, MessageInputProps>(({
   message,
   isLoading,
   isChatLimitReached,
@@ -22,13 +23,14 @@ export function MessageInput({
   onSendMessage,
   onKeyDown,
   onQuickMessage
-}: MessageInputProps) {
+}, ref) => {
   return (
     <div className="flex-shrink-0 border-t-2 border-gray-100 bg-white/90 backdrop-blur-sm p-4 lg:p-6">
       <div className="max-w-4xl mx-auto">
         <div className="flex gap-3 lg:gap-4">
           <div className="flex-1 relative">
             <Input
+              ref={ref}
               value={message}
               onChange={(e) => onMessageChange(e.target.value)}
               onKeyDown={onKeyDown}
@@ -63,4 +65,6 @@ export function MessageInput({
       </div>
     </div>
   )
-}
+})
+
+MessageInput.displayName = 'MessageInput'

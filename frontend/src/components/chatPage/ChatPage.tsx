@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { useChatLogic } from './hooks/useChatLogic'
 import { useMessageHandlers } from './hooks/useMessageHandlers'
 import { useThreadHandlers } from './hooks/useThreadHandlers'
@@ -9,6 +10,8 @@ import { ActiveWelcome } from './ActiveWelcome'
 import { CircularProgress } from '@mui/material'
 
 export function ChatPage() {
+  const inputRef = useRef<HTMLInputElement>(null)
+  
   const {
     message,
     setMessage,
@@ -59,7 +62,9 @@ export function ChatPage() {
     setIsSavingMeal,
     chatHistory,
     messages,
-    isLoggedIn
+    isLoggedIn,
+    refetchThreads,
+    inputRef
   })
 
   const {
@@ -252,9 +257,10 @@ export function ChatPage() {
 
               {/* 입력 영역 */}
               <MessageInput
+                ref={inputRef}
                 message={message}
                 isLoading={isLoading}
-                isChatLimitReached={isLoggedIn ? chatHistory.length >= 20 : messages.length >= 10}
+                isChatLimitReached={isLoggedIn ? chatHistory.length >= 20 : messages.length >= 20}
                 onMessageChange={setMessage}
                 onSendMessage={handleSendMessage}
                 onKeyDown={handleKeyDown}

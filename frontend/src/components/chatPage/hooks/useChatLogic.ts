@@ -219,6 +219,25 @@ export function useChatLogic() {
     }
   }, [messages.length, isLoggedIn, currentThreadId, location.pathname, isLoadingHistory, chatHistory.length])
 
+  // 로그인 시 게스트 SessionStorage 정리
+  useEffect(() => {
+    if (isLoggedIn && typeof window !== 'undefined') {
+      // 로그인 성공 시 모든 게스트 SessionStorage 데이터 정리
+      const sessionKeys = Object.keys(sessionStorage)
+      const guestKeys = sessionKeys.filter(key => key.startsWith('guest-chat-'))
+      
+      if (guestKeys.length > 0) {
+        console.log('🗑️ 로그인 성공 - 게스트 SessionStorage 데이터 정리:', guestKeys)
+        guestKeys.forEach(key => {
+          sessionStorage.removeItem(key)
+        })
+        
+        // 게스트 채팅 히스토리 상태도 초기화
+        setGuestChatHistory([])
+      }
+    }
+  }, [isLoggedIn])
+
   // 기존 LocalStorage에 잘못 저장된 게스트 데이터 정리
   useEffect(() => {
     if (!isLoggedIn && typeof window !== 'undefined') {
