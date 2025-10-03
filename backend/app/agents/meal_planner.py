@@ -11,6 +11,7 @@ AI 기반 7일 키토 식단 계획 생성
 
 import asyncio
 import json
+import random
 from typing import Dict, Any, List, Optional
 from datetime import date, timedelta
 from langchain.schema import HumanMessage
@@ -518,8 +519,8 @@ class MealPlannerAgent:
                     "time_keywords": ["간식", "스낵", "애프터눈"]
                 }
             },
-            "diversity_strategy": "매일 다른 키워드 조합 사용",
-            "search_priority": ["primary_keywords", "cooking_methods", "secondary_keywords"]
+            "diversity_strategy": "매일 다른 키워드 조합과 다양한 검색어 사용",
+            "search_priority": ["variety_keywords", "primary_keywords", "cooking_methods", "secondary_keywords"]
         }
     
     async def _generate_meal_plan_from_embeddings(self, days: int, constraints: str, user_id: Optional[str] = None, fast_mode: bool = True,
@@ -565,30 +566,86 @@ class MealPlannerAgent:
             for slot, strategy in meal_strategies.items():
                 print(f"🔍 {slot} 레시피 {days}개 검색 중...")
                 
-                # 기본 키워드로 한 번에 여러 개 검색
-                search_query = f"{' '.join(strategy['primary_keywords'])} 키토"
-                search_results = await self._search_with_diversity(
-                    search_query, constraints, user_id, used_recipes, max_results=days * 3,
+                # 다양성을 위해 여러 검색 전략 시도
+                all_search_results = []
+                
+                # 1. 기본 키워드 검색
+                basic_query = f"{' '.join(strategy['primary_keywords'])} 키토"
+                basic_results = await self._search_with_diversity(
+                    basic_query, constraints, user_id, used_recipes, max_results=days * 2,
                     allergies=allergies, dislikes=dislikes
                 )
+                all_search_results.extend(basic_results)
                 
-                if search_results:
-                    # _search_with_diversity에서 이미 중복 체크 완료
-                    meal_collections[slot] = search_results
-                    print(f"✅ {slot} 레시피 {len(search_results)}개 수집 완료")
+                # 2. 다양성 키워드 검색 (각 날짜별로 다른 키워드 조합)
+                if 'variety_keywords' in strategy:
+                    for day_idx in range(min(days, len(strategy['variety_keywords']))):
+                        variety_query = f"{' '.join(strategy['variety_keywords'][day_idx])} 키토"
+                        variety_results = await self._search_with_diversity(
+                            variety_query, constraints, user_id, used_recipes, max_results=2,
+                            allergies=allergies, dislikes=dislikes
+                        )
+                        all_search_results.extend(variety_results)
+                
+                # 3. 조리법 기반 검색
+                if 'cooking_methods' in strategy:
+                    cooking_query = f"{' '.join(strategy['cooking_methods'][:3])} 키토 {slot}"
+                    cooking_results = await self._search_with_diversity(
+                        cooking_query, constraints, user_id, used_recipes, max_results=3,
+                        allergies=allergies, dislikes=dislikes
+                    )
+                    all_search_results.extend(cooking_results)
+                
+                if all_search_results:
+                    # 중복 제거 (ID 기준)
+                    seen_ids = set()
+                    unique_results = []
+                    for result in all_search_results:
+                        result_id = result.get('id', '')
+                        if result_id and result_id not in seen_ids:
+                            seen_ids.add(result_id)
+                            unique_results.append(result)
+                    
+                    meal_collections[slot] = unique_results
+                    print(f"✅ {slot} 레시피 {len(unique_results)}개 수집 완료 (다양성 검색 적용)")
                 else:
                     meal_collections[slot] = []
                     print(f"❌ {slot} 레시피 검색 실패")
             
-            # 7일 식단표 구성
+            # 7일 식단표 구성 (다양성 보장)
             for day in range(days):
                 day_meals = {}
                 
                 for slot in meal_strategies.keys():
-                    if slot in meal_collections and len(meal_collections[slot]) > day:
-                        selected_recipe = meal_collections[slot][day]
+                    if slot in meal_collections and len(meal_collections[slot]) > 0:
+                        # 중복 방지를 위해 선택된 레시피를 컬렉션에서 제거
+                        available_recipes = meal_collections[slot]
+                        
+                        # 아직 사용되지 않은 레시피만 필터링
+                        unused_recipes = [r for r in available_recipes if r.get('id', f"embedded_{slot}_{day}") not in used_recipes]
+                        
+                        if unused_recipes:
+                            # 다양성을 위해 날짜별로 다른 선택 전략 적용
+                            if day % 2 == 0:
+                                # 짝수 날: 유사도가 높은 순으로 정렬 후 상위에서 선택
+                                unused_recipes.sort(key=lambda x: x.get('similarity', 0.0), reverse=True)
+                                selected_recipe = unused_recipes[min(2, len(unused_recipes)-1)]  # 상위 3개 중에서 선택
+                            else:
+                                # 홀수 날: 랜덤 선택
+                                selected_recipe = random.choice(unused_recipes)
+                        else:
+                            # 모든 레시피가 사용되었으면 다시 랜덤 선택 (다양성 우선)
+                            selected_recipe = random.choice(available_recipes)
+                        
                         recipe_id = selected_recipe.get('id', f"embedded_{slot}_{day}")
                         used_recipes.add(recipe_id)
+                        
+                        # 선택된 레시피를 컬렉션에서 제거하여 다음 선택에서 제외
+                        try:
+                            meal_collections[slot].remove(selected_recipe)
+                        except ValueError:
+                            # 이미 제거된 경우 무시
+                            pass
                         
                         day_meals[slot] = {
                             "type": "recipe",
@@ -711,7 +768,8 @@ class MealPlannerAgent:
                         day_meals[slot] = await self._generate_simple_snack(meal_type)
                     else:
                         if slot in meal_collections and len(meal_collections[slot]) > day_idx:
-                            selected_recipe = meal_collections[slot][day_idx]
+                            # 랜덤 선택 적용
+                            selected_recipe = random.choice(meal_collections[slot])
                             recipe_id = selected_recipe.get('id', f"embedded_{slot}_{day_idx}")
                             used_recipes.add(recipe_id)
                             
@@ -836,12 +894,12 @@ class MealPlannerAgent:
         rag_results = await hybrid_search_tool.search(
             query=search_query,
             profile=constraints,
-            max_results=1,
+            max_results=5,  # 1 → 5로 변경
             user_id=getattr(self, '_current_user_id', None)  # 현재 사용자 ID 전달
         )
         
         if rag_results:
-            recipe = rag_results[0]
+            recipe = random.choice(rag_results)  # 랜덤 선택
             return {
                 "type": "recipe",
                 "id": recipe.get("id", ""),
