@@ -33,6 +33,6 @@ class PersonalWeightConfig(WeightConfig):
         
         # 유사도 임계값 강화
         self.similarity_threshold = 0.8     # 0.7 → 0.8 (더 엄격한 필터링)
-        self.max_search_results = 3         # 5 → 3 (더 정확한 결과만)
+        self.max_search_results = 2         # 5 → 3 (더 정확한 결과만)
         
         print(f"🧪 {self.experiment_name} 실험 설정 적용됨")
