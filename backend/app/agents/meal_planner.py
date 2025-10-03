@@ -72,6 +72,14 @@ class MealPlannerAgent:
         self.date_parser = DateParser()
         self.response_formatter = MealResponseFormatter()
         self.temp_dislikes_extractor = temp_dislikes_extractor
+        
+        # 벡터 검색 도구 초기화
+        try:
+            from app.tools.meal.korean_search import KoreanSearchTool
+            self.korean_search_tool = KoreanSearchTool()
+        except ImportError as e:
+            print(f"KoreanSearchTool 초기화 실패: {e}")
+            self.korean_search_tool = None
     
     def _load_prompts(self) -> Dict[str, str]:
         """프롬프트 파일들 동적 로딩"""
@@ -1147,30 +1155,82 @@ class MealPlannerAgent:
         }
     
     async def generate_single_recipe(self, message: str, profile_context: str = "") -> str:
-        """단일 레시피 생성 (orchestrator용)"""
+        """단일 레시피 생성 (벡터 검색 기반)"""
         
         if not self.llm:
             return self._get_recipe_fallback(message)
         
         try:
-            # 프롬프트 파일에서 로드
+            # 1단계: 벡터 검색으로 관련 레시피들 찾기
+            print(f"🔍 벡터 검색으로 관련 레시피 찾기: '{message}'")
+            vector_results = []
+            
             try:
-                from app.prompts.meal.single_recipe import SINGLE_RECIPE_GENERATION_PROMPT
-                prompt = SINGLE_RECIPE_GENERATION_PROMPT.format(
-                    message=message,
-                    profile_context=profile_context if profile_context else '특별한 제약사항 없음'
-                )
-            except ImportError:
-                # 폴백 프롬프트 파일에서 로드
+                if self.korean_search_tool:
+                    vector_results = await self.korean_search_tool.korean_hybrid_search(message, k=5)
+                    print(f"✅ 벡터 검색 완료: {len(vector_results)}개 레시피 발견")
+                else:
+                    print("⚠️ KoreanSearchTool이 초기화되지 않음, 기존 방식으로 진행")
+                    vector_results = []
+            except Exception as e:
+                print(f"⚠️ 벡터 검색 실패: {e}, 기존 방식으로 진행")
+                vector_results = []
+            
+            # 2단계: 검색 결과를 AI가 이해할 수 있는 형태로 변환
+            context_recipes = self._format_vector_results_for_ai(vector_results)
+            
+            # 3단계: AI가 검색 결과를 참고하여 새 레시피 생성
+            if vector_results:
+                # 벡터 검색 결과가 있으면 기존 프롬프트 템플릿 사용
                 try:
-                    from app.prompts.meal.fallback import FALLBACK_SINGLE_RECIPE_PROMPT
-                    prompt = FALLBACK_SINGLE_RECIPE_PROMPT.format(
+                    from app.prompts.meal.recipe_response import RECIPE_RESPONSE_GENERATION_PROMPT
+                    prompt = RECIPE_RESPONSE_GENERATION_PROMPT.format(
+                        message=message,
+                        context=context_recipes
+                    )
+                except ImportError:
+                    # 폴백: 기본 프롬프트 사용
+                    prompt = f"""
+키토 식단 전문가로서 사용자의 레시피 요청에 답변해주세요.
+반드시 답변의 끝마다 냥체를 붙여서 답변해주세요
+
+사용자 요청: {message}
+
+검색된 레시피 정보:
+{context_recipes}
+
+다음 형식으로 답변해주세요:
+
+## 🍽️ 추천 키토 레시피
+
+위에서 검색된 레시피들을 바탕으로 키토 식단에 적합한 레시피를 추천드립니다.
+
+### 💡 키토 팁
+- 탄수화물 함량을 확인하세요
+- 충분한 지방 섭취를 유지하세요
+- 개인 취향에 맞게 조절하세요
+
+더 자세한 정보가 필요하시면 언제든 말씀해주세요!
+"""
+            else:
+                # 검색 결과가 없으면 기존 방식으로 생성
+                try:
+                    from app.prompts.meal.single_recipe import SINGLE_RECIPE_GENERATION_PROMPT
+                    prompt = SINGLE_RECIPE_GENERATION_PROMPT.format(
                         message=message,
                         profile_context=profile_context if profile_context else '특별한 제약사항 없음'
                     )
                 except ImportError:
-                    # 정말 마지막 폴백
-                    prompt = f"'{message}'에 대한 키토 레시피를 생성하세요. 사용자 정보: {profile_context if profile_context else '없음'}"
+                    # 폴백 프롬프트 파일에서 로드
+                    try:
+                        from app.prompts.meal.fallback import FALLBACK_SINGLE_RECIPE_PROMPT
+                        prompt = FALLBACK_SINGLE_RECIPE_PROMPT.format(
+                            message=message,
+                            profile_context=profile_context if profile_context else '특별한 제약사항 없음'
+                        )
+                    except ImportError:
+                        # 정말 마지막 폴백
+                        prompt = f"'{message}'에 대한 키토 레시피를 생성하세요. 사용자 정보: {profile_context if profile_context else '없음'}"
             
             response = await self.llm.ainvoke([HumanMessage(content=prompt)])
             return response.content
@@ -1178,6 +1238,36 @@ class MealPlannerAgent:
         except Exception as e:
             print(f"Single recipe generation error: {e}")
             return self._get_recipe_fallback(message)
+    
+    def _format_vector_results_for_ai(self, vector_results: List[Dict]) -> str:
+        """벡터 검색 결과를 AI가 이해할 수 있는 형태로 변환"""
+        if not vector_results:
+            return "관련 레시피를 찾을 수 없습니다."
+        
+        formatted_recipes = []
+        for i, result in enumerate(vector_results[:5], 1):  # 상위 5개만
+            # 기본 정보 추출
+            title = result.get('title', 'Unknown')
+            ingredients = result.get('ingredients', 'Unknown')
+            content = result.get('content', 'Unknown')
+            similarity = result.get('similarity_score', 0.0)
+            
+            # 내용이 너무 길면 잘라내기
+            if len(content) > 300:
+                content = content[:300] + "..."
+            
+            recipe_info = f"""
+### 🍽️ {title} (유사도: {similarity:.2f})
+
+**재료:**
+{ingredients}
+
+**조리법:**
+{content}
+"""
+            formatted_recipes.append(recipe_info)
+        
+        return "\n".join(formatted_recipes)
     
     def _get_recipe_fallback(self, message: str) -> str:
         """레시피 생성 실패 시 폴백 응답 (프롬프트 파일에서 로드)"""
