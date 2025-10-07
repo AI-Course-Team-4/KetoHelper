@@ -11,6 +11,7 @@ AI 기반 7일 키토 식단 계획 생성
 
 import asyncio
 import json
+import random
 from typing import Dict, Any, List, Optional
 from datetime import date, timedelta
 from langchain.schema import HumanMessage
@@ -71,6 +72,14 @@ class MealPlannerAgent:
         self.date_parser = DateParser()
         self.response_formatter = MealResponseFormatter()
         self.temp_dislikes_extractor = temp_dislikes_extractor
+        
+        # 벡터 검색 도구 초기화
+        try:
+            from app.tools.meal.korean_search import KoreanSearchTool
+            self.korean_search_tool = KoreanSearchTool()
+        except ImportError as e:
+            print(f"KoreanSearchTool 초기화 실패: {e}")
+            self.korean_search_tool = None
     
     def _load_prompts(self) -> Dict[str, str]:
         """프롬프트 파일들 동적 로딩"""
@@ -518,8 +527,8 @@ class MealPlannerAgent:
                     "time_keywords": ["간식", "스낵", "애프터눈"]
                 }
             },
-            "diversity_strategy": "매일 다른 키워드 조합 사용",
-            "search_priority": ["primary_keywords", "cooking_methods", "secondary_keywords"]
+            "diversity_strategy": "매일 다른 키워드 조합과 다양한 검색어 사용",
+            "search_priority": ["variety_keywords", "primary_keywords", "cooking_methods", "secondary_keywords"]
         }
     
     async def _generate_meal_plan_from_embeddings(self, days: int, constraints: str, user_id: Optional[str] = None, fast_mode: bool = True,
@@ -565,30 +574,86 @@ class MealPlannerAgent:
             for slot, strategy in meal_strategies.items():
                 print(f"🔍 {slot} 레시피 {days}개 검색 중...")
                 
-                # 기본 키워드로 한 번에 여러 개 검색
-                search_query = f"{' '.join(strategy['primary_keywords'])} 키토"
-                search_results = await self._search_with_diversity(
-                    search_query, constraints, user_id, used_recipes, max_results=days * 3,
+                # 다양성을 위해 여러 검색 전략 시도
+                all_search_results = []
+                
+                # 1. 기본 키워드 검색
+                basic_query = f"{' '.join(strategy['primary_keywords'])} 키토"
+                basic_results = await self._search_with_diversity(
+                    basic_query, constraints, user_id, used_recipes, max_results=days * 2,
                     allergies=allergies, dislikes=dislikes
                 )
+                all_search_results.extend(basic_results)
                 
-                if search_results:
-                    # _search_with_diversity에서 이미 중복 체크 완료
-                    meal_collections[slot] = search_results
-                    print(f"✅ {slot} 레시피 {len(search_results)}개 수집 완료")
+                # 2. 다양성 키워드 검색 (각 날짜별로 다른 키워드 조합)
+                if 'variety_keywords' in strategy:
+                    for day_idx in range(min(days, len(strategy['variety_keywords']))):
+                        variety_query = f"{' '.join(strategy['variety_keywords'][day_idx])} 키토"
+                        variety_results = await self._search_with_diversity(
+                            variety_query, constraints, user_id, used_recipes, max_results=2,
+                            allergies=allergies, dislikes=dislikes
+                        )
+                        all_search_results.extend(variety_results)
+                
+                # 3. 조리법 기반 검색
+                if 'cooking_methods' in strategy:
+                    cooking_query = f"{' '.join(strategy['cooking_methods'][:3])} 키토 {slot}"
+                    cooking_results = await self._search_with_diversity(
+                        cooking_query, constraints, user_id, used_recipes, max_results=3,
+                        allergies=allergies, dislikes=dislikes
+                    )
+                    all_search_results.extend(cooking_results)
+                
+                if all_search_results:
+                    # 중복 제거 (ID 기준)
+                    seen_ids = set()
+                    unique_results = []
+                    for result in all_search_results:
+                        result_id = result.get('id', '')
+                        if result_id and result_id not in seen_ids:
+                            seen_ids.add(result_id)
+                            unique_results.append(result)
+                    
+                    meal_collections[slot] = unique_results
+                    print(f"✅ {slot} 레시피 {len(unique_results)}개 수집 완료 (다양성 검색 적용)")
                 else:
                     meal_collections[slot] = []
                     print(f"❌ {slot} 레시피 검색 실패")
             
-            # 7일 식단표 구성
+            # 7일 식단표 구성 (다양성 보장)
             for day in range(days):
                 day_meals = {}
                 
                 for slot in meal_strategies.keys():
-                    if slot in meal_collections and len(meal_collections[slot]) > day:
-                        selected_recipe = meal_collections[slot][day]
+                    if slot in meal_collections and len(meal_collections[slot]) > 0:
+                        # 중복 방지를 위해 선택된 레시피를 컬렉션에서 제거
+                        available_recipes = meal_collections[slot]
+                        
+                        # 아직 사용되지 않은 레시피만 필터링
+                        unused_recipes = [r for r in available_recipes if r.get('id', f"embedded_{slot}_{day}") not in used_recipes]
+                        
+                        if unused_recipes:
+                            # 다양성을 위해 날짜별로 다른 선택 전략 적용
+                            if day % 2 == 0:
+                                # 짝수 날: 유사도가 높은 순으로 정렬 후 상위에서 선택
+                                unused_recipes.sort(key=lambda x: x.get('similarity', 0.0), reverse=True)
+                                selected_recipe = unused_recipes[min(2, len(unused_recipes)-1)]  # 상위 3개 중에서 선택
+                            else:
+                                # 홀수 날: 랜덤 선택
+                                selected_recipe = random.choice(unused_recipes)
+                        else:
+                            # 모든 레시피가 사용되었으면 다시 랜덤 선택 (다양성 우선)
+                            selected_recipe = random.choice(available_recipes)
+                        
                         recipe_id = selected_recipe.get('id', f"embedded_{slot}_{day}")
                         used_recipes.add(recipe_id)
+                        
+                        # 선택된 레시피를 컬렉션에서 제거하여 다음 선택에서 제외
+                        try:
+                            meal_collections[slot].remove(selected_recipe)
+                        except ValueError:
+                            # 이미 제거된 경우 무시
+                            pass
                         
                         day_meals[slot] = {
                             "type": "recipe",
@@ -711,7 +776,8 @@ class MealPlannerAgent:
                         day_meals[slot] = await self._generate_simple_snack(meal_type)
                     else:
                         if slot in meal_collections and len(meal_collections[slot]) > day_idx:
-                            selected_recipe = meal_collections[slot][day_idx]
+                            # 랜덤 선택 적용
+                            selected_recipe = random.choice(meal_collections[slot])
                             recipe_id = selected_recipe.get('id', f"embedded_{slot}_{day_idx}")
                             used_recipes.add(recipe_id)
                             
@@ -836,12 +902,12 @@ class MealPlannerAgent:
         rag_results = await hybrid_search_tool.search(
             query=search_query,
             profile=constraints,
-            max_results=1,
+            max_results=5,  # 1 → 5로 변경
             user_id=getattr(self, '_current_user_id', None)  # 현재 사용자 ID 전달
         )
         
         if rag_results:
-            recipe = rag_results[0]
+            recipe = random.choice(rag_results)  # 랜덤 선택
             return {
                 "type": "recipe",
                 "id": recipe.get("id", ""),
@@ -1089,30 +1155,82 @@ class MealPlannerAgent:
         }
     
     async def generate_single_recipe(self, message: str, profile_context: str = "") -> str:
-        """단일 레시피 생성 (orchestrator용)"""
+        """단일 레시피 생성 (벡터 검색 기반)"""
         
         if not self.llm:
             return self._get_recipe_fallback(message)
         
         try:
-            # 프롬프트 파일에서 로드
+            # 1단계: 벡터 검색으로 관련 레시피들 찾기
+            print(f"🔍 벡터 검색으로 관련 레시피 찾기: '{message}'")
+            vector_results = []
+            
             try:
-                from app.prompts.meal.single_recipe import SINGLE_RECIPE_GENERATION_PROMPT
-                prompt = SINGLE_RECIPE_GENERATION_PROMPT.format(
-                    message=message,
-                    profile_context=profile_context if profile_context else '특별한 제약사항 없음'
-                )
-            except ImportError:
-                # 폴백 프롬프트 파일에서 로드
+                if self.korean_search_tool:
+                    vector_results = await self.korean_search_tool.korean_hybrid_search(message, k=5)
+                    print(f"✅ 벡터 검색 완료: {len(vector_results)}개 레시피 발견")
+                else:
+                    print("⚠️ KoreanSearchTool이 초기화되지 않음, 기존 방식으로 진행")
+                    vector_results = []
+            except Exception as e:
+                print(f"⚠️ 벡터 검색 실패: {e}, 기존 방식으로 진행")
+                vector_results = []
+            
+            # 2단계: 검색 결과를 AI가 이해할 수 있는 형태로 변환
+            context_recipes = self._format_vector_results_for_ai(vector_results)
+            
+            # 3단계: AI가 검색 결과를 참고하여 새 레시피 생성
+            if vector_results:
+                # 벡터 검색 결과가 있으면 기존 프롬프트 템플릿 사용
                 try:
-                    from app.prompts.meal.fallback import FALLBACK_SINGLE_RECIPE_PROMPT
-                    prompt = FALLBACK_SINGLE_RECIPE_PROMPT.format(
+                    from app.prompts.meal.recipe_response import RECIPE_RESPONSE_GENERATION_PROMPT
+                    prompt = RECIPE_RESPONSE_GENERATION_PROMPT.format(
+                        message=message,
+                        context=context_recipes
+                    )
+                except ImportError:
+                    # 폴백: 기본 프롬프트 사용
+                    prompt = f"""
+키토 식단 전문가로서 사용자의 레시피 요청에 답변해주세요.
+반드시 답변의 끝마다 냥체를 붙여서 답변해주세요
+
+사용자 요청: {message}
+
+검색된 레시피 정보:
+{context_recipes}
+
+다음 형식으로 답변해주세요:
+
+## 🍽️ 추천 키토 레시피
+
+위에서 검색된 레시피들을 바탕으로 키토 식단에 적합한 레시피를 추천드립니다.
+
+### 💡 키토 팁
+- 탄수화물 함량을 확인하세요
+- 충분한 지방 섭취를 유지하세요
+- 개인 취향에 맞게 조절하세요
+
+더 자세한 정보가 필요하시면 언제든 말씀해주세요!
+"""
+            else:
+                # 검색 결과가 없으면 기존 방식으로 생성
+                try:
+                    from app.prompts.meal.single_recipe import SINGLE_RECIPE_GENERATION_PROMPT
+                    prompt = SINGLE_RECIPE_GENERATION_PROMPT.format(
                         message=message,
                         profile_context=profile_context if profile_context else '특별한 제약사항 없음'
                     )
                 except ImportError:
-                    # 정말 마지막 폴백
-                    prompt = f"'{message}'에 대한 키토 레시피를 생성하세요. 사용자 정보: {profile_context if profile_context else '없음'}"
+                    # 폴백 프롬프트 파일에서 로드
+                    try:
+                        from app.prompts.meal.fallback import FALLBACK_SINGLE_RECIPE_PROMPT
+                        prompt = FALLBACK_SINGLE_RECIPE_PROMPT.format(
+                            message=message,
+                            profile_context=profile_context if profile_context else '특별한 제약사항 없음'
+                        )
+                    except ImportError:
+                        # 정말 마지막 폴백
+                        prompt = f"'{message}'에 대한 키토 레시피를 생성하세요. 사용자 정보: {profile_context if profile_context else '없음'}"
             
             response = await self.llm.ainvoke([HumanMessage(content=prompt)])
             return response.content
@@ -1120,6 +1238,36 @@ class MealPlannerAgent:
         except Exception as e:
             print(f"Single recipe generation error: {e}")
             return self._get_recipe_fallback(message)
+    
+    def _format_vector_results_for_ai(self, vector_results: List[Dict]) -> str:
+        """벡터 검색 결과를 AI가 이해할 수 있는 형태로 변환"""
+        if not vector_results:
+            return "관련 레시피를 찾을 수 없습니다."
+        
+        formatted_recipes = []
+        for i, result in enumerate(vector_results[:5], 1):  # 상위 5개만
+            # 기본 정보 추출
+            title = result.get('title', 'Unknown')
+            ingredients = result.get('ingredients', 'Unknown')
+            content = result.get('content', 'Unknown')
+            similarity = result.get('similarity_score', 0.0)
+            
+            # 내용이 너무 길면 잘라내기
+            if len(content) > 300:
+                content = content[:300] + "..."
+            
+            recipe_info = f"""
+### 🍽️ {title} (유사도: {similarity:.2f})
+
+**재료:**
+{ingredients}
+
+**조리법:**
+{content}
+"""
+            formatted_recipes.append(recipe_info)
+        
+        return "\n".join(formatted_recipes)
     
     def _get_recipe_fallback(self, message: str) -> str:
         """레시피 생성 실패 시 폴백 응답 (프롬프트 파일에서 로드)"""

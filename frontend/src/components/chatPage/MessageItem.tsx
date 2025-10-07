@@ -184,7 +184,7 @@ export function MessageItem({
                   </ReactMarkdown>
                 </div>
               ) : (
-                <p className="whitespace-pre-wrap m-0">{msg.content}</p>
+                <p className="m-0 text-left break-words leading-relaxed">{msg.content}</p>
               )}
               {msg.role === 'assistant' && isTyping && (
                 <span className="inline-block w-2 h-4 bg-green-500 ml-1 animate-pulse" />
