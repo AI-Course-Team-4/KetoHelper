@@ -11,6 +11,8 @@ _base_recipe_prompt = """
 
 사용자 요청: {message}
 
+사용자 프로필: {profile_context}
+
 검색된 레시피 정보:
 {context}
 
@@ -33,6 +35,8 @@ _base_failure_recipe_prompt = """
 사용자의 레시피 요청에 답변해주세요.
 
 사용자 요청: {message}
+
+사용자 프로필: {profile_context}
 
 죄송하지만 요청하신 레시피를 찾을 수 없습니다. 대신 키토 식단에 적합한 기본 레시피를 추천드립니다.
 
