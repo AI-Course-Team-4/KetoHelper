@@ -326,12 +326,17 @@ class MealPlannerAgent:
                 }
                 full_plan.append(day_meals)
             
+<<<<<<< HEAD
             # 기본 조언 생성
             notes = [
                 "AI가 알레르기와 비선호 재료를 고려하여 식단을 생성했습니다",
                 "키토 식단의 핵심은 탄수화물 제한입니다",
                 "충분한 수분 섭취를 잊지 마세요"
             ]
+=======
+            # 기본 조언 생성 (notes.py 프롬프트 사용)
+            notes = await self._generate_meal_notes(simple_plan, constraints_text)
+>>>>>>> 4d2ecc82f2e35be017bafddc0f4c4b41522c6385
             
             print(f"✅ 3단계 성공: 완전한 식단표 생성 완료 ({days}일)")
             return {
@@ -568,9 +573,9 @@ class MealPlannerAgent:
                     "time_keywords": ["저녁", "디너", "이브닝"]
                 },
                 "snack": {
-                    "primary_keywords": ["간식", "견과류", "치즈"],
-                    "secondary_keywords": ["아몬드", "호두", "올리브", "베리"],
-                    "cooking_methods": ["구이", "볶음"],
+                    "primary_keywords": ["간식", "두부", "곤약", "해초"],
+                    "secondary_keywords": ["단백질", "저탄수", "무설탕", "다이어트"],
+                    "cooking_methods": ["구이", "볶음", "찜"],
                     "time_keywords": ["간식", "스낵", "애프터눈"]
                 }
             },
@@ -737,7 +742,6 @@ class MealPlannerAgent:
                 # 조언 생성
                 notes = [
                     "임베딩된 레시피 데이터에서 생성된 식단표입니다",
-                    "각 메뉴를 클릭하면 상세 레시피를 볼 수 있습니다",
                     "키토 식단의 핵심은 탄수화물 제한입니다"
                 ]
                 
@@ -863,7 +867,6 @@ class MealPlannerAgent:
                 # 조언 생성
                 notes = [
                     "AI 구조 + 임베딩된 레시피 데이터에서 생성된 식단표입니다",
-                    "각 메뉴를 클릭하면 상세 레시피를 볼 수 있습니다",
                     "키토 식단의 핵심은 탄수화물 제한입니다"
                 ]
                 
@@ -1279,9 +1282,7 @@ class MealPlannerAgent:
 위에서 검색된 레시피들을 바탕으로 키토 식단에 적합한 레시피를 추천드립니다.
 
 ### 💡 키토 팁
-- 탄수화물 함량을 확인하세요
-- 충분한 지방 섭취를 유지하세요
-- 개인 취향에 맞게 조절하세요
+검색된 레시피와 관련된 실용적인 키토 식단 조언을 2~3가지만 간단하게 작성해주세요.
 
 더 자세한 정보가 필요하시면 언제든 말씀해주세요!
 """

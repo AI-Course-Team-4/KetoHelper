@@ -218,67 +218,9 @@ class HybridSearchTool:
                     filters['difficulty'] = '쉬움'
 
             # 한글 최적화 검색 실행
-            results = await korean_search_tool.korean_hybrid_search(query, max_results)
+            results = await korean_search_tool.korean_hybrid_search(query, max_results, user_id)
 
-            print(f"✅ RAG 벡터 검색 완료: {len(results)}개 결과")
-            
-            # 알레르기/비선호 필터링 (제목 기반, 간단한 동의어 매핑)
-            if user_id:
-                from app.tools.shared.profile_tool import user_profile_tool
-                
-                user_preferences = await user_profile_tool.get_user_preferences(user_id)
-                
-                if user_preferences.get("success"):
-                    prefs = user_preferences["preferences"]
-                    user_allergies = set(prefs.get("allergies", []))
-                    user_dislikes = set(prefs.get("dislikes", []))
-                    
-                    if user_allergies or user_dislikes:
-                        # 핵심 동의어만 매핑 (필수 최소한)
-                        synonym_map = {
-                            '달걀': ['달걀', '계란', '에그'],
-                            '토마토': ['토마토', '방울토마토'],
-                        }
-                        
-                        # 확장된 키워드
-                        expanded_allergies = set()
-                        for allergy in user_allergies:
-                            if allergy in synonym_map:
-                                expanded_allergies.update(synonym_map[allergy])
-                            else:
-                                expanded_allergies.add(allergy)
-                        
-                        expanded_dislikes = set(user_dislikes)
-                        
-                        filtered_results = []
-                        excluded_count = 0
-                        
-                        for result in results:
-                            title_lower = result.get('title', '').lower()
-                            
-                            # 알레르기 체크 (제목만)
-                            found = False
-                            for keyword in expanded_allergies:
-                                if keyword.lower() in title_lower:
-                                    excluded_count += 1
-                                    found = True
-                                    break
-                            
-                            if found:
-                                continue
-                            
-                            # 비선호 체크 (제목만)
-                            for keyword in expanded_dislikes:
-                                if keyword.lower() in title_lower:
-                                    excluded_count += 1
-                                    found = True
-                                    break
-                            
-                            if not found:
-                                filtered_results.append(result)
-                        
-                        results = filtered_results
-                        print(f"✅ 필터링 완료: {excluded_count}개 제외, {len(results)}개 남음")
+            print(f"✅ RAG 벡터 검색 완료: {len(results)}개 결과 (DB 레벨 필터링 적용)")
             
             # 결과 포맷팅 (검색 전략과 메시지 포함)
             formatted_results = []
