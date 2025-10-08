@@ -38,6 +38,21 @@ class HybridSearchTool:
             print(f"❌ 임베딩 생성 오류: {e}")
             return []
     
+    def _extract_meal_type(self, query: str) -> Optional[str]:
+        """쿼리에서 meal_type 추출"""
+        query_lower = query.lower()
+        
+        if any(word in query_lower for word in ['아침', 'morning', 'breakfast', '브런치']):
+            return '아침'
+        elif any(word in query_lower for word in ['점심', 'lunch', '런치']):
+            return '점심'
+        elif any(word in query_lower for word in ['저녁', 'dinner', '디너', '이브닝']):
+            return '저녁'
+        elif any(word in query_lower for word in ['간식', 'snack', '스낵', '애프터눈']):
+            return '간식'
+        
+        return None
+    
     def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
         """코사인 유사도 계산"""
         try:
@@ -217,8 +232,9 @@ class HybridSearchTool:
                 if "쉬운" in profile or "easy" in profile.lower():
                     filters['difficulty'] = '쉬움'
 
-            # 한글 최적화 검색 실행
-            results = await korean_search_tool.korean_hybrid_search(query, max_results, user_id)
+            # 한글 최적화 검색 실행 (meal_type 추출)
+            meal_type = self._extract_meal_type(query)
+            results = await korean_search_tool.korean_hybrid_search(query, max_results, user_id, meal_type)
 
             print(f"✅ RAG 벡터 검색 완료: {len(results)}개 결과 (DB 레벨 필터링 적용)")
             

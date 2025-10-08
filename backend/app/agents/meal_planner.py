@@ -326,17 +326,9 @@ class MealPlannerAgent:
                 }
                 full_plan.append(day_meals)
             
-<<<<<<< HEAD
-            # 기본 조언 생성
-            notes = [
-                "AI가 알레르기와 비선호 재료를 고려하여 식단을 생성했습니다",
-                "키토 식단의 핵심은 탄수화물 제한입니다",
-                "충분한 수분 섭취를 잊지 마세요"
-            ]
-=======
+
             # 기본 조언 생성 (notes.py 프롬프트 사용)
-            notes = await self._generate_meal_notes(simple_plan, constraints_text)
->>>>>>> 4d2ecc82f2e35be017bafddc0f4c4b41522c6385
+            notes = await self._generate_meal_notes(full_plan, constraints_text)
             
             print(f"✅ 3단계 성공: 완전한 식단표 생성 완료 ({days}일)")
             return {
@@ -1135,6 +1127,9 @@ class MealPlannerAgent:
         
         for day_meals in plan:
             for meal in day_meals.values():
+                # 🚨 None 슬롯 처리 (부분 성공 시)
+                if meal is None:
+                    continue
                 macros = meal.get("macros", {})
                 for key in total.keys():
                     total[key] += macros.get(key, 0)

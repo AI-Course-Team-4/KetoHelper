@@ -241,7 +241,7 @@ class KoreanSearchTool:
             print(f"Trigram 유사도 검색 오류: {e}")
             return []
     
-    async def _vector_search(self, query: str, query_embedding: List[float], k: int, user_id: Optional[str] = None) -> List[Dict]:
+    async def _vector_search(self, query: str, query_embedding: List[float], k: int, user_id: Optional[str] = None, meal_type: Optional[str] = None) -> List[Dict]:
         """벡터 검색 (사용자 프로필 기반 필터링)"""
         try:
             if isinstance(self.supabase, type(None)) or hasattr(self.supabase, '__class__') and 'DummySupabase' in str(self.supabase.__class__):
@@ -294,6 +294,11 @@ class KoreanSearchTool:
                 rpc_params['exclude_allergens_names'] = exclude_allergens_names
             if exclude_dislikes_names:
                 rpc_params['exclude_dislikes_names'] = exclude_dislikes_names
+            
+            # 🆕 meal_type 필터 추가
+            if meal_type:
+                rpc_params['meal_type_filter'] = meal_type
+                print(f"🍽️ meal_type 필터 적용: {meal_type}")
             
             print(f"🔍 RPC 파라미터: allergens={len(exclude_allergens_names) if exclude_allergens_names else 0}, dislikes={len(exclude_dislikes_names) if exclude_dislikes_names else 0}")
             
@@ -429,7 +434,7 @@ class KoreanSearchTool:
             print(f"폴백 ILIKE 검색 오류: {e}")
             return []
     
-    async def korean_hybrid_search(self, query: str, k: int = 5, user_id: Optional[str] = None) -> List[Dict]:
+    async def korean_hybrid_search(self, query: str, k: int = 5, user_id: Optional[str] = None, meal_type: Optional[str] = None) -> List[Dict]:
         """한글 최적화 하이브리드 검색 (병렬 실행 방식)"""
         try:
             print(f"🔍 한글 최적화 하이브리드 검색 시작: '{query}'")
@@ -446,7 +451,7 @@ class KoreanSearchTool:
             query_embedding = await self._create_embedding(query)
             vector_results = []
             if query_embedding:
-                vector_results = await self._vector_search(query, query_embedding, k, user_id)
+                vector_results = await self._vector_search(query, query_embedding, k, user_id, meal_type)
                 for result in vector_results:
                     result['final_score'] = result['search_score'] * 0.4
                     result['search_type'] = 'vector'
