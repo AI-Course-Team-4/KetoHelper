@@ -182,6 +182,7 @@ class HybridSearchTool:
                     allergies: Optional[List[str]] = None, dislikes: Optional[List[str]] = None) -> List[Dict]:
         """간단한 검색 인터페이스 (한글 최적화) + 사용자 프로필 필터링 + 임시 제약조건"""
         try:
+            print(f"🔧 hybrid_search.search 호출됨: user_id={user_id}, allergies={allergies}, dislikes={dislikes}")
             # 한글 검색 최적화 도구 사용
             from app.tools.meal.korean_search import korean_search_tool
 
@@ -221,6 +222,9 @@ class HybridSearchTool:
 
                 # 필터링 적용 (알레르기 또는 비선호가 하나라도 있으면)
                 if combined_allergies or combined_dislikes:
+                    print(f"🔧 필터링 시작: 알레르기 {combined_allergies}, 비선호 {combined_dislikes}")
+                    print(f"🔧 필터링 전 결과: {len(results)}개")
+                    
                     # 레시피 데이터 구조에 맞게 변환
                     recipe_results = []
                     for result in results:
@@ -242,7 +246,10 @@ class HybridSearchTool:
                             "dislikes": combined_dislikes
                         }
                     }
+                    
+                    print(f"🔧 profile_tool.filter_recipes_by_preferences 호출 시작")
                     filtered_recipes = user_profile_tool.filter_recipes_by_preferences(recipe_results, combined_preferences)
+                    print(f"🔧 profile_tool.filter_recipes_by_preferences 완료: {len(filtered_recipes)}개")
 
                     # 필터링된 결과를 원래 형식으로 변환
                     filtered_results = []
@@ -255,6 +262,8 @@ class HybridSearchTool:
 
                     results = filtered_results
                     print(f"✅ 필터링 완료: {len(results)}개 결과")
+                else:
+                    print(f"⚠️ 필터링 건너뜀: 알레르기/비선호 없음")
             
             # 결과 포맷팅 (검색 전략과 메시지 포함)
             formatted_results = []
