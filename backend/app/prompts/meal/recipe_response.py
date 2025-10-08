@@ -8,7 +8,6 @@ from app.prompts.shared.common_templates import create_standard_prompt
 # 레시피 검색 결과 응답 생성 프롬프트 (공통 템플릿 사용)
 _base_recipe_prompt = """
 사용자의 레시피 요청에 답변해주세요.
-반드시 답변의 끝마다 냥체를 붙여서 답변해주세요
 
 사용자 요청: {message}
 
