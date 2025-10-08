@@ -405,19 +405,35 @@ class UserProfileTool:
         
         filtered_recipes = []
         
+        logger.info(f"🔍 필터링 시작: 알레르기 {len(user_allergies)}개, 비선호 {len(user_dislikes)}개")
+        if user_allergies:
+            logger.info(f"   알레르기 키워드: {user_allergies}")
+        
+        excluded_count = 0
+        
         for recipe in recipes:
-            # 알레르기 체크
+            # 알레르기 체크 (임베딩 검색으로 이미 의미적 유사성이 반영됨)
             recipe_allergens = set(recipe.get("allergens", []))
-
-            # 제목(title)에서도 알레르기 검색 (fallback)
-            recipe_title = recipe.get("title", "")
+            recipe_title = recipe.get("title", "").lower()
+            recipe_content = recipe.get("content", "").lower()
+            
+            # 제목과 내용에서 알레르기 검색
+            found_allergens = set()
             for allergy in user_allergies:
-                if allergy in recipe_title:
-                    logger.info(f"🚫 알레르기(제목)로 인해 제외: {recipe_title} - '{allergy}' 포함")
-                    recipe_allergens.add(allergy)
-
-            if user_allergies and recipe_allergens.intersection(user_allergies):
-                logger.info(f"🚫 알레르기로 인해 제외: {recipe.get('title', 'Unknown')} - {recipe_allergens.intersection(user_allergies)}")
+                allergy_lower = allergy.lower()
+                if allergy_lower in recipe_title or allergy_lower in recipe_content:
+                    found_allergens.add(allergy)
+                    logger.info(f"🚫 알레르기로 인해 제외: {recipe.get('title', 'Unknown')} - '{allergy}' 발견")
+            
+            # allergens 필드에서도 체크
+            if recipe_allergens:
+                for allergen in recipe_allergens:
+                    if allergen.lower() in [a.lower() for a in user_allergies]:
+                        found_allergens.add(allergen)
+            
+            if found_allergens:
+                logger.info(f"🚫 알레르기로 인해 제외: {recipe.get('title', 'Unknown')} - {found_allergens}")
+                excluded_count += 1
                 continue
             
             # 비선호 재료 체크
@@ -459,7 +475,7 @@ class UserProfileTool:
             # 필터링 통과
             filtered_recipes.append(recipe)
         
-        logger.info(f"✅ 레시피 필터링 완료: {len(recipes)}개 → {len(filtered_recipes)}개")
+        logger.info(f"✅ 레시피 필터링 완료: {len(recipes)}개 → {len(filtered_recipes)}개 (알레르기 제외: {excluded_count}개)")
         return filtered_recipes
     
     def get_recipe_exclusion_reasons(self, recipe: Dict[str, Any], user_preferences: Dict[str, Any]) -> List[str]:

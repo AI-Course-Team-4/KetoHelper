@@ -3,31 +3,17 @@ Chat Agent 폴백 프롬프트들
 프롬프트 파일 로딩이 실패했을 때 사용되는 최종 폴백
 """
 
-# 일반 채팅 폴백 프롬프트
-FALLBACK_GENERAL_CHAT_PROMPT = """
-키토 식단 전문가로서 다음 질문에 친근하고 도움이 되는 답변을 해주세요.
+from app.prompts.shared.common_templates import create_standard_prompt
+
+# 일반 채팅 폴백 프롬프트 (공통 템플릿 사용)
+_base_fallback_prompt = """
+다음 질문에 친근하고 도움이 되는 답변을 해주세요.
 
 질문: {message}
 사용자 프로필: {profile_context}
-
-답변 가이드라인:
-1. 키토 식단 관련 질문에는 과학적이고 실용적인 조언 제공
-2. 일반적인 인사나 대화에는 친근하게 응답하되 키토 주제로 자연스럽게 유도
-3. 구체적인 레시피나 식당을 요청하면 전문 검색 서비스 이용을 안내
-4. 개인의 건강 상태에 대한 의학적 조언은 피하고 전문의 상담 권유
-5. 200-300자 내외로 간결하고 이해하기 쉽게 답변
-
-마크다운 포맷팅 규칙:
-- 번호 목록 사용 시: "1. 제목:" (번호와 제목 사이에 공백 없음)
-- 하위 목록은 바로 다음 줄에: "- 항목1" (제목과 하위 목록 사이에 빈 줄 없음)
-- 예시:
-  1. 곡물류:
-  - 쌀, 밀, 보리 등
-  2. 단백질:
-  - 고기, 생선, 계란 등
-
-친근하고 격려하는 톤으로 답변해주세요.
 """
+
+FALLBACK_GENERAL_CHAT_PROMPT = create_standard_prompt(_base_fallback_prompt)
 
 # 의도 분류 폴백 프롬프트
 FALLBACK_INTENT_CLASSIFICATION_PROMPT = """

@@ -413,9 +413,13 @@ class KetoCoachAgent:
             
             # 하이브리드 검색 실행
             full_query = f"{message} {profile_context}".strip()
+            user_id = state.get("profile", {}).get("user_id") if state.get("profile") else None
             search_results = await self.hybrid_search.search(
                 query=full_query,
-                max_results=5
+                max_results=5,
+                user_id=user_id,
+                allergies=allergies,
+                dislikes=dislikes
             )
             
             # 검색 결과가 없거나 관련성이 낮을 때 AI 레시피 생성

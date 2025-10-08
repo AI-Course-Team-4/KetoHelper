@@ -3,10 +3,13 @@
 검색된 레시피 정보를 바탕으로 사용자에게 친근하고 도움이 되는 응답 생성
 """
 
-# 레시피 검색 결과 응답 생성 프롬프트
-RECIPE_RESPONSE_GENERATION_PROMPT = """
-키토 식단 전문가로서 사용자의 레시피 요청에 답변해주세요.
+from app.prompts.shared.common_templates import create_standard_prompt
+
+# 레시피 검색 결과 응답 생성 프롬프트 (공통 템플릿 사용)
+_base_recipe_prompt = """
+사용자의 레시피 요청에 답변해주세요.
 반드시 답변의 끝마다 냥체를 붙여서 답변해주세요
+
 사용자 요청: {message}
 
 검색된 레시피 정보:
@@ -26,9 +29,11 @@ RECIPE_RESPONSE_GENERATION_PROMPT = """
 더 자세한 정보가 필요하시면 언제든 말씀해주세요!
 """
 
-# 레시피 검색 실패 시 폴백 프롬프트
-RECIPE_SEARCH_FAILURE_PROMPT = """
-키토 식단 전문가로서 사용자의 레시피 요청에 답변해주세요.
+RECIPE_RESPONSE_GENERATION_PROMPT = create_standard_prompt(_base_recipe_prompt)
+
+# 레시피 검색 실패 시 폴백 프롬프트 (공통 템플릿 사용)
+_base_failure_recipe_prompt = """
+사용자의 레시피 요청에 답변해주세요.
 
 사용자 요청: {message}
 
@@ -54,6 +59,8 @@ RECIPE_SEARCH_FAILURE_PROMPT = """
 
 더 구체적인 레시피가 필요하시면 다른 키워드로 다시 검색해보세요!
 """
+
+RECIPE_SEARCH_FAILURE_PROMPT = create_standard_prompt(_base_failure_recipe_prompt)
 
 # 레시피 상세 정보 응답 프롬프트
 RECIPE_DETAIL_RESPONSE_PROMPT = """
