@@ -9,7 +9,6 @@ from app.prompts.shared.common_templates import create_standard_prompt
 _base_recipe_prompt = """
 사용자의 레시피 요청에 답변해주세요.
 
-
 사용자 요청: {message}
 
 검색된 레시피 정보:
