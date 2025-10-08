@@ -149,6 +149,16 @@ class CalendarSaver:
                 duration_days = 1
                 print(f"⚠️ 기간을 특정할 수 없어 기본값 1일로 설정합니다.")
                 
+            # 🚨 식단 데이터 개수를 기준으로 일수 재조정
+            if meal_plan_data and "days" in meal_plan_data:
+                actual_days_count = len(meal_plan_data["days"])
+                print(f"🔍 DEBUG: 식단 데이터에서 {actual_days_count}개 일 찾음")
+                
+                # 식단 데이터 개수가 더 정확한 정보라면 그것을 사용
+                if actual_days_count > 0:
+                    duration_days = actual_days_count
+                    print(f"🔍 DEBUG: 식단 데이터 기준으로 일수 조정: {duration_days}일")
+            
             print(f"🔍 DEBUG: 최종 duration_days = {duration_days}")
             # --- [수정된 로직 끝] ---
 
