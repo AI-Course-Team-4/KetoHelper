@@ -1166,12 +1166,32 @@ class MealPlannerAgent:
             vector_results = []
             
             try:
-                if self.korean_search_tool:
-                    vector_results = await self.korean_search_tool.korean_hybrid_search(message, k=5)
-                    print(f"✅ 벡터 검색 완료: {len(vector_results)}개 레시피 발견")
-                else:
-                    print("⚠️ KoreanSearchTool이 초기화되지 않음, 기존 방식으로 진행")
-                    vector_results = []
+                # hybrid_search 사용 (알레르기 필터링 포함)
+                from app.tools.shared.hybrid_search import HybridSearchTool
+                hybrid_search = HybridSearchTool()
+                
+                # 프로필에서 알레르기/비선호 추출
+                user_id = None
+                allergies = []
+                dislikes = []
+                
+                # profile_context에서 알레르기/비선호 파싱
+                if "알레르기:" in profile_context:
+                    allergy_part = profile_context.split("알레르기:")[1].split(".")[0]
+                    allergies = [a.strip() for a in allergy_part.split(",") if a.strip()]
+                
+                if "싫어하는 음식:" in profile_context:
+                    dislike_part = profile_context.split("싫어하는 음식:")[1].split(".")[0]
+                    dislikes = [d.strip() for d in dislike_part.split(",") if d.strip()]
+                
+                vector_results = await hybrid_search.search(
+                    query=message,
+                    max_results=5,
+                    user_id=user_id,
+                    allergies=allergies,
+                    dislikes=dislikes
+                )
+                print(f"✅ 벡터 검색 완료: {len(vector_results)}개 레시피 발견 (알레르기 필터링 적용)")
             except Exception as e:
                 print(f"⚠️ 벡터 검색 실패: {e}, 기존 방식으로 진행")
                 vector_results = []
