@@ -251,48 +251,96 @@ class MealPlannerAgent:
             embedded_plan = await self._generate_meal_plan_from_embeddings(days, constraints_text, user_id, fast_mode,
                                                                           allergies=allergies, dislikes=dislikes)
             
+            # 1단계 결과가 있으면 (완전 성공 or 부분 성공)
             if embedded_plan and len(embedded_plan.get("days", [])) > 0:
-                print(f"✅ 임베딩 데이터로 식단표 생성 성공: {len(embedded_plan['days'])}일")
+                embedded_days = embedded_plan.get("days", [])
+                
+                # None 슬롯이 있는지 확인
+                has_missing = any(
+                    meal is None 
+                    for day_meals in embedded_days 
+                    for meal in day_meals.values()
+                )
+                
+                if not has_missing:
+                    # 완전 성공: 모든 슬롯 채워짐
+                    print(f"✅ 1단계 완전 성공: 모든 슬롯 DB에서 찾음")
+                    return embedded_plan
+                
+                # 2단계: 부족한 슬롯만 AI로 메뉴명 생성
+                print("🔍 2단계: 1단계 결과에서 부족한 부분만 AI로 메뉴명 생성")
+                
+                # 알레르기와 비선호 정보를 constraints에 명시
+                fill_constraints = constraints_text
+                if allergies:
+                    allergy_list = ', '.join(allergies)
+                    fill_constraints += f"\n\n🚨 알레르기 재료 (절대 사용 금지): {allergy_list}"
+                if dislikes:
+                    dislike_list = ', '.join(dislikes)
+                    fill_constraints += f"\n❌ 비선호 재료 (가능한 피할 것): {dislike_list}"
+                
+                # structure.py로 구조 생성 (부족한 슬롯용)
+                meal_structure = await self._plan_meal_structure(days, fill_constraints)
+                
+                # 1단계 결과의 None 슬롯만 채움
+                for day_idx, day_meals in enumerate(embedded_days):
+                    for slot in ['breakfast', 'lunch', 'dinner', 'snack']:
+                        if day_meals.get(slot) is None and day_idx < len(meal_structure):
+                            # AI로 생성된 메뉴명 사용
+                            menu_name = meal_structure[day_idx].get(f"{slot}_type", f"키토 {slot}")
+                            day_meals[slot] = {
+                                "type": "simple",
+                                "title": menu_name
+                            }
+                            print(f"  ✅ {day_idx+1}일차 {slot}: AI 생성 '{menu_name}'")
+                
+                print(f"✅ 2단계 성공: DB 검색 결과 + AI 메뉴명 조합 완료")
                 return embedded_plan
             
-            # 2단계: 임베딩 데이터로 부족하면 AI 생성
-            print("🤖 2단계: AI로 식단표 구조 생성")
-            meal_structure = await self._plan_meal_structure(days, constraints_text)
+            # 1단계 완전 실패 시 → 2단계로 넘어가지 않고 바로 3단계로
+            print("⚠️ 1단계 실패: DB에서 아무것도 못 찾음")
             
-            # 3단계: AI 구조를 바탕으로 임베딩 데이터에서 구체적 메뉴 검색
-            print("🔍 3단계: AI 구조 + 임베딩 데이터로 구체적 메뉴 생성")
-            detailed_plan = await self._generate_detailed_meals_from_embeddings(meal_structure, constraints_text, user_id, fast_mode,
-                                                                                allergies=allergies, dislikes=dislikes)
+            # 3단계: DB에 없으니 완전히 새로 생성 (알레르기/비선호 반영)
+            print("🎨 3단계: DB에 없음, structure.py로 전체 식단표 생성 (알레르기/비선호 반영)")
             
-            if detailed_plan and len(detailed_plan.get("days", [])) > 0:
-                print(f"✅ AI + 임베딩 데이터로 식단표 생성 성공: {len(detailed_plan['days'])}일")
-                return detailed_plan
+            # 알레르기와 비선호 정보를 constraints에 강하게 명시
+            full_constraints = constraints_text
+            if allergies:
+                allergy_list = ', '.join(allergies)
+                full_constraints += f"\n\n🚨 알레르기 재료 (절대 사용 금지): {allergy_list}"
+            if dislikes:
+                dislike_list = ', '.join(dislikes)
+                full_constraints += f"\n❌ 비선호 재료 (가능한 피할 것): {dislike_list}"
             
-            # 4단계: 최종 폴백 - 간단한 AI 생성
-            print("🔄 4단계: 최종 폴백 - 간단한 AI 생성")
-            simple_plan = []
-            for day_plan in meal_structure:
+            # structure.py 프롬프트로 완전한 식단표 생성
+            full_meal_structure = await self._plan_meal_structure(days, full_constraints)
+            
+            # 구조를 식단표 형태로 변환
+            full_plan = []
+            for day_plan in full_meal_structure:
                 day_meals = {
-                    "breakfast": {"title": day_plan.get("breakfast_type", "아침 메뉴"), "type": "simple"},
-                    "lunch": {"title": day_plan.get("lunch_type", "점심 메뉴"), "type": "simple"},
-                    "dinner": {"title": day_plan.get("dinner_type", "저녁 메뉴"), "type": "simple"},
-                    "snack": {"title": day_plan.get("snack_type", "간식"), "type": "simple"}
+                    "breakfast": {"title": day_plan.get("breakfast_type", "키토 아침"), "type": "simple"},
+                    "lunch": {"title": day_plan.get("lunch_type", "키토 점심"), "type": "simple"},
+                    "dinner": {"title": day_plan.get("dinner_type", "키토 저녁"), "type": "simple"},
+                    "snack": {"title": day_plan.get("snack_type", "키토 간식"), "type": "simple"}
                 }
-                simple_plan.append(day_meals)
+                full_plan.append(day_meals)
             
+
             # 기본 조언 생성 (notes.py 프롬프트 사용)
-            notes = await self._generate_meal_notes(simple_plan, constraints_text)
+            notes = await self._generate_meal_notes(full_plan, constraints_text)
             
+            print(f"✅ 3단계 성공: 완전한 식단표 생성 완료 ({days}일)")
             return {
-                "days": simple_plan,
-                "duration_days": days,  # 요청된 일수 정보 추가
+                "days": full_plan,
+                "duration_days": days,
                 "total_macros": {
                     "kcal": 0,
                     "carb": 0,
                     "protein": 0,
                     "fat": 0
                 },
-                "notes": notes + ["⚠️ 간단 버전에서는 영양 계산이 제외됩니다"],
+                "notes": notes,
                 "constraints": {
                     "kcal_target": kcal_target,
                     "carbs_max": carbs_max,
@@ -329,6 +377,7 @@ class MealPlannerAgent:
         
         return " | ".join(constraints)
     
+    
     async def _search_with_diversity(
         self,
         search_query: str,
@@ -355,14 +404,13 @@ class MealPlannerAgent:
             중복되지 않은 레시피 목록
         """
         try:
-            # 하이브리드 검색 실행 (결과 수 제한)
+            # 하이브리드 검색 실행 (제외 키워드가 쿼리에 포함되어 있음)
             search_results = await hybrid_search_tool.search(
                 query=search_query,
                 profile=constraints,
-                max_results=min(max_results * 2, 30),  # 최대 10개로 제한
-                user_id=user_id,
-                allergies=allergies,
-                dislikes=dislikes
+                max_results=min(max_results * 3, 50),  # 더 많이 가져오기
+                user_id=user_id
+                # allergies, dislikes 제거 (쿼리에서 이미 제외됨)
             )
             
             if not search_results:
@@ -517,9 +565,9 @@ class MealPlannerAgent:
                     "time_keywords": ["저녁", "디너", "이브닝"]
                 },
                 "snack": {
-                    "primary_keywords": ["간식", "견과류", "치즈"],
-                    "secondary_keywords": ["아몬드", "호두", "올리브", "베리"],
-                    "cooking_methods": ["구이", "볶음"],
+                    "primary_keywords": ["간식", "두부", "곤약", "해초"],
+                    "secondary_keywords": ["단백질", "저탄수", "무설탕", "다이어트"],
+                    "cooking_methods": ["구이", "볶음", "찜"],
                     "time_keywords": ["간식", "스낵", "애프터눈"]
                 }
             },
@@ -576,7 +624,7 @@ class MealPlannerAgent:
                 # 1. 기본 키워드 검색
                 basic_query = f"{' '.join(strategy['primary_keywords'])} 키토"
                 basic_results = await self._search_with_diversity(
-                    basic_query, constraints, user_id, used_recipes, max_results=days * 2,
+                    basic_query, constraints, user_id, used_recipes, max_results=days * 4,  # 더 많은 후보
                     allergies=allergies, dislikes=dislikes
                 )
                 all_search_results.extend(basic_results)
@@ -616,7 +664,9 @@ class MealPlannerAgent:
                     meal_collections[slot] = []
                     print(f"❌ {slot} 레시피 검색 실패")
             
-            # 7일 식단표 구성 (다양성 보장)
+            # 7일 식단표 구성 (다양성 보장) - 부분 성공도 허용
+            missing_count = 0  # 못 찾은 슬롯 개수
+            
             for day in range(days):
                 day_meals = {}
                 
@@ -664,14 +714,19 @@ class MealPlannerAgent:
                         
                         print(f"✅ {slot}: {selected_recipe.get('title', 'Unknown')} (유사도: {selected_recipe.get('similarity', 0.0):.2f})")
                     else:
-                        print(f"⚠️ {slot}: 검색 결과 없음, AI 생성으로 넘어감")
-                        return None  # AI 생성 단계로 넘어가기
+                        # 못 찾은 슬롯은 None으로 표시 (2단계에서 채움)
+                        day_meals[slot] = None
+                        missing_count += 1
+                        print(f"⚠️ {slot}: 검색 결과 없음 (2단계에서 생성 예정)")
                 
                 meal_plan_days.append(day_meals)
             
-            # 성공적으로 모든 슬롯에 레시피를 찾았으면
+            # 부분 성공도 반환 (2단계에서 채움)
             if len(meal_plan_days) == days:
-                print(f"✅ 임베딩 데이터로 {days}일 식단표 생성 성공")
+                if missing_count > 0:
+                    print(f"⚠️ 임베딩 데이터로 부분 성공: {missing_count}개 슬롯 부족 (2단계에서 생성)")
+                else:
+                    print(f"✅ 임베딩 데이터로 {days}일 식단표 생성 완전 성공")
                 
                 # 총 매크로 계산
                 total_macros = self._calculate_total_macros(meal_plan_days)
@@ -748,7 +803,7 @@ class MealPlannerAgent:
                     search_query = f"키토 {slot}"
                 
                 search_results = await self._search_with_diversity(
-                    search_query, constraints, user_id, used_recipes, max_results=days_count * 3,
+                    search_query, constraints, user_id, used_recipes, max_results=days_count * 5,  # 더 많은 후보
                     allergies=allergies, dislikes=dislikes
                 )
 
@@ -1072,6 +1127,9 @@ class MealPlannerAgent:
         
         for day_meals in plan:
             for meal in day_meals.values():
+                # 🚨 None 슬롯 처리 (부분 성공 시)
+                if meal is None:
+                    continue
                 macros = meal.get("macros", {})
                 for key in total.keys():
                     total[key] += macros.get(key, 0)
@@ -1148,7 +1206,7 @@ class MealPlannerAgent:
             "notes": ["기본 키토 식단입니다", "개인 취향에 맞게 조정하세요"]
         }
     
-    async def generate_single_recipe(self, message: str, profile_context: str = "") -> str:
+    async def generate_single_recipe(self, message: str, profile_context: str = "", user_id: str = None) -> str:
         """단일 레시피 생성 (벡터 검색 기반)"""
         
         if not self.llm:
@@ -1165,18 +1223,31 @@ class MealPlannerAgent:
                 hybrid_search = HybridSearchTool()
                 
                 # 프로필에서 알레르기/비선호 추출
-                user_id = None
-                allergies = []
-                dislikes = []
-                
-                # profile_context에서 알레르기/비선호 파싱
-                if "알레르기:" in profile_context:
-                    allergy_part = profile_context.split("알레르기:")[1].split(".")[0]
-                    allergies = [a.strip() for a in allergy_part.split(",") if a.strip()]
-                
-                if "싫어하는 음식:" in profile_context:
-                    dislike_part = profile_context.split("싫어하는 음식:")[1].split(".")[0]
-                    dislikes = [d.strip() for d in dislike_part.split(",") if d.strip()]
+                # 🚨 user_id가 있으면 직접 프로필에서 가져오기 (더 확실함)
+                if user_id:
+                    from app.tools.shared.profile_tool import user_profile_tool
+                    user_preferences = await user_profile_tool.get_user_preferences(user_id)
+                    
+                    if user_preferences.get("success"):
+                        prefs = user_preferences["preferences"]
+                        allergies = prefs.get("allergies", [])
+                        dislikes = prefs.get("dislikes", [])
+                        print(f"🔍 레시피 검색 - 알레르기: {allergies}, 비선호: {dislikes}")
+                    else:
+                        allergies = []
+                        dislikes = []
+                else:
+                    # profile_context에서 파싱 (백업)
+                    allergies = []
+                    dislikes = []
+                    
+                    if "알레르기:" in profile_context:
+                        allergy_part = profile_context.split("알레르기:")[1].split("|")[0]
+                        allergies = [a.strip() for a in allergy_part.split(",") if a.strip() and a.strip() != "없음"]
+                    
+                    if "비선호 재료:" in profile_context:
+                        dislike_part = profile_context.split("비선호 재료:")[1].split("|")[0]
+                        dislikes = [d.strip() for d in dislike_part.split(",") if d.strip() and d.strip() != "없음"]
                 
                 vector_results = await hybrid_search.search(
                     query=message,
@@ -1363,7 +1434,7 @@ class MealPlannerAgent:
             profile_context = "사용자 프로필 정보를 가져올 수 없습니다."
             print(f"⚠️ 프로필 조회 실패: {profile_result.get('error')}")
         
-        return await self.generate_single_recipe(message, profile_context)
+        return await self.generate_single_recipe(message, profile_context, user_id=user_id)
     
     async def check_user_access_and_generate(self, user_id: str, request_type: str = "meal_plan", **kwargs) -> Dict[str, Any]:
         """

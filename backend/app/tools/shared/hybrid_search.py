@@ -19,6 +19,9 @@ class HybridSearchTool:
         self.supabase = supabase
         # OpenAI 클라이언트 (임베딩용으로 유지)
         self.openai_client = openai.OpenAI(api_key=settings.openai_api_key)
+        # 알레르기/비선호 임베딩 캐시
+        self._allergy_cache = {}
+        self._dislike_cache = {}
     
     async def _create_embedding(self, text: str) -> List[float]:
         """텍스트를 임베딩으로 변환"""
@@ -34,6 +37,41 @@ class HybridSearchTool:
         except Exception as e:
             print(f"❌ 임베딩 생성 오류: {e}")
             return []
+    
+    def _extract_meal_type(self, query: str) -> Optional[str]:
+        """쿼리에서 meal_type 추출"""
+        query_lower = query.lower()
+        
+        if any(word in query_lower for word in ['아침', 'morning', 'breakfast', '브런치']):
+            return '아침'
+        elif any(word in query_lower for word in ['점심', 'lunch', '런치']):
+            return '점심'
+        elif any(word in query_lower for word in ['저녁', 'dinner', '디너', '이브닝']):
+            return '저녁'
+        elif any(word in query_lower for word in ['간식', 'snack', '스낵', '애프터눈']):
+            return '간식'
+        
+        return None
+    
+    def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
+        """코사인 유사도 계산"""
+        try:
+            import numpy as np
+            
+            vec1 = np.array(vec1)
+            vec2 = np.array(vec2)
+            
+            dot_product = np.dot(vec1, vec2)
+            norm1 = np.linalg.norm(vec1)
+            norm2 = np.linalg.norm(vec2)
+            
+            if norm1 == 0 or norm2 == 0:
+                return 0.0
+            
+            return dot_product / (norm1 * norm2)
+        except Exception as e:
+            print(f"❌ 코사인 유사도 계산 오류: {e}")
+            return 0.0
     
     def _extract_keywords(self, query: str) -> List[str]:
         """쿼리에서 키워드 추출"""
@@ -194,76 +232,11 @@ class HybridSearchTool:
                 if "쉬운" in profile or "easy" in profile.lower():
                     filters['difficulty'] = '쉬움'
 
-            # 한글 최적화 검색 실행
-            results = await korean_search_tool.korean_hybrid_search(query, max_results)
+            # 한글 최적화 검색 실행 (meal_type 추출)
+            meal_type = self._extract_meal_type(query)
+            results = await korean_search_tool.korean_hybrid_search(query, max_results, user_id, meal_type)
 
-            # 사용자 프로필 필터링 (user_id가 제공된 경우 또는 임시 제약조건이 있는 경우)
-            if (user_id or allergies or dislikes) and results:
-                # 프로필 조회 (user_id가 있으면)
-                combined_allergies = list(allergies) if allergies else []
-                combined_dislikes = list(dislikes) if dislikes else []
-
-                if user_id:
-                    user_preferences = await user_profile_tool.get_user_preferences(user_id)
-                    if user_preferences["success"]:
-                        prefs = user_preferences["preferences"]
-                        # DB 프로필의 알레르기/비선호와 임시 제약조건 합치기
-                        profile_allergies = prefs.get("allergies", [])
-                        profile_dislikes = prefs.get("dislikes", [])
-
-                        combined_allergies = list(set(combined_allergies + profile_allergies))
-                        combined_dislikes = list(set(combined_dislikes + profile_dislikes))
-
-                        print(f"🔧 프로필 + 임시 제약조건 합침: 알레르기 {len(combined_allergies)}개, 비선호 {len(combined_dislikes)}개")
-                    else:
-                        print(f"⚠️ 프로필 조회 실패, 임시 제약조건만 사용")
-                else:
-                    print(f"🔧 임시 제약조건만 사용: 알레르기 {len(combined_allergies)}개, 비선호 {len(combined_dislikes)}개")
-
-                # 필터링 적용 (알레르기 또는 비선호가 하나라도 있으면)
-                if combined_allergies or combined_dislikes:
-                    print(f"🔧 필터링 시작: 알레르기 {combined_allergies}, 비선호 {combined_dislikes}")
-                    print(f"🔧 필터링 전 결과: {len(results)}개")
-                    
-                    # 레시피 데이터 구조에 맞게 변환
-                    recipe_results = []
-                    for result in results:
-                        recipe_data = {
-                            'id': result.get('id'),
-                            'title': result.get('title'),
-                            'allergens': result.get('allergens', []),
-                            'ingredients': result.get('ingredients', []),
-                            'content': result.get('content', ''),
-                            'metadata': result.get('metadata', {})
-                        }
-                        recipe_results.append(recipe_data)
-
-                    # 합쳐진 제약조건으로 필터링
-                    combined_preferences = {
-                        "success": True,
-                        "preferences": {
-                            "allergies": combined_allergies,
-                            "dislikes": combined_dislikes
-                        }
-                    }
-                    
-                    print(f"🔧 profile_tool.filter_recipes_by_preferences 호출 시작")
-                    filtered_recipes = user_profile_tool.filter_recipes_by_preferences(recipe_results, combined_preferences)
-                    print(f"🔧 profile_tool.filter_recipes_by_preferences 완료: {len(filtered_recipes)}개")
-
-                    # 필터링된 결과를 원래 형식으로 변환
-                    filtered_results = []
-                    for recipe in filtered_recipes:
-                        # 원래 결과에서 해당 레시피 찾기
-                        for result in results:
-                            if result.get('id') == recipe.get('id'):
-                                filtered_results.append(result)
-                                break
-
-                    results = filtered_results
-                    print(f"✅ 필터링 완료: {len(results)}개 결과")
-                else:
-                    print(f"⚠️ 필터링 건너뜀: 알레르기/비선호 없음")
+            print(f"✅ RAG 벡터 검색 완료: {len(results)}개 결과 (DB 레벨 필터링 적용)")
             
             # 결과 포맷팅 (검색 전략과 메시지 포함)
             formatted_results = []

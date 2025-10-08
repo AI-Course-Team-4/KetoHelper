@@ -6,7 +6,9 @@ PostgreSQL Full-Text Search + pg_trgm + 벡터 검색 통합
 import re
 import openai
 import asyncio
+import json
 from typing import List, Dict, Any, Optional
+from pathlib import Path
 from app.core.database import supabase
 from app.core.config import settings
 
@@ -16,6 +18,28 @@ class KoreanSearchTool:
     def __init__(self):
         self.supabase = supabase
         self.openai_client = openai.OpenAI(api_key=settings.openai_api_key)
+        
+        # 동의어 사전 로드
+        synonym_file = Path(__file__).parent.parent.parent / 'data' / 'ingredient_synonyms.json'
+        try:
+            with open(synonym_file, 'r', encoding='utf-8') as f:
+                self.synonym_data = json.load(f)
+                print(f"✅ 동의어 사전 로드 완료: {synonym_file}")
+        except Exception as e:
+            print(f"⚠️ 동의어 사전 로드 실패: {e}")
+            self.synonym_data = {"알레르기": {}, "비선호": {}}
+    
+    def _expand_with_synonyms(self, words: List[str], category: str) -> List[str]:
+        """단어 리스트를 동의어로 확장"""
+        expanded = []
+        synonym_dict = self.synonym_data.get(category, {})
+        
+        for word in words:
+            expanded.append(word)  # 원래 단어 추가
+            if word in synonym_dict:
+                expanded.extend(synonym_dict[word])  # 동의어 추가
+        
+        return expanded
     
     async def _create_embedding(self, text: str) -> List[float]:
         """텍스트를 임베딩으로 변환"""
@@ -217,21 +241,127 @@ class KoreanSearchTool:
             print(f"Trigram 유사도 검색 오류: {e}")
             return []
     
-    async def _vector_search(self, query: str, query_embedding: List[float], k: int) -> List[Dict]:
-        """벡터 검색 (기존)"""
+    async def _vector_search(self, query: str, query_embedding: List[float], k: int, user_id: Optional[str] = None, meal_type: Optional[str] = None) -> List[Dict]:
+        """벡터 검색 (사용자 프로필 기반 필터링)"""
         try:
             if isinstance(self.supabase, type(None)) or hasattr(self.supabase, '__class__') and 'DummySupabase' in str(self.supabase.__class__):
                 return []
             
+            # 사용자 프로필에서 알레르기/비선호 가져오기
+            exclude_allergens_embeddings = None
+            exclude_dislikes_embeddings = None
+            exclude_allergens_names = None
+            exclude_dislikes_names = None
+            
+            if user_id:
+                from app.tools.shared.profile_tool import user_profile_tool
+                user_preferences = await user_profile_tool.get_user_preferences(user_id)
+                
+                if user_preferences.get("success"):
+                    prefs = user_preferences["preferences"]
+                    user_allergies = prefs.get("allergies", [])
+                    user_dislikes = prefs.get("dislikes", [])
+                    
+                    # 알레르기 키워드를 임베딩으로 변환 (하나의 문자열로 합쳐서)
+                    if user_allergies:
+                        allergy_text = ' '.join(user_allergies)
+                        allergy_embedding = await self._create_embedding(allergy_text)
+                        exclude_allergens_embeddings = [allergy_embedding]  # 배열로 감싸기
+                        exclude_allergens_names = user_allergies
+                        print(f"🔍 알레르기 임베딩 생성 (1개): {user_allergies}")
+                    
+                    # 비선호 키워드를 임베딩으로 변환 (하나의 문자열로 합쳐서)
+                    if user_dislikes:
+                        dislike_text = ' '.join(user_dislikes)
+                        dislike_embedding = await self._create_embedding(dislike_text)
+                        exclude_dislikes_embeddings = [dislike_embedding]  # 배열로 감싸기
+                        exclude_dislikes_names = user_dislikes
+                        print(f"🔍 비선호 임베딩 생성 (1개): {user_dislikes}")
+            
             # 벡터 검색 실행 (RPC 함수 사용)
-            results = self.supabase.rpc('vector_search', {
+            rpc_params = {
                 'query_embedding': query_embedding,
                 'match_count': k,
                 'similarity_threshold': 0.0
-            }).execute()
+            }
+            
+            # 단일 벡터로 전달 (배열의 첫 번째 요소)
+            if exclude_allergens_embeddings:
+                rpc_params['exclude_allergens_embedding'] = exclude_allergens_embeddings[0]
+            if exclude_dislikes_embeddings:
+                rpc_params['exclude_dislikes_embedding'] = exclude_dislikes_embeddings[0]
+            if exclude_allergens_names:
+                rpc_params['exclude_allergens_names'] = exclude_allergens_names
+            if exclude_dislikes_names:
+                rpc_params['exclude_dislikes_names'] = exclude_dislikes_names
+            
+            # 🆕 meal_type 필터 추가
+            if meal_type:
+                rpc_params['meal_type_filter'] = meal_type
+                print(f"🍽️ meal_type 필터 적용: {meal_type}")
+            
+            print(f"🔍 RPC 파라미터: allergens={len(exclude_allergens_names) if exclude_allergens_names else 0}, dislikes={len(exclude_dislikes_names) if exclude_dislikes_names else 0}")
+            
+            results = self.supabase.rpc('vector_search', rpc_params).execute()
             
             formatted_results = []
+            filtered_count = 0
+            
+            # 동의어 확장
+            expanded_allergens = self._expand_with_synonyms(exclude_allergens_names, '알레르기') if exclude_allergens_names else []
+            expanded_dislikes = self._expand_with_synonyms(exclude_dislikes_names, '비선호') if exclude_dislikes_names else []
+            
             for result in results.data or []:
+                # 🚨 Python 레벨 필터링: title, ingredients에서 알레르기/비선호 체크 (동의어 포함)
+                title = result.get('title', '').lower()
+                ingredients = result.get('ingredients', [])
+                ingredients_lower = [ing.lower() for ing in ingredients] if ingredients else []
+                
+                # 알레르기 체크 (동의어 포함)
+                if expanded_allergens:
+                    allergy_found = False
+                    for allergy in expanded_allergens:
+                        allergy_lower = allergy.lower()
+                        # title에 있는지 체크
+                        if allergy_lower in title:
+                            print(f"    ⚠️ 알레르기 제외: '{result.get('title')}' (제목에 '{allergy}' 포함)")
+                            allergy_found = True
+                            break
+                        # ingredients에 있는지 체크 (부분 일치)
+                        for ing in ingredients_lower:
+                            if allergy_lower in ing:
+                                print(f"    ⚠️ 알레르기 제외: '{result.get('title')}' (재료 '{ing}'에 '{allergy}' 포함)")
+                                allergy_found = True
+                                break
+                        if allergy_found:
+                            break
+                    if allergy_found:
+                        filtered_count += 1
+                        continue
+                
+                # 비선호 체크 (동의어 포함)
+                if expanded_dislikes:
+                    dislike_found = False
+                    for dislike in expanded_dislikes:
+                        dislike_lower = dislike.lower()
+                        # title에 있는지 체크
+                        if dislike_lower in title:
+                            print(f"    ⚠️ 비선호 제외: '{result.get('title')}' (제목에 '{dislike}' 포함)")
+                            dislike_found = True
+                            break
+                        # ingredients에 있는지 체크 (부분 일치)
+                        for ing in ingredients_lower:
+                            if dislike_lower in ing:
+                                print(f"    ⚠️ 비선호 제외: '{result.get('title')}' (재료 '{ing}'에 '{dislike}' 포함)")
+                                dislike_found = True
+                                break
+                        if dislike_found:
+                            break
+                    if dislike_found:
+                        filtered_count += 1
+                        continue
+                
+                # 통과!
                 formatted_results.append({
                     'id': str(result.get('id', '')),
                     'title': result.get('title', '제목 없음'),
@@ -242,6 +372,9 @@ class KoreanSearchTool:
                     'search_type': 'vector',
                     'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'similarity_score', 'allergens', 'ingredients']}
                 })
+            
+            if filtered_count > 0:
+                print(f"    🔍 Python 필터링: {filtered_count}개 제외됨")
             
             return formatted_results
             
@@ -301,7 +434,7 @@ class KoreanSearchTool:
             print(f"폴백 ILIKE 검색 오류: {e}")
             return []
     
-    async def korean_hybrid_search(self, query: str, k: int = 5) -> List[Dict]:
+    async def korean_hybrid_search(self, query: str, k: int = 5, user_id: Optional[str] = None, meal_type: Optional[str] = None) -> List[Dict]:
         """한글 최적화 하이브리드 검색 (병렬 실행 방식)"""
         try:
             print(f"🔍 한글 최적화 하이브리드 검색 시작: '{query}'")
@@ -318,7 +451,7 @@ class KoreanSearchTool:
             query_embedding = await self._create_embedding(query)
             vector_results = []
             if query_embedding:
-                vector_results = await self._vector_search(query, query_embedding, k)
+                vector_results = await self._vector_search(query, query_embedding, k, user_id, meal_type)
                 for result in vector_results:
                     result['final_score'] = result['search_score'] * 0.4
                     result['search_type'] = 'vector'
@@ -327,41 +460,40 @@ class KoreanSearchTool:
             else:
                 print("    ⚠️ 임베딩 생성 실패, 벡터 검색 건너뜀")
             
-            # 2. 정확한 ILIKE 매칭 (가중치 35%)
-            print("    🔎 ILIKE 정확 매칭 검색...")
-            ilike_exact = await self._exact_ilike_search(query, k)
-            for result in ilike_exact:
-                result['final_score'] = result['search_score'] * 0.35
-                result['search_type'] = 'exact_ilike'
-            all_results.extend(ilike_exact)
-            print(f"    ✅ ILIKE 정확 매칭 완료: {len(ilike_exact)}개")
-            
-            # 3. Full-Text Search (가중치 30%)
-            print("    📝 Full-Text Search 실행...")
-            fts_results = await self._full_text_search(query, k)
-            for result in fts_results:
-                result['final_score'] = result['search_score'] * 0.3
-                result['search_type'] = 'fts'
-            all_results.extend(fts_results)
-            print(f"    ✅ FTS 검색 완료: {len(fts_results)}개")
-            
-            # 4. Trigram 유사도 검색 (가중치 20%)
-            print("    🔤 Trigram 검색 실행...")
-            trigram_results = await self._trigram_similarity_search(query, k)
-            for result in trigram_results:
-                result['final_score'] = result['search_score'] * 0.2
-                result['search_type'] = 'trigram'
-            all_results.extend(trigram_results)
-            print(f"    ✅ Trigram 검색 완료: {len(trigram_results)}개")
-            
-            # 5. ILIKE 폴백 검색 (가중치 15%)
-            print("    🔍 ILIKE 폴백 검색 실행...")
-            ilike_results = await self._fallback_ilike_search(query, k)
-            for result in ilike_results:
-                result['final_score'] = result['search_score'] * 0.15
-                result['search_type'] = 'ilike_fallback'
-            all_results.extend(ilike_results)
-            print(f"    ✅ ILIKE 폴백 완료: {len(ilike_results)}개")
+            # 🚨 user_id가 있으면 벡터 검색만 사용 (알레르기/비선호 필터링 적용)
+            # 다른 검색 방법은 필터링을 우회하므로 실행하지 않음
+            if user_id:
+                print("    ⚠️ 알레르기/비선호 필터링 적용 - 벡터 검색만 사용")
+                ilike_exact = []
+                fts_results = []
+                trigram_results = []
+            else:
+                # 2. 정확한 ILIKE 매칭 (가중치 35%)
+                print("    🔎 ILIKE 정확 매칭 검색...")
+                ilike_exact = await self._exact_ilike_search(query, k)
+                for result in ilike_exact:
+                    result['final_score'] = result['search_score'] * 0.35
+                    result['search_type'] = 'exact_ilike'
+                all_results.extend(ilike_exact)
+                print(f"    ✅ ILIKE 정확 매칭 완료: {len(ilike_exact)}개")
+                
+                # 3. Full-Text Search (가중치 30%)
+                print("    📝 Full-Text Search 실행...")
+                fts_results = await self._full_text_search(query, k)
+                for result in fts_results:
+                    result['final_score'] = result['search_score'] * 0.3
+                    result['search_type'] = 'fts'
+                all_results.extend(fts_results)
+                print(f"    ✅ FTS 검색 완료: {len(fts_results)}개")
+                
+                # 4. Trigram 유사도 검색 (가중치 20%)
+                print("    🔤 Trigram 검색 실행...")
+                trigram_results = await self._trigram_similarity_search(query, k)
+                for result in trigram_results:
+                    result['final_score'] = result['search_score'] * 0.2
+                    result['search_type'] = 'trigram'
+                all_results.extend(trigram_results)
+                print(f"    ✅ Trigram 검색 완료: {len(trigram_results)}개")
             
             # 검색 전략 결정 (결과 종류에 따라)
             if vector_results and len(vector_results) >= 2:
