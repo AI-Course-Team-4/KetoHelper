@@ -433,6 +433,22 @@ class KetoCoachAgent:
             
             # 검색 결과가 없거나 관련성이 낮을 때 AI 레시피 생성
             valid_results = [r for r in search_results if r.get('title') != '검색 결과 없음']
+
+            # 개인화로 인해 모두 제외된 경우 사용자 친화적 안내 반환
+            if not valid_results:
+                reasons = []
+                if allergies:
+                    reasons.append(f"알레르기: {', '.join(allergies)}")
+                if dislikes:
+                    reasons.append(f"비선호: {', '.join(dislikes)}")
+
+                reasons_text = ", ".join(reasons) if reasons else "검색 조건이 엄격함"
+                state["response"] = (
+                    "## 🔍 추천 레시피를 찾지 못했어요\n\n"
+                    f"- 제외 사유: {reasons_text}\n"
+                    "- 제안: 비선호 일부 완화, 재료 키워드 변경(예: 닭가슴살/돼지고기 중심), 탄수 한도를 소폭 상향(예: +5g) 후 다시 시도해보세요."
+                )
+                return state
             
             # 사용자 요청에 구체적인 음식명이 있는지 확인
             food_keywords = ["아이스크림", "케이크", "쿠키", "브라우니", "머핀", "푸딩", "치즈케이크", "티라미수"]
@@ -807,7 +823,36 @@ class KetoCoachAgent:
             elif state["results"]:
                 # AI 생성 레시피는 그대로 출력
                 if state["intent"] == "recipe" and state["results"] and state["results"][0].get("source") == "ai_generated":
-                    state["response"] = state["results"][0].get("content", "레시피 생성에 실패했습니다.")
+                    ai_text = state["results"][0].get("content", "")
+                    # 스켈레톤/폴백 패턴 혹은 금지 재료 포함 여부 검사
+                    skeleton_patterns = [
+                        "키토 버전", "주재료:", "키토 친화적 재료", "키토 대체재:",
+                        "일시적인 시스템", "기본 가이드", "잠시 후 다시 시도"
+                    ]
+                    has_skeleton = any(pat in ai_text for pat in skeleton_patterns)
+
+                    # 프로필 기반 금지 재료 검출
+                    banned_hits = []
+                    if state.get("profile"):
+                        for lst_key in ("allergies", "dislikes"):
+                            for item in state["profile"].get(lst_key, []) or []:
+                                if item and str(item) in ai_text:
+                                    banned_hits.append(item)
+
+                    if has_skeleton or banned_hits:
+                        reasons = []
+                        if banned_hits:
+                            reasons.append(f"금지 재료 포함: {', '.join(sorted(set(banned_hits)))}")
+                        else:
+                            reasons.append("생성 결과가 부정확/불완전")
+
+                        state["response"] = (
+                            "## 🔍 추천 레시피를 찾지 못했어요\n\n"
+                            f"- 제외 사유: {', '.join(reasons)}\n"
+                            "- 제안: 비선호 일부 완화, 재료 키워드 변경(예: 닭가슴살/돼지고기 중심), 탄수 한도를 소폭 상향(예: +5g) 후 다시 시도해보세요."
+                        )
+                    else:
+                        state["response"] = ai_text or "레시피 생성에 실패했습니다."
                     return state
                 
                 # 검색 결과 기반 레시피 포맷팅
@@ -823,9 +868,24 @@ class KetoCoachAgent:
                             context += f"   탄수화물: {result['carbs']}g\n"
                     
                     # 레시피 전용 응답 생성 프롬프트 사용
+                    # 프로필 컨텍스트 구성(있으면)
+                    profile_parts = []
+                    if state.get("profile"):
+                        p = state["profile"]
+                        if p.get("allergies"):
+                            profile_parts.append(f"알레르기: {', '.join(p['allergies'])}")
+                        if p.get("dislikes"):
+                            profile_parts.append(f"비선호: {', '.join(p['dislikes'])}")
+                        if p.get("goals_kcal"):
+                            profile_parts.append(f"목표 칼로리: {p['goals_kcal']}kcal")
+                        if p.get("goals_carbs_g") is not None:
+                            profile_parts.append(f"탄수 제한: {p['goals_carbs_g']}g")
+                    profile_context = "; ".join(profile_parts)
+
                     answer_prompt = RECIPE_RESPONSE_GENERATION_PROMPT.format(
                         message=message,
-                        context=context
+                        context=context,
+                        profile_context=profile_context
                     )
                 elif state["intent"] == "place":
                     context = "추천 식당:\n"
@@ -879,23 +939,55 @@ class KetoCoachAgent:
                         meal_days = meal_plan.get("days", [])[:requested_days]
                         print(f"🔍 DEBUG: 요청 일수 {requested_days}, 생성된 일수 {len(meal_plan.get('days', []))}, 출력 일수 {len(meal_days)}")
                         
+                        # 프로필 기반 금지 재료(알레르기+비선호) 수집
+                        banned_terms = set()
+                        if state.get("profile"):
+                            banned_terms.update([s for s in (state["profile"].get("allergies") or []) if s])
+                            banned_terms.update([s for s in (state["profile"].get("dislikes") or []) if s])
+                        # 대표 동의어(간단)
+                        synonyms = {"계란": ["계란", "달걀", "난류", "egg", "eggs", "오믈렛", "스크램블"]}
+                        for key, vals in synonyms.items():
+                            if key in banned_terms:
+                                banned_terms.update(vals)
+
+                        def contains_banned(text: str) -> bool:
+                            t = (text or "").lower()
+                            for term in banned_terms:
+                                if str(term).lower() in t:
+                                    return True
+                            return False
+
                         for day_idx, day_meals in enumerate(meal_days, 1):
                             response_text += f"**{day_idx}일차:**\n"
                             
+                            shown_any = False
                             for slot in ['breakfast', 'lunch', 'dinner', 'snack']:
                                 if slot in day_meals and day_meals[slot]:
                                     meal = day_meals[slot]
                                     slot_name = {"breakfast": "🌅 아침", "lunch": "🌞 점심", "dinner": "🌙 저녁", "snack": "🍎 간식"}[slot]
-                                    response_text += f"- {slot_name}: {meal.get('title', '메뉴 없음')}\n"
+                                    title = meal.get('title', '메뉴 없음')
+                                    if not contains_banned(title):
+                                        response_text += f"- {slot_name}: {title}\n"
+                                        shown_any = True
+                            if not shown_any:
+                                response_text += "- 제약 조건으로 추천 가능한 메뉴가 없습니다.\n"
                             
                             response_text += "\n"
                         
                         # 핵심 조언만 간단히
                         notes = meal_plan.get("notes", [])
                         if notes:
-                            response_text += "### 💡 키토 팁\n"
-                            for note in notes[:3]:  # 최대 3개만
-                                response_text += f"- {note}\n"
+                            # 기술 용어(임베딩/embedding/벡터 등) 제거
+                            cleaned = []
+                            for n in notes:
+                                ln = str(n)
+                                if any(k in ln.lower() for k in ["임베딩", "embedding", "벡터", "vector"]):
+                                    continue
+                                cleaned.append(ln)
+                            if cleaned:
+                                response_text += "### 💡 키토 팁\n"
+                                for note in cleaned[:3]:  # 최대 3개만
+                                    response_text += f"- {note}\n"
                         
                         # 구조화된 식단표 데이터를 응답에 포함
                         meal_plan_data = {

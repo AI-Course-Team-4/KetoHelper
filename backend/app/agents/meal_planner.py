@@ -1206,7 +1206,8 @@ class MealPlannerAgent:
                     from app.prompts.meal.recipe_response import RECIPE_RESPONSE_GENERATION_PROMPT
                     prompt = RECIPE_RESPONSE_GENERATION_PROMPT.format(
                         message=message,
-                        context=context_recipes
+                        context=context_recipes,
+                        profile_context=profile_context or ""
                     )
                 except ImportError:
                     # 폴백: 기본 프롬프트 사용
