@@ -1223,7 +1223,7 @@ class MealPlannerAgent:
                 hybrid_search = HybridSearchTool()
                 
                 # 프로필에서 알레르기/비선호 추출
-                user_id = None
+                user_id = getattr(self, '_current_user_id', None)  # 현재 사용자 ID 사용
                 allergies = []
                 dislikes = []
                 
