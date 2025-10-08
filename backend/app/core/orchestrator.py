@@ -803,14 +803,38 @@ class KetoCoachAgent:
                     state["response"] = f"## ℹ️ 안내\n\n{state['response']}"
                 return state
             
-            # MealPlannerAgent/PlaceSearchAgent가 포맷한 응답이 있으면 공통 템플릿 보장
+            # MealPlannerAgent/PlaceSearchAgent가 포맷한 응답이 있으면 공통 템플릿으로 래핑
             if state.get("formatted_response"):
                 print("✅ 포맷된 응답 사용")
-                # 이미 헤더가 없으면 기본 헤더 추가
                 formatted = state["formatted_response"]
-                if not formatted.lstrip().startswith(("#", "##")):
-                    formatted = f"## ✅ 결과\n\n{formatted}"
-                state["response"] = formatted
+                # 식당 응답은 공통 템플릿으로 한 번 더 감싸서 MD 일관화
+                if state.get("intent") == "place":
+                    location = state.get('location') or {}
+                    location_info = f"위도: {location.get('lat', '정보없음')}, 경도: {location.get('lng', '정보없음')}"
+                    answer_prompt = PLACE_RESPONSE_GENERATION_PROMPT.format(
+                        message=message,
+                        location=location_info,
+                        context=formatted
+                    )
+                    response = await self.llm.ainvoke([HumanMessage(content=answer_prompt)])
+                    # 가독성 향상을 위한 경량 후처리: 개인 맞춤 조언 섹션을 명확히 구분
+                    place_text = response.content or ""
+                    # '개인 맞춤 조언' 구간을 굵은 제목과 구분선으로 감싸 가독성 개선
+                    if "개인 맞춤 조언" in place_text:
+                        try:
+                            head, tail = place_text.split("개인 맞춤 조언", 1)
+                            # tail 앞쪽 불필요한 콜론/공백 보정
+                            tail = tail.lstrip(" :\n")
+                            wrapped = f"{head}\n\n---\n**개인 맞춤 조언:**\n\n{tail}\n---\n"
+                            place_text = wrapped
+                        except ValueError:
+                            pass
+                    state["response"] = place_text
+                else:
+                    # 이미 헤더가 없으면 기본 헤더 추가
+                    if not formatted.lstrip().startswith(("#", "##")):
+                        formatted = f"## ✅ 결과\n\n{formatted}"
+                    state["response"] = formatted
                 return state
             
             # 결과 기반 응답 생성

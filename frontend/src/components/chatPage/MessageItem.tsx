@@ -46,7 +46,28 @@ export function MessageItem({
   onPlaceMarkerClick
 }: MessageItemProps) {
   // 타이핑 애니메이션 없이 모든 메시지 즉시 표시
+  // Markdown 안전 렌더링을 위한 경량 정규화
+  const normalizeMarkdown = (text: string) => {
+    if (!text) return text
+    let t = text
+      .replace(/[\u200B\u200C\uFEFF]/g, '') // zero-width chars 제거
+      .replace(/\uFF0A/g, '*') // 전각 별표 → ASCII
+      .replace(/[\u2018\u2019]/g, "'") // 스마트 따옴표 → ASCII
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/\*\*['"“”‘’](.+?)['"“”‘’]\*\*/g, '**$1**') // 따옴표로 감싼 굵게 정규화
+    // 주의: 번호 목록은 원문 유지 (과도 교정 시 빈 li 생성 가능)
+    return t
+  }
+
   const displayedText = msg.content
+    ? msg.content
+        .replace(/[\u200B\u200C\uFEFF]/g, '') // zero-width 제거
+        .replace(/[\u2018\u2019]/g, "'") // 스마트 따옴표 → ASCII
+        .replace(/[\u201C\u201D]/g, '"')
+        .replace(/\uFF0A/g, '*') // 전각 별표 → ASCII
+        .replace(/[\u00A0\u202F\u3000]/g, ' ') // NBSP/얇은 NBSP/전각공백 → 일반 공백
+        .replace(/\*\*['"][^\S\n]*([^\n]*?)['"][^\S\n]*\*\*/g, '**$1**') // 굵게 내부 따옴표 제거
+    : msg.content
   const isTyping = false
 
   return (
