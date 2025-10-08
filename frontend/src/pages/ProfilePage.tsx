@@ -505,17 +505,36 @@ export function ProfilePage() {
               <label className="text-sm font-medium">일일 목표 칼로리 (kcal)</label> 
               <Input
                     type="text"
-                    numericOnly
-                    min={0}
-                    max={3000}
+                    inputMode="numeric"
+                    pattern="[0-9,]*"
                     useComma
                 value={goalsKcal}
-                onChange={(e) => setGoalsKcal(e.target.value)}
+                onChange={(e) => {
+                  // 입력 중에는 자유 입력 허용(숫자/콤마만 유지), 보정은 onBlur에서 수행
+                  const next = String(e.target.value).replace(/[^0-9,]/g, '')
+                  setGoalsKcal(next)
+                }}
+                onFocus={() => {
+                  // 포커스 시 콤마 제거하여 입력 편의 제공
+                  const raw = String(goalsKcal || '').replace(/,/g, '')
+                  setGoalsKcal(raw)
+                }}
+                onBlur={() => {
+                  const raw = String(goalsKcal || '').replace(/,/g, '')
+                  if (raw === '') { setGoalsKcal((1200).toLocaleString()); return }
+                  const num = Number(raw)
+                  if (isNaN(num)) { setGoalsKcal((1200).toLocaleString()); return }
+                  const clamped = Math.min(3000, Math.max(1200, num))
+                  setGoalsKcal(clamped.toLocaleString())
+                }}
                 placeholder="1500"
                 className="mt-1"
               />
+              <p className="text-xs text-red-500 mt-1">
+                1200kcal 미만 섭취는 영양 불균형·기력 저하 등 건강 위험을 초래할 수 있어요.
+              </p>
               <p className="text-xs text-muted-foreground mt-1">
-                    개인의 기초대사율과 활동량을 고려하세요, 최대 3000kcal까지 입력 가능합니다.
+                권장 입력 범위 1200–3000kcal입니다.
               </p>
             </div>
             
@@ -532,7 +551,7 @@ export function ProfilePage() {
                 className="mt-1"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                    키토시스 유지를 위해 20-30g 권장, 최대 50g까지 입력 가능합니다.
+                키토시스 유지를 위해 20–30g을 권장해요(초보자 30g 권장). 최대 50g까지 입력 가능합니다.
               </p>
             </div>
             
