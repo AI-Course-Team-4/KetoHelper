@@ -27,6 +27,7 @@ from app.core.llm_factory import create_chat_llm
 # 프롬프트 모듈 import (중앙집중화된 구조)
 from app.prompts.chat.intent_classification import INTENT_CLASSIFICATION_PROMPT, get_intent_prompt
 from app.prompts.chat.response_generation import RESPONSE_GENERATION_PROMPT, PLACE_RESPONSE_GENERATION_PROMPT
+from app.prompts.chat.general_chat import GENERAL_CHAT_PROMPT
 from app.prompts.meal.recipe_response import RECIPE_RESPONSE_GENERATION_PROMPT
 from app.prompts.restaurant.search_failure import PLACE_SEARCH_FAILURE_PROMPT
 from app.prompts.calendar import (
@@ -493,6 +494,7 @@ class KetoCoachAgent:
         except Exception as e:
             print(f"Recipe search error: {e}")
             state["results"] = []
+            state["response"] = "## ⚠️ 오류 안내\n\n- 레시피 검색/생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
         
         # 성능 측정 완료
         node_end_time = time.time()
@@ -535,6 +537,8 @@ class KetoCoachAgent:
         except Exception as e:
             print(f"❌ Place search error: {e}")
             state["results"] = []
+            # MD 형식 오류 안내로 래핑
+            state["response"] = "## ⚠️ 오류 안내\n\n- 식당 검색 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
         
         # 성능 측정 완료
         node_end_time = time.time()
@@ -639,25 +643,33 @@ class KetoCoachAgent:
                 context_text = f"사용자 메시지: {current_message}\n"
                 print(f"🆕 새로운 대화 시작 (이전 사용자 대화 없음)")
             
-            # 키토 코치로서 대화 맥락을 고려한 응답 생성
+            # 키토 코치로서 대화 맥락을 고려한 응답 생성 (공통 템플릿 사용)
             conversation_context = "새로운 대화입니다." if is_new_conversation else f"이전 대화 {len(previous_messages)}개가 있습니다."
-            
-            chat_prompt = f"""당신은 친근한 키토 다이어트 코치입니다. 사용자와의 대화를 자연스럽게 이어가세요.
 
-대화 상황: {conversation_context}
+            profile_context = ""
+            if state.get("profile"):
+                allergies = state["profile"].get("allergies") or []
+                dislikes = state["profile"].get("dislikes") or []
+                goals_kcal = state["profile"].get("goals_kcal")
+                goals_carbs_g = state["profile"].get("goals_carbs_g")
+                parts = []
+                if allergies:
+                    parts.append(f"알레르기: {', '.join(allergies)}")
+                if dislikes:
+                    parts.append(f"비선호: {', '.join(dislikes)}")
+                if goals_kcal:
+                    parts.append(f"목표 칼로리: {goals_kcal}kcal")
+                if goals_carbs_g is not None:
+                    parts.append(f"탄수 제한: {goals_carbs_g}g")
+                profile_context = "; ".join(parts)
 
-{context_text}
+            prompt = GENERAL_CHAT_PROMPT.format(
+                message=current_message,
+                profile_context=profile_context,
+                context=context_text + f"\n대화 상황: {conversation_context}"
+            )
 
-다음 사항을 고려하여 응답해주세요:
-1. {'새로운 대화이므로 이전 내용을 언급하지 말고, 처음 만나는 것처럼 인사하세요.' if is_new_conversation else '이전 대화 내용을 참고하여 맥락에 맞는 답변을 하세요.'}
-2. 사용자가 이름을 말했다면 기억하고 다음에 사용하세요
-3. 사용자가 이전에 말한 내용을 물어보면 정확히 답변하세요
-4. 키토 다이어트와 관련된 조언을 제공하세요
-5. 친근하고 도움이 되는 톤으로 대화하세요
-
-응답:"""
-            
-            response = await self.llm.ainvoke([HumanMessage(content=chat_prompt)])
+            response = await self.llm.ainvoke([HumanMessage(content=prompt)])
             state["response"] = response.content
             
             state["tool_calls"].append({
@@ -714,7 +726,7 @@ class KetoCoachAgent:
             print(f"❌ 캘린더 저장 노드 오류: {e}")
             import traceback
             print(f"❌ 상세 오류: {traceback.format_exc()}")
-            state["response"] = "죄송합니다. 캘린더 저장 처리 중 오류가 발생했습니다. 다시 시도해주세요."
+            state["response"] = "## ⚠️ 오류 안내\n\n- 캘린더 저장 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요."
             return state
     
     # _is_calendar_save_request 함수 제거 - CalendarUtils로 이동
@@ -770,12 +782,19 @@ class KetoCoachAgent:
             # 이미 응답이 설정되어 있으면 그대로 사용 (calendar_save_node 등에서 설정)
             if state.get("response"):
                 print("✅ 기존 응답 사용 (이미 설정됨)")
+                # 캘린더/오류 단문도 MD 제목으로 보장
+                if not state["response"].lstrip().startswith(("#", "##")):
+                    state["response"] = f"## ℹ️ 안내\n\n{state['response']}"
                 return state
             
-            # MealPlannerAgent가 이미 포맷한 응답이 있으면 그대로 사용
+            # MealPlannerAgent/PlaceSearchAgent가 포맷한 응답이 있으면 공통 템플릿 보장
             if state.get("formatted_response"):
                 print("✅ 포맷된 응답 사용")
-                state["response"] = state["formatted_response"]
+                # 이미 헤더가 없으면 기본 헤더 추가
+                formatted = state["formatted_response"]
+                if not formatted.lstrip().startswith(("#", "##")):
+                    formatted = f"## ✅ 결과\n\n{formatted}"
+                state["response"] = formatted
                 return state
             
             # 결과 기반 응답 생성
