@@ -5,6 +5,8 @@ LangGraph 기반 키토 코치 에이전트 오케스트레이터
 """
 
 import asyncio
+import time
+import logging
 from typing import Dict, Any, Optional, AsyncGenerator
 from langgraph.graph import StateGraph, START, END
 from langchain.schema import HumanMessage, AIMessage, BaseMessage
@@ -34,6 +36,9 @@ from app.prompts.calendar import (
 )
 
 from typing_extensions import TypedDict, NotRequired, List
+
+# 로깅 설정
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class AgentState(TypedDict):
     """에이전트 상태 관리 클래스"""
@@ -363,6 +368,9 @@ class KetoCoachAgent:
     async def _recipe_search_node(self, state: AgentState) -> AgentState:
         """레시피 검색 노드 - MealPlannerAgent 우선 사용"""
         
+        # 성능 측정 시작
+        node_start_time = time.time()
+        
         try:
             message = state["messages"][-1].content if state["messages"] else ""
             
@@ -486,10 +494,18 @@ class KetoCoachAgent:
             print(f"Recipe search error: {e}")
             state["results"] = []
         
+        # 성능 측정 완료
+        node_end_time = time.time()
+        node_time = node_end_time - node_start_time
+        print(f"🍳 RECIPE_NODE | Time: {node_time:.2f}s | Results: {len(state.get('results', []))}")
+        
         return state
     
     async def _place_search_node(self, state: AgentState) -> AgentState:
         """장소 검색 노드 (PlaceSearchAgent 사용)"""
+        
+        # 성능 측정 시작
+        node_start_time = time.time()
         
         try:
             message = state["messages"][-1].content if state["messages"] else ""
@@ -520,10 +536,18 @@ class KetoCoachAgent:
             print(f"❌ Place search error: {e}")
             state["results"] = []
         
+        # 성능 측정 완료
+        node_end_time = time.time()
+        node_time = node_end_time - node_start_time
+        print(f"🏪 PLACE_NODE | Time: {node_time:.2f}s | Results: {len(state.get('results', []))}")
+        
         return state
     
     async def _meal_plan_node(self, state: AgentState) -> AgentState:
         """식단표 생성 노드 - MealPlannerAgent가 모든 처리"""
+        
+        # 성능 측정 시작
+        node_start_time = time.time()
         
         try:
             message = state["messages"][-1].content if state["messages"] else ""
@@ -547,14 +571,26 @@ class KetoCoachAgent:
         
         except Exception as e:
             print(f"❌ Meal plan error: {e}")
+            import traceback
+            print(f"❌ 상세 오류: {traceback.format_exc()}")
             state["results"] = []
             state["response"] = "죄송합니다. 식단표 생성 중 오류가 발생했습니다. 다시 시도해주세요."
             return state
+        
+        # 성능 측정 완료
+        node_end_time = time.time()
+        node_time = node_end_time - node_start_time
+        print(f"🍽️ MEAL_PLAN_NODE | Time: {node_time:.2f}s | Results: {len(state.get('results', []))}")
+        
+        return state
     
     
     
     async def _general_chat_node(self, state: AgentState) -> AgentState:
         """일반 채팅 노드 (대화 맥락 고려)"""
+        
+        # 성능 측정 시작
+        node_start_time = time.time()
         
         try:
             # 전체 대화 히스토리 가져오기
@@ -633,6 +669,11 @@ class KetoCoachAgent:
         except Exception as e:
             print(f"General chat error: {e}")
             state["response"] = "죄송합니다. 일반 채팅 처리 중 오류가 발생했습니다. 다시 시도해주세요."
+        
+        # 성능 측정 완료
+        node_end_time = time.time()
+        node_time = node_end_time - node_start_time
+        print(f"💬 GENERAL_CHAT_NODE | Time: {node_time:.2f}s")
         
         return state
     
@@ -715,6 +756,9 @@ class KetoCoachAgent:
     
     async def _answer_node(self, state: AgentState) -> AgentState:
         """최종 응답 생성 노드"""
+        
+        # 성능 측정 시작
+        node_start_time = time.time()
         
         try:
             message = state["messages"][-1].content if state["messages"] else ""
@@ -886,6 +930,11 @@ class KetoCoachAgent:
             print(f"❌ Traceback: {traceback.format_exc()}")
             state["response"] = "죄송합니다. 답변 생성 중 오류가 발생했습니다. 다시 시도해주세요."
         
+        # 성능 측정 완료
+        node_end_time = time.time()
+        node_time = node_end_time - node_start_time
+        print(f"💬 ANSWER_NODE | Time: {node_time:.2f}s")
+        
         return state
     
     def _truncate_messages_for_context(self, messages: List[BaseMessage], max_tokens: int = 4000) -> List[BaseMessage]:
@@ -960,6 +1009,10 @@ class KetoCoachAgent:
     ) -> Dict[str, Any]:
         """메시지 처리 메인 함수"""
         
+        # 성능 측정 시작
+        start_time = time.time()
+        request_id = f"req_{int(start_time * 1000)}"
+        
         # 대화 히스토리를 메시지에 포함
         messages = []
         
@@ -1002,6 +1055,20 @@ class KetoCoachAgent:
         
         # 워크플로우 실행
         final_state = await self.workflow.ainvoke(initial_state)
+        
+        # 성능 측정 완료
+        end_time = time.time()
+        total_time = end_time - start_time
+        
+        # 성능 로그 출력
+        intent = final_state.get("intent", "unknown")
+        results_count = len(final_state.get("results", []))
+        tool_calls_count = len(final_state.get("tool_calls", []))
+        
+        print(f"📊 PERFORMANCE [{request_id}] | Intent: {intent} | Time: {total_time:.2f}s | Results: {results_count} | Tools: {tool_calls_count}")
+        
+        # 상세 성능 로그 (개발용)
+        logging.info(f"PERF_DETAIL [{request_id}] | Message: {message[:50]}... | Profile: {bool(profile)} | History: {len(chat_history) if chat_history else 0}")
         
         return {
             "response": final_state["response"],
