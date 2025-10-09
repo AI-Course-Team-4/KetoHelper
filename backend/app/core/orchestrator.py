@@ -244,19 +244,21 @@ class KetoCoachAgent:
                 if result.get('reasoning'):
                     print(f"💭 LLM 추론: {result['reasoning']}")
                 
-                # 캘린더 저장 요청 처리 (새로 추가!)
+                # 캘린더 저장 요청 처리 (사전 차단 로직 제거 - 부분 저장으로 대체)
                 if intent_value == "calendar_save":
                     print("📅 캘린더 저장 요청 감지")
-                    state["intent"] = "calendar_save"
-                    state["calendar_save_request"] = True
                     
                     # 대화 히스토리에서 최근 식단 데이터 찾기
                     meal_plan_data = self.calendar_utils.find_recent_meal_plan(chat_history)
                     if meal_plan_data:
                         state["meal_plan_data"] = meal_plan_data
-                        # save_to_calendar_data 생성은 별도 노드에서 처리
-                    else:
-                        state["response"] = "저장할 식단을 찾을 수 없습니다. 먼저 식단을 생성해주세요."
+                    
+                    # 사전 차단 로직 완전 제거 - 부분 저장 로직으로 대체
+                    print("✅ 사전 차단 로직 제거됨 - 부분 저장 로직 사용")
+                    
+                    # 캘린더 저장 플로우로 라우팅
+                    state["intent"] = "calendar_save"
+                    state["calendar_save_request"] = True
                     return state
                 
                 # 나머지 기존 로직...
@@ -283,6 +285,15 @@ class KetoCoachAgent:
                 else:
                     state["intent"] = "general"
                 
+                # 추가 검증 규칙 적용: 추천만 있고 도메인 키워드 없으면 general 강제 등
+                try:
+                    validated = self._validate_intent(message, state["intent"])
+                    if validated != state["intent"]:
+                        print(f"    🔧 의도 재조정: {state['intent']} → {validated}")
+                        state["intent"] = validated
+                except Exception as _e:
+                    print(f"    ⚠️ 의도 재검증 실패: {_e}")
+
                 # 기존 로직에서 확신도 검증도 필요하다면 추가
                 if intent_value != "calendar_save" and confidence >= 0.8:
                     print(f"  ✅ 높은 확신도 → 분류 채택")
@@ -309,7 +320,21 @@ class KetoCoachAgent:
         IntentClassifier에서 이미 검증이 완료되었으므로,
         여기서는 orchestrator 특화 검증만 수행
         """
-        
+        # 0) 추천 키워드만 있고 도메인 키워드가 없으면 general로 강제
+        try:
+            text = (message or "").lower()
+            recommend_keywords = ["추천", "추천해줘", "골라줘"]
+            recipe_keywords = ["레시피", "조리법", "만드는", "요리", "재료", "메뉴"]
+            place_keywords = ["식당", "맛집", "레스토랑", "카페", "근처", "주변", "위치"]
+            plan_keywords = ["식단표", "주간", "7일", "일주일", "계획", "일정", "캘린더", "플랜"]
+            has_recommend = any(k in text for k in recommend_keywords)
+            has_domain = any(k in text for k in (recipe_keywords + place_keywords + plan_keywords))
+            if has_recommend and not has_domain:
+                print("    🔍 검증: 추천만 있고 도메인 키워드 없음 → general로 변경")
+                return "general"
+        except Exception:
+            pass
+
         # IntentClassifier에서 처리하지 못한 orchestrator 특화 검증
         # 예: mealplan vs recipe 세분화 등
         
@@ -663,21 +688,50 @@ class KetoCoachAgent:
             conversation_context = "새로운 대화입니다." if is_new_conversation else f"이전 대화 {len(previous_messages)}개가 있습니다."
 
             profile_context = ""
+            profile_parts = []
+            allergies = []
+            dislikes = []
+            goals_kcal = None
+            goals_carbs_g = None
             if state.get("profile"):
                 allergies = state["profile"].get("allergies") or []
                 dislikes = state["profile"].get("dislikes") or []
                 goals_kcal = state["profile"].get("goals_kcal")
                 goals_carbs_g = state["profile"].get("goals_carbs_g")
-                parts = []
                 if allergies:
-                    parts.append(f"알레르기: {', '.join(allergies)}")
+                    profile_parts.append(f"알레르기: {', '.join(allergies)}")
                 if dislikes:
-                    parts.append(f"비선호: {', '.join(dislikes)}")
-                if goals_kcal:
-                    parts.append(f"목표 칼로리: {goals_kcal}kcal")
+                    profile_parts.append(f"비선호: {', '.join(dislikes)}")
+                if goals_kcal is not None:
+                    profile_parts.append(f"목표 칼로리: {goals_kcal}kcal")
                 if goals_carbs_g is not None:
-                    parts.append(f"탄수 제한: {goals_carbs_g}g")
-                profile_context = "; ".join(parts)
+                    profile_parts.append(f"탄수 제한: {goals_carbs_g}g")
+                profile_context = "; ".join(profile_parts)
+
+            # 사용자가 자신의 프로필을 묻는 경우, 구조화된 요약을 즉시 반환
+            try:
+                msg_lower = current_message.lower()
+                asks_profile = any(keyword in msg_lower for keyword in [
+                    "내 프로필", "프로필", "내가 비선호", "비선호", "싫어하는", "알레르기", "목표 칼로리", "탄수", "키토 목표"
+                ])
+                # 추천 키워드가 함께 있으면 요약 대신 추천 생성으로 진행
+                has_recommend = any(k in msg_lower for k in ["추천", "추천해줘", "골라줘"]) 
+            except Exception:
+                asks_profile = False
+                has_recommend = False
+
+            if asks_profile and not has_recommend and (allergies or dislikes or goals_kcal is not None or goals_carbs_g is not None):
+                lines = ["## 프로필 요약"]
+                if allergies:
+                    lines.append(f"- 알레르기: {', '.join(allergies)}")
+                if dislikes:
+                    lines.append(f"- 비선호: {', '.join(dislikes)}")
+                if goals_kcal is not None:
+                    lines.append(f"- 목표 칼로리: {goals_kcal}kcal")
+                if goals_carbs_g is not None:
+                    lines.append(f"- 탄수 제한: {goals_carbs_g}g")
+                state["response"] = "\n".join(lines)
+                return state
 
             prompt = GENERAL_CHAT_PROMPT.format(
                 message=current_message,
@@ -716,10 +770,39 @@ class KetoCoachAgent:
             if state["messages"]:
                 chat_history = [msg.content for msg in state["messages"]]
 
-            # CalendarSaver를 사용하여 저장 처리
-            result = await self.calendar_saver.save_meal_plan_to_calendar(
-                state, message, chat_history
+            # 1. 먼저 7일치 식단표 생성
+            print("🍽️ 7일치 식단표 생성 시작...")
+            
+            # 사용자 프로필 정보 가져오기
+            user_id = state.get("user_id")
+            if not user_id:
+                # state에서 user_id를 찾을 수 없으면 기본값 사용
+                user_id = "default_user"
+                print("⚠️ user_id를 찾을 수 없어 기본값 사용")
+
+            # 7일치 식단표 생성
+            meal_plan_result = await self.meal_planner.generate_meal_plan(
+                days=7,
+                user_id=user_id,
+                fast_mode=True
             )
+
+            if meal_plan_result.get("success"):
+                print("✅ 7일치 식단표 생성 성공")
+                
+                # 생성된 식단표를 state에 저장
+                state["meal_plan_data"] = meal_plan_result.get("meal_plan", {})
+                
+                # 2. CalendarSaver를 사용하여 저장 처리
+                result = await self.calendar_saver.save_meal_plan_to_calendar(
+                    state, message, chat_history
+                )
+            else:
+                print("❌ 7일치 식단표 생성 실패")
+                result = {
+                    "success": False,
+                    "message": "죄송합니다. 7일치 식단표 생성에 실패했습니다. 다시 시도해주세요."
+                }
 
             # 결과에 따라 상태 업데이트
             state["response"] = result["message"]
@@ -749,6 +832,11 @@ class KetoCoachAgent:
 
     async def _handle_calendar_save_request(self, state: AgentState, message: str) -> AgentState:
         """캘린더 저장 요청 처리 (CalendarSaver 사용, 자동 덮어쓰기)"""
+        
+        print("🚀🚀🚀 _handle_calendar_save_request 함수 호출됨! 🚀🚀🚀")
+        print(f"🔍 DEBUG: message = '{message}'")
+        print(f"🔍 DEBUG: state keys = {list(state.keys()) if state else 'None'}")
+        
         try:
             # 대화 히스토리 가져오기
             chat_history = []
@@ -758,6 +846,8 @@ class KetoCoachAgent:
                 for msg in recent_messages:
                     if hasattr(msg, 'content'):
                         chat_history.append(msg.content)
+
+            # 캘린더 저장 처리 (금지 문구가 있는 슬롯은 프론트엔드에서 제외하고 저장)
 
             # CalendarSaver를 사용하여 저장 처리
             result = await self.calendar_saver.save_meal_plan_to_calendar(
@@ -785,17 +875,45 @@ class KetoCoachAgent:
     async def _answer_node(self, state: AgentState) -> AgentState:
         """최종 응답 생성 노드"""
         
+        print("🔍 DEBUG: _answer_node 호출됨!")
+        
         # 성능 측정 시작
         node_start_time = time.time()
         
         try:
             message = state["messages"][-1].content if state["messages"] else ""
             
-            # 캘린더 저장 요청 감지 및 처리 (이미 calendar_save_node에서 처리했으면 스킵)
-            if self.calendar_utils.is_calendar_save_request(message) and state.get("intent") != "calendar_save":
-                return await self._handle_calendar_save_request(state, message)
+            # 캘린더 저장 요청 감지 및 처리 (메시지 내용으로 직접 확인) - 우선 처리
+            # 더 강력한 키워드 매칭
+            calendar_keywords = [
+                "캘린더에 저장", "캘린더 저장", "저장해줘", "저장해", 
+                "캘린더에", "캘린더에 추가", "캘린더 추가", 
+                "캘린더에 저장해줘", "캘린더에 저장해", "저장해줘", "저장해",
+                "캘린더", "저장"
+            ]
+            is_calendar_save = any(keyword in message for keyword in calendar_keywords)
             
-            # 이미 응답이 설정되어 있으면 그대로 사용 (calendar_save_node 등에서 설정)
+            # 추가: 더 강력한 부분 매칭
+            if not is_calendar_save:
+                # "캘린더"와 "저장"이 모두 포함되어 있으면 저장 요청으로 간주
+                if "캘린더" in message and "저장" in message:
+                    is_calendar_save = True
+                    print("🔍 부분 매칭으로 캘린더 저장 요청 감지")
+            
+            print(f"🔍 DEBUG: 메시지 내용: '{message}'")
+            print(f"🔍 DEBUG: 캘린더 저장 키워드 매칭 결과: {is_calendar_save}")
+            
+            if is_calendar_save:
+                print("📅 캘린더 저장 요청 감지 (메시지 내용 확인) - _handle_calendar_save_request 호출")
+                print(f"🔍 DEBUG: is_calendar_save = {is_calendar_save}")
+                print(f"🔍 DEBUG: message = '{message}'")
+                return await self._handle_calendar_save_request(state, message)
+            else:
+                print("❌ 캘린더 저장 요청이 감지되지 않음")
+                print(f"🔍 DEBUG: is_calendar_save = {is_calendar_save}")
+                print(f"🔍 DEBUG: message = '{message}'")
+
+            # 이미 응답이 설정되어 있으면 그대로 사용 (router 선차단/노드 처리 등)
             if state.get("response"):
                 print("✅ 기존 응답 사용 (이미 설정됨)")
                 # 캘린더/오류 단문도 MD 제목으로 보장

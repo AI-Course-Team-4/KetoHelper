@@ -3,40 +3,67 @@
 """
 
 from app.core.weight_config import WeightConfig
+import os
 
 class PersonalWeightConfig(WeightConfig):
-    """수환님의 검색 정확도 개선 실험"""
-    
+    """수환님의 검색 성능 실험 - 세트 A/B + 레거시 유지
+
+    세트 전환: 환경변수 WEIGHT_SET=balanced|fast|legacy (기본 balanced)
+    """
+
     def __init__(self):
         super().__init__()
-        
+
         # 실험 메타데이터
         self.developer_name = "soohwan"
-        self.experiment_name = "search_accuracy_improvement"
-        self.description = "벡터 검색 가중치 증가로 검색 정확도 개선 실험"
-        
+        self.experiment_name = "weight_set_ab"
+        self.description = "가중치 세트 A/B 전환으로 속도·안정성 균형 실험"
+
         # 프롬프트 설정
         self.use_personal_prompts = True
         self.prompt_config_file = "personal_config_soohwan.py"
-        
-        # RAG 검색 가중치 개선 (정확도 우선)
-        self.vector_search_weight = 0.5      # 40% → 50% (벡터 검색 강화)
-        self.exact_ilike_weight = 0.3        # 35% → 30% (정확 매칭 유지)
-        self.fts_weight = 0.2               # 30% → 20% (전문 검색 감소)
-        self.trigram_weight = 0.0            # 20% → 0% (유사도 검색 제거)
-        self.ilike_fallback_weight = 0.0     # 15% → 0% (폴백 검색 제거)
-        
-        # 키토 스코어 가중치 개선 (단백질 우선)
-        self.protein_weight = 20            # 15 → 20 (단백질 강화)
-        self.vegetable_weight = 12          # 10 → 12 (채소 강화)
-        self.carb_penalty = -20             # -15 → -20 (탄수화물 강한 패널티)
-        
-        # 유사도 임계값 강화
-        self.similarity_threshold = 0.8     # 0.7 → 0.8 (더 엄격한 필터링)
-        self.max_search_results = 3        # 5 → 3 (더 정확한 결과만)
-        
-        # LLM 타임아웃 설정 (성능 테스트용)
-        self.llm_timeout = 120             # 60 → 120초 (7일 식단표용)
-        self.llm_max_tokens = 8192         # 토큰 수 유지
-        
-        print(f"🧪 {self.experiment_name} 실험 설정 적용됨")
+
+        # 기본 스코어 가중치(레시피 스코어링)
+        self.protein_weight = 20
+        self.vegetable_weight = 12
+        self.carb_penalty = -20
+
+        # 세트 선택
+        set_name = os.getenv("WEIGHT_SET", "balanced").lower().strip()
+
+        if set_name == "fast":
+            # Set A: 빠름(보수적 필터+적은 결과)
+            self.vector_search_weight = 0.55
+            self.exact_ilike_weight = 0.35
+            self.fts_weight = 0.10
+            self.trigram_weight = 0.0
+            self.ilike_fallback_weight = 0.0
+            self.similarity_threshold = 0.80
+            self.max_search_results = 3
+            speed_desc = "fast"
+        elif set_name == "legacy":
+            # 기존 soohwan 세팅(정확도 강화, 더 엄격)
+            self.vector_search_weight = 0.5
+            self.exact_ilike_weight = 0.3
+            self.fts_weight = 0.2
+            self.trigram_weight = 0.0
+            self.ilike_fallback_weight = 0.0
+            self.similarity_threshold = 0.80
+            self.max_search_results = 3
+            speed_desc = "legacy"
+        else:
+            # Set B: 균형(기본) - 품질/속도 균형, 무결과 리스크 완화
+            self.vector_search_weight = 0.55
+            self.exact_ilike_weight = 0.30
+            self.fts_weight = 0.15
+            self.trigram_weight = 0.0
+            self.ilike_fallback_weight = 0.0
+            self.similarity_threshold = 0.70
+            self.max_search_results = 5
+            speed_desc = "balanced"
+
+        # LLM 타임아웃/토큰(테스트용 합리 범위 유지)
+        self.llm_timeout = 120
+        self.llm_max_tokens = 8192
+
+        print(f"🧪 soohwan weight-set 적용: set={speed_desc}, thr={self.similarity_threshold}, k={self.max_search_results}, V/K/E={self.vector_search_weight}/{self.exact_ilike_weight}/{self.fts_weight}")

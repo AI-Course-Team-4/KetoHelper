@@ -105,16 +105,33 @@ class CalendarUtils:
         if meal_plan_data and 'days' in meal_plan_data:
             days_data = meal_plan_data['days']
             print(f"🔍 DEBUG: 식단 데이터에서 {len(days_data)}개 일 찾음")
+            
+            # 모든 날짜의 데이터를 보장 (duration_days만큼)
+            while len(days_data) < duration_days:
+                days_data.append({})
+                print(f"🔍 DEBUG: {len(days_data)}일차 빈 데이터 추가")
+            
+            # 금지 문구가 있는 슬롯은 제외하되, 날짜 자체는 유지
+            banned_substrings = ['추천 식단이 없', '추천 불가']
+            for day_idx, day in enumerate(days_data):
+                if not isinstance(day, dict):
+                    days_data[day_idx] = {}
+                    continue
+                for slot in ['breakfast', 'lunch', 'dinner', 'snack']:
+                    item = day.get(slot)
+                    title = ""
+                    item_type = None
+                    if isinstance(item, dict):
+                        title = str(item.get('title', '')).strip()
+                        item_type = item.get('type')
+                    elif isinstance(item, str):
+                        title = item.strip()
+                    if (not item) or (not title) or (item_type == 'no_result') or any(bs in title for bs in banned_substrings):
+                        day[slot] = None
         else:
-            # 기본 식단으로 fallback
-            print(f"🔍 DEBUG: 식단 데이터가 없어서 기본 값으로 {duration_days}일치 생성")
-            for i in range(duration_days):
-                days_data.append({
-                    'breakfast': {'title': f'키토 아침 메뉴 {i+1}일차'},
-                    'lunch': {'title': f'키토 점심 메뉴 {i+1}일차'},
-                    'dinner': {'title': f'키토 저녁 메뉴 {i+1}일차'},
-                    'snack': {'title': f'키토 간식 {i+1}일차'}
-                })
+            # Fallback 생성 금지: days_data를 비워 두어 저장이 진행되지 않게 함
+            print(f"🔍 DEBUG: 유효한 식단 데이터가 없어 days_data를 생성하지 않습니다 (fallback 금지)")
+            days_data = []
         
         print(f"🔍 DEBUG: 최종 days_data 길이: {len(days_data)}")
 
@@ -188,22 +205,50 @@ class CalendarUtils:
 
         for i, day_data in enumerate(days_data):
             date_string = current_date.isoformat()
+            print(f"🔍 DEBUG: {i+1}일차 데이터 처리 시작 - {date_string}")
+            print(f"🔍 DEBUG: {i+1}일차 day_data: {day_data}")
 
             # 각 식사 시간대별로 meal_log 생성
             meal_types = ['breakfast', 'lunch', 'dinner', 'snack']
             for slot in meal_types:
-                if slot in day_data and day_data[slot]:
+                print(f"🔍 DEBUG: {i+1}일차 {slot} 슬롯 처리 시작")
+                
+                if slot in day_data and day_data[slot] is not None:
                     meal_item = day_data[slot]
                     meal_title = ""
+                    
+                    print(f"🔍 DEBUG: {i+1}일차 {slot} meal_item: {meal_item} (타입: {type(meal_item)})")
 
                     if isinstance(meal_item, str):
                         meal_title = meal_item
+                        print(f"🔍 DEBUG: {i+1}일차 {slot} 문자열 처리: '{meal_title}'")
                     elif isinstance(meal_item, dict) and meal_item.get('title'):
                         meal_title = meal_item['title']
+                        print(f"🔍 DEBUG: {i+1}일차 {slot} 딕셔너리 처리: '{meal_title}'")
                     else:
                         meal_title = str(meal_item) if meal_item else ""
+                        print(f"🔍 DEBUG: {i+1}일차 {slot} 기타 처리: '{meal_title}'")
 
-                    if meal_title and meal_title.strip():
+                    # 더 강력한 금지 문구 검사
+                    banned_substrings = [
+                        '추천 식단이 없', '추천 불가', '추천 식단이 없습니다', 
+                        '추천 식단이 없습니다😢', '추천 식단이 없습니다.',
+                        'no_result', 'None', 'null', 'undefined'
+                    ]
+                    
+                    # 이모지 제거 후 검사
+                    import re
+                    clean_title = re.sub(r'[^\w\s:,.()/-]', '', meal_title)
+                    
+                    has_banned = any(bs in meal_title for bs in banned_substrings) or any(bs in clean_title for bs in banned_substrings)
+                    
+                    print(f"🔍 DEBUG: {i+1}일차 {slot} 검사 결과:")
+                    print(f"  - 원본: '{meal_title}'")
+                    print(f"  - 정리: '{clean_title}'")
+                    print(f"  - 금지문구 포함: {has_banned}")
+                    print(f"  - 빈 문자열: {not meal_title or not meal_title.strip()}")
+                    
+                    if meal_title and meal_title.strip() and not has_banned:
                         meal_log = {
                             "user_id": str(user_id),
                             "date": date_string,
@@ -214,7 +259,11 @@ class CalendarUtils:
                             "updated_at": datetime.utcnow().isoformat()
                         }
                         meal_logs_to_create.append(meal_log)
-                        print(f"🔍 DEBUG: meal_log 추가: {meal_log}")
+                        print(f"✅ DEBUG: {i+1}일차 {slot} meal_log 추가: {meal_log}")
+                    else:
+                        print(f"❌ DEBUG: {i+1}일차 {slot} 제외됨 - 금지문구 또는 빈값")
+                else:
+                    print(f"🔍 DEBUG: {i+1}일차 {slot} 슬롯 없음 또는 빈값")
 
             current_date += timedelta(days=1)
 

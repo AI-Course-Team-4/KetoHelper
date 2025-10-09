@@ -68,13 +68,11 @@ class MealResponseFormatter:
             
             response_text += "\n"
         
-        # 핵심 조언 추가
-        notes = meal_plan.get("notes", [])
-        if notes:
+        # 키토 팁: 간결 모드(요청 사항에 따라 한 줄 가이드만 표시)
+        missing = meal_plan.get("missing_slots", [])
+        if missing:
             response_text += "### 💡 키토 팁\n"
-            for note in notes[:3]:  # 최대 3개만
-                response_text += f"- {note}\n"
-            response_text += "\n"
+            response_text += "- 알레르기, 비선호 음식, 목표 칼로리, 탄수화물을 조금 완화한 뒤 다시 생성해 보세요.\n\n"
         
         # 총 영양 정보 (있을 경우)
         if meal_plan.get("total_nutrition"):
@@ -90,8 +88,11 @@ class MealResponseFormatter:
                 response_text += f"- 지방: {nutrition['fat']}g\n"
             response_text += "\n"
         
-        # 캘린더 저장 안내
-        response_text += "📅 이 식단표를 캘린더에 저장하시려면 '캘린더에 저장해줘'라고 말씀해주세요!"
+        # 캘린더 저장 안내 (실패 슬롯이 있으면 저장 안내 숨김)
+        if not missing:
+            response_text += "📅 이 식단표를 캘린더에 저장하시려면 '캘린더에 저장해줘'라고 말씀해주세요!"
+        else:
+            response_text += ""
         
         return response_text
     

@@ -13,29 +13,41 @@ from datetime import datetime
 from app.shared.models.schemas import ChatMessage, ChatResponse, ChatThread, ChatHistory
 from app.core.orchestrator import KetoCoachAgent
 from app.core.database import supabase
+from app.tools.shared.profile_tool import user_profile_tool
+import os
+import logging
+
+# 로그 게이팅: 장문/민감 디버그 로그는 ENV로 제어
+DEBUG_VERBOSE = os.getenv("DEBUG_VERBOSE", "false").lower() == "true"
+logger = logging.getLogger("chat")
+
+def dbg(msg: str):
+    if DEBUG_VERBOSE:
+        print(msg)
+from app.tools.shared.profile_tool import user_profile_tool
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 async def ensure_thread(user_id: Optional[str], guest_id: Optional[str], thread_id: Optional[str] = None) -> dict:
     """스레드가 존재하는지 확인하고, 없으면 생성"""
     try:
-        print(f"🔍 ensure_thread 호출: user_id={user_id}, guest_id={guest_id}, thread_id={thread_id}")
+        dbg(f"🔍 ensure_thread 호출: user_id={user_id}, guest_id={guest_id}, thread_id={thread_id}")
         
         # thread_id가 제공된 경우 해당 스레드 조회
         if thread_id:
-            print(f"🔍 기존 스레드 조회 중: {thread_id}")
+            dbg(f"🔍 기존 스레드 조회 중: {thread_id}")
             response = supabase.table("chat_thread").select("*").eq("id", thread_id).execute()
-            print(f"🔍 스레드 조회 결과: {len(response.data) if response.data else 0}개 스레드")
+            dbg(f"🔍 스레드 조회 결과: {len(response.data) if response.data else 0}개 스레드")
             if response.data:
-                print(f"✅ 기존 스레드 발견: id={response.data[0]['id']}, title={response.data[0]['title']}")
+                dbg(f"✅ 기존 스레드 발견: id={response.data[0]['id']}, title={response.data[0]['title']}")
                 return response.data[0]
             else:
-                print("⚠️ 해당 스레드가 존재하지 않음, 새로 생성")
+                dbg("⚠️ 해당 스레드가 존재하지 않음, 새로 생성")
         
         # user_id와 guest_id가 모두 없으면 게스트로 처리
         if not user_id and not guest_id:
             guest_id = str(uuid.uuid4())
-            print(f"🎭 게스트 ID 자동 생성: {guest_id}")
+            dbg(f"🎭 게스트 ID 자동 생성: {guest_id}")
         
         # 새 스레드 생성
         new_thread_id = str(uuid.uuid4())
@@ -49,12 +61,12 @@ async def ensure_thread(user_id: Optional[str], guest_id: Optional[str], thread_
             "updated_at": datetime.utcnow().isoformat()
         }
         
-        print(f"🆕 새 스레드 생성 중: id={new_thread['id']}, title={new_thread['title']}")
+        dbg(f"🆕 새 스레드 생성 중: id={new_thread['id']}, title={new_thread['title']}")
         result = supabase.table("chat_thread").insert(new_thread).execute()
-        print(f"🔍 스레드 생성 결과: id={result.data[0]['id'] if result.data else 'None'}")
+        dbg(f"🔍 스레드 생성 결과: id={result.data[0]['id'] if result.data else 'None'}")
         
         created_thread = result.data[0] if result.data else new_thread
-        print(f"✅ 스레드 생성 완료: id={created_thread['id']}, title={created_thread['title']}")
+        dbg(f"✅ 스레드 생성 완료: id={created_thread['id']}, title={created_thread['title']}")
         return created_thread
         
     except Exception as e:
@@ -64,13 +76,13 @@ async def ensure_thread(user_id: Optional[str], guest_id: Optional[str], thread_
 async def insert_chat_message(thread_id: str, role: str, message: str, user_id: Optional[str] = None, guest_id: Optional[str] = None) -> dict:
     """채팅 메시지를 데이터베이스에 저장"""
     try:
-        print(f"💾 메시지 저장 시작: thread_id={thread_id}, role={role}, message={message[:50]}...")
-        print(f"💾 사용자 정보: user_id={user_id}, guest_id={guest_id}")
+        dbg(f"💾 메시지 저장 시작: thread_id={thread_id}, role={role}, message={message[:50]}...")
+        dbg(f"💾 사용자 정보: user_id={user_id}, guest_id={guest_id}")
         
         # user_id와 guest_id가 모두 없으면 게스트로 처리
         if not user_id and not guest_id:
             guest_id = str(uuid.uuid4())
-            print(f"🎭 메시지 저장용 게스트 ID 자동 생성: {guest_id}")
+            dbg(f"🎭 메시지 저장용 게스트 ID 자동 생성: {guest_id}")
         
         chat_data = {
             "thread_id": thread_id,
@@ -83,15 +95,15 @@ async def insert_chat_message(thread_id: str, role: str, message: str, user_id: 
             "updated_at": datetime.utcnow().isoformat()
         }
         
-        print(f"💾 저장할 데이터: thread_id={chat_data['thread_id']}, role={chat_data['role']}, message={chat_data['message'][:30]}...")
+        dbg(f"💾 저장할 데이터: thread_id={chat_data['thread_id']}, role={chat_data['role']}, message={chat_data['message'][:30]}...")
         
         # 게스트 사용자는 데이터베이스에 저장하지 않음 (SessionStorage만 사용)
         if guest_id and not user_id:
-            print(f"🎭 게스트 사용자 - 데이터베이스 저장 건너뛰기: guest_id={guest_id}")
+            dbg(f"🎭 게스트 사용자 - 데이터베이스 저장 건너뛰기: guest_id={guest_id}")
             return chat_data  # 데이터베이스 저장 없이 데이터만 반환
         
         result = supabase.table("chat").insert(chat_data).execute()
-        print(f"💾 저장 결과: id={result.data[0]['id'] if result.data else 'None'}")
+        dbg(f"💾 저장 결과: id={result.data[0]['id'] if result.data else 'None'}")
         return result.data[0] if result.data else chat_data
         
     except Exception as e:
@@ -237,6 +249,21 @@ async def chat_endpoint(request: ChatMessage):
         if thread_user_id:
             profile_with_user_id["user_id"] = thread_user_id
         
+        # user_id가 있으면 서버에서 프로필 자동 병합
+        if thread_user_id:
+            try:
+                prefs = await user_profile_tool.get_user_preferences(thread_user_id)
+                if prefs and isinstance(prefs.get("data"), dict):
+                    p = prefs["data"]
+                    profile_with_user_id.setdefault("allergies", p.get("allergies") or [])
+                    profile_with_user_id.setdefault("dislikes", p.get("dislikes") or [])
+                    if p.get("goals_kcal") is not None:
+                        profile_with_user_id.setdefault("goals_kcal", p.get("goals_kcal"))
+                    if p.get("goals_carbs_g") is not None:
+                        profile_with_user_id.setdefault("goals_carbs_g", p.get("goals_carbs_g"))
+            except Exception as e:
+                print(f"⚠️ 프로필 자동 병합 실패: {e}")
+
         result = await agent.process_message(
             message=request.message,
             location=request.location,
@@ -457,11 +484,28 @@ async def chat_stream(request: ChatMessage):
             # 에이전트를 통한 스트리밍 응답
             agent = KetoCoachAgent()
             full_response = ""
+            # 일반/스트리밍 경로 모두에서 user_id를 프로필에 일관 주입
+            profile_with_user_id = request.profile or {}
+            if thread_user_id:
+                profile_with_user_id["user_id"] = thread_user_id
+                # 스트리밍 경로도 서버에서 프로필 자동 병합
+                try:
+                    prefs = await user_profile_tool.get_user_preferences(thread_user_id)
+                    if prefs and isinstance(prefs.get("data"), dict):
+                        p = prefs["data"]
+                        profile_with_user_id.setdefault("allergies", p.get("allergies") or [])
+                        profile_with_user_id.setdefault("dislikes", p.get("dislikes") or [])
+                        if p.get("goals_kcal") is not None:
+                            profile_with_user_id.setdefault("goals_kcal", p.get("goals_kcal"))
+                        if p.get("goals_carbs_g") is not None:
+                            profile_with_user_id.setdefault("goals_carbs_g", p.get("goals_carbs_g"))
+                except Exception as e:
+                    print(f"⚠️(stream) 프로필 자동 병합 실패: {e}")
             async for chunk in agent.stream_response(
                 message=request.message,
                 location=request.location,
                 radius_km=request.radius_km or 5.0,
-                profile=request.profile
+                profile=profile_with_user_id
             ):
                 full_response += chunk.get("content", "")
                 yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"

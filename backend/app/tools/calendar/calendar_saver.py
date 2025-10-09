@@ -27,6 +27,11 @@ class CalendarSaver:
         chat_history: List[str]
     ) -> Dict[str, Any]:
         """식단표를 캘린더에 저장하는 메인 함수"""
+        
+        print("🚀🚀🚀 save_meal_plan_to_calendar 함수 호출됨! 🚀🚀🚀")
+        print(f"🔍 DEBUG: message = '{message}'")
+        print(f"🔍 DEBUG: chat_history 길이 = {len(chat_history)}")
+        print(f"🔍 DEBUG: state keys = {list(state.keys()) if state else 'None'}")
 
         try:
             # 로그인 체크 - 가장 먼저 확인
@@ -63,6 +68,11 @@ class CalendarSaver:
                     "success": False,
                     "message": "저장할 식단을 찾을 수 없습니다. 먼저 식단을 생성해주세요."
                 }
+
+            # 사전 차단 로직 제거 - 부분 저장 로직으로 대체됨
+            print(f"🔍 DEBUG: meal_plan_data 키들: {list(meal_plan_data.keys()) if meal_plan_data else 'None'}")
+            print(f"🔍 DEBUG: has_banned_content 값: {meal_plan_data.get('has_banned_content', 'NOT_FOUND')}")
+            print("✅ 사전 차단 로직 제거됨 - 부분 저장 로직 사용")
 
             # --- [수정된 로직 시작] ---
             # duration_days 추출 로직 수정 (더 강력한 보호 로직)
@@ -149,18 +159,17 @@ class CalendarSaver:
                 duration_days = 1
                 print(f"⚠️ 기간을 특정할 수 없어 기본값 1일로 설정합니다.")
                 
-            # 🚨 식단 데이터 개수를 기준으로 일수 재조정
+            # 🚨 식단 데이터 개수 조정 로직 제거 - duration_days 유지
             if meal_plan_data and "days" in meal_plan_data:
                 actual_days_count = len(meal_plan_data["days"])
-                print(f"🔍 DEBUG: 식단 데이터에서 {actual_days_count}개 일 찾음")
-                
-                # 식단 데이터 개수가 더 정확한 정보라면 그것을 사용
-                if actual_days_count > 0:
-                    duration_days = actual_days_count
-                    print(f"🔍 DEBUG: 식단 데이터 기준으로 일수 조정: {duration_days}일")
+                print(f"🔍 DEBUG: 식단 데이터에서 {actual_days_count}개 일 찾음 (조정하지 않음)")
+                print(f"🔍 DEBUG: duration_days 유지: {duration_days}일")
             
             print(f"🔍 DEBUG: 최종 duration_days = {duration_days}")
             # --- [수정된 로직 끝] ---
+
+            # 사전 차단 로직 제거 - 부분 저장 로직으로 대체됨
+            print("✅ 사전 차단 로직 제거됨 - 부분 저장 로직 사용")
 
             # 캘린더 저장 데이터 준비
             save_data = self.calendar_utils.prepare_calendar_save_data(
@@ -242,6 +251,12 @@ class CalendarSaver:
             
             print(f"🔍 DEBUG: 생성된 meal_logs 개수: {len(meal_logs_to_create)}")
 
+            # 사전 차단 로직 제거 - 부분 저장 로직으로 대체됨
+            print("✅ 최종 하드 차단 로직 제거됨 - 부분 저장 로직 사용")
+
+            # Supabase 저장 활성화 (차단 로직이 먼저 실행됨)
+            print(f"🔍 DEBUG: Supabase 저장 시도 - meal_logs_to_create 개수: {len(meal_logs_to_create)}")
+            
             # 충돌 체크 없이 바로 저장 (upsert로 자동 덮어쓰기)
             if meal_logs_to_create:
                 print(f"🔍 DEBUG: Supabase에 {len(meal_logs_to_create)}개 데이터 저장 시도 (덮어쓰기)")
