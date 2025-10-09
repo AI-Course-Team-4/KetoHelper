@@ -328,7 +328,7 @@ export function useMessageHandlers({
           if (!isSaving) {
             setIsSaving(true)
             setTimeout(() => {
-              handleSmartMealSave(userMessage.content, parsedMeal)
+              handleSmartMealSave(userMessage.content)
                 .finally(() => setIsSaving(false))
             }, 1000)
           }
@@ -363,7 +363,7 @@ export function useMessageHandlers({
             if (!isSaving) {
               setIsSaving(true)
               setTimeout(() => {
-                handleSmartMealSave(userMessage.content, recentMealData)
+                handleSmartMealSave(userMessage.content)
                   .finally(() => setIsSaving(false))
               }, 1000)
             }
@@ -375,6 +375,54 @@ export function useMessageHandlers({
       if (isLoggedIn && response.thread_id) {
         console.log('🔄 스레드 목록 업데이트 중...')
         refetchThreads()
+      }
+
+      // general 응답이어도 저장 요청이 있으면 처리 (예전 로직 복원)
+      if (user?.id && !isSaving) {
+        const isSaveRequest = (
+          userMessage.content.includes('저장') ||
+          userMessage.content.includes('추가') ||
+          userMessage.content.includes('계획') ||
+          userMessage.content.includes('등록') ||
+          userMessage.content.includes('넣어')
+        ) && (
+          userMessage.content.includes('오늘') ||
+          userMessage.content.includes('내일') ||
+          userMessage.content.includes('모레') ||
+          userMessage.content.includes('다음주') ||
+          userMessage.content.includes('캘린더') ||
+          /\d{1,2}월\s*\d{1,2}일/.test(userMessage.content) ||
+          /\d{1,2}일(?![일월화수목금토])/.test(userMessage.content) ||
+          /\d+일\s*[후뒤]/.test(userMessage.content)
+        )
+
+        if (isSaveRequest) {
+          console.log('🔄 저장 요청 감지 - 이전 메시지에서 식단 데이터 찾기')
+          // 최신 chatHistory를 queryClient에서 직접 가져오기
+          const cacheKey = isLoggedIn 
+            ? (threadId || currentThreadId || '')
+            : `guest-${ensureGuestId()}`
+          const latestChatHistory = queryClient.getQueryData<any[]>(['chat-history', cacheKey, 20]) || []
+          const messagesToSearch = latestChatHistory.map((h: any) => ({
+            id: h.id?.toString() || '',
+            role: h.role,
+            content: h.message,
+            timestamp: new Date(h.created_at)
+          } as ChatMessage))
+          
+          const recentMealData = findRecentMealData(messagesToSearch)
+
+          if (recentMealData) {
+            console.log('✅ 이전 메시지에서 식단 데이터 발견 - 저장 시작')
+            setIsSaving(true)
+            setTimeout(() => {
+              handleSmartMealSave(userMessage.content)
+                .finally(() => setIsSaving(false))
+            }, 1000)
+          } else {
+            console.log('❌ 저장할 식단 데이터를 찾을 수 없음')
+          }
+        }
       }
 
       // React Query Optimistic Updates가 자동으로 처리
@@ -542,7 +590,7 @@ export function useMessageHandlers({
           if (!isSaving) {
             setIsSaving(true)
             setTimeout(() => {
-              handleSmartMealSave(userMessage.content, parsedMeal)
+              handleSmartMealSave(userMessage.content)
                 .finally(() => setIsSaving(false))
             }, 1000)
           }
@@ -577,7 +625,7 @@ export function useMessageHandlers({
             if (!isSaving) {
               setIsSaving(true)
               setTimeout(() => {
-                handleSmartMealSave(userMessage.content, recentMealData)
+                handleSmartMealSave(userMessage.content)
                   .finally(() => setIsSaving(false))
               }, 1000)
             }
@@ -659,6 +707,8 @@ export function useMessageHandlers({
     // 실제 구현은 메인 컴포넌트에서 처리
   }, [])
 
+
+
   // 최근 식단 데이터 찾기
   const findRecentMealData = useCallback((messages: ChatMessage[]): LLMParsedMeal | null => {
     console.log('🔍 findRecentMealData 호출, 메시지 수:', messages.length)
@@ -698,7 +748,7 @@ export function useMessageHandlers({
   }, [])
 
   // 스마트 식단 저장
-  const handleSmartMealSave = useCallback(async (userMessage: string, mealData: LLMParsedMeal) => {
+  const handleSmartMealSave = useCallback(async (userMessage: string) => {
     if (!user?.id) return
 
     if (isSaving) {
@@ -729,98 +779,77 @@ export function useMessageHandlers({
           : `guest-${ensureGuestId()}`
         const latestChatHistory = queryClient.getQueryData<any[]>(['chat-history', cacheKey, 20]) || []
         const recentMessages = latestChatHistory.slice(-5).map((h: any) => ({ content: h.message }))
-        const has7DayMealPlan = recentMessages.some((msg: any) =>
-          msg.content.includes('7일') && msg.content.includes('식단') ||
-          msg.content.includes('일주일') && msg.content.includes('식단')
-        )
-
-        if (has7DayMealPlan && (userMessage.includes('다음주') || userMessage.includes('담주'))) {
-          const savedDays: string[] = []
-          let successCount = 0
-
-          for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-            const baseDate = new Date(parsedDate.date)
-            baseDate.setDate(baseDate.getDate() + dayOffset)
-            const dateString = format(baseDate, 'yyyy-MM-dd')
-
-            const mealSlots = ['breakfast', 'lunch', 'dinner', 'snack'] as const
-            let daySuccessCount = 0
-
-            for (const slot of mealSlots) {
-              const mealTitle = mealData[slot]
-              if (mealTitle && mealTitle.trim()) {
-                try {
-                  const planData = {
-                    user_id: user.id,
-                    date: dateString,
-                    slot: slot,
-                    type: 'recipe' as const,
-                    ref_id: '',
-                    title: mealTitle.trim(),
-                    location: undefined,
-                    macros: undefined,
-                    notes: undefined
-                  }
-
-                  await createPlan.mutateAsync(planData)
-                  daySuccessCount++
-                } catch (error) {
-                  console.error(`${dateString} ${slot} 저장 실패:`, error)
+        
+        // 동적 일수 감지 (숫자 변수화 - 무제한 확장 가능)
+        const detectMealPlanDays = (messages: any[]) => {
+          for (const msg of messages) {
+            const content = msg.content || ''
+            
+            // 숫자 + 일 패턴 감지 (N일치, N일)
+            const dayPatterns = [
+              /(\d+)일치/,           // 3일치, 7일치
+              /(\d+)일\s*식단/,      // 3일 식단, 7일 식단
+              /(\d+)일\s*키토/,      // 3일 키토, 7일 키토
+              /(\d+)일\s*계획/       // 3일 계획, 7일 계획
+            ]
+            
+            for (const pattern of dayPatterns) {
+              const match = content.match(pattern)
+              if (match) {
+                const days = parseInt(match[1])
+                if (days > 0 && days <= 365) { // 1일~365일 제한
+                  return days
                 }
               }
             }
-
-            if (daySuccessCount > 0) {
-              savedDays.push(format(baseDate, 'M/d'))
-              successCount += daySuccessCount
+            
+            // 한글 숫자 패턴 감지 (확장 가능)
+            const koreanNumbers = {
+              '이틀': 2, '삼일': 3, '사일': 4, '오일': 5, '육일': 6, '칠일': 7,
+              '팔일': 8, '구일': 9, '십일': 10, '이십일': 20, '삼십일': 30,
+              '사십일': 40, '오십일': 50, '육십일': 60, '칠십일': 70,
+              '팔십일': 80, '구십일': 90, '백일': 100
+            }
+            
+            for (const [kor, num] of Object.entries(koreanNumbers)) {
+              if (content.includes(`${kor}치`) && content.includes('식단')) {
+                return num
+              }
+            }
+            
+            // 주 단위 패턴 감지 (N주치 = N*7일)
+            const weekPatterns = [
+              /(\d+)주치/,           // 1주치, 2주치
+              /(\d+)주\s*식단/,      // 1주 식단, 2주 식단
+              /(\d+)주\s*키토/       // 1주 키토, 2주 키토
+            ]
+            
+            for (const pattern of weekPatterns) {
+              const match = content.match(pattern)
+              if (match) {
+                const weeks = parseInt(match[1])
+                if (weeks > 0 && weeks <= 52) { // 1주~52주 제한
+                  return weeks * 7
+                }
+              }
             }
           }
+          return null
+        }
+        
+        // 현재 메시지도 포함하여 일수 감지
+        const allMessages = [...recentMessages, { content: userMessage }]
+        const mealPlanDays = detectMealPlanDays(allMessages)
+        const hasMultiDayMealPlan = mealPlanDays && mealPlanDays > 1
 
-          if (successCount > 0) {
-            queryClient.invalidateQueries({ queryKey: ['plans-range'] })
-            console.log('✅ 7일 키토 식단표 저장 완료:', { savedDays, successCount })
-            // 메시지는 백엔드에서 response.response로 전송됨
-          } else {
-            throw new Error('7일 식단표 저장에 실패했습니다')
-          }
+        if (hasMultiDayMealPlan) {
+          // 멀티데이 데이터는 백엔드에서만 처리 (즉시 저장 제거)
+          console.log(`✅ ${mealPlanDays}일치 식단표 감지 - 백엔드 처리로 넘김`)
+          return
         } else {
-          const targetDate = parsedDate.iso_string
-          const displayDate = parsedDate.display_string
-
-          const mealSlots = ['breakfast', 'lunch', 'dinner', 'snack'] as const
-          const savedPlans: string[] = []
-
-          for (const slot of mealSlots) {
-            const mealTitle = mealData[slot]
-            if (mealTitle && mealTitle.trim()) {
-              try {
-                const planData = {
-                  user_id: user.id,
-                  date: targetDate,
-                  slot: slot,
-                  type: 'recipe' as const,
-                  ref_id: '',
-                  title: mealTitle.trim(),
-                  location: undefined,
-                  macros: undefined,
-                  notes: undefined
-                }
-
-                await createPlan.mutateAsync(planData)
-                savedPlans.push(slot)
-              } catch (error) {
-                console.error(`${slot} 저장 실패:`, error)
-              }
-            }
-          }
-
-          if (savedPlans.length > 0) {
-            queryClient.invalidateQueries({ queryKey: ['plans-range'] })
-            console.log('✅ 식단 저장 완료:', { displayDate, savedPlans })
-            // 메시지는 백엔드에서 response.response로 전송됨
-          } else {
-            throw new Error('저장할 식단이 없습니다')
-          }
+          // 1일치 데이터도 백엔드에서만 처리 (즉시 저장 제거)
+          console.log('✅ 1일치 식단표 감지 - 백엔드 처리로 넘김')
+          return
         }
       } catch (error) {
         console.error('스마트 식단 저장 실패:', error)
@@ -840,6 +869,9 @@ export function useMessageHandlers({
       console.log('🔒 이미 저장 중입니다. 중복 저장을 방지합니다.')
       return
     }
+
+    // 금지 문구가 있는 슬롯은 제외하고 나머지만 저장
+    const bannedSubstrings = ['추천 식단이 없', '추천 불가']
 
     setIsSaving(true)
     setIsSavingMeal('auto-save')
@@ -876,6 +908,9 @@ export function useMessageHandlers({
         const mealSlots = ['breakfast', 'lunch', 'dinner', 'snack'] as const
         let daySuccessCount = 0
 
+        // 🚨 금지 문구가 있는 슬롯만 제외하고 나머지 저장
+        let excludedSlots: string[] = []
+        
         for (const slot of mealSlots) {
           let mealTitle = ''
           if (dayMeals[slot]) {
@@ -886,6 +921,15 @@ export function useMessageHandlers({
             }
           }
           
+          // None 값이거나 금지 문구가 있으면 해당 슬롯만 제외
+          if (!mealTitle || mealTitle === 'null' || mealTitle === 'undefined' || mealTitle === 'None' ||
+              (mealTitle && bannedSubstrings.some(bs => mealTitle.includes(bs)))) {
+            excludedSlots.push(slot)
+            console.log(`🚨 ${i+1}일차 ${slot} 제외 - '${mealTitle}'`)
+            continue
+          }
+          
+          // 유효한 식단이면 저장
           if (mealTitle && mealTitle.trim()) {
             try {
               const planData = {
@@ -902,10 +946,16 @@ export function useMessageHandlers({
 
               await createPlan.mutateAsync(planData)
               daySuccessCount++
+              console.log(`✅ ${i+1}일차 ${slot} 저장 성공: ${mealTitle}`)
             } catch (error) {
               console.error(`${dateString} ${slot} 저장 실패:`, error)
             }
           }
+        }
+        
+        // 제외된 슬롯이 있으면 로그 출력
+        if (excludedSlots.length > 0) {
+          console.log(`⚠️ ${i+1}일차 제외된 슬롯: ${excludedSlots.join(', ')}`)
         }
 
         if (daySuccessCount > 0) {
@@ -918,7 +968,20 @@ export function useMessageHandlers({
       
       if (successCount > 0) {
         console.log('✅ 백엔드 캘린더 저장 완료:', { durationDays, savedDays, successCount })
-        // 메시지는 백엔드에서 response.response로 전송됨
+        
+        // 저장 완료 메시지 생성
+        let successMessage = `✅ ${durationDays}일치 식단표가 캘린더에 성공적으로 저장되었습니다! (${successCount}개 식단)`
+        
+        // 제외된 슬롯이 있으면 안내 메시지 추가
+        const totalExpectedSlots = durationDays * 4 // 4개 슬롯 × 일수
+        if (successCount < totalExpectedSlots) {
+          const excludedCount = totalExpectedSlots - successCount
+          successMessage += `\n\n⚠️ **주의사항**: 생성되지 않은 ${excludedCount}개 식단은 제외되었습니다.`
+        }
+        
+        // 성공 메시지를 채팅에 추가 (assistant 역할 명시)
+        addMessageToCache(successMessage, 'assistant')
+        console.log('✅ 성공 메시지 추가됨:', successMessage)
       } else {
         throw new Error('식단 저장에 실패했습니다.')
       }

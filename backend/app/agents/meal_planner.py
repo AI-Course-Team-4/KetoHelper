@@ -267,7 +267,7 @@ class MealPlannerAgent:
                     print(f"✅ 1단계 완전 성공: 모든 슬롯 DB에서 찾음")
                     return embedded_plan
                 
-                # 2단계: 부족한 슬롯만 AI로 메뉴명 생성
+                # 2단계: 부족한 슬롯만 AI로 메뉴명 생성(placeholder 금지)
                 print("🔍 2단계: 1단계 결과에서 부족한 부분만 AI로 메뉴명 생성")
                 
                 # 알레르기와 비선호 정보를 constraints에 명시
@@ -282,19 +282,53 @@ class MealPlannerAgent:
                 # structure.py로 구조 생성 (부족한 슬롯용)
                 meal_structure = await self._plan_meal_structure(days, fill_constraints)
                 
-                # 1단계 결과의 None 슬롯만 채움
+                # 1단계 결과의 None 슬롯만 채움 (AI 1회 생성, 실패 시 해당 슬롯만 no_result 처리)
+                second_stage_missing = False
+                second_stage_missing_slots: List[Dict[str, Any]] = []
                 for day_idx, day_meals in enumerate(embedded_days):
                     for slot in ['breakfast', 'lunch', 'dinner', 'snack']:
                         if day_meals.get(slot) is None and day_idx < len(meal_structure):
                             # AI로 생성된 메뉴명 사용
-                            menu_name = meal_structure[day_idx].get(f"{slot}_type", f"키토 {slot}")
-                            day_meals[slot] = {
-                                "type": "simple",
-                                "title": menu_name
-                            }
-                            print(f"  ✅ {day_idx+1}일차 {slot}: AI 생성 '{menu_name}'")
+                            menu_name = meal_structure[day_idx].get(f"{slot}_type")
+                            if not menu_name or self._is_generic_menu_name(menu_name):
+                                second_stage_missing = True
+                                # 즉시 해당 슬롯만 no_result로 채워서 부분 실패로 반환
+                                day_meals[slot] = {
+                                    "type": "no_result",
+                                    "title": "추천 식단이 없습니다😢",
+                                    "reason": "구체적인 메뉴명을 생성하지 못했습니다",
+                                    "tips": [
+                                        "비선호 일부 완화(2~3개 해제)",
+                                        "단백질 위주 키워드로 재시도(계란/닭가슴살/돼지고기)",
+                                        "탄수 제한 +5~10g 완화",
+                                        "기간 7일 → 3일로 단축 후 재시도"
+                                    ]
+                                }
+                                second_stage_missing_slots.append({"day": day_idx+1, "slot": slot})
+                                print(f"  ⚠️ {day_idx+1}일차 {slot}: AI 생성 부적절('{menu_name}') → 해당 슬롯만 no_result 처리")
+                            else:
+                                day_meals[slot] = {
+                                    "type": "simple",
+                                    "title": menu_name
+                                }
+                                print(f"  ✅ {day_idx+1}일차 {slot}: AI 생성 '{menu_name}'")
                 
-                print(f"✅ 2단계 성공: DB 검색 결과 + AI 메뉴명 조합 완료")
+                # 2단계 결과 반환: 실패 슬롯이 있어도 부분 실패로 바로 반환(추가 재생성 없음)
+                print(f"✅ 2단계 완료: 부분 실패 슬롯 수={len(second_stage_missing_slots)}")
+                if second_stage_missing_slots:
+                    # 키토 팁(notes) 추가(중복 문구 제거)
+                    tips = [
+                        "비선호 일부 완화(2~3개 해제)",
+                        "단백질 위주 키워드로 재시도(계란/닭가슴살/돼지고기)",
+                        "탄수 제한 +5~10g 완화",
+                        "기간 7일 → 3일로 단축 후 재시도"
+                    ]
+                    note_lines = [
+                        f"알레르기: {', '.join(allergies or []) or '없음'} | 비선호: {', '.join(dislikes or []) or '없음'} | 목표: {kcal_target or '-'}kcal, 탄수 {carbs_max}g"
+                    ]
+                    embedded_plan.setdefault("notes", [])
+                    embedded_plan["notes"].extend(note_lines + ["가이드: " + "; ".join(tips)])
+                    embedded_plan["missing_slots"] = second_stage_missing_slots
                 return embedded_plan
             
             # 1단계 완전 실패 시 → 2단계로 넘어가지 않고 바로 3단계로
@@ -314,23 +348,67 @@ class MealPlannerAgent:
             
             # structure.py 프롬프트로 완전한 식단표 생성
             full_meal_structure = await self._plan_meal_structure(days, full_constraints)
+
+            # 프롬프트 생성이 비어있거나 실패한 경우: 무결과 안내 반환
+            if not full_meal_structure:
+                return {
+                    "type": "no_result",
+                    "title": "추천 식단이 없습니다",
+                    "reason": "알레르기/비선호 조건이 많거나 너무 엄격합니다",
+                    "constraints": {
+                        "allergies": allergies or [],
+                        "dislikes": dislikes or [],
+                        "goals_kcal": kcal_target,
+                        "goals_carbs_g": carbs_max
+                    },
+                    "tips": [
+                        "비선호 일부 완화(2~3개 해제)",
+                        "단백질 위주 키워드로 재시도(계란/닭가슴살/돼지고기)",
+                        "탄수 제한 +5~10g 완화",
+                        "7일 → 3일로 기간 단축"
+                    ]
+                }
             
-            # 구조를 식단표 형태로 변환
+            # 구조를 식단표 형태로 변환(placeholder 금지, 슬롯별 부분 실패 허용)
             full_plan = []
+            missing_slots: List[Dict[str, Any]] = []
             for day_plan in full_meal_structure:
                 day_meals = {
-                    "breakfast": {"title": day_plan.get("breakfast_type", "키토 아침"), "type": "simple"},
-                    "lunch": {"title": day_plan.get("lunch_type", "키토 점심"), "type": "simple"},
-                    "dinner": {"title": day_plan.get("dinner_type", "키토 저녁"), "type": "simple"},
-                    "snack": {"title": day_plan.get("snack_type", "키토 간식"), "type": "simple"}
+                    "breakfast": None,
+                    "lunch": None,
+                    "dinner": None,
+                    "snack": None
                 }
+                for slot in ['breakfast','lunch','dinner','snack']:
+                    name = day_plan.get(f"{slot}_type")
+                    if name and not self._is_generic_menu_name(name):
+                        day_meals[slot] = {"title": name, "type": "simple"}
+                    else:
+                        # 슬롯별 부분 실패: 사유/가이드 포함해 표시
+                        day_meals[slot] = {
+                            "type": "no_result",
+                            "title": "추천 식단이 없습니다",
+                            "reason": "프로필에 있는 정보를 기반으로 식단표를 생성하지 못했습니다",
+                            "tips": [
+                                "비선호 일부 완화(2~3개 해제)",
+                                "단백질 위주 키워드로 재시도(계란/닭가슴살/돼지고기)",
+                                "탄수 제한 +5~10g 완화",
+                                "기간 7일 → 3일로 단축 후 재시도"
+                            ]
+                        }
+                        missing_slots.append({"slot": slot, "reason": "generic_or_empty"})
                 full_plan.append(day_meals)
             
 
             # 기본 조언 생성 (notes.py 프롬프트 사용)
             notes = await self._generate_meal_notes(full_plan, constraints_text)
             
-            print(f"✅ 3단계 성공: 완전한 식단표 생성 완료 ({days}일)")
+            print(f"✅ 3단계 완료: {days}일 식단 생성 (부분 실패 슬롯 수: {len(missing_slots)})")
+            if missing_slots:
+                notes.extend([
+                    f"알레르기: {', '.join(allergies or []) or '없음'} | 비선호: {', '.join(dislikes or []) or '없음'} | 목표: {kcal_target or '-'}kcal, 탄수 {carbs_max}g",
+                    "가이드: 비선호 일부 완화(2~3개), 단백질 위주 키워드(계란/닭가슴살/돼지고기), 탄수 +5~10g, 기간 7일→3일"
+                ])
             return {
                 "days": full_plan,
                 "duration_days": days,
@@ -341,6 +419,7 @@ class MealPlannerAgent:
                     "fat": 0
                 },
                 "notes": notes,
+                "missing_slots": missing_slots,
                 "constraints": {
                     "kcal_target": kcal_target,
                     "carbs_max": carbs_max,
@@ -351,7 +430,25 @@ class MealPlannerAgent:
             
         except Exception as e:
             print(f"Meal planning error: {e}")
-            return await self._generate_fallback_plan(days)
+            # 예외 발생 시에도 무결과 안내를 반환(사유/가이드 포함)
+            return {
+                "type": "no_result",
+                "title": "추천 식단이 없습니다",
+                "reason": "식단 생성 중 오류가 발생했습니다",
+                "constraints": {
+                    "goals_kcal": kcal_target,
+                    "goals_carbs_g": carbs_max,
+                    "allergies": allergies or [],
+                    "dislikes": dislikes or []
+                },
+                "tips": [
+                    "잠시 후 다시 시도",
+                    "비선호 일부 완화(2~3개 해제)",
+                    "단백질 위주 키워드로 재시도(계란/닭가슴살/돼지고기)",
+                    "탄수 제한 +5~10g 완화",
+                    "7일 → 3일로 기간 단축"
+                ]
+            }
     
     def _build_constraints_text(
         self,
@@ -1656,32 +1753,72 @@ class MealPlannerAgent:
             meal_plan, days
         )
         
+        # 금지 문구가 있는 슬롯 확인
+        banned_substrings = ['추천 식단이 없', '추천 불가']
+        has_banned_content = False
+        banned_slots = []
+        
+        for day_idx, day in enumerate(meal_plan.get("days", [])):
+            for slot in ['breakfast', 'lunch', 'dinner', 'snack']:
+                if slot in day and day[slot]:
+                    slot_data = day[slot]
+                    title = ""
+                    if isinstance(slot_data, dict):
+                        title = slot_data.get('title', '')
+                    elif isinstance(slot_data, str):
+                        title = slot_data
+                    else:
+                        title = str(slot_data)
+                    
+                    if title and any(bs in title for bs in banned_substrings):
+                        has_banned_content = True
+                        banned_slots.append(f"{day_idx + 1}일차 {slot}")
+        
+        # 금지 문구가 있으면 해당 슬롯을 None으로 설정하고 키토 팁과 안내 메시지 추가
+        if has_banned_content:
+            slot_names = {'breakfast': '아침', 'lunch': '점심', 'dinner': '저녁', 'snack': '간식'}
+            banned_slots_korean = []
+            
+            # 금지 문구가 있는 슬롯을 None으로 설정
+            for day_idx, day in enumerate(meal_plan.get("days", [])):
+                for slot in ['breakfast', 'lunch', 'dinner', 'snack']:
+                    if slot in day and day[slot]:
+                        slot_data = day[slot]
+                        title = ""
+                        if isinstance(slot_data, dict):
+                            title = slot_data.get('title', '')
+                        elif isinstance(slot_data, str):
+                            title = slot_data
+                        else:
+                            title = str(slot_data)
+                        
+                        if title and any(bs in title for bs in banned_substrings):
+                            # 해당 슬롯을 None으로 설정
+                            meal_plan["days"][day_idx][slot] = None
+                            banned_slots_korean.append(f"{day_idx + 1}일차 {slot_names.get(slot, slot)}")
+                            print(f"🚨 {day_idx + 1}일차 {slot} 슬롯을 None으로 설정: '{title}'")
+            
+            # 키토 팁 추가
+            keto_tip = f"\n\n💡 **키토 팁**: 식단 생성이 어려울 때는 목표 칼로리를 100-200kcal 늘리거나, 탄수화물 한도를 5-10g 늘려보세요. 또한 알레르기나 비선호 음식을 일시적으로 완화하면 더 다양한 식단을 만들 수 있어요!"
+            
+            # 안내 메시지 추가
+            guidance_message = f"\n\n⚠️ **안내**: 일부 날짜의 특정 식단을 생성하지 못했습니다 ({', '.join(banned_slots_korean)}). 해당 식단을 제외하고 저장하려면 \"캘린더에 저장해줘\"라고 말해보세요!"
+            
+            formatted_response += keto_tip + guidance_message
+        
         # 7. 결과 반환 - 프론트엔드가 인식할 수 있는 형태로 results 구성
         # 프론트엔드 MealParserService가 찾는 형태: result.type === 'meal_plan' || result.days
+        
+        # 프론트엔드로 전송할 데이터 구성
         frontend_meal_result = {
             "type": "meal_plan",
-            "days": meal_plan.get("days", []),
+            "days": meal_plan.get("days", []),  # 원본 데이터 그대로 사용
             "duration_days": days,
             "total_macros": meal_plan.get("total_macros"),
             "notes": meal_plan.get("notes", []),
             "source": meal_plan.get("source", "meal_planner")
         }
-        
-        # 디버그: 프론트엔드로 전송될 데이터 로깅
-        print("🔍 DEBUG: 프론트엔드로 전송될 frontend_meal_result:")
-        print(f"  - type: {frontend_meal_result.get('type')}")
-        print(f"  - days length: {len(frontend_meal_result.get('days', []))}")
-        if frontend_meal_result.get("days") and len(frontend_meal_result["days"]) > 0:
-            first_day = frontend_meal_result["days"][0]
-            print(f"  - first_day keys: {list(first_day.keys())}")
-            for slot in ['breakfast', 'lunch', 'dinner', 'snack']:
-                if slot in first_day:
-                    slot_data = first_day[slot]
-                    if isinstance(slot_data, dict):
-                        print(f"  - {slot}: {slot_data.get('title', 'NO_TITLE')}")
-                    else:
-                        print(f"  - {slot}: {slot_data}")
-        
+
         result_data = {
             "results": [frontend_meal_result],  # 프론트엔드가 인식할 수 있는 형태
             "response": formatted_response,

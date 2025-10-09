@@ -81,6 +81,9 @@ async def create_or_update_plan(
     동일한 날짜/슬롯이 있으면 업데이트 (upsert)
     """
     try:
+        # 사전 차단 로직 제거 - 부분 저장 로직으로 대체됨
+        print("✅ plans.py 차단 로직 제거됨 - 부분 저장 로직 사용")
+
         # 기존 계획 확인
         existing_response = supabase.table('meal_log').select('*').eq('user_id', str(user_id)).eq('date', plan.date.isoformat()).eq('meal_type', plan.slot).execute()
 

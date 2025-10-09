@@ -45,7 +45,7 @@ class IntentClassifier:
         
         # 최소한의 핵심 키워드만 유지 - LLM이 90% 담당
         self.critical_keywords = {
-            "calendar_save": ["캘린더에 저장", "일정 등록", "캘린더 추가"],
+            "calendar_save": ["캘린더에 저장", "캘린더에 저장해줘", "저장해줘", "일정 등록", "캘린더 추가", "캘린더에", "저장"],
             "recipe_search": ["레시피", "조리법", "만들어줘"],
             "meal_plan": ["식단표", "식단 계획", "일주일", "7일"],
             "place_search": ["맛집", "식당", "근처"]
@@ -68,15 +68,21 @@ class IntentClassifier:
         # 1. LLM 분류 우선 시도 (90% 담당)
         if self.llm:
             try:
+                print(f"🔍 LLM 분류 시도: '{text}'")
                 llm_result = await self._llm_classify(text, context)
                 print(f"    [LLM] LLM 분류: {llm_result['intent'].value} (신뢰도: {llm_result['confidence']:.2f})")
                 
                 # LLM 결과가 최소 신뢰도 이상이면 바로 반환
                 if llm_result["confidence"] >= self.LLM_MIN_CONFIDENCE:
+                    print(f"✅ LLM 분류 성공: {llm_result['intent'].value}")
                     return llm_result
+                else:
+                    print(f"❌ LLM 신뢰도 부족: {llm_result['confidence']:.2f} < {self.LLM_MIN_CONFIDENCE}")
                     
             except Exception as e:
                 print(f"    [ERROR] LLM 분류 실패: {str(e)}")
+        else:
+            print("❌ LLM이 초기화되지 않음")
         
         # 2. LLM 실패시에만 최소한의 키워드 분류 사용 (10% 담당)
         keyword_result = self._minimal_keyword_classify(text)
@@ -86,9 +92,14 @@ class IntentClassifier:
     def _minimal_keyword_classify(self, text: str) -> Dict[str, Any]:
         """최소한의 키워드만으로 분류 - LLM 실패시에만 사용"""
         
+        print(f"🔍 키워드 분류 시작: '{text}'")
+        
         # 매우 명확한 경우만 키워드로 처리
         for intent_name, keywords in self.critical_keywords.items():
-            if any(kw in text for kw in keywords):
+            print(f"🔍 {intent_name} 키워드 검사: {keywords}")
+            matched_keywords = [kw for kw in keywords if kw in text]
+            if matched_keywords:
+                print(f"✅ {intent_name} 매칭됨: {matched_keywords}")
                 intent_map = {
                     "calendar_save": Intent.CALENDAR_SAVE,
                     "recipe_search": Intent.RECIPE_SEARCH,
@@ -99,9 +110,10 @@ class IntentClassifier:
                     "intent": intent_map[intent_name],
                     "confidence": 0.7,
                     "method": "minimal_keyword",
-                    "detected_keywords": [kw for kw in keywords if kw in text]
+                    "detected_keywords": matched_keywords
                 }
         
+        print("❌ 키워드 매칭 실패 - GENERAL로 폴백")
         # 나머지는 모두 LLM이 판단하도록 GENERAL로 폴백
         return {
             "intent": Intent.GENERAL,
