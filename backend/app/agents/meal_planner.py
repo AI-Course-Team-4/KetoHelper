@@ -678,8 +678,8 @@ class MealPlannerAgent:
                 
                 # 조언 생성
                 notes = [
-                    "임베딩된 레시피 데이터에서 생성된 식단표입니다",
-                    "키토 식단의 핵심은 탄수화물 제한입니다"
+                    "검증된 레시피 데이터베이스에서 선별한 식단표입니다",
+                    "하루 탄수화물은 20-50g 이하로 유지해주세요"
                 ]
                 
                 return {
@@ -803,8 +803,8 @@ class MealPlannerAgent:
                 
                 # 조언 생성
                 notes = [
-                    "AI 구조 + 임베딩된 레시피 데이터에서 생성된 식단표입니다",
-                    "키토 식단의 핵심은 탄수화물 제한입니다"
+                    "AI가 생성한 검증된 레시피로 만든 맞춤 식단표입니다",
+                    "하루 탄수화물은 20-50g 이하로 유지해주세요"
                 ]
                 
                 return {
@@ -921,7 +921,98 @@ class MealPlannerAgent:
         meal_type: str,
         constraints: str
     ) -> Dict[str, Any]:
-        """LLM을 통한 메뉴 생성"""
+        """LLM을 통한 메뉴 생성 (골든셋 검증 적용)"""
+        
+        # 🆕 골든셋 기반 검증 시스템 사용
+        try:
+            from app.domains.recipe.services.recipe_validator import RecipeValidator
+            
+            # constraints 문자열을 딕셔너리로 변환
+            constraints_dict = self._parse_constraints_string(constraints)
+            
+            # RecipeValidator로 검증된 레시피 생성
+            validator = RecipeValidator()
+            result = await validator.generate_validated_recipe(
+                meal_type=meal_type,
+                constraints=constraints_dict,
+                user_id=getattr(self, '_current_user_id', None)
+            )
+            
+            if result.get("success"):
+                recipe = result.get("recipe", {})
+                print(f"✅ 골든셋 검증 완료: {recipe.get('title', 'Unknown')} (시도 {result.get('attempts', 0)}회)")
+                
+                # MealPlannerAgent 형식으로 변환
+                return {
+                    "type": "recipe",
+                    "id": recipe.get("id", f"validated_{slot}_{hash(recipe.get('title', '')) % 10000}"),
+                    "title": recipe.get("title", "키토 레시피"),
+                    "macros": recipe.get("macros", {}),
+                    "ingredients": recipe.get("ingredients", []),
+                    "steps": recipe.get("steps", []),
+                    "tips": [f"✅ 검증 완료 (시도 {result.get('attempts', 0)}회)"],
+                    "source": "golden_validated",
+                    "validation": result.get("validation", {})
+                }
+            else:
+                print(f"⚠️ 골든셋 검증 실패, 기존 방식으로 폴백: {result.get('error', 'Unknown')}")
+                # 기존 방식으로 폴백
+                return await self._generate_llm_meal_legacy(slot, meal_type, constraints)
+        
+        except ImportError:
+            print(f"⚠️ RecipeValidator 모듈 없음, 기존 방식 사용")
+            return await self._generate_llm_meal_legacy(slot, meal_type, constraints)
+        except Exception as e:
+            print(f"⚠️ 골든셋 검증 오류: {e}, 기존 방식으로 폴백")
+            return await self._generate_llm_meal_legacy(slot, meal_type, constraints)
+    
+    def _parse_constraints_string(self, constraints: str) -> Dict[str, Any]:
+        """constraints 문자열을 딕셔너리로 변환"""
+        
+        constraints_dict = {
+            "allergies": [],
+            "dislikes": [],
+            "kcal_target": None,
+            "carbs_max": 30
+        }
+        
+        # 간단한 파싱 (예: "알레르기: 새우 | 비선호 음식: 브로콜리")
+        if "알레르기:" in constraints:
+            allergy_part = constraints.split("알레르기:")[1].split("|")[0].strip()
+            if allergy_part and allergy_part != "특별한 제약사항 없음":
+                constraints_dict["allergies"] = [a.strip() for a in allergy_part.split(",") if a.strip()]
+        
+        if "비선호 음식:" in constraints or "싫어하는 음식:" in constraints:
+            dislike_key = "비선호 음식:" if "비선호 음식:" in constraints else "싫어하는 음식:"
+            dislike_part = constraints.split(dislike_key)[1].split("|")[0].strip()
+            if dislike_part:
+                constraints_dict["dislikes"] = [d.strip() for d in dislike_part.split(",") if d.strip()]
+        
+        if "목표 칼로리:" in constraints or "일일 목표 칼로리:" in constraints:
+            kcal_key = "목표 칼로리:" if "목표 칼로리:" in constraints else "일일 목표 칼로리:"
+            kcal_part = constraints.split(kcal_key)[1].split("|")[0].strip().replace("kcal", "").strip()
+            try:
+                constraints_dict["kcal_target"] = int(kcal_part)
+            except ValueError:
+                pass
+        
+        if "탄수화물:" in constraints or "최대 탄수화물:" in constraints:
+            carbs_key = "탄수화물:" if "탄수화물:" in constraints else "최대 탄수화물:"
+            carbs_part = constraints.split(carbs_key)[1].split("|")[0].strip().replace("g", "").strip()
+            try:
+                constraints_dict["carbs_max"] = int(carbs_part)
+            except ValueError:
+                pass
+        
+        return constraints_dict
+    
+    async def _generate_llm_meal_legacy(
+        self,
+        slot: str,
+        meal_type: str,
+        constraints: str
+    ) -> Dict[str, Any]:
+        """기존 LLM 메뉴 생성 방식 (폴백용)"""
         
         meal_prompt = self.prompts["generation"].format(
             slot=slot,
@@ -937,6 +1028,7 @@ class MealPlannerAgent:
             if json_match:
                 meal_data = json.loads(json_match.group())
                 meal_data["id"] = f"generated_{slot}_{hash(meal_data['title']) % 10000}"
+                meal_data["source"] = "llm_legacy"
                 return meal_data
             
         except Exception as e:
@@ -950,7 +1042,8 @@ class MealPlannerAgent:
             "macros": {"kcal": 400, "carb": 8, "protein": 25, "fat": 30},
             "ingredients": [{"name": "기본 재료", "amount": 1, "unit": "개"}],
             "steps": ["간단히 조리하세요"],
-            "tips": ["키토 원칙을 지켜주세요"]
+            "tips": ["키토 원칙을 지켜주세요"],
+            "source": "fallback"
         }
     
     async def _generate_simple_snack(self, snack_type: str) -> Dict[str, Any]:
@@ -1206,7 +1299,6 @@ class MealPlannerAgent:
                     # 폴백: 기본 프롬프트 사용
                     prompt = f"""
 키토 식단 전문가로서 사용자의 레시피 요청에 답변해주세요.
-반드시 답변의 끝마다 냥체를 붙여서 답변해주세요
 
 사용자 요청: {message}
 
