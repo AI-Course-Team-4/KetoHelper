@@ -35,4 +35,8 @@ class PersonalWeightConfig(WeightConfig):
         self.similarity_threshold = 0.8     # 0.7 → 0.8 (더 엄격한 필터링)
         self.max_search_results = 3        # 5 → 3 (더 정확한 결과만)
         
+        # LLM 타임아웃 설정 (성능 테스트용)
+        self.llm_timeout = 120             # 60 → 120초 (7일 식단표용)
+        self.llm_max_tokens = 8192         # 토큰 수 유지
+        
         print(f"🧪 {self.experiment_name} 실험 설정 적용됨")

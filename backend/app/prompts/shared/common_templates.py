@@ -24,6 +24,14 @@ DEFAULT_RESPONSE_GUIDELINES = """
 4. 200-300자 내외로 간결하고 이해하기 쉽게 답변
 """
 
+# 개인화 규칙 (프로필이 있는 경우에만 적용)
+PERSONALIZATION_RULES = """
+개인화 규칙(프로필 정보가 있는 경우에만 적용):
+- 사용자 알레르기 성분과 비선호 재료는 어떤 형태로도 언급·포함하지 마세요
+- 필요 시 안전한 대체 재료를 제안하세요 (예: 견과류 → 해바라기씨 등)
+- 프로필 정보가 없으면 일반적인 키토 친화적 조언만 제공하세요
+"""
+
 # 키토 전문가 역할 정의 (공통)
 KETO_EXPERT_ROLE = "키토 식단 전문가로서"
 
@@ -37,7 +45,7 @@ def add_markdown_formatting(prompt: str) -> str:
 
 def add_response_guidelines(prompt: str) -> str:
     """프롬프트에 기본 답변 가이드라인 추가"""
-    return f"{prompt}\n\n{DEFAULT_RESPONSE_GUIDELINES}"
+    return f"{prompt}\n\n{DEFAULT_RESPONSE_GUIDELINES}\n\n{PERSONALIZATION_RULES}"
 
 def add_keto_expert_role(prompt: str) -> str:
     """프롬프트에 키토 전문가 역할 추가"""

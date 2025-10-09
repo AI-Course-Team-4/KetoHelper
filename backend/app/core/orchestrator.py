@@ -5,6 +5,8 @@ LangGraph 기반 키토 코치 에이전트 오케스트레이터
 """
 
 import asyncio
+import time
+import logging
 from typing import Dict, Any, Optional, AsyncGenerator
 from langgraph.graph import StateGraph, START, END
 from langchain.schema import HumanMessage, AIMessage, BaseMessage
@@ -25,6 +27,7 @@ from app.core.llm_factory import create_chat_llm
 # 프롬프트 모듈 import (중앙집중화된 구조)
 from app.prompts.chat.intent_classification import INTENT_CLASSIFICATION_PROMPT, get_intent_prompt
 from app.prompts.chat.response_generation import RESPONSE_GENERATION_PROMPT, PLACE_RESPONSE_GENERATION_PROMPT
+from app.prompts.chat.general_chat import GENERAL_CHAT_PROMPT
 from app.prompts.meal.recipe_response import RECIPE_RESPONSE_GENERATION_PROMPT
 from app.prompts.restaurant.search_failure import PLACE_SEARCH_FAILURE_PROMPT
 from app.prompts.calendar import (
@@ -34,6 +37,9 @@ from app.prompts.calendar import (
 )
 
 from typing_extensions import TypedDict, NotRequired, List
+
+# 로깅 설정
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class AgentState(TypedDict):
     """에이전트 상태 관리 클래스"""
@@ -363,6 +369,9 @@ class KetoCoachAgent:
     async def _recipe_search_node(self, state: AgentState) -> AgentState:
         """레시피 검색 노드 - MealPlannerAgent 우선 사용"""
         
+        # 성능 측정 시작
+        node_start_time = time.time()
+        
         try:
             message = state["messages"][-1].content if state["messages"] else ""
             
@@ -424,6 +433,22 @@ class KetoCoachAgent:
             
             # 검색 결과가 없거나 관련성이 낮을 때 AI 레시피 생성
             valid_results = [r for r in search_results if r.get('title') != '검색 결과 없음']
+
+            # 개인화로 인해 모두 제외된 경우 사용자 친화적 안내 반환
+            if not valid_results:
+                reasons = []
+                if allergies:
+                    reasons.append(f"알레르기: {', '.join(allergies)}")
+                if dislikes:
+                    reasons.append(f"비선호: {', '.join(dislikes)}")
+
+                reasons_text = ", ".join(reasons) if reasons else "검색 조건이 엄격함"
+                state["response"] = (
+                    "## 🔍 추천 레시피를 찾지 못했어요\n\n"
+                    f"- 제외 사유: {reasons_text}\n"
+                    "- 제안: 비선호 일부 완화, 재료 키워드 변경(예: 닭가슴살/돼지고기 중심), 탄수 한도를 소폭 상향(예: +5g) 후 다시 시도해보세요."
+                )
+                return state
             
             # 사용자 요청에 구체적인 음식명이 있는지 확인
             food_keywords = ["아이스크림", "케이크", "쿠키", "브라우니", "머핀", "푸딩", "치즈케이크", "티라미수"]
@@ -485,11 +510,20 @@ class KetoCoachAgent:
         except Exception as e:
             print(f"Recipe search error: {e}")
             state["results"] = []
+            state["response"] = "## ⚠️ 오류 안내\n\n- 레시피 검색/생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+        
+        # 성능 측정 완료
+        node_end_time = time.time()
+        node_time = node_end_time - node_start_time
+        print(f"🍳 RECIPE_NODE | Time: {node_time:.2f}s | Results: {len(state.get('results', []))}")
         
         return state
     
     async def _place_search_node(self, state: AgentState) -> AgentState:
         """장소 검색 노드 (PlaceSearchAgent 사용)"""
+        
+        # 성능 측정 시작
+        node_start_time = time.time()
         
         try:
             message = state["messages"][-1].content if state["messages"] else ""
@@ -519,11 +553,21 @@ class KetoCoachAgent:
         except Exception as e:
             print(f"❌ Place search error: {e}")
             state["results"] = []
+            # MD 형식 오류 안내로 래핑
+            state["response"] = "## ⚠️ 오류 안내\n\n- 식당 검색 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+        
+        # 성능 측정 완료
+        node_end_time = time.time()
+        node_time = node_end_time - node_start_time
+        print(f"🏪 PLACE_NODE | Time: {node_time:.2f}s | Results: {len(state.get('results', []))}")
         
         return state
     
     async def _meal_plan_node(self, state: AgentState) -> AgentState:
         """식단표 생성 노드 - MealPlannerAgent가 모든 처리"""
+        
+        # 성능 측정 시작
+        node_start_time = time.time()
         
         try:
             message = state["messages"][-1].content if state["messages"] else ""
@@ -547,14 +591,26 @@ class KetoCoachAgent:
         
         except Exception as e:
             print(f"❌ Meal plan error: {e}")
+            import traceback
+            print(f"❌ 상세 오류: {traceback.format_exc()}")
             state["results"] = []
             state["response"] = "죄송합니다. 식단표 생성 중 오류가 발생했습니다. 다시 시도해주세요."
             return state
+        
+        # 성능 측정 완료
+        node_end_time = time.time()
+        node_time = node_end_time - node_start_time
+        print(f"🍽️ MEAL_PLAN_NODE | Time: {node_time:.2f}s | Results: {len(state.get('results', []))}")
+        
+        return state
     
     
     
     async def _general_chat_node(self, state: AgentState) -> AgentState:
         """일반 채팅 노드 (대화 맥락 고려)"""
+        
+        # 성능 측정 시작
+        node_start_time = time.time()
         
         try:
             # 전체 대화 히스토리 가져오기
@@ -603,25 +659,33 @@ class KetoCoachAgent:
                 context_text = f"사용자 메시지: {current_message}\n"
                 print(f"🆕 새로운 대화 시작 (이전 사용자 대화 없음)")
             
-            # 키토 코치로서 대화 맥락을 고려한 응답 생성
+            # 키토 코치로서 대화 맥락을 고려한 응답 생성 (공통 템플릿 사용)
             conversation_context = "새로운 대화입니다." if is_new_conversation else f"이전 대화 {len(previous_messages)}개가 있습니다."
-            
-            chat_prompt = f"""당신은 친근한 키토 다이어트 코치입니다. 사용자와의 대화를 자연스럽게 이어가세요.
 
-대화 상황: {conversation_context}
+            profile_context = ""
+            if state.get("profile"):
+                allergies = state["profile"].get("allergies") or []
+                dislikes = state["profile"].get("dislikes") or []
+                goals_kcal = state["profile"].get("goals_kcal")
+                goals_carbs_g = state["profile"].get("goals_carbs_g")
+                parts = []
+                if allergies:
+                    parts.append(f"알레르기: {', '.join(allergies)}")
+                if dislikes:
+                    parts.append(f"비선호: {', '.join(dislikes)}")
+                if goals_kcal:
+                    parts.append(f"목표 칼로리: {goals_kcal}kcal")
+                if goals_carbs_g is not None:
+                    parts.append(f"탄수 제한: {goals_carbs_g}g")
+                profile_context = "; ".join(parts)
 
-{context_text}
+            prompt = GENERAL_CHAT_PROMPT.format(
+                message=current_message,
+                profile_context=profile_context,
+                context=context_text + f"\n대화 상황: {conversation_context}"
+            )
 
-다음 사항을 고려하여 응답해주세요:
-1. {'새로운 대화이므로 이전 내용을 언급하지 말고, 처음 만나는 것처럼 인사하세요.' if is_new_conversation else '이전 대화 내용을 참고하여 맥락에 맞는 답변을 하세요.'}
-2. 사용자가 이름을 말했다면 기억하고 다음에 사용하세요
-3. 사용자가 이전에 말한 내용을 물어보면 정확히 답변하세요
-4. 키토 다이어트와 관련된 조언을 제공하세요
-5. 친근하고 도움이 되는 톤으로 대화하세요
-
-응답:"""
-            
-            response = await self.llm.ainvoke([HumanMessage(content=chat_prompt)])
+            response = await self.llm.ainvoke([HumanMessage(content=prompt)])
             state["response"] = response.content
             
             state["tool_calls"].append({
@@ -633,6 +697,11 @@ class KetoCoachAgent:
         except Exception as e:
             print(f"General chat error: {e}")
             state["response"] = "죄송합니다. 일반 채팅 처리 중 오류가 발생했습니다. 다시 시도해주세요."
+        
+        # 성능 측정 완료
+        node_end_time = time.time()
+        node_time = node_end_time - node_start_time
+        print(f"💬 GENERAL_CHAT_NODE | Time: {node_time:.2f}s")
         
         return state
     
@@ -673,7 +742,7 @@ class KetoCoachAgent:
             print(f"❌ 캘린더 저장 노드 오류: {e}")
             import traceback
             print(f"❌ 상세 오류: {traceback.format_exc()}")
-            state["response"] = "죄송합니다. 캘린더 저장 처리 중 오류가 발생했습니다. 다시 시도해주세요."
+            state["response"] = "## ⚠️ 오류 안내\n\n- 캘린더 저장 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요."
             return state
     
     # _is_calendar_save_request 함수 제거 - CalendarUtils로 이동
@@ -716,6 +785,9 @@ class KetoCoachAgent:
     async def _answer_node(self, state: AgentState) -> AgentState:
         """최종 응답 생성 노드"""
         
+        # 성능 측정 시작
+        node_start_time = time.time()
+        
         try:
             message = state["messages"][-1].content if state["messages"] else ""
             
@@ -726,12 +798,43 @@ class KetoCoachAgent:
             # 이미 응답이 설정되어 있으면 그대로 사용 (calendar_save_node 등에서 설정)
             if state.get("response"):
                 print("✅ 기존 응답 사용 (이미 설정됨)")
+                # 캘린더/오류 단문도 MD 제목으로 보장
+                if not state["response"].lstrip().startswith(("#", "##")):
+                    state["response"] = f"## ℹ️ 안내\n\n{state['response']}"
                 return state
             
-            # MealPlannerAgent가 이미 포맷한 응답이 있으면 그대로 사용
+            # MealPlannerAgent/PlaceSearchAgent가 포맷한 응답이 있으면 공통 템플릿으로 래핑
             if state.get("formatted_response"):
                 print("✅ 포맷된 응답 사용")
-                state["response"] = state["formatted_response"]
+                formatted = state["formatted_response"]
+                # 식당 응답은 공통 템플릿으로 한 번 더 감싸서 MD 일관화
+                if state.get("intent") == "place":
+                    location = state.get('location') or {}
+                    location_info = f"위도: {location.get('lat', '정보없음')}, 경도: {location.get('lng', '정보없음')}"
+                    answer_prompt = PLACE_RESPONSE_GENERATION_PROMPT.format(
+                        message=message,
+                        location=location_info,
+                        context=formatted
+                    )
+                    response = await self.llm.ainvoke([HumanMessage(content=answer_prompt)])
+                    # 가독성 향상을 위한 경량 후처리: 개인 맞춤 조언 섹션을 명확히 구분
+                    place_text = response.content or ""
+                    # '개인 맞춤 조언' 구간을 굵은 제목과 구분선으로 감싸 가독성 개선
+                    if "개인 맞춤 조언" in place_text:
+                        try:
+                            head, tail = place_text.split("개인 맞춤 조언", 1)
+                            # tail 앞쪽 불필요한 콜론/공백 보정
+                            tail = tail.lstrip(" :\n")
+                            wrapped = f"{head}\n\n---\n**개인 맞춤 조언:**\n\n{tail}\n---\n"
+                            place_text = wrapped
+                        except ValueError:
+                            pass
+                    state["response"] = place_text
+                else:
+                    # 이미 헤더가 없으면 기본 헤더 추가
+                    if not formatted.lstrip().startswith(("#", "##")):
+                        formatted = f"## ✅ 결과\n\n{formatted}"
+                    state["response"] = formatted
                 return state
             
             # 결과 기반 응답 생성
@@ -744,7 +847,36 @@ class KetoCoachAgent:
             elif state["results"]:
                 # AI 생성 레시피는 그대로 출력
                 if state["intent"] == "recipe" and state["results"] and state["results"][0].get("source") == "ai_generated":
-                    state["response"] = state["results"][0].get("content", "레시피 생성에 실패했습니다.")
+                    ai_text = state["results"][0].get("content", "")
+                    # 스켈레톤/폴백 패턴 혹은 금지 재료 포함 여부 검사
+                    skeleton_patterns = [
+                        "키토 버전", "주재료:", "키토 친화적 재료", "키토 대체재:",
+                        "일시적인 시스템", "기본 가이드", "잠시 후 다시 시도"
+                    ]
+                    has_skeleton = any(pat in ai_text for pat in skeleton_patterns)
+
+                    # 프로필 기반 금지 재료 검출
+                    banned_hits = []
+                    if state.get("profile"):
+                        for lst_key in ("allergies", "dislikes"):
+                            for item in state["profile"].get(lst_key, []) or []:
+                                if item and str(item) in ai_text:
+                                    banned_hits.append(item)
+
+                    if has_skeleton or banned_hits:
+                        reasons = []
+                        if banned_hits:
+                            reasons.append(f"금지 재료 포함: {', '.join(sorted(set(banned_hits)))}")
+                        else:
+                            reasons.append("생성 결과가 부정확/불완전")
+
+                        state["response"] = (
+                            "## 🔍 추천 레시피를 찾지 못했어요\n\n"
+                            f"- 제외 사유: {', '.join(reasons)}\n"
+                            "- 제안: 비선호 일부 완화, 재료 키워드 변경(예: 닭가슴살/돼지고기 중심), 탄수 한도를 소폭 상향(예: +5g) 후 다시 시도해보세요."
+                        )
+                    else:
+                        state["response"] = ai_text or "레시피 생성에 실패했습니다."
                     return state
                 
                 # 검색 결과 기반 레시피 포맷팅
@@ -760,9 +892,24 @@ class KetoCoachAgent:
                             context += f"   탄수화물: {result['carbs']}g\n"
                     
                     # 레시피 전용 응답 생성 프롬프트 사용
+                    # 프로필 컨텍스트 구성(있으면)
+                    profile_parts = []
+                    if state.get("profile"):
+                        p = state["profile"]
+                        if p.get("allergies"):
+                            profile_parts.append(f"알레르기: {', '.join(p['allergies'])}")
+                        if p.get("dislikes"):
+                            profile_parts.append(f"비선호: {', '.join(p['dislikes'])}")
+                        if p.get("goals_kcal"):
+                            profile_parts.append(f"목표 칼로리: {p['goals_kcal']}kcal")
+                        if p.get("goals_carbs_g") is not None:
+                            profile_parts.append(f"탄수 제한: {p['goals_carbs_g']}g")
+                    profile_context = "; ".join(profile_parts)
+
                     answer_prompt = RECIPE_RESPONSE_GENERATION_PROMPT.format(
                         message=message,
-                        context=context
+                        context=context,
+                        profile_context=profile_context
                     )
                 elif state["intent"] == "place":
                     context = "추천 식당:\n"
@@ -816,23 +963,55 @@ class KetoCoachAgent:
                         meal_days = meal_plan.get("days", [])[:requested_days]
                         print(f"🔍 DEBUG: 요청 일수 {requested_days}, 생성된 일수 {len(meal_plan.get('days', []))}, 출력 일수 {len(meal_days)}")
                         
+                        # 프로필 기반 금지 재료(알레르기+비선호) 수집
+                        banned_terms = set()
+                        if state.get("profile"):
+                            banned_terms.update([s for s in (state["profile"].get("allergies") or []) if s])
+                            banned_terms.update([s for s in (state["profile"].get("dislikes") or []) if s])
+                        # 대표 동의어(간단)
+                        synonyms = {"계란": ["계란", "달걀", "난류", "egg", "eggs", "오믈렛", "스크램블"]}
+                        for key, vals in synonyms.items():
+                            if key in banned_terms:
+                                banned_terms.update(vals)
+
+                        def contains_banned(text: str) -> bool:
+                            t = (text or "").lower()
+                            for term in banned_terms:
+                                if str(term).lower() in t:
+                                    return True
+                            return False
+
                         for day_idx, day_meals in enumerate(meal_days, 1):
                             response_text += f"**{day_idx}일차:**\n"
                             
+                            shown_any = False
                             for slot in ['breakfast', 'lunch', 'dinner', 'snack']:
                                 if slot in day_meals and day_meals[slot]:
                                     meal = day_meals[slot]
                                     slot_name = {"breakfast": "🌅 아침", "lunch": "🌞 점심", "dinner": "🌙 저녁", "snack": "🍎 간식"}[slot]
-                                    response_text += f"- {slot_name}: {meal.get('title', '메뉴 없음')}\n"
+                                    title = meal.get('title', '메뉴 없음')
+                                    if not contains_banned(title):
+                                        response_text += f"- {slot_name}: {title}\n"
+                                        shown_any = True
+                            if not shown_any:
+                                response_text += "- 제약 조건으로 추천 가능한 메뉴가 없습니다.\n"
                             
                             response_text += "\n"
                         
                         # 핵심 조언만 간단히
                         notes = meal_plan.get("notes", [])
                         if notes:
-                            response_text += "### 💡 키토 팁\n"
-                            for note in notes[:3]:  # 최대 3개만
-                                response_text += f"- {note}\n"
+                            # 기술 용어(임베딩/embedding/벡터 등) 제거
+                            cleaned = []
+                            for n in notes:
+                                ln = str(n)
+                                if any(k in ln.lower() for k in ["임베딩", "embedding", "벡터", "vector"]):
+                                    continue
+                                cleaned.append(ln)
+                            if cleaned:
+                                response_text += "### 💡 키토 팁\n"
+                                for note in cleaned[:3]:  # 최대 3개만
+                                    response_text += f"- {note}\n"
                         
                         # 구조화된 식단표 데이터를 응답에 포함
                         meal_plan_data = {
@@ -885,6 +1064,11 @@ class KetoCoachAgent:
             import traceback
             print(f"❌ Traceback: {traceback.format_exc()}")
             state["response"] = "죄송합니다. 답변 생성 중 오류가 발생했습니다. 다시 시도해주세요."
+        
+        # 성능 측정 완료
+        node_end_time = time.time()
+        node_time = node_end_time - node_start_time
+        print(f"💬 ANSWER_NODE | Time: {node_time:.2f}s")
         
         return state
     
@@ -960,6 +1144,10 @@ class KetoCoachAgent:
     ) -> Dict[str, Any]:
         """메시지 처리 메인 함수"""
         
+        # 성능 측정 시작
+        start_time = time.time()
+        request_id = f"req_{int(start_time * 1000)}"
+        
         # 대화 히스토리를 메시지에 포함
         messages = []
         
@@ -1002,6 +1190,20 @@ class KetoCoachAgent:
         
         # 워크플로우 실행
         final_state = await self.workflow.ainvoke(initial_state)
+        
+        # 성능 측정 완료
+        end_time = time.time()
+        total_time = end_time - start_time
+        
+        # 성능 로그 출력
+        intent = final_state.get("intent", "unknown")
+        results_count = len(final_state.get("results", []))
+        tool_calls_count = len(final_state.get("tool_calls", []))
+        
+        print(f"📊 PERFORMANCE [{request_id}] | Intent: {intent} | Time: {total_time:.2f}s | Results: {results_count} | Tools: {tool_calls_count}")
+        
+        # 상세 성능 로그 (개발용)
+        logging.info(f"PERF_DETAIL [{request_id}] | Message: {message[:50]}... | Profile: {bool(profile)} | History: {len(chat_history) if chat_history else 0}")
         
         return {
             "response": final_state["response"],
