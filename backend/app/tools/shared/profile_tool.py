@@ -405,16 +405,40 @@ class UserProfileTool:
         
         filtered_recipes = []
         
+        logger.info(f"🔍 필터링 시작: 알레르기 {len(user_allergies)}개, 비선호 {len(user_dislikes)}개")
+        if user_allergies:
+            logger.info(f"   알레르기 키워드: {user_allergies}")
+        
+        excluded_count = 0
+        
         for recipe in recipes:
-            # 알레르기 체크
+            # 알레르기 체크 (임베딩 검색으로 이미 의미적 유사성이 반영됨)
             recipe_allergens = set(recipe.get("allergens", []))
-            if user_allergies and recipe_allergens.intersection(user_allergies):
-                logger.info(f"🚫 알레르기로 인해 제외: {recipe.get('title', 'Unknown')} - {recipe_allergens.intersection(user_allergies)}")
+            recipe_title = recipe.get("title", "").lower()
+            recipe_content = recipe.get("content", "").lower()
+            
+            # 제목과 내용에서 알레르기 검색
+            found_allergens = set()
+            for allergy in user_allergies:
+                allergy_lower = allergy.lower()
+                if allergy_lower in recipe_title or allergy_lower in recipe_content:
+                    found_allergens.add(allergy)
+                    logger.info(f"🚫 알레르기로 인해 제외: {recipe.get('title', 'Unknown')} - '{allergy}' 발견")
+            
+            # allergens 필드에서도 체크
+            if recipe_allergens:
+                for allergen in recipe_allergens:
+                    if allergen.lower() in [a.lower() for a in user_allergies]:
+                        found_allergens.add(allergen)
+            
+            if found_allergens:
+                logger.info(f"🚫 알레르기로 인해 제외: {recipe.get('title', 'Unknown')} - {found_allergens}")
+                excluded_count += 1
                 continue
             
             # 비선호 재료 체크
             ingredients_data = recipe.get("ingredients", [])
-            
+
             # ingredients가 문자열인 경우 JSON 파싱
             if isinstance(ingredients_data, str):
                 try:
@@ -423,8 +447,27 @@ class UserProfileTool:
                 except (json.JSONDecodeError, ValueError):
                     logger.warning(f"⚠️ ingredients 파싱 실패: {recipe.get('title', 'Unknown')} - {ingredients_data}")
                     ingredients_data = []
-            
-            recipe_ingredients = set(ingredients_data)
+
+            # ingredients에서 재료명 추출 (딕셔너리 리스트 또는 문자열 리스트 지원)
+            recipe_ingredients = set()
+            if ingredients_data:
+                for item in ingredients_data:
+                    if isinstance(item, dict):
+                        # 딕셔너리 형태: {"name": "토마토", "amount": "2개"}
+                        if "name" in item:
+                            recipe_ingredients.add(item["name"])
+                    elif isinstance(item, str):
+                        # 문자열 리스트: ["토마토", "계란"]
+                        recipe_ingredients.add(item)
+
+            # 제목(title)에서도 비선호 재료 검색 (fallback)
+            recipe_title = recipe.get("title", "")
+            for dislike in user_dislikes:
+                if dislike in recipe_title:
+                    logger.info(f"🚫 비선호 재료(제목)로 인해 제외: {recipe_title} - '{dislike}' 포함")
+                    recipe_ingredients.add(dislike)  # 제목에 있으면 추가
+
+            # 비선호 재료와 교집합 체크
             if user_dislikes and recipe_ingredients.intersection(user_dislikes):
                 logger.info(f"🚫 비선호 재료로 인해 제외: {recipe.get('title', 'Unknown')} - {recipe_ingredients.intersection(user_dislikes)}")
                 continue
@@ -432,7 +475,7 @@ class UserProfileTool:
             # 필터링 통과
             filtered_recipes.append(recipe)
         
-        logger.info(f"✅ 레시피 필터링 완료: {len(recipes)}개 → {len(filtered_recipes)}개")
+        logger.info(f"✅ 레시피 필터링 완료: {len(recipes)}개 → {len(filtered_recipes)}개 (알레르기 제외: {excluded_count}개)")
         return filtered_recipes
     
     def get_recipe_exclusion_reasons(self, recipe: Dict[str, Any], user_preferences: Dict[str, Any]) -> List[str]:

@@ -315,3 +315,159 @@ html, body, #root { height: 100%; }
     display: block !important;
   }
 }
+
+/* 마크다운 스타일 */
+.prose {
+  color: inherit;
+}
+
+.prose h1 {
+  font-size: 1.5rem; /* 24px */
+  font-weight: 700;
+  margin-top: 1.5em;
+  margin-bottom: 0.75em;
+  line-height: 1.2;
+  color: #1f2937;
+}
+
+.prose h2 {
+  font-size: 1.25rem; /* 20px */
+  font-weight: 600;
+  margin-top: 1.25em;
+  margin-bottom: 0.5em;
+  line-height: 1.3;
+  color: #374151;
+}
+
+.prose h3 {
+  font-size: 1.125rem; /* 18px */
+  font-weight: 600;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  line-height: 1.4;
+  color: #4b5563;
+}
+
+.prose h4 {
+  font-size: 1rem; /* 16px */
+  font-weight: 600;
+  margin-top: 0.75em;
+  margin-bottom: 0.25em;
+  line-height: 1.4;
+  color: #6b7280;
+}
+
+.prose h5 {
+  font-size: 0.875rem; /* 14px */
+  font-weight: 600;
+  margin-top: 0.5em;
+  margin-bottom: 0.25em;
+  line-height: 1.4;
+  color: #6b7280;
+}
+
+.prose h6 {
+  font-size: 0.75rem; /* 12px */
+  font-weight: 600;
+  margin-top: 0.5em;
+  margin-bottom: 0.25em;
+  line-height: 1.4;
+  color: #6b7280;
+}
+
+.prose h1:first-child, .prose h2:first-child, .prose h3:first-child {
+  margin-top: 0;
+}
+
+.prose p {
+  margin-bottom: 1em;
+  line-height: 1.7;
+}
+
+.prose ul, .prose ol {
+  margin-bottom: 1em;
+  padding-left: 1.5em;
+}
+
+.prose li {
+  margin-bottom: 0.25em;
+}
+
+.prose code {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+.prose pre {
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  overflow-x: auto;
+  font-size: 0.875em;
+  line-height: 1.5;
+}
+
+.prose pre code {
+  background-color: transparent;
+  padding: 0;
+  border-radius: 0;
+}
+
+.prose blockquote {
+  border-left: 4px solid #e9ecef;
+  padding-left: 1rem;
+  margin: 1.5em 0;
+  font-style: italic;
+  color: #6c757d;
+}
+
+.prose a {
+  color: #2563eb;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  transition: text-decoration-color 0.2s;
+}
+
+.prose a:hover {
+  text-decoration-color: #2563eb;
+}
+
+.prose strong {
+  font-weight: 600;
+}
+
+.prose em {
+  font-style: italic;
+}
+
+/* 테이블 스타일 */
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+}
+
+.prose th, .prose td {
+  border: 1px solid #e9ecef;
+  padding: 0.5rem;
+  text-align: left;
+}
+
+.prose th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+}
+
+/* 코드 하이라이트 */
+.prose pre[class*="language-"] {
+  background-color: #1e1e1e;
+  color: #d4d4d4;
+}
+
+.prose pre[class*="language-"] code {
+  color: #d4d4d4;
+}

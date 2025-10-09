@@ -19,6 +19,9 @@ class HybridSearchTool:
         self.supabase = supabase
         # OpenAI 클라이언트 (임베딩용으로 유지)
         self.openai_client = openai.OpenAI(api_key=settings.openai_api_key)
+        # 알레르기/비선호 임베딩 캐시
+        self._allergy_cache = {}
+        self._dislike_cache = {}
     
     async def _create_embedding(self, text: str) -> List[float]:
         """텍스트를 임베딩으로 변환"""
@@ -34,6 +37,41 @@ class HybridSearchTool:
         except Exception as e:
             print(f"❌ 임베딩 생성 오류: {e}")
             return []
+    
+    def _extract_meal_type(self, query: str) -> Optional[str]:
+        """쿼리에서 meal_type 추출"""
+        query_lower = query.lower()
+        
+        if any(word in query_lower for word in ['아침', 'morning', 'breakfast', '브런치']):
+            return '아침'
+        elif any(word in query_lower for word in ['점심', 'lunch', '런치']):
+            return '점심'
+        elif any(word in query_lower for word in ['저녁', 'dinner', '디너', '이브닝']):
+            return '저녁'
+        elif any(word in query_lower for word in ['간식', 'snack', '스낵', '애프터눈']):
+            return '간식'
+        
+        return None
+    
+    def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
+        """코사인 유사도 계산"""
+        try:
+            import numpy as np
+            
+            vec1 = np.array(vec1)
+            vec2 = np.array(vec2)
+            
+            dot_product = np.dot(vec1, vec2)
+            norm1 = np.linalg.norm(vec1)
+            norm2 = np.linalg.norm(vec2)
+            
+            if norm1 == 0 or norm2 == 0:
+                return 0.0
+            
+            return dot_product / (norm1 * norm2)
+        except Exception as e:
+            print(f"❌ 코사인 유사도 계산 오류: {e}")
+            return 0.0
     
     def _extract_keywords(self, query: str) -> List[str]:
         """쿼리에서 키워드 추출"""
@@ -178,12 +216,14 @@ class HybridSearchTool:
             print(f"❌ 하이브리드 검색 오류: {e}")
             return []
     
-    async def search(self, query: str, profile: str = "", max_results: int = 5, user_id: Optional[str] = None) -> List[Dict]:
-        """간단한 검색 인터페이스 (한글 최적화) + 사용자 프로필 필터링"""
+    async def search(self, query: str, profile: str = "", max_results: int = 5, user_id: Optional[str] = None,
+                    allergies: Optional[List[str]] = None, dislikes: Optional[List[str]] = None) -> List[Dict]:
+        """간단한 검색 인터페이스 (한글 최적화) + 사용자 프로필 필터링 + 임시 제약조건"""
         try:
+            print(f"🔧 hybrid_search.search 호출됨: user_id={user_id}, allergies={allergies}, dislikes={dislikes}")
             # 한글 검색 최적화 도구 사용
             from app.tools.meal.korean_search import korean_search_tool
-            
+
             # 프로필에서 필터 추출
             filters = {}
             if profile:
@@ -191,41 +231,12 @@ class HybridSearchTool:
                     filters['category'] = '아침'
                 if "쉬운" in profile or "easy" in profile.lower():
                     filters['difficulty'] = '쉬움'
-            
-            # 한글 최적화 검색 실행
-            results = await korean_search_tool.korean_hybrid_search(query, max_results)
-            
-            # 사용자 프로필 필터링 (user_id가 제공된 경우)
-            if user_id and results:
-                user_preferences = await user_profile_tool.get_user_preferences(user_id)
-                if user_preferences["success"]:
-                    # 레시피 데이터 구조에 맞게 변환
-                    recipe_results = []
-                    for result in results:
-                        recipe_data = {
-                            'id': result.get('id'),
-                            'title': result.get('title'),
-                            'allergens': result.get('allergens', []),
-                            'ingredients': result.get('ingredients', []),
-                            'content': result.get('content', ''),
-                            'metadata': result.get('metadata', {})
-                        }
-                        recipe_results.append(recipe_data)
-                    
-                    # 프로필 필터링 적용
-                    filtered_recipes = user_profile_tool.filter_recipes_by_preferences(recipe_results, user_preferences)
-                    
-                    # 필터링된 결과를 원래 형식으로 변환
-                    filtered_results = []
-                    for recipe in filtered_recipes:
-                        # 원래 결과에서 해당 레시피 찾기
-                        for result in results:
-                            if result.get('id') == recipe.get('id'):
-                                filtered_results.append(result)
-                                break
-                    
-                    results = filtered_results
-                    print(f"🔧 프로필 필터링 적용: {len(results)}개 결과")
+
+            # 한글 최적화 검색 실행 (meal_type 추출)
+            meal_type = self._extract_meal_type(query)
+            results = await korean_search_tool.korean_hybrid_search(query, max_results, user_id, meal_type)
+
+            print(f"✅ RAG 벡터 검색 완료: {len(results)}개 결과 (DB 레벨 필터링 적용)")
             
             # 결과 포맷팅 (검색 전략과 메시지 포함)
             formatted_results = []
@@ -242,6 +253,8 @@ class HybridSearchTool:
                     'id': result.get('id', ''),
                     'title': result.get('title', '제목 없음'),
                     'content': result.get('content', ''),
+                    'allergens': result.get('allergens', []),
+                    'ingredients': result.get('ingredients', []),
                     'similarity': result.get('final_score', 0.0),
                     'metadata': result.get('metadata', {}),
                     'search_types': [result.get('search_type', 'hybrid')],
@@ -276,8 +289,11 @@ class HybridSearchTool:
                 formatted_results = []
                 for result in results:
                     formatted_results.append({
+                        'id': result.get('id', ''),
                         'title': result.get('title', '제목 없음'),
                         'content': result.get('content', ''),
+                        'allergens': result.get('allergens', []),
+                        'ingredients': result.get('ingredients', []),
                         'similarity': result.get('hybrid_score', 0.0),
                         'metadata': result.get('metadata', {}),
                         'search_types': [result.get('search_type', 'hybrid')]

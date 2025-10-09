@@ -5,11 +5,15 @@ import { ChatMessage, LLMParsedMeal } from '@/store/chatStore'
 import { format } from 'date-fns'
 import { PlaceCard } from '@/components/PlaceCard'
 import KakaoMap from '@/pages/KakaoMap'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import rehypeHighlight from 'rehype-highlight'
 
 interface MessageItemProps {
   msg: ChatMessage
   index: number
   totalMessages: number // 전체 메시지 수
+  isLoggedIn: boolean
   shouldShowTimestamp: (index: number) => boolean
   shouldShowDateSeparator: (index: number) => boolean
   formatMessageTime: (timestamp: Date) => string
@@ -27,6 +31,7 @@ interface MessageItemProps {
 export function MessageItem({
   msg,
   index,
+  isLoggedIn,
   shouldShowTimestamp,
   shouldShowDateSeparator,
   formatMessageTime,
@@ -41,7 +46,16 @@ export function MessageItem({
   onPlaceMarkerClick
 }: MessageItemProps) {
   // 타이핑 애니메이션 없이 모든 메시지 즉시 표시
+  // Markdown 안전 렌더링을 위한 경량 정규화
   const displayedText = msg.content
+    ? msg.content
+        .replace(/[\u200B\u200C\uFEFF]/g, '') // zero-width 제거
+        .replace(/[\u2018\u2019]/g, "'") // 스마트 따옴표 → ASCII
+        .replace(/[\u201C\u201D]/g, '"')
+        .replace(/\uFF0A/g, '*') // 전각 별표 → ASCII
+        .replace(/[\u00A0\u202F\u3000]/g, ' ') // NBSP/얇은 NBSP/전각공백 → 일반 공백
+        .replace(/\*\*['"][^\S\n]*([^\n]*?)['"][^\S\n]*\*\*/g, '**$1**') // 굵게 내부 따옴표 제거
+    : msg.content
   const isTyping = false
 
   return (
@@ -149,12 +163,42 @@ export function MessageItem({
               ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white max-w-2xl'
               : 'bg-white border-2 border-gray-100 max-w-3xl'
             }`}>
-            <p className="text-sm lg:text-base whitespace-pre-wrap leading-relaxed">
-              {msg.role === 'assistant' ? displayedText : msg.content}
+            <div className="text-sm lg:text-base leading-relaxed">
+              {msg.role === 'assistant' ? (
+                <div className="prose prose-sm max-w-none">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeHighlight]}
+                    components={{
+                      // 커스텀 스타일링
+                      h1: ({ children }) => <h1 className="text-2xl font-bold text-gray-800 mb-3 mt-4">{children}</h1>,
+                      h2: ({ children }) => <h2 className="text-xl font-bold text-gray-800 mb-2 mt-3">{children}</h2>,
+                      h3: ({ children }) => <h3 className="text-lg font-bold text-gray-800 mb-2 mt-2">{children}</h3>,
+                      h4: ({ children }) => <h4 className="text-base font-bold text-gray-800 mb-1 mt-2">{children}</h4>,
+                      h5: ({ children }) => <h5 className="text-sm font-bold text-gray-800 mb-1 mt-1">{children}</h5>,
+                      h6: ({ children }) => <h6 className="text-xs font-bold text-gray-800 mb-1 mt-1">{children}</h6>,
+                      p: ({ children }) => <p className="mb-2 text-gray-700">{children}</p>,
+                      ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
+                      ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
+                      li: ({ children }) => <li className="text-gray-700">{children}</li>,
+                      strong: ({ children }) => <strong className="font-bold text-gray-800">{children}</strong>,
+                      em: ({ children }) => <em className="italic text-gray-700">{children}</em>,
+                      code: ({ children }) => <code className="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono">{children}</code>,
+                      pre: ({ children }) => <pre className="bg-gray-100 p-3 rounded-lg overflow-x-auto text-sm">{children}</pre>,
+                      blockquote: ({ children }) => <blockquote className="border-l-4 border-gray-300 pl-4 italic text-gray-600">{children}</blockquote>,
+                      a: ({ href, children }) => <a href={href} className="text-blue-600 hover:text-blue-800 underline" target="_blank" rel="noopener noreferrer">{children}</a>,
+                    }}
+                  >
+                    {displayedText}
+                  </ReactMarkdown>
+                </div>
+              ) : (
+                <p className="m-0 text-left break-words leading-relaxed">{msg.content}</p>
+              )}
               {msg.role === 'assistant' && isTyping && (
                 <span className="inline-block w-2 h-4 bg-green-500 ml-1 animate-pulse" />
               )}
-            </p>
+            </div>
           </div>
 
           {/* 타임스탬프 */}
@@ -162,9 +206,65 @@ export function MessageItem({
             <div className={`mt-1 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
               <span
                 className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                title={formatDetailedTime(msg.timestamp)}
+                title={(() => {
+                  let timestamp: Date
+                  
+                  if (isLoggedIn) {
+                    const created_at = (msg as any).created_at
+                    timestamp = created_at ? new Date(created_at) : new Date()
+                  } else {
+                    const msgTimestamp = (msg as any).timestamp
+                    timestamp = msgTimestamp instanceof Date 
+                      ? msgTimestamp 
+                      : new Date(msgTimestamp || Date.now())
+                  }
+                  
+                  if (isNaN(timestamp.getTime())) {
+                    timestamp = new Date()
+                  }
+                  
+                  return formatDetailedTime(timestamp)
+                })()}
               >
-                {formatMessageTime(msg.timestamp)}
+                {(() => {
+                  let timestamp: Date
+                  
+                  if (isLoggedIn) {
+                    // 로그인 사용자: MessageList에서 변환된 timestamp 사용
+                    const msgTimestamp = (msg as any).timestamp
+                    
+                    if (msgTimestamp) {
+                      timestamp = msgTimestamp instanceof Date 
+                        ? msgTimestamp 
+                        : new Date(msgTimestamp)
+                      if (isNaN(timestamp.getTime())) {
+                        console.error('❌ timestamp 파싱 실패:', msgTimestamp)
+                        timestamp = new Date()
+                      }
+                    } else {
+                      console.error('❌ 로그인 사용자의 timestamp가 없습니다:', msg)
+                      timestamp = new Date()
+                    }
+                  } else {
+                    // 게스트 사용자: timestamp 사용
+                    const msgTimestamp = (msg as any).timestamp
+                    timestamp = msgTimestamp instanceof Date 
+                      ? msgTimestamp 
+                      : new Date(msgTimestamp || Date.now())
+                  }
+                  
+                  // 유효하지 않은 날짜인 경우 현재 시간 사용
+                  if (isNaN(timestamp.getTime())) {
+                    console.warn('⚠️ 유효하지 않은 타임스탬프:', { 
+                      isLoggedIn, 
+                      created_at: (msg as any).created_at, 
+                      timestamp: (msg as any).timestamp 
+                    })
+                    timestamp = new Date()
+                  }
+                  
+                  return formatMessageTime(timestamp)
+                })()}
               </span>
             </div>
           )}

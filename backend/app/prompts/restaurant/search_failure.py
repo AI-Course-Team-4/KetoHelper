@@ -2,7 +2,10 @@
 식당 검색 실패시 응답 프롬프트
 """
 
-PLACE_SEARCH_FAILURE_PROMPT = """
+from app.prompts.shared.common_templates import create_standard_prompt
+
+# 식당 검색 실패 프롬프트 (공통 템플릿 사용)
+_base_failure_prompt = """
 사용자가 "{message}"라고 요청했지만 주변 지역에서 적절한 키토 친화적인 식당을 찾지 못했습니다.
 
 다음과 같이 친근하고 도움이 되는 응답을 해주세요:
@@ -14,6 +17,8 @@ PLACE_SEARCH_FAILURE_PROMPT = """
 
 응답은 200자 이내로 간결하고 실용적으로 작성해주세요.
 """
+
+PLACE_SEARCH_FAILURE_PROMPT = create_standard_prompt(_base_failure_prompt)
 
 # Restaurant Agent에서 분리된 기본 프롬프트
 DEFAULT_SEARCH_FAILURE_PROMPT = """
