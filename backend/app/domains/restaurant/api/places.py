@@ -89,7 +89,8 @@ async def search_places(
                         lng=float(result.get('lng', 0.0)),
                         keto_score=result.get('keto_score', 0),
                         why=[f"하이브리드 검색: {q}"] if result.get('menu_name') else ["키워드 매칭"],
-                        tips=tips
+                        tips=tips,
+                        source_url=result.get('source_url')
                     )
                     all_places.append(place_response)
                     print(f"  SUCCESS: 식당 추가: {result.get('restaurant_name')} (키토점수: {result.get('keto_score')}, 거리: {distance_km:.2f}km)")
@@ -215,7 +216,8 @@ async def get_nearby_keto_places(
                                 lng=float(result.get('lng', 0.0)),
                                 keto_score=result.get('keto_score', 0),
                                 why=[f"하이브리드 검색: {keyword}"] if result.get('menu_name') else ["키토 친화 식당"],
-                                tips=tips
+                                tips=tips,
+                                source_url=result.get('source_url')
                             )
                             all_places.append(place_response)
                 
@@ -321,7 +323,8 @@ async def get_high_keto_score_places(
                                 lng=float(result.get('lng', 0.0)),
                                 keto_score=result.get('keto_score', 0),
                                 why=[f"하이브리드 검색: {keyword}"] if result.get('menu_name') else ["키토 친화 식당"],
-                                tips=tips
+                                tips=tips,
+                                source_url=result.get('source_url')
                             )
                             all_places.append(place_response)
                             print(f"    SUCCESS: 식당 추가: {result.get('restaurant_name')} (키토점수: {result.get('keto_score')}, 거리: {distance_km:.2f}km)")
@@ -406,7 +409,7 @@ async def get_supabase_places_by_keyword(
         try:
             # 키워드가 포함된 식당 검색
             restaurant_query = supabase.table('restaurant').select(
-                'id,name,category,lat,lng,addr_road,addr_jibun,representative_menu_name,representative_keto_score'
+                'id,name,category,lat,lng,addr_road,addr_jibun,representative_menu_name,representative_keto_score,source_url'
             ).not_.is_('representative_keto_score', 'null')
         
             # 키워드로 이름이나 대표 메뉴 검색
@@ -464,7 +467,8 @@ async def get_supabase_places_by_keyword(
                         lng=float(row.get('lng') or 0.0),
                         keto_score=keto_score,
                         why=reasons,
-                        tips=tips
+                        tips=tips,
+                        source_url=row.get('source_url')
                     )
                     places.append(place_response)
                     print(f"SUCCESS: 식당 추가: {row.get('name')} (대표메뉴: {representative_menu}, {keto_score}점)")
@@ -502,7 +506,7 @@ async def get_supabase_places(
         try:
             # 대표 메뉴 키토 점수가 있는 식당만 조회
             restaurant_response = supabase.table('restaurant').select(
-                'id,name,category,lat,lng,addr_road,addr_jibun,representative_menu_name,representative_keto_score'
+                'id,name,category,lat,lng,addr_road,addr_jibun,representative_menu_name,representative_keto_score,source_url'
             ).not_.is_('representative_keto_score', 'null').execute()
             
             rows = restaurant_response.data if hasattr(restaurant_response, 'data') else []
@@ -550,7 +554,8 @@ async def get_supabase_places(
                         lng=float(row.get('lng') or 0.0),
                         keto_score=keto_score,
                         why=reasons,
-                        tips=tips
+                        tips=tips,
+                        source_url=row.get('source_url')
                     )
                     places.append(place_response)
                     print(f"SUCCESS: 식당 추가: {row.get('name')} (대표메뉴: {representative_menu}, {keto_score}점) - 좌표: ({row.get('lat')}, {row.get('lng')})")

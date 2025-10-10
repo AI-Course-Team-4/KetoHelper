@@ -76,6 +76,11 @@ export interface MealData {
   lunch: string
   dinner: string
   snack: string
+  // URL 정보 (선택적)
+  breakfastUrl?: string
+  lunchUrl?: string
+  dinnerUrl?: string
+  snackUrl?: string
   // 체크 상태 추가
   breakfastCompleted?: boolean
   lunchCompleted?: boolean
