@@ -2,10 +2,27 @@ import { useState } from 'react'
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Edit, CalendarToday, AccessTime, Restaurant, Delete } from '@mui/icons-material'
+import { Edit, CalendarToday, AccessTime, Restaurant, Delete, OpenInNew } from '@mui/icons-material'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { MealData } from '@/data/ketoMeals'
+
+// URL에 따른 아이콘 반환 (이미지 경로)
+const getUrlIcon = (url?: string): { src: string; alt: string } => {
+  if (!url || url.trim() === '') {
+    return { src: '/google.svg', alt: '구글 검색' }
+  }
+  
+  const lowerUrl = url.toLowerCase()
+  
+  if (lowerUrl.includes('10000recipe.com') || lowerUrl.includes('만개의레시피')) {
+    return { src: '/10000recipe.svg', alt: '만개의레시피' }
+  } else if (lowerUrl.includes('google.com')) {
+    return { src: '/google.svg', alt: '구글 검색' }
+  } else {
+    return { src: '/google.svg', alt: '웹사이트' }
+  }
+}
 
 interface DateDetailModalProps {
   isOpen: boolean
@@ -148,6 +165,9 @@ export function DateDetailModal({
                 
                 const isCompletedMeal = isMealChecked ? isMealChecked(selectedDate, meal.key as 'breakfast' | 'lunch' | 'dinner' | 'snack') : false
                 
+                // URL 아이콘 가져오기
+                const urlIcon = getUrlIcon(recipeUrl)
+                
                 return (
                   <div 
                     key={meal.key} 
@@ -234,16 +254,29 @@ export function DateDetailModal({
                         className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                       />
                     ) : (
-                      <div className={`text-sm ${
-                        isCompletedMeal ? 'text-green-700' : 
-                        isPastMeal && !isCompletedMeal && !isEditing ? 'text-gray-400' : 
-                        'text-muted-foreground'
-                      }`}>
-                        {hasMealData 
-                          ? mealContent
-                          : '계획된 식단이 없습니다'
-                        }
-                      </div>
+                      <>
+                        <div className={`text-sm ${
+                          isCompletedMeal ? 'text-green-700' : 
+                          isPastMeal && !isCompletedMeal && !isEditing ? 'text-gray-400' : 
+                          'text-muted-foreground'
+                        }`}>
+                          {hasMealData 
+                            ? mealContent
+                            : '계획된 식단이 없습니다'
+                          }
+                        </div>
+                        
+                        {/* 식단 추가 정보 섹션 */}
+                        {hasMealData && (
+                          <div className="mt-2 pt-2 border-t border-gray-200">
+                            <div className="flex items-center gap-2 text-xs text-gray-600">
+                              <img src={urlIcon.src} alt={urlIcon.alt} className="w-4 h-4" />
+                              <span className="font-medium">📋 식단 추가정보</span>
+                              <OpenInNew sx={{ fontSize: 12 }} />
+                            </div>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )

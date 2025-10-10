@@ -1,6 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Add } from '@mui/icons-material'
-import { CalendarToday } from '@mui/icons-material'
+import { AddCircleOutline, CalendarToday } from '@mui/icons-material'
 import { format, isToday } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { MealData } from '@/data/ketoMeals'
@@ -38,6 +37,7 @@ export function SelectedDateMeals({
     <Card className="lg:col-span-1 border border-gray-200">
       <CardHeader className="pb-4 h-[88px]">
         <CardTitle className="flex items-center text-xl font-bold">
+          <span className="text-2xl mr-2">📅</span>
           <CalendarToday sx={{ fontSize: 24, mr: 1.5, color: 'green.600' }} />
           {selectedDate && isToday(selectedDate) ? '오늘의' : selectedDate ? format(selectedDate, 'M월 d일', { locale: ko }) : '오늘의'} 식단
         </CardTitle>
@@ -63,8 +63,11 @@ export function SelectedDateMeals({
                   <span className="text-lg">{meal.icon}</span>
                   {meal.label}
                 </h4>
-                <div className="w-6 h-6 rounded-full bg-green-100 hover:bg-green-200 flex items-center justify-center transition-colors">
-                  <Add sx={{ fontSize: 14, color: 'green.600' }} />
+                <div className="w-8 h-8 rounded-full bg-green-100 hover:bg-green-200 flex items-center justify-center transition-colors relative group">
+                  <AddCircleOutline sx={{ fontSize: 20, color: 'green.600' }} />
+                  <span className="absolute -bottom-7 right-0 text-[10px] text-green-700 font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                    ➕ 식단추가
+                  </span>
                 </div>
               </div>
               <div className="text-xs text-gray-600 mt-1 ml-8">

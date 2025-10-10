@@ -2,7 +2,7 @@ import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { AccessTime, Restaurant, GpsFixed, Star, RestaurantMenu, LocalFireDepartment } from '@mui/icons-material'
+import { AccessTime, Restaurant, Star, RestaurantMenu, LocalFireDepartment, Info } from '@mui/icons-material'
 
 interface MealDetailModalProps {
   isOpen: boolean
@@ -114,10 +114,12 @@ export function MealDetailModal({
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
+                  <span className="text-lg">🍽️</span>
                   <Restaurant sx={{ fontSize: 16 }} />
-                  메뉴
+                  <span>메뉴 정보</span>
                 </div>
                 <div className="flex items-center gap-2">
+                  <span className="text-base">⏰</span>
                   <AccessTime sx={{ fontSize: 16 }} />
                   <span className="text-sm">{mealInfo.time}</span>
                 </div>
@@ -143,8 +145,9 @@ export function MealDetailModal({
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2">
-                  <GpsFixed sx={{ fontSize: 16 }} />
-                  예상 영양성분
+                  <span className="text-lg">📊</span>
+                  <Info sx={{ fontSize: 16 }} />
+                  <span>식단 영양정보</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -178,8 +181,9 @@ export function MealDetailModal({
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2">
+                  <span className="text-lg">💡</span>
                   <RestaurantMenu sx={{ fontSize: 16 }} />
-                  키토 팁
+                  <span>키토 식단 가이드</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>

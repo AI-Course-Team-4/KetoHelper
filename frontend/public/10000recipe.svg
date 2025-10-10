@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <!-- 밝은 녹색 배경 -->
+  <rect width="24" height="24" rx="4" fill="#66BB6A"/>
+  
+  <!-- 냄비 본체 (더 정교한 형태 - 하단이 더 좁아짐) -->
+  <path d="M7.5 15.5h9v3.5h-9z" fill="#2E7D32"/>
+  
+  <!-- 냄비 입구 (넓은 부분) -->
+  <path d="M6.5 13.5h11v2h-11z" fill="#2E7D32"/>
+  
+  <!-- 냄비 목 부분 (입구와 본체 사이) -->
+  <path d="M7 14.5h10v1H7z" fill="#2E7D32"/>
+  
+  <!-- 뚜껑 (반정도만 덮여있는 형태, 더 정교하게) -->
+  <path d="M8.5 11.5h7v2h-7z" fill="#2E7D32"/>
+  
+  <!-- 뚜껑 손잡이 (더 정확한 크기) -->
+  <rect x="11.8" y="10" width="0.4" height="1.5" rx="0.2" fill="#2E7D32"/>
+  
+  <!-- 증기 (더 자연스러운 배치와 크기) -->
+  <ellipse cx="7.8" cy="10.8" rx="0.6" ry="0.4" fill="#A5D6A7"/>
+  <ellipse cx="10.2" cy="10.3" rx="0.6" ry="0.4" fill="#A5D6A7"/>
+  <ellipse cx="12.5" cy="10" rx="0.6" ry="0.4" fill="#A5D6A7"/>
+  <ellipse cx="14.8" cy="10.3" rx="0.6" ry="0.4" fill="#A5D6A7"/>
+  <ellipse cx="16.2" cy="10.8" rx="0.6" ry="0.4" fill="#A5D6A7"/>
+  
+  <!-- 잎사귀 (오른쪽 - 더 정교한 형태) -->
+  <ellipse cx="19.2" cy="14.5" rx="1.2" ry="0.8" fill="#A5D6A7"/>
+  <ellipse cx="19.6" cy="16" rx="0.8" ry="0.6" fill="#A5D6A7"/>
+  
+  <!-- 냄비 측면 그림자 (더 세밀하게) -->
+  <path d="M7.5 13.5v5l-0.8 0v-5z" fill="#1B5E20"/>
+  <path d="M7.5 13.5h11v0.3H7.5z" fill="#1B5E20"/>
+  
+  <!-- 냄비 내부 그림자 -->
+  <path d="M7.5 15.5h9v0.2H7.5z" fill="#1B5E20"/>
+  
+  <!-- 냄비 바닥 하이라이트 -->
+  <path d="M8 18.5h8v0.3H8z" fill="#4CAF50"/>
+</svg>
+
