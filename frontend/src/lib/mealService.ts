@@ -51,22 +51,62 @@ export class MealService {
         snackCompleted: false
       }
 
-      data.forEach((log: MealLogRecord) => {
+      // 🔍 URL 가져오기 시도 (meal_plan_item -> recipe_blob_emb)
+      for (const log of data) {
         const mealType = log.meal_type
+        const mealContent = log.note || ''
+        let recipeUrl: string | undefined = undefined
+
+        // mealplan_id가 있으면 URL 가져오기 시도
+        if (log.mealplan_id) {
+          try {
+            // meal_plan_item에서 recipe_blob_id 찾기
+            const { data: planItems } = await supabase
+              .from('meal_plan_item')
+              .select('recipe_blob_id')
+              .eq('mealplan_id', log.mealplan_id)
+              .eq('meal_type', mealType)
+              .eq('planned_date', date)
+              .limit(1)
+              .single()
+
+            // recipe_blob_emb에서 URL 찾기
+            if (planItems?.recipe_blob_id) {
+              const { data: recipe } = await supabase
+                .from('recipe_blob_emb')
+                .select('url')
+                .eq('id', planItems.recipe_blob_id)
+                .limit(1)
+                .single()
+              
+              if (recipe?.url) {
+                recipeUrl = recipe.url
+              }
+            }
+          } catch (urlError) {
+            // URL 조회 실패 시 무시
+          }
+        }
+
+        // 데이터 할당
         if (mealType === 'breakfast') {
-          mealData.breakfast = log.note || ''
+          mealData.breakfast = mealContent
+          mealData.breakfastUrl = recipeUrl
           mealData.breakfastCompleted = log.eaten
         } else if (mealType === 'lunch') {
-          mealData.lunch = log.note || ''
+          mealData.lunch = mealContent
+          mealData.lunchUrl = recipeUrl
           mealData.lunchCompleted = log.eaten
         } else if (mealType === 'dinner') {
-          mealData.dinner = log.note || ''
+          mealData.dinner = mealContent
+          mealData.dinnerUrl = recipeUrl
           mealData.dinnerCompleted = log.eaten
         } else if (mealType === 'snack') {
-          mealData.snack = log.note || ''
+          mealData.snack = mealContent
+          mealData.snackUrl = recipeUrl
           mealData.snackCompleted = log.eaten
         }
-      })
+      }
 
       return mealData
     } catch (error) {

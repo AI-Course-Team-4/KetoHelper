@@ -73,8 +73,6 @@ export function useCalendarData(currentMonth: Date) {
   // API 데이터를 캘린더 형식으로 변환
   useEffect(() => {
     if (plansData && user?.id) {
-      console.log('📅 API에서 식단 데이터 로드:', plansData)
-
       const convertedData: Record<string, MealData> = {}
       const convertedPlanIds: Record<string, Record<string, string>> = {}
 
@@ -109,18 +107,22 @@ export function useCalendarData(currentMonth: Date) {
           // 슬롯에 맞는 식단 데이터 설정
           if (plan.slot === 'breakfast') {
             convertedData[dateKey].breakfast = plan.title || plan.notes || ''
+            convertedData[dateKey].breakfastUrl = plan.url  // ✅ URL 추가
             convertedData[dateKey].breakfastCompleted = plan.status === 'done'
             convertedPlanIds[dateKey].breakfast = plan.id
           } else if (plan.slot === 'lunch') {
             convertedData[dateKey].lunch = plan.title || plan.notes || ''
+            convertedData[dateKey].lunchUrl = plan.url  // ✅ URL 추가
             convertedData[dateKey].lunchCompleted = plan.status === 'done'
             convertedPlanIds[dateKey].lunch = plan.id
           } else if (plan.slot === 'dinner') {
             convertedData[dateKey].dinner = plan.title || plan.notes || ''
+            convertedData[dateKey].dinnerUrl = plan.url  // ✅ URL 추가
             convertedData[dateKey].dinnerCompleted = plan.status === 'done'
             convertedPlanIds[dateKey].dinner = plan.id
           } else if (plan.slot === 'snack') {
             convertedData[dateKey].snack = plan.title || plan.notes || ''
+            convertedData[dateKey].snackUrl = plan.url  // ✅ URL 추가
             convertedData[dateKey].snackCompleted = plan.status === 'done'
             convertedPlanIds[dateKey].snack = plan.id
           } else {
@@ -134,8 +136,6 @@ export function useCalendarData(currentMonth: Date) {
 
       setMealData(convertedData)
       setPlanIds(convertedPlanIds)
-      console.log('✅ API 데이터 변환 완료:', convertedData)
-      console.log('✅ Plan IDs 저장 완료:', convertedPlanIds)
     } else if (!user?.id) {
       // 사용자가 로그인하지 않은 경우 샘플 데이터 사용
       console.log('👤 비로그인 사용자 - 샘플 데이터 로드')
