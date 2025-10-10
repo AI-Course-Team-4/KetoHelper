@@ -101,12 +101,6 @@ def get_generator_prompt(
     allergies = user_constraints.get("allergies", [])
     dislikes = user_constraints.get("dislikes", [])
     
-    # 🔍 디버깅: 프롬프트 생성 시 데이터 확인
-    print(f"\n🔍 [Generator 프롬프트] 데이터 추출:")
-    print(f"  - forbidden: {forbidden}")
-    print(f"  - allergies: {allergies}")
-    print(f"  - dislikes: {dislikes}\n")
-    
     return GENERATOR_PROMPT.format(
         base_recipe=json.dumps(base_recipe, ensure_ascii=False, indent=2),
         transform_rules=json.dumps(transform_rules, ensure_ascii=False, indent=2),

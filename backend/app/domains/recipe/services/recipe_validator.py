@@ -243,12 +243,6 @@ class RecipeValidator:
                 "forbidden_json": ["sugar", "honey", "rice", "wheat_flour"]
             }
             
-            # 🔍 디버깅: 실제 데이터 출력
-            print(f"\n🔍 [DEBUG] 데이터 확인:")
-            print(f"  - 금지어 (forbidden): {transform_rules.get('forbidden_json', [])}")
-            print(f"  - 알레르기 (allergies): {constraints.get('allergies', [])}")
-            print(f"  - 비선호 (dislikes): {constraints.get('dislikes', [])}\n")
-            
             return base_recipe, transform_rules
         
         except Exception as e:

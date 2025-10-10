@@ -48,10 +48,18 @@ class PlaceSearchAgent:
         print(f"✅ {self.agent_name} 초기화 (프롬프트: {list(self.prompts.keys())})")
         
         try:
-            # 공통 LLM 초기화
-            self.llm = create_chat_llm()
+            # PlaceSearchAgent 전용 LLM 설정 사용
+            from app.core.config import settings
+            self.llm = create_chat_llm(
+                provider=settings.place_search_provider,
+                model=settings.place_search_model,
+                temperature=settings.place_search_temperature,
+                max_tokens=settings.place_search_max_tokens,
+                timeout=settings.place_search_timeout
+            )
+            print(f"✅ PlaceSearchAgent LLM 초기화: {settings.place_search_provider}/{settings.place_search_model}")
         except Exception as e:
-            print(f"❌ LLM 초기화 실패: {e}")
+            print(f"❌ PlaceSearchAgent LLM 초기화 실패: {e}")
             self.llm = None
         
         # 도구들 초기화
