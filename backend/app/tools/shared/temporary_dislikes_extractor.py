@@ -48,10 +48,18 @@ class TemporaryDislikesExtractor:
         """LLM Lazy loading"""
         if self._llm is None:
             try:
-                self._llm = create_chat_llm()
-                print("✅ LLM 초기화 성공 (임시 불호 추출용)")
+                # temporary_dislikes_extractor 전용 LLM 설정 사용
+                from app.core.config import settings
+                self._llm = create_chat_llm(
+                    provider=settings.dislikes_extractor_provider,
+                    model=settings.dislikes_extractor_model,
+                    temperature=settings.dislikes_extractor_temperature,
+                    max_tokens=settings.dislikes_extractor_max_tokens,
+                    timeout=settings.dislikes_extractor_timeout
+                )
+                print(f"✅ DislikesExtractor LLM 초기화: {settings.dislikes_extractor_provider}/{settings.dislikes_extractor_model}")
             except Exception as e:
-                print(f"⚠️ LLM 초기화 실패: {e}")
+                print(f"⚠️ DislikesExtractor LLM 초기화 실패: {e}")
                 self._llm = False  # 재시도 방지
         return self._llm if self._llm is not False else None
     

@@ -188,7 +188,8 @@ class RestaurantHybridSearchTool:
                         'keto_score': 0,
                         'keto_reasons': None,
                         'similarity_score': 0.6,
-                        'search_type': 'restaurant_fallback'
+                        'search_type': 'restaurant_fallback',
+                        'source_url': result.get('source_url')
                     })
             
             # 메뉴 결과 포맷팅
@@ -211,7 +212,8 @@ class RestaurantHybridSearchTool:
                         'keto_score': 0,
                         'keto_reasons': None,
                         'similarity_score': 0.7,
-                        'search_type': 'menu_fallback'
+                        'search_type': 'menu_fallback',
+                        'source_url': restaurant_info.get('source_url')
                     })
             
             return formatted_results[:k]
@@ -255,11 +257,24 @@ class RestaurantHybridSearchTool:
                 print("  ⚠️ 하이브리드 검색 결과 없음, 폴백 검색 실행...")
                 unique_results = await self._fallback_direct_search(query, max_results)
             
-            # 5. 결과 포맷팅 (실제 스키마 기반)
+            # 5. 결과 포맷팅 및 source_url 보완
             formatted_results = []
             for result in unique_results[:max_results]:
+                restaurant_id = str(result.get('restaurant_id', ''))
+                
+                # source_url이 없으면 직접 조회
+                source_url = result.get('source_url')
+                if not source_url and restaurant_id:
+                    try:
+                        restaurant_info = self.supabase.table('restaurant').select('source_url').eq('id', restaurant_id).execute()
+                        if restaurant_info.data and len(restaurant_info.data) > 0:
+                            source_url = restaurant_info.data[0].get('source_url')
+                            print(f"  📎 {result.get('restaurant_name')} source_url 보완: {source_url}")
+                    except Exception as e:
+                        print(f"  ⚠️ source_url 조회 실패: {e}")
+                
                 formatted_results.append({
-                    'restaurant_id': str(result.get('restaurant_id', '')),
+                    'restaurant_id': restaurant_id,
                     'restaurant_name': result.get('restaurant_name', '이름 없음'),
                     'category': result.get('restaurant_category', ''),
                     'addr_road': result.get('addr_road', ''),
@@ -274,7 +289,8 @@ class RestaurantHybridSearchTool:
                     'keto_reasons': result.get('keto_reasons'),
                     'similarity': result.get('vector_score', result.get('ilike_score', result.get('trigram_score', result.get('similarity_score', 0.0)))),
                     'search_type': result.get('search_type', 'hybrid'),
-                    'final_score': result.get('final_score', 0.0)
+                    'final_score': result.get('final_score', 0.0),
+                    'source_url': source_url
                 })
             
             print(f"  ✅ 최종 결과: {len(formatted_results)}개")

@@ -62,9 +62,18 @@ class MealPlannerAgent:
         self.tools = self._load_tools()
         
         try:
-            self.llm = create_chat_llm()
+            # MealPlannerAgent 전용 LLM 설정 사용
+            from app.core.config import settings
+            self.llm = create_chat_llm(
+                provider=settings.meal_planner_provider,
+                model=settings.meal_planner_model,
+                temperature=settings.meal_planner_temperature,
+                max_tokens=settings.meal_planner_max_tokens,
+                timeout=settings.meal_planner_timeout
+            )
+            print(f"✅ MealPlannerAgent LLM 초기화: {settings.meal_planner_provider}/{settings.meal_planner_model}")
         except Exception as e:
-            print(f"LLM 초기화 실패: {e}")
+            print(f"❌ MealPlannerAgent LLM 초기화 실패: {e}")
             self.llm = None
         
         

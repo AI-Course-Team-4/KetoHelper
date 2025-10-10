@@ -35,9 +35,18 @@ class SimpleKetoCoachAgent:
         self.prompt_template = self._load_prompt_template()
         
         try:
-            self.llm = create_chat_llm()
+            # ChatAgent 전용 LLM 설정 사용
+            from app.core.config import settings
+            self.llm = create_chat_llm(
+                provider=settings.chat_agent_provider,
+                model=settings.chat_agent_model,
+                temperature=settings.chat_agent_temperature,
+                max_tokens=settings.chat_agent_max_tokens,
+                timeout=settings.chat_agent_timeout
+            )
+            print(f"✅ ChatAgent LLM 초기화: {settings.chat_agent_provider}/{settings.chat_agent_model}")
         except Exception as e:
-            print(f"LLM 초기화 실패: {e}")
+            print(f"❌ ChatAgent LLM 초기화 실패: {e}")
             self.llm = None
     
     def _load_prompt_template(self) -> str:

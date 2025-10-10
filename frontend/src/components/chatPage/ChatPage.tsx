@@ -16,8 +16,6 @@ export function ChatPage() {
     message,
     setMessage,
     isLoading,
-    loadingStep,
-    setLoadingStep,
     currentThreadId,
     isSavingMeal,
     userLocation,
@@ -54,7 +52,6 @@ export function ChatPage() {
     setMessage,
     isLoading,
     setIsLoading,
-    setLoadingStep,
     currentThreadId,
     setCurrentThreadId,
     isSaving,
@@ -270,7 +267,6 @@ export function ChatPage() {
                 chatHistory={chatHistory}
                 isLoggedIn={isLoggedIn}
                 isLoading={isLoading}
-                loadingStep={loadingStep}
                 scrollAreaRef={scrollAreaRef}
                 messagesEndRef={messagesEndRef}
                 shouldAutoScroll={shouldAutoScroll}
