@@ -501,13 +501,14 @@ class MealPlannerAgent:
             중복되지 않은 레시피 목록
         """
         try:
-            # 하이브리드 검색 실행 (제외 키워드가 쿼리에 포함되어 있음)
+            # 하이브리드 검색 실행 (알레르기/비선호 필터링 포함)
             search_results = await hybrid_search_tool.search(
                 query=search_query,
                 profile=constraints,
                 max_results=min(max_results * 3, 50),  # 더 많이 가져오기
-                user_id=user_id
-                # allergies, dislikes 제거 (쿼리에서 이미 제외됨)
+                user_id=user_id,
+                allergies=allergies,
+                dislikes=dislikes
             )
             
             if not search_results:
@@ -1413,8 +1414,23 @@ class MealPlannerAgent:
                 hybrid_search = HybridSearchTool()
                 
                 # 프로필에서 알레르기/비선호 추출
-                # 🚨 user_id가 있으면 직접 프로필에서 가져오기 (더 확실함)
-                if user_id:
+                # profile_context를 우선 사용 (임시 불호 포함)
+                allergies = []
+                dislikes = []
+                
+                if profile_context:
+                    # profile_context에서 파싱 (임시 불호 포함됨)
+                    if "알레르기:" in profile_context:
+                        allergy_part = profile_context.split("알레르기:")[1].split("|")[0]
+                        allergies = [a.strip() for a in allergy_part.split(",") if a.strip() and a.strip() != "없음"]
+                    
+                    if "비선호 재료:" in profile_context:
+                        dislike_part = profile_context.split("비선호 재료:")[1].split("|")[0]
+                        dislikes = [d.strip() for d in dislike_part.split(",") if d.strip() and d.strip() != "없음"]
+                    
+                    print(f"🔍 레시피 검색 - 알레르기: {allergies}, 비선호: {dislikes}")
+                elif user_id:
+                    # profile_context가 없으면 DB에서 조회 (백업)
                     from app.tools.shared.profile_tool import user_profile_tool
                     user_preferences = await user_profile_tool.get_user_preferences(user_id)
                     
@@ -1423,21 +1439,6 @@ class MealPlannerAgent:
                         allergies = prefs.get("allergies", [])
                         dislikes = prefs.get("dislikes", [])
                         print(f"🔍 레시피 검색 - 알레르기: {allergies}, 비선호: {dislikes}")
-                    else:
-                        allergies = []
-                        dislikes = []
-                else:
-                    # profile_context에서 파싱 (백업)
-                    allergies = []
-                    dislikes = []
-                    
-                    if "알레르기:" in profile_context:
-                        allergy_part = profile_context.split("알레르기:")[1].split("|")[0]
-                        allergies = [a.strip() for a in allergy_part.split(",") if a.strip() and a.strip() != "없음"]
-                    
-                    if "비선호 재료:" in profile_context:
-                        dislike_part = profile_context.split("비선호 재료:")[1].split("|")[0]
-                        dislikes = [d.strip() for d in dislike_part.split(",") if d.strip() and d.strip() != "없음"]
                 
                 vector_results = await hybrid_search.search(
                     query=message,
@@ -1730,10 +1731,14 @@ class MealPlannerAgent:
                     }
                 meal_plan = result["data"]
             else:
-                # 직접 개인화 생성
-                meal_plan = await self.generate_personalized_meal_plan(
-                    user_id=user_id,
+                # 직접 개인화 생성 (constraints 반영)
+                meal_plan = await self.generate_meal_plan(
                     days=days,
+                    kcal_target=constraints.get("kcal_target"),
+                    carbs_max=constraints.get("carbs_max", 30),
+                    allergies=constraints.get("allergies", []),
+                    dislikes=constraints.get("dislikes", []),
+                    user_id=user_id,
                     fast_mode=fast_mode
                 )
         else:
@@ -1862,9 +1867,12 @@ class MealPlannerAgent:
         # 3. 프로필 기반 vs 일반 레시피
         if user_id and state.get("profile"):
             print(f"👤 프로필 기반 레시피 생성: user_id={user_id}")
-            recipe = await self.generate_recipe_with_profile(
-                user_id=user_id,
-                message=message
+            # 프로필 컨텍스트 생성 (임시 불호 포함)
+            profile_context = self._build_profile_context(constraints)
+            recipe = await self.generate_single_recipe(
+                message=message,
+                profile_context=profile_context,
+                user_id=user_id
             )
         else:
             # 프로필 컨텍스트 생성
@@ -2025,11 +2033,15 @@ class MealPlannerAgent:
         
         if constraints.get("allergies"):
             context_parts.append(f"알레르기: {', '.join(constraints['allergies'])}")
+        else:
+            context_parts.append("알레르기: 없음")
         
         if constraints.get("dislikes"):
-            context_parts.append(f"싫어하는 음식: {', '.join(constraints['dislikes'])}")
+            context_parts.append(f"비선호 재료: {', '.join(constraints['dislikes'])}")
+        else:
+            context_parts.append("비선호 재료: 없음")
         
-        return ". ".join(context_parts) if context_parts else ""
+        return " | ".join(context_parts) if context_parts else ""
     
     def _should_use_personalized(self, message: str, state: Dict) -> bool:
         """
