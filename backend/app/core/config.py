@@ -40,6 +40,13 @@ class Settings(BaseSettings):
     # Gemini 설정
     google_api_key: str = os.getenv("GOOGLE_API_KEY", "")
     
+    # RecipeValidator 전용 LLM 설정
+    recipe_validator_provider: str = os.getenv("RECIPE_VALIDATOR_PROVIDER", "openai").lower()
+    recipe_validator_model: str = os.getenv("RECIPE_VALIDATOR_MODEL", "gpt-4o-mini")
+    recipe_validator_temperature: float = float(os.getenv("RECIPE_VALIDATOR_TEMPERATURE", "0.1"))
+    recipe_validator_max_tokens: int = int(os.getenv("RECIPE_VALIDATOR_MAX_TOKENS", "4096"))
+    recipe_validator_timeout: int = int(os.getenv("RECIPE_VALIDATOR_TIMEOUT", "30"))
+    
     # 외부 API 설정
     kakao_rest_key: str = os.getenv("KAKAO_REST_KEY", "")
     

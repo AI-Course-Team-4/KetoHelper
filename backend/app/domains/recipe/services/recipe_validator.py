@@ -23,9 +23,17 @@ class RecipeValidator:
     def __init__(self):
         """초기화"""
         try:
-            self.llm = create_chat_llm()
+            # RecipeValidator 전용 LLM 설정 사용
+            self.llm = create_chat_llm(
+                provider=settings.recipe_validator_provider,
+                model=settings.recipe_validator_model,
+                temperature=settings.recipe_validator_temperature,
+                max_tokens=settings.recipe_validator_max_tokens,
+                timeout=settings.recipe_validator_timeout
+            )
+            print(f"✅ RecipeValidator LLM 초기화: {settings.recipe_validator_provider}/{settings.recipe_validator_model}")
         except Exception as e:
-            print(f"LLM 초기화 실패: {e}")
+            print(f"❌ RecipeValidator LLM 초기화 실패: {e}")
             self.llm = None
         
         # Supabase 클라이언트
@@ -34,10 +42,10 @@ class RecipeValidator:
             settings.supabase_service_role_key
         )
         
-        # 설정
+        # 설정 (RecipeValidator 전용 타임아웃 사용)
         self.max_attempts = 3  # 최초 1회 + 재시도 2회
-        self.generator_timeout = 120  # 초 (Gemini는 프롬프트가 길어서 시간이 더 걸림)
-        self.judge_timeout = 90  # 초
+        self.generator_timeout = settings.recipe_validator_timeout  # 환경 변수 사용
+        self.judge_timeout = settings.recipe_validator_timeout  # 환경 변수 사용
     
     async def generate_validated_recipe(
         self,
@@ -234,6 +242,12 @@ class RecipeValidator:
                 "amount_limits_json": [],
                 "forbidden_json": ["sugar", "honey", "rice", "wheat_flour"]
             }
+            
+            # 🔍 디버깅: 실제 데이터 출력
+            print(f"\n🔍 [DEBUG] 데이터 확인:")
+            print(f"  - 금지어 (forbidden): {transform_rules.get('forbidden_json', [])}")
+            print(f"  - 알레르기 (allergies): {constraints.get('allergies', [])}")
+            print(f"  - 비선호 (dislikes): {constraints.get('dislikes', [])}\n")
             
             return base_recipe, transform_rules
         

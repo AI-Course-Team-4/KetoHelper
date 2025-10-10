@@ -43,17 +43,26 @@ async def test_validator():
         validator = RecipeValidator()
         print("✅ 초기화 완료")
         
-        # 테스트 케이스 1: 닭고기 요리
+        # 테스트 케이스 1: 닭고기 요리 (알레르기 & 비선호 포함)
         print("\n2️⃣ 테스트 케이스 1: 닭고기 요리")
         print("-" * 60)
+        
+        test_constraints = {
+            'allergies': ['버터', '우유'],  # 🔥 알레르기 테스트
+            'dislikes': ['버섯', '시금치'],  # 🔥 비선호 테스트
+            'kcal_target': 500,
+            'carbs_max': 15
+        }
+        
+        print(f"📝 테스트 제약조건:")
+        print(f"  - 알레르기: {test_constraints['allergies']}")
+        print(f"  - 비선호: {test_constraints['dislikes']}")
+        print(f"  - 목표 칼로리: {test_constraints['kcal_target']}kcal")
+        print(f"  - 최대 탄수화물: {test_constraints['carbs_max']}g\n")
+        
         result = await validator.generate_validated_recipe(
             meal_type='닭고기 요리',
-            constraints={
-                'allergies': [],
-                'dislikes': [],
-                'kcal_target': 500,
-                'carbs_max': 15
-            }
+            constraints=test_constraints
         )
         
         print(f"\n📊 결과:")
