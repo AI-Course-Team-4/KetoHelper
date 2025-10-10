@@ -63,7 +63,7 @@ class PersonalWeightConfig(WeightConfig):
             speed_desc = "balanced"
 
         # LLM 타임아웃/토큰(테스트용 합리 범위 유지)
-        self.llm_timeout = 120
+        self.llm_timeout = 180
         self.llm_max_tokens = 8192
 
         print(f"🧪 soohwan weight-set 적용: set={speed_desc}, thr={self.similarity_threshold}, k={self.max_search_results}, V/K/E={self.vector_search_weight}/{self.exact_ilike_weight}/{self.fts_weight}")

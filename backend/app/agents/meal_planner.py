@@ -290,7 +290,7 @@ class MealPlannerAgent:
                         if day_meals.get(slot) is None and day_idx < len(meal_structure):
                             # AI로 생성된 메뉴명 사용
                             menu_name = meal_structure[day_idx].get(f"{slot}_type")
-                            if not menu_name or self._is_generic_menu_name(menu_name):
+                            if not menu_name or len(menu_name.strip()) < 3:
                                 second_stage_missing = True
                                 # 즉시 해당 슬롯만 no_result로 채워서 부분 실패로 반환
                                 day_meals[slot] = {
@@ -381,7 +381,7 @@ class MealPlannerAgent:
                 }
                 for slot in ['breakfast','lunch','dinner','snack']:
                     name = day_plan.get(f"{slot}_type")
-                    if name and not self._is_generic_menu_name(name):
+                    if name and len(name.strip()) >= 3:
                         day_meals[slot] = {"title": name, "type": "simple"}
                     else:
                         # 슬롯별 부분 실패: 사유/가이드 포함해 표시

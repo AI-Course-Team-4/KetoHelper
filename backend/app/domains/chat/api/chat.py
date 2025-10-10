@@ -314,6 +314,31 @@ async def chat_endpoint(request: ChatMessage):
         if result.get("meal_plan_data"):
             response_data["meal_plan_data"] = result.get("meal_plan_data")
         
+        # 캘린더 저장 데이터가 있는 경우 save_to_calendar_data 추가
+        print(f"🔍 DEBUG: result.get('save_to_calendar_data') 값: {result.get('save_to_calendar_data')}")
+        print(f"🔍 DEBUG: result.get('save_to_calendar_data') 타입: {type(result.get('save_to_calendar_data'))}")
+        print(f"🔍 DEBUG: result.get('save_to_calendar_data') bool: {bool(result.get('save_to_calendar_data'))}")
+        
+        if result.get("save_to_calendar_data"):
+            response_data["save_to_calendar_data"] = result.get("save_to_calendar_data")
+            print(f"🔍 DEBUG: save_to_calendar_data를 응답에 포함: {result.get('save_to_calendar_data')}")
+        else:
+            print(f"🔍 DEBUG: save_to_calendar_data가 없거나 falsy 값입니다")
+        
+        print(f"🔍 DEBUG: 최종 response_data: {response_data}")
+        print(f"🔍 DEBUG: 최종 response_data 키들: {list(response_data.keys())}")
+        print(f"🔍 DEBUG: save_to_calendar_data 존재 여부: {'save_to_calendar_data' in response_data}")
+        
+        # JSON 직렬화 테스트
+        import json
+        try:
+            json_str = json.dumps(response_data, ensure_ascii=False)
+            print(f"🔍 DEBUG: JSON 직렬화 성공, 길이: {len(json_str)}")
+            parsed_back = json.loads(json_str)
+            print(f"🔍 DEBUG: JSON 파싱 후 save_to_calendar_data 존재: {'save_to_calendar_data' in parsed_back}")
+        except Exception as e:
+            print(f"🔍 DEBUG: JSON 직렬화 실패: {e}")
+        
         return response_data
         
     except Exception as e:

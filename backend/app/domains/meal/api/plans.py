@@ -39,9 +39,13 @@ async def get_plans_range(
     캘린더 UI에서 사용
     """
     try:
+        print(f"🔍 [DEBUG] plans/range API 호출: user_id={user_id}, start={start}, end={end}")
         response = supabase.table('meal_log').select('*').eq('user_id', str(user_id)).gte('date', start.isoformat()).lte('date', end.isoformat()).order('date').execute()
 
         meal_logs = response.data
+        print(f"🔍 [DEBUG] meal_log 조회 결과: {len(meal_logs)}개 레코드")
+        for i, log in enumerate(meal_logs[:3]):  # 처음 3개만 로그
+            print(f"🔍 [DEBUG] meal_log[{i}]: {log}")
 
         # meal_log 데이터를 PlanResponse 형태로 변환
         plans = []
@@ -63,6 +67,10 @@ async def get_plans_range(
             }
             plans.append(plan)
 
+        print(f"🔍 [DEBUG] 변환된 plans: {len(plans)}개")
+        for i, plan in enumerate(plans[:3]):  # 처음 3개만 로그
+            print(f"🔍 [DEBUG] plan[{i}]: {plan}")
+        
         return plans
 
     except Exception as e:
@@ -70,6 +78,41 @@ async def get_plans_range(
             status_code=500,
             detail=f"식단 계획 조회 중 오류 발생: {str(e)}"
         )
+
+@router.get("/status")
+async def get_save_status(
+    user_id: str = Query(..., description="사용자 ID"),
+    start: date = Query(..., description="시작 날짜 (YYYY-MM-DD)"),
+    duration_days: int = Query(..., ge=1, le=365, description="기간(일)"),
+):
+    """간단 버전 저장 상태 확인: 기간 내 `meal_log` 존재 여부로 처리.
+
+    - 존재하면 status=done
+    - 없으면 status=processing
+    """
+    try:
+        end = start + timedelta(days=duration_days)
+
+        resp = supabase.table('meal_log') \
+            .select('id,date') \
+            .eq('user_id', str(user_id)) \
+            .gte('date', start.isoformat()) \
+            .lt('date', end.isoformat()) \
+            .execute()
+
+        rows = resp.data or []
+        # 날짜별 최소 1건씩 저장되었는지 확인 (하루만 먼저 저장되는 상황 방지)
+        distinct_days = {r.get('date') for r in rows if r.get('date')}
+        done = len(distinct_days) >= duration_days
+        return {
+            "status": "done" if done else "processing",
+            "found_count": len(rows),
+            "distinct_days": len(distinct_days),
+            "expected_days": duration_days,
+            "range": {"start": start.isoformat(), "end": end.isoformat()}
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"상태 조회 중 오류: {str(e)}")
 
 @router.post("/item", response_model=PlanResponse)
 async def create_or_update_plan(
@@ -210,6 +253,40 @@ async def delete_plan_item(
         raise HTTPException(
             status_code=500,
             detail=f"식단 계획 삭제 중 오류 발생: {str(e)}"
+        )
+
+@router.delete("/all")
+async def delete_all_plans(
+    user_id: str = Query(..., description="사용자 ID")
+):
+    """사용자의 모든 식단 계획 삭제 (meal_log 테이블)"""
+    try:
+        print(f"🗑️ [DEBUG] 전체 삭제 요청: user_id={user_id}")
+        
+        # 기존 데이터 확인
+        existing_response = supabase.table('meal_log').select('*').eq('user_id', str(user_id)).execute()
+        existing_count = len(existing_response.data) if existing_response.data else 0
+        
+        print(f"🗑️ [DEBUG] 기존 데이터 개수: {existing_count}")
+        
+        if existing_count == 0:
+            return {"message": "삭제할 식단 계획이 없습니다", "deleted_count": 0}
+
+        # 모든 식단 계획 삭제
+        delete_response = supabase.table('meal_log').delete().eq('user_id', str(user_id)).execute()
+        
+        print(f"🗑️ [DEBUG] 삭제 완료: {delete_response}")
+        
+        return {
+            "message": f"모든 식단 계획이 삭제되었습니다 ({existing_count}개)",
+            "deleted_count": existing_count
+        }
+
+    except Exception as e:
+        print(f"❌ [ERROR] 전체 삭제 실패: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"식단 계획 전체 삭제 중 오류 발생: {str(e)}"
         )
 
 @router.post("/generate", response_model=MealPlanResponse)
@@ -373,7 +450,8 @@ async def commit_meal_plan(
             print(f"🔍 [DEBUG] meal_log[{i}]: {log}")
 
         # 기존 계획들 삭제 (충돌 방지)
-        end_date = start_date + timedelta(days=len(meal_plan.days) - 1)
+        duration_days = max(1, len(meal_plan.days) if hasattr(meal_plan.days, '__len__') else 1)
+        end_date = start_date + timedelta(days=duration_days - 1)
         print(f"🔍 [DEBUG] 기존 데이터 삭제: {start_date} ~ {end_date}")
         supabase.table('meal_log').delete().eq('user_id', str(user_id)).gte('date', start_date.isoformat()).lte('date', end_date.isoformat()).execute()
 
@@ -386,7 +464,8 @@ async def commit_meal_plan(
         return {
             "message": f"{len(meal_logs_to_create)}개의 식단 계획이 저장되었습니다",
             "start_date": start_date,
-            "end_date": end_date
+            "end_date": end_date,
+            "duration_days": duration_days
         }
 
     except Exception as e:

@@ -335,7 +335,7 @@ class PlaceSearchAgent:
             # 타임아웃 적용하여 LLM 호출 (타임아웃 증가)
             llm_response = await asyncio.wait_for(
                 self.llm.ainvoke([HumanMessage(content=structured_prompt)]),
-                timeout=60.0  # 60초 타임아웃으로 증가
+                timeout=180.0  # 180초 타임아웃으로 증가
             )
             
             llm_end_time = time.time()

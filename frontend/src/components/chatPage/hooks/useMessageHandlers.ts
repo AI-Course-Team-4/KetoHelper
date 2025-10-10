@@ -2,7 +2,8 @@ import { useCallback, useEffect } from 'react'
 import { ChatMessage, LLMParsedMeal } from '@/store/chatStore'
 import { useProfileStore } from '@/store/profileStore'
 import { useAuthStore } from '@/store/authStore'
-import { useSendMessage, useCreatePlan, useParseDateFromMessage, ParsedDateInfo, useCreateNewThread } from '@/hooks/useApi'
+import { useCalendarStore, OptimisticMealData } from '@/store/calendarStore'
+import { useSendMessage, useCreatePlan, useParseDateFromMessage, ParsedDateInfo, useCreateNewThread, api } from '@/hooks/useApi'
 import { useQueryClient } from '@tanstack/react-query'
 import { MealParserService } from '@/lib/mealService'
 import { format } from 'date-fns'
@@ -209,6 +210,61 @@ export function useMessageHandlers({
       setLoadingStep('generating')
       console.log('🔄 로딩 단계: generating')
       
+      // 🚀 식단표 생성 요청인 경우 즉시 Optimistic 데이터 추가
+      console.log(`🔍 사용자 메시지 분석: "${userMessage.content}"`)
+      
+      const detectDays = (content: string): number | null => {
+        console.log(`🔍 detectDays 함수 호출: "${content}"`)
+        
+        // 한글 키워드(숫자 미포함) 우선 매핑
+        const weekKeywords = ['일주일', '일주', '한 주', '한주', '일주간', '1주일']
+        if (weekKeywords.some(k => content.includes(k))) {
+          console.log('✅ 일주일 키워드 감지 → 7일')
+          return 7
+        }
+
+        // 더 간단한 패턴으로 수정
+        const patterns = [
+          /(\d+)일치/,
+          /(\d+)일\s*식단/,
+          /(\d+)일\s*키토/,
+          /(\d+)일\s*계획/,
+          /(\d+)일/,
+          /(\d+)주치/,
+          /(\d+)주\s*식단/,
+          /(\d+)주\s*키토/
+        ]
+        
+        for (const pattern of patterns) {
+          const match = content.match(pattern)
+          console.log(`🔍 패턴 "${pattern}" 매치 결과:`, match)
+          if (match) {
+            const days = parseInt(match[1])
+            console.log(`🔍 추출된 숫자: ${days}`)
+            if (days > 0 && days <= 365) {
+              console.log(`✅ 일수 감지 성공: ${days}일`)
+              return days
+            }
+          }
+        }
+        
+        console.log(`❌ 일수 감지 실패`)
+        return null
+      }
+      
+      const parsedDays = detectDays(userMessage.content)
+      console.log(`🚀 parsedDays 최종 결과: ${parsedDays}`)
+      console.log(`🚀 유저 존재 여부: ${!!user}`)
+      console.log(`🚀 유저 id: ${user?.id}`)
+      
+      if (parsedDays && parsedDays > 0 && user?.id) {
+        console.log(`🚀 식단표 생성 요청 감지: ${parsedDays}일치 - 전역 캘린더 로딩 시작`)
+        const { setCalendarLoading } = useCalendarStore.getState()
+        // 전역 캘린더 로딩만 ON (자리표시자 추가는 제거)
+        setCalendarLoading(true)
+        setIsSaving(false)
+      }
+      
       // 게스트 사용자의 경우 SessionStorage 채팅 히스토리를 백엔드로 전달
       let guestChatHistory = []
       if (!isLoggedIn && guestId) {
@@ -297,16 +353,116 @@ export function useMessageHandlers({
       // (React Query Optimistic Updates)
 
       // 백엔드에서 제공하는 save_to_calendar_data가 있으면 우선 사용
+      console.log('🔍 DEBUG: response.save_to_calendar_data 체크:', {
+        hasSaveData: !!response.save_to_calendar_data,
+        hasUserId: !!user?.id,
+        isSaving,
+        saveData: response.save_to_calendar_data,
+        responseKeys: Object.keys(response)
+      })
+      console.log('🔍 DEBUG: 전체 응답 객체:', response)
+      console.log('🔍 DEBUG: user?.id:', user?.id)
+      console.log('🔍 DEBUG: isSaving:', isSaving)
+      console.log('🔍 DEBUG: response.save_to_calendar_data:', response.save_to_calendar_data)
+      console.log('🔍 DEBUG: parsedMeal:', parsedMeal)
+      
+      // 전역 캘린더 로딩 상태 확인
+      const { isCalendarLoading } = useCalendarStore.getState()
+      console.log('🔍 DEBUG: 현재 전역 캘린더 로딩 상태:', isCalendarLoading)
       if (response.save_to_calendar_data && user?.id) {
         console.log('✅ 백엔드 save_to_calendar_data 사용:', response.save_to_calendar_data)
+        
+        // 1) 채팅에 "접수" 메시지 먼저 출력
+        addMessageToCache('📥 저장 요청을 접수했어요. 처리 중입니다 ⏳')
+        
+        // 2) 전역 JobStore에 간단 기준 저장(userId, startDate, durationDays)
+        try {
+          const { useCalendarJobStore } = await import('@/store/calendarJobStore')
+          useCalendarJobStore.getState().setCriteria({
+            userId: user!.id,
+            startDate: response.save_to_calendar_data.start_date,
+            durationDays: response.save_to_calendar_data.duration_days,
+            monthKey: format(new Date(response.save_to_calendar_data.start_date), 'yyyy-MM')
+          })
+
+          // 🔮 캘린더 페이지 진입 전, 해당 월 범위를 미리 프리패치하여 첫 렌더 공백 제거
+          const month = new Date(response.save_to_calendar_data.start_date)
+          const startOfMonth = new Date(month.getFullYear(), month.getMonth(), 1)
+          const endOfMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0)
+
+          await queryClient.prefetchQuery({
+            queryKey: [
+              'plans-range',
+              format(startOfMonth, 'yyyy-MM-dd'),
+              format(endOfMonth, 'yyyy-MM-dd'),
+              user!.id
+            ],
+            queryFn: async () => {
+              const res = await api.get('/plans/range', {
+                params: {
+                  start: format(startOfMonth, 'yyyy-MM-dd'),
+                  end: format(endOfMonth, 'yyyy-MM-dd'),
+                  user_id: user!.id
+                }
+              })
+              return res.data
+            }
+          })
+        } catch (_) {}
+        
         if (!isSaving) {
-          setIsSaving(true)
+          console.log('🚀 handleBackendCalendarSave 호출 시작')
+          // 🚀 기존 임시 Optimistic 데이터를 실제 데이터로 교체
           handleBackendCalendarSave(response.save_to_calendar_data!, parsedMeal)
-            .finally(() => setIsSaving(false))
+        } else {
+          console.log('🔒 이미 저장 중이므로 건너뜀')
+        }
+      } else {
+        console.log('⚠️ save_to_calendar_data 또는 user.id가 없음')
+        
+        // 전역 캘린더 로딩 상태 해제 (백엔드 응답이 없어도)
+        const { setCalendarLoading } = useCalendarStore.getState()
+        setCalendarLoading(false)
+        console.log('⚠️ save_to_calendar_data 없음 - 전역 캘린더 로딩 상태 해제')
+        
+        // 🚀 Optimistic Update가 이미 추가되었으므로, 기존 임시 데이터를 실제 데이터로 교체
+        if (parsedMeal && user?.id) {
+          console.log('🚀 Optimistic 데이터를 실제 데이터로 교체 시도')
+          
+          const { optimisticMeals, removeOptimisticMeals, addOptimisticMeals } = useCalendarStore.getState()
+          if (optimisticMeals.length > 0) {
+            console.log(`🧹 기존 임시 Optimistic 데이터 제거: ${optimisticMeals.length}개`)
+            
+            // 기존 임시 데이터 제거
+            const existingMealIds = optimisticMeals.map(meal => meal.id)
+            removeOptimisticMeals(existingMealIds)
+            
+            // 실제 데이터로 교체 (오늘 날짜 기준)
+            const today = new Date()
+            const dateStr = format(today, 'yyyy-MM-dd')
+            const newOptimisticMeals: Omit<OptimisticMealData, 'id' | 'timestamp'>[] = []
+            
+            for (const slot of ['breakfast', 'lunch', 'dinner', 'snack'] as const) {
+              if (parsedMeal[slot] && parsedMeal[slot].trim()) {
+                newOptimisticMeals.push({
+                  date: dateStr,
+                  slot,
+                  title: parsedMeal[slot],
+                  type: 'optimistic'
+                })
+              }
+            }
+            
+            if (newOptimisticMeals.length > 0) {
+              addOptimisticMeals(newOptimisticMeals)
+              console.log(`🚀 실제 데이터로 Optimistic 데이터 교체: ${newOptimisticMeals.length}개`)
+            }
+          }
         }
       }
+      
       // 백엔드 데이터가 없으면 기존 로직 사용
-      else if (parsedMeal && user?.id) {
+      if (!response.save_to_calendar_data && parsedMeal && user?.id) {
         const isAutoSaveRequest = (
           userMessage.content.includes('저장') ||
           userMessage.content.includes('추가') ||
@@ -433,6 +589,12 @@ export function useMessageHandlers({
       // (필요 시 토스트로 안내)
     } finally {
       setIsLoading(false)
+      
+      // 전역 캘린더 로딩 상태 확실히 해제 (안전장치)
+      const { setCalendarLoading } = useCalendarStore.getState()
+      setCalendarLoading(false)
+      console.log('🛡️ finally 블록에서 전역 캘린더 로딩 상태 해제 (안전장치)')
+      
       // 로딩 완료 후 채팅창에 포커스
       setTimeout(() => {
         focusInput()
@@ -861,7 +1023,7 @@ export function useMessageHandlers({
     }
   }, [user, isSaving, setIsSaving, setIsSavingMeal, parseDateFromMessage, createPlan, queryClient, addMessageToCache])
 
-  // 백엔드 캘린더 저장
+  // 백엔드 캘린더 저장 (백엔드에서 이미 저장됨 - 캐시만 무효화)
   const handleBackendCalendarSave = useCallback(async (saveData: any, mealData: LLMParsedMeal | null) => {
     if (!user?.id) return
 
@@ -870,48 +1032,40 @@ export function useMessageHandlers({
       return
     }
 
-    // 금지 문구가 있는 슬롯은 제외하고 나머지만 저장
-    const bannedSubstrings = ['추천 식단이 없', '추천 불가']
-
-    setIsSaving(true)
+    const { setSaveCompleted, addOptimisticMeals, removeOptimisticMeals, optimisticMeals, setCalendarLoading } = useCalendarStore.getState()
+    // Optimistic Update를 위한 로딩 상태 설정
     setIsSavingMeal('auto-save')
     
     try {
       const startDate = new Date(saveData.start_date)
-      const durationDays = saveData.duration_days
       const daysData = saveData.days_data || []
-      
-      console.log(`🗓️ 백엔드 캘린더 저장: ${durationDays}일치, 시작일: ${startDate.toISOString()}`)
+      // 백엔드가 1로 내려오는 경우가 있어 실제 days_data 길이로 보정
+      let durationDays = saveData.duration_days
+      const computedDays = Array.isArray(daysData) ? daysData.length : durationDays
+      if (computedDays && computedDays > 0) {
+        durationDays = computedDays
+      }
+
+      console.log(`🗓️ 백엔드에서 이미 저장 완료됨: ${durationDays}일치, 시작일: ${startDate.toISOString()}`)
       console.log(`🗓️ 백엔드에서 받은 days_data:`, daysData)
-      
-      let successCount = 0
-      const savedDays: string[] = []
-      
+
+      // 🧹 기존 임시 Optimistic 데이터 제거 (실제 데이터로 교체하기 위해)
+      if (optimisticMeals.length > 0) {
+        console.log(`🧹 기존 임시 Optimistic 데이터 제거: ${optimisticMeals.length}개`)
+        const existingMealIds = optimisticMeals.map(meal => meal.id)
+        removeOptimisticMeals(existingMealIds)
+      }
+
+      // 🚀 실제 데이터로 Optimistic 데이터 추가 (UI 즉시 업데이트)
+      const newOptimisticMeals: OptimisticMealData[] = []
       for (let i = 0; i < durationDays; i++) {
         const currentDate = new Date(startDate)
         currentDate.setDate(startDate.getDate() + i)
-        const dateString = currentDate.toISOString().split('T')[0]
+        const dateStr = format(currentDate, 'yyyy-MM-dd')
         
-        let dayMeals: any = {}
-        if (daysData[i]) {
-          dayMeals = daysData[i]
-          console.log(`🗓️ ${i+1}일차 백엔드 식단 사용:`, dayMeals)
-        } else {
-          dayMeals = mealData || {
-            breakfast: '키토 아침 메뉴',
-            lunch: '키토 점심 메뉴', 
-            dinner: '키토 저녁 메뉴',
-            snack: '키토 간식'
-          }
-        }
+        const dayMeals = daysData[i] || {}
         
-        const mealSlots = ['breakfast', 'lunch', 'dinner', 'snack'] as const
-        let daySuccessCount = 0
-
-        // 🚨 금지 문구가 있는 슬롯만 제외하고 나머지 저장
-        let excludedSlots: string[] = []
-        
-        for (const slot of mealSlots) {
+        for (const slot of ['breakfast', 'lunch', 'dinner', 'snack'] as const) {
           let mealTitle = ''
           if (dayMeals[slot]) {
             if (typeof dayMeals[slot] === 'string') {
@@ -921,79 +1075,116 @@ export function useMessageHandlers({
             }
           }
           
-          // None 값이거나 금지 문구가 있으면 해당 슬롯만 제외
-          if (!mealTitle || mealTitle === 'null' || mealTitle === 'undefined' || mealTitle === 'None' ||
-              (mealTitle && bannedSubstrings.some(bs => mealTitle.includes(bs)))) {
-            excludedSlots.push(slot)
-            console.log(`🚨 ${i+1}일차 ${slot} 제외 - '${mealTitle}'`)
-            continue
+          // 유효한 식단만 Optimistic으로 추가
+          if (mealTitle && 
+              mealTitle !== 'null' && 
+              mealTitle !== 'undefined' && 
+              mealTitle !== 'None' &&
+              !mealTitle.includes('추천 식단이 없') &&
+              !mealTitle.includes('추천 불가')) {
+            newOptimisticMeals.push({
+              date: dateStr,
+              slot,
+              title: mealTitle,
+              type: 'optimistic',
+              id: `optimistic-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              timestamp: Date.now()
+            })
           }
-          
-          // 유효한 식단이면 저장
-          if (mealTitle && mealTitle.trim()) {
-            try {
-              const planData = {
-                user_id: user.id,
-                date: dateString,
-                slot: slot,
-                type: 'recipe' as const,
-                ref_id: '',
-                title: mealTitle.trim(),
-                location: undefined,
-                macros: undefined,
-                notes: undefined
-              }
-
-              await createPlan.mutateAsync(planData)
-              daySuccessCount++
-              console.log(`✅ ${i+1}일차 ${slot} 저장 성공: ${mealTitle}`)
-            } catch (error) {
-              console.error(`${dateString} ${slot} 저장 실패:`, error)
+        }
+      }
+      
+      // 즉시 UI에 표시
+      addOptimisticMeals(newOptimisticMeals)
+      console.log(`🚀 실제 데이터로 Optimistic 데이터 추가: ${newOptimisticMeals.length}개`)
+      
+      // 🚀 즉시 성공 메시지 표시 (Optimistic Update)
+      let validMealCount = 0
+      const bannedSubstrings = ['추천 식단이 없', '추천 불가']
+      
+      for (let i = 0; i < durationDays; i++) {
+        const dayMeals = daysData[i] || {}
+        
+        for (const slot of ['breakfast', 'lunch', 'dinner', 'snack'] as const) {
+          let mealTitle = ''
+          if (dayMeals[slot]) {
+            if (typeof dayMeals[slot] === 'string') {
+              mealTitle = dayMeals[slot]
+            } else if (dayMeals[slot]?.title) {
+              mealTitle = dayMeals[slot].title
             }
           }
-        }
-        
-        // 제외된 슬롯이 있으면 로그 출력
-        if (excludedSlots.length > 0) {
-          console.log(`⚠️ ${i+1}일차 제외된 슬롯: ${excludedSlots.join(', ')}`)
-        }
-
-        if (daySuccessCount > 0) {
-          savedDays.push(format(currentDate, 'M/d'))
-          successCount += daySuccessCount
+          
+          // 유효한 식단인지 확인 (금지 문구가 없고 비어있지 않음)
+          if (mealTitle && 
+              mealTitle !== 'null' && 
+              mealTitle !== 'undefined' && 
+              mealTitle !== 'None' &&
+              !bannedSubstrings.some(bs => mealTitle.includes(bs))) {
+            validMealCount++
+          }
         }
       }
 
-      queryClient.invalidateQueries({ queryKey: ['plans-range'] })
+      // 🎉 즉시 성공 메시지 표시
+      let successMessage = `✅ ${durationDays}일치 식단표가 캘린더에 성공적으로 저장되었습니다! (${validMealCount}개 식단)`
       
-      if (successCount > 0) {
-        console.log('✅ 백엔드 캘린더 저장 완료:', { durationDays, savedDays, successCount })
-        
-        // 저장 완료 메시지 생성
-        let successMessage = `✅ ${durationDays}일치 식단표가 캘린더에 성공적으로 저장되었습니다! (${successCount}개 식단)`
-        
-        // 제외된 슬롯이 있으면 안내 메시지 추가
-        const totalExpectedSlots = durationDays * 4 // 4개 슬롯 × 일수
-        if (successCount < totalExpectedSlots) {
-          const excludedCount = totalExpectedSlots - successCount
-          successMessage += `\n\n⚠️ **주의사항**: 생성되지 않은 ${excludedCount}개 식단은 제외되었습니다.`
-        }
-        
-        // 성공 메시지를 채팅에 추가 (assistant 역할 명시)
-        addMessageToCache(successMessage, 'assistant')
-        console.log('✅ 성공 메시지 추가됨:', successMessage)
-      } else {
-        throw new Error('식단 저장에 실패했습니다.')
+      // 제외된 슬롯이 있으면 안내 메시지 추가
+      const totalSlots = durationDays * 4 // 4개 슬롯 (아침, 점심, 저녁, 간식)
+      const excludedSlots = totalSlots - validMealCount
+      if (excludedSlots > 0) {
+        successMessage += `\n\n📝 참고: ${excludedSlots}개 슬롯은 제약 조건으로 인해 추천되지 않았습니다.`
       }
+      
+      addMessageToCache(successMessage)
+      console.log('🎉 즉시 성공 메시지 표시:', successMessage)
+
+      // 🚀 백그라운드에서 비동기로 캐시 무효화 (UI 블로킹 없음)
+      setTimeout(async () => {
+        try {
+          console.log('🔄 백그라운드에서 캐시 무효화 시작...')
+          
+          // 모든 캘린더 관련 쿼리 무효화
+          queryClient.invalidateQueries({ queryKey: ['plans-range'] })
+          queryClient.invalidateQueries({ queryKey: ['plans'] })
+          queryClient.invalidateQueries({ queryKey: ['meal-log'] })
+          
+          // 강제로 데이터 다시 가져오기
+          await queryClient.refetchQueries({ queryKey: ['plans-range'] })
+          
+          // 캘린더 저장 완료 이벤트 발생
+          window.dispatchEvent(new CustomEvent('calendar-saved'))
+          
+          // 전역 상태 업데이트 (로딩 상태도 해제)
+          setSaveCompleted({
+            durationDays,
+            validMealCount,
+            startDate: saveData.start_date
+          })
+          
+          // 전역 캘린더 로딩 상태 해제
+          setCalendarLoading(false)
+          console.log('✅ 전역 캘린더 로딩 상태 해제됨')
+          
+          // ⚠️ Optimistic 데이터는 즉시 지우지 않고 유지
+          // useCalendarData가 API 데이터가 들어오면 자동으로 가려줍니다.
+          console.log('✅ 백그라운드 캐시 무효화 완료 (Optimistic 데이터는 유지)')
+        } catch (error) {
+          console.error('❌ 백그라운드 캐시 무효화 실패:', error)
+        }
+      }, 500) // 500ms 후 백그라운드 실행
+      
+      console.log('✅ 백엔드 캘린더 저장 완료 (캐시 무효화):', { durationDays, validMealCount })
       
     } catch (error) {
-      console.error('백엔드 캘린더 저장 실패:', error)
-      addMessageToCache(`❌ 식단 저장에 실패했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`)
+      console.error('백엔드 캘린더 저장 처리 실패:', error)
+      addMessageToCache(`❌ 식단 저장 처리에 실패했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`)
     } finally {
       setIsSavingMeal(null)
+      // Optimistic Update 완료 후 로딩 상태 해제
       setIsSaving(false)
     }
-  }, [user, isSaving, setIsSaving, setIsSavingMeal, createPlan, queryClient, addMessageToCache])
+  }, [user, isSaving, setIsSaving, setIsSavingMeal, queryClient, addMessageToCache])
 
   return {
     handleSendMessage,

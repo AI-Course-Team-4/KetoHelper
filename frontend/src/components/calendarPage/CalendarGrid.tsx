@@ -14,11 +14,13 @@ interface CalendarGridProps {
   mealData: Record<string, MealData>
   isLoading: boolean
   error: any
+  fetchingPlans?: number
   onDateSelect: (date: Date | undefined) => void
   onMonthChange: (month: Date) => void
   onDateClick: (date: Date) => void
   getMealForDate: (date: Date) => MealData | null
   isMealChecked: (date: Date, mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack') => boolean
+  isOptimisticMeal?: (date: Date, mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack') => boolean
   onToggleMealCheck: (date: Date, mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack') => void
 }
 
@@ -28,11 +30,13 @@ export function CalendarGrid({
   mealData,
   isLoading,
   error,
+  fetchingPlans = 0,
   onDateSelect,
   onMonthChange,
   onDateClick,
   getMealForDate,
   isMealChecked,
+  isOptimisticMeal,
   onToggleMealCheck
 }: CalendarGridProps) {
   return (
@@ -67,14 +71,16 @@ export function CalendarGrid({
         </div>
       </CardHeader>
       <CardContent className="p-6 pt-0">
-        {isLoading && (
-          <div className="flex items-center justify-center py-8">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-2"></div>
-              <p className="text-gray-600">식단 데이터를 불러오는 중...</p>
-            </div>
-          </div>
-        )}
+                {(isLoading || fetchingPlans > 0) && (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-2"></div>
+                      <p className="text-gray-600 font-medium">캘린더 데이터를 불러오는 중...</p>
+                        <p className="text-sm text-gray-500 mt-1">잠시만 기다려주세요</p>
+                      </div>
+                    </div>
+                  )}
+
 
         {error && (
           <div className="flex items-center justify-center py-8">
@@ -85,9 +91,9 @@ export function CalendarGrid({
           </div>
         )}
 
-        {!isLoading && !error && (
-          <div className="calendar-container w-full flex items-start justify-center overflow-x-auto">
-            <DayPicker
+                 {!isLoading && fetchingPlans === 0 && !error && (
+                   <div className="calendar-container w-full flex items-start justify-center overflow-x-auto relative">
+                     <DayPicker
               mode="single"
               selected={selectedDate}
               onSelect={onDateSelect}
@@ -141,6 +147,7 @@ export function CalendarGrid({
                       displayMonth={displayMonth}
                       meal={meal}
                       isMealChecked={isMealChecked}
+                      isOptimisticMeal={isOptimisticMeal}
                       onDateClick={onDateClick}
                       onToggleMealCheck={onToggleMealCheck}
                     />
@@ -226,10 +233,10 @@ export function CalendarGrid({
                 caption_label: {
                   display: 'none'
                 }
-              }}
-            />
-          </div>
-        )}
+                       }}
+                     />
+                   </div>
+                 )}
       </CardContent>
     </Card>
   )

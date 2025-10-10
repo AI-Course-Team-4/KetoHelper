@@ -85,6 +85,12 @@ class CalendarSaver:
             # 1. 기본 parsed_date 값 우선 사용
             duration_days = parsed_date.duration_days
             print(f"🔍 초기 parsed_date에서 받은 값: {duration_days}일")
+
+            # 1-1. '일주일'류 키워드 직접 매핑(숫자 미포함 표현 보호)
+            week_keywords = ['일주일', '일주', '한 주', '한주', '일주간', '1주일']
+            if any(k in message for k in week_keywords):
+                duration_days = 7
+                print("✅ '일주일' 키워드 감지 → duration_days = 7")
             
             # 2-1. 이전 대화에서 요일과 일수가 함께 언급된 경우 우선 체크
             if is_specific_weekday:
@@ -159,11 +165,15 @@ class CalendarSaver:
                 duration_days = 1
                 print(f"⚠️ 기간을 특정할 수 없어 기본값 1일로 설정합니다.")
                 
-            # 🚨 식단 데이터 개수 조정 로직 제거 - duration_days 유지
+            # 🚨 식단 데이터 개수 기반 보정: 실제 days가 더 크면 우선 사용
             if meal_plan_data and "days" in meal_plan_data:
                 actual_days_count = len(meal_plan_data["days"])
-                print(f"🔍 DEBUG: 식단 데이터에서 {actual_days_count}개 일 찾음 (조정하지 않음)")
-                print(f"🔍 DEBUG: duration_days 유지: {duration_days}일")
+                print(f"🔍 DEBUG: 식단 데이터에서 {actual_days_count}개 일 찾음")
+                if not duration_days or duration_days < actual_days_count:
+                    print(f"✅ duration_days 보정: {duration_days} → {actual_days_count}")
+                    duration_days = actual_days_count
+                else:
+                    print(f"🔍 DEBUG: duration_days 유지: {duration_days}일")
             
             print(f"🔍 DEBUG: 최종 duration_days = {duration_days}")
             # --- [수정된 로직 끝] ---
@@ -267,6 +277,9 @@ class CalendarSaver:
                 print(f"🔍 DEBUG: Supabase 저장 결과: {result}")
 
                 if result.data:
+                    # 저장 완료 확인을 위한 짧은 지연
+                    import asyncio
+                    await asyncio.sleep(0.5)  # 500ms 지연
                     return {
                         "success": True,
                         "message": "캘린더에 성공적으로 저장되었습니다!"

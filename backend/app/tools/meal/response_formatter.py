@@ -90,7 +90,7 @@ class MealResponseFormatter:
         
         # 캘린더 저장 안내 (실패 슬롯이 있으면 저장 안내 숨김)
         if not missing:
-            response_text += "📅 이 식단표를 캘린더에 저장하시려면 '캘린더에 저장해줘'라고 말씀해주세요!"
+            response_text += "📅 이 식단표를 캘린더에 저장하시려면 **캘린더에 저장해줘** 라고 말씀해주세요!"
         else:
             response_text += ""
         
