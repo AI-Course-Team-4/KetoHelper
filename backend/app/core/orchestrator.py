@@ -420,8 +420,8 @@ class KetoCoachAgent:
             
             # 기존 하이브리드 검색 로직
             
-            # 채팅에서 임시 불호 식재료 추출
-            temp_dislikes = temp_dislikes_extractor.extract_from_message(message)
+            # 채팅에서 임시 불호 식재료 추출 (키워드 + LLM)
+            temp_dislikes = await temp_dislikes_extractor.extract_from_message_async(message)
             
             # 프로필 정보 반영
             profile_context = ""
@@ -1084,18 +1084,47 @@ class KetoCoachAgent:
                         # 프로필 기반 금지 재료(알레르기+비선호) 수집
                         banned_terms = set()
                         if state.get("profile"):
-                            banned_terms.update([s for s in (state["profile"].get("allergies") or []) if s])
-                            banned_terms.update([s for s in (state["profile"].get("dislikes") or []) if s])
-                        # 대표 동의어(간단)
-                        synonyms = {"계란": ["계란", "달걀", "난류", "egg", "eggs", "오믈렛", "스크램블"]}
-                        for key, vals in synonyms.items():
-                            if key in banned_terms:
-                                banned_terms.update(vals)
+                            allergies = [s for s in (state["profile"].get("allergies") or []) if s]
+                            dislikes = [s for s in (state["profile"].get("dislikes") or []) if s]
+                            banned_terms.update(allergies)
+                            banned_terms.update(dislikes)
+                            
+                            # 동의어 확장 (ingredient_synonyms.json 사용)
+                            try:
+                                from pathlib import Path
+                                synonym_file = Path(__file__).parent.parent / 'data' / 'ingredient_synonyms.json'
+                                with open(synonym_file, 'r', encoding='utf-8') as f:
+                                    synonym_data = json.load(f)
+                                
+                                # 알레르기 동의어 확장
+                                for allergy in allergies:
+                                    allergy_synonyms = synonym_data.get('알레르기', {}).get(allergy, [])
+                                    banned_terms.update(allergy_synonyms)
+                                
+                                # 비선호 동의어 확장
+                                for dislike in dislikes:
+                                    dislike_synonyms = synonym_data.get('비선호', {}).get(dislike, [])
+                                    banned_terms.update(dislike_synonyms)
+                            except Exception as e:
+                                print(f"⚠️ 동의어 사전 로드 실패 (orchestrator): {e}")
 
                         def contains_banned(text: str) -> bool:
+                            """정확 매칭으로 금지 재료 검사 (부분문자열 금지)"""
+                            if not text or not banned_terms:
+                                return False
+                            
                             t = (text or "").lower()
+                            # 토큰화
+                            tokens = re.split(r'[,\s\(\)\[\]\{\}/]+', t)
+                            tokens = [tok.strip() for tok in tokens if tok.strip()]
+                            
                             for term in banned_terms:
-                                if str(term).lower() in t:
+                                term_lower = str(term).lower()
+                                # 정확 매칭
+                                if term_lower in tokens:
+                                    return True
+                                # 복합어 처리 (예: "bell pepper")
+                                if ' ' in term_lower and term_lower in t:
                                     return True
                             return False
 
