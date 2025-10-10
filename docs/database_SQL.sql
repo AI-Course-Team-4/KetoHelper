@@ -285,13 +285,13 @@ CREATE TABLE IF NOT EXISTS public.recipe_blob_emb (
   tags         text[],
   allergens    text[],
   meal_type    varchar(20),
-  url          text,
   embedding    vector(1536),
   model_name   varchar(100) NOT NULL DEFAULT 'text-embedding-3-small',
   fingerprint  text NOT NULL,
   content_hash text,
   created_at   timestamptz NOT NULL DEFAULT now(),
-  updated_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now(),  
+  url          text,
   CONSTRAINT ux_recipe_fingerprint UNIQUE (fingerprint)
 );
 

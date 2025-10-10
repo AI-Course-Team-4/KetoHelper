@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Add } from '@mui/icons-material'
 import { CalendarToday } from '@mui/icons-material'
-import { format } from 'date-fns'
+import { format, isToday } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { MealData } from '@/data/ketoMeals'
 
@@ -39,7 +39,7 @@ export function SelectedDateMeals({
       <CardHeader className="pb-4 h-[88px]">
         <CardTitle className="flex items-center text-xl font-bold">
           <CalendarToday sx={{ fontSize: 24, mr: 1.5, color: 'green.600' }} />
-          {selectedDate ? format(selectedDate, 'M월 d일', { locale: ko }) : '오늘의'} 식단
+          {selectedDate && isToday(selectedDate) ? '오늘의' : selectedDate ? format(selectedDate, 'M월 d일', { locale: ko }) : '오늘의'} 식단
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 pt-0">
