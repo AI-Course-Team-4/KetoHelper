@@ -51,7 +51,6 @@ export function CalendarPage() {
     planIds,
     isLoading,
     error,
-    isSaving,
     getMealForDate,
     toggleMealCheck,
     isMealChecked,
