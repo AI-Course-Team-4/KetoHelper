@@ -13,7 +13,6 @@ interface UseMessageHandlersProps {
   setMessage: (message: string) => void
   isLoading: boolean
   setIsLoading: (loading: boolean) => void
-  setLoadingStep: (step: 'thinking' | 'analyzing' | 'generating' | 'finalizing') => void
   currentThreadId: string | null
   setCurrentThreadId: (threadId: string | null) => void
   isSaving: boolean
@@ -31,7 +30,6 @@ export function useMessageHandlers({
   setMessage,
   isLoading,
   setIsLoading,
-  setLoadingStep,
   currentThreadId,
   setCurrentThreadId,
   isSaving,
@@ -189,8 +187,6 @@ export function useMessageHandlers({
     
     setMessage('')
     setIsLoading(true)
-    setLoadingStep('thinking')
-    console.log('🔄 로딩 단계: thinking')
 
     // 게스트 사용자의 경우 사용자 메시지를 즉시 SessionStorage에 저장
     if (!isLoggedIn) {
@@ -201,70 +197,6 @@ export function useMessageHandlers({
     // React Query Optimistic Update는 useApi.ts의 onMutate에서 자동으로 처리됨
 
     try {
-      // 분석 단계
-      setLoadingStep('analyzing')
-      console.log('🔄 로딩 단계: analyzing')
-      await new Promise(resolve => setTimeout(resolve, 500)) // 0.5초 대기
-      
-      // 생성 단계
-      setLoadingStep('generating')
-      console.log('🔄 로딩 단계: generating')
-      
-      // 🚀 식단표 생성 요청인 경우 즉시 Optimistic 데이터 추가
-      console.log(`🔍 사용자 메시지 분석: "${userMessage.content}"`)
-      
-      const detectDays = (content: string): number | null => {
-        console.log(`🔍 detectDays 함수 호출: "${content}"`)
-        
-        // 한글 키워드(숫자 미포함) 우선 매핑
-        const weekKeywords = ['일주일', '일주', '한 주', '한주', '일주간', '1주일']
-        if (weekKeywords.some(k => content.includes(k))) {
-          console.log('✅ 일주일 키워드 감지 → 7일')
-          return 7
-        }
-
-        // 더 간단한 패턴으로 수정
-        const patterns = [
-          /(\d+)일치/,
-          /(\d+)일\s*식단/,
-          /(\d+)일\s*키토/,
-          /(\d+)일\s*계획/,
-          /(\d+)일/,
-          /(\d+)주치/,
-          /(\d+)주\s*식단/,
-          /(\d+)주\s*키토/
-        ]
-        
-        for (const pattern of patterns) {
-          const match = content.match(pattern)
-          console.log(`🔍 패턴 "${pattern}" 매치 결과:`, match)
-          if (match) {
-            const days = parseInt(match[1])
-            console.log(`🔍 추출된 숫자: ${days}`)
-            if (days > 0 && days <= 365) {
-              console.log(`✅ 일수 감지 성공: ${days}일`)
-              return days
-            }
-          }
-        }
-        
-        console.log(`❌ 일수 감지 실패`)
-        return null
-      }
-      
-      const parsedDays = detectDays(userMessage.content)
-      console.log(`🚀 parsedDays 최종 결과: ${parsedDays}`)
-      console.log(`🚀 유저 존재 여부: ${!!user}`)
-      console.log(`🚀 유저 id: ${user?.id}`)
-      
-      if (parsedDays && parsedDays > 0 && user?.id) {
-        console.log(`🚀 식단표 생성 요청 감지: ${parsedDays}일치 - 전역 캘린더 로딩 시작`)
-        const { setCalendarLoading } = useCalendarStore.getState()
-        // 전역 캘린더 로딩만 ON (자리표시자 추가는 제거)
-        setCalendarLoading(true)
-        setIsSaving(false)
-      }
-      
       // 게스트 사용자의 경우 SessionStorage 채팅 히스토리를 백엔드로 전달
       let guestChatHistory = []
       if (!isLoggedIn && guestId) {
@@ -296,11 +228,6 @@ export function useMessageHandlers({
         // 게스트 사용자의 경우 SessionStorage 채팅 히스토리 전달
         chat_history: !isLoggedIn ? guestChatHistory : undefined
       })
-      
-      // 마무리 단계
-      setLoadingStep('finalizing')
-      console.log('🔄 로딩 단계: finalizing')
-      await new Promise(resolve => setTimeout(resolve, 300)) // 0.3초 대기
 
       // 서버가 새 스레드를 발급했다면 최신 ID로 교체
       if (response.thread_id && response.thread_id !== threadId) {
@@ -626,8 +553,6 @@ export function useMessageHandlers({
     }
 
     setIsLoading(true)
-    setLoadingStep('thinking')
-    console.log('🔄 QuickMessage 로딩 단계: thinking')
 
     // 게스트 사용자의 경우 사용자 메시지를 즉시 SessionStorage에 저장
     if (!isLoggedIn) {
@@ -638,15 +563,6 @@ export function useMessageHandlers({
     // React Query Optimistic Update는 useApi.ts의 onMutate에서 자동으로 처리됨
 
     try {
-      // 분석 단계
-      setLoadingStep('analyzing')
-      console.log('🔄 QuickMessage 로딩 단계: analyzing')
-      await new Promise(resolve => setTimeout(resolve, 500)) // 0.5초 대기
-      
-      // 생성 단계
-      setLoadingStep('generating')
-      console.log('🔄 QuickMessage 로딩 단계: generating')
-      
       // 게스트 사용자의 경우 SessionStorage 채팅 히스토리를 백엔드로 전달
       let guestChatHistory = []
       if (!isLoggedIn && guestId) {
@@ -678,11 +594,6 @@ export function useMessageHandlers({
         // 게스트 사용자의 경우 SessionStorage 채팅 히스토리 전달
         chat_history: !isLoggedIn ? guestChatHistory : undefined
       })
-      
-      // 마무리 단계
-      setLoadingStep('finalizing')
-      console.log('🔄 QuickMessage 로딩 단계: finalizing')
-      await new Promise(resolve => setTimeout(resolve, 300)) // 0.3초 대기
 
       if (response.thread_id && response.thread_id !== threadId) {
         setCurrentThreadId(response.thread_id)

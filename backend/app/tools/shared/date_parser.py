@@ -35,10 +35,18 @@ class DateParser:
         logger.info(f"DateParser 초기화 - 기준 날짜: {self.today.isoformat()}")
         
         try:
-            self.llm = create_chat_llm()
-            logger.info("LLM 초기화 성공")
+            # DateParser 전용 LLM 설정 사용
+            from app.core.config import settings
+            self.llm = create_chat_llm(
+                provider=settings.date_parser_provider,
+                model=settings.date_parser_model,
+                temperature=settings.date_parser_temperature,
+                max_tokens=settings.date_parser_max_tokens,
+                timeout=settings.date_parser_timeout
+            )
+            logger.info(f"✅ DateParser LLM 초기화: {settings.date_parser_provider}/{settings.date_parser_model}")
         except Exception as e:
-            logger.warning(f"LLM 초기화 실패 - LLM 기능 비활성화: {e}")
+            logger.warning(f"❌ DateParser LLM 초기화 실패 - LLM 기능 비활성화: {e}")
             self.llm = None
 
     def parse_natural_date(self, input_text: str) -> Optional[ParsedDateInfo]:

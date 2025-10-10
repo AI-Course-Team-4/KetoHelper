@@ -285,6 +285,7 @@ CREATE TABLE IF NOT EXISTS public.recipe_blob_emb (
   tags         text[],
   allergens    text[],
   meal_type    varchar(20),
+  url          text,
   embedding    vector(1536),
   model_name   varchar(100) NOT NULL DEFAULT 'text-embedding-3-small',
   fingerprint  text NOT NULL,

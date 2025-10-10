@@ -40,6 +40,48 @@ class Settings(BaseSettings):
     # Gemini 설정
     google_api_key: str = os.getenv("GOOGLE_API_KEY", "")
     
+    # RecipeValidator 전용 LLM 설정
+    recipe_validator_provider: str = os.getenv("RECIPE_VALIDATOR_PROVIDER", "openai").lower()
+    recipe_validator_model: str = os.getenv("RECIPE_VALIDATOR_MODEL", "gpt-4o-mini")
+    recipe_validator_temperature: float = float(os.getenv("RECIPE_VALIDATOR_TEMPERATURE", "0.1"))
+    recipe_validator_max_tokens: int = int(os.getenv("RECIPE_VALIDATOR_MAX_TOKENS", "4096"))
+    recipe_validator_timeout: int = int(os.getenv("RECIPE_VALIDATOR_TIMEOUT", "30"))
+    
+    # MealPlannerAgent 전용 LLM 설정
+    meal_planner_provider: str = os.getenv("MEAL_PLANNER_PROVIDER", llm_provider).lower()
+    meal_planner_model: str = os.getenv("MEAL_PLANNER_MODEL", llm_model)
+    meal_planner_temperature: float = float(os.getenv("MEAL_PLANNER_TEMPERATURE", str(llm_temperature)))
+    meal_planner_max_tokens: int = int(os.getenv("MEAL_PLANNER_MAX_TOKENS", str(llm_max_tokens)))
+    meal_planner_timeout: int = int(os.getenv("MEAL_PLANNER_TIMEOUT", str(llm_timeout)))
+    
+    # PlaceSearchAgent 전용 LLM 설정
+    place_search_provider: str = os.getenv("PLACE_SEARCH_PROVIDER", llm_provider).lower()
+    place_search_model: str = os.getenv("PLACE_SEARCH_MODEL", llm_model)
+    place_search_temperature: float = float(os.getenv("PLACE_SEARCH_TEMPERATURE", str(llm_temperature)))
+    place_search_max_tokens: int = int(os.getenv("PLACE_SEARCH_MAX_TOKENS", str(llm_max_tokens)))
+    place_search_timeout: int = int(os.getenv("PLACE_SEARCH_TIMEOUT", str(llm_timeout)))
+    
+    # ChatAgent 전용 LLM 설정
+    chat_agent_provider: str = os.getenv("CHAT_AGENT_PROVIDER", llm_provider).lower()
+    chat_agent_model: str = os.getenv("CHAT_AGENT_MODEL", llm_model)
+    chat_agent_temperature: float = float(os.getenv("CHAT_AGENT_TEMPERATURE", str(llm_temperature)))
+    chat_agent_max_tokens: int = int(os.getenv("CHAT_AGENT_MAX_TOKENS", str(llm_max_tokens)))
+    chat_agent_timeout: int = int(os.getenv("CHAT_AGENT_TIMEOUT", str(llm_timeout)))
+    
+    # DateParser 전용 LLM 설정
+    date_parser_provider: str = os.getenv("DATE_PARSER_PROVIDER", llm_provider).lower()
+    date_parser_model: str = os.getenv("DATE_PARSER_MODEL", llm_model)
+    date_parser_temperature: float = float(os.getenv("DATE_PARSER_TEMPERATURE", "0.0"))
+    date_parser_max_tokens: int = int(os.getenv("DATE_PARSER_MAX_TOKENS", "512"))
+    date_parser_timeout: int = int(os.getenv("DATE_PARSER_TIMEOUT", "10"))
+    
+    # temporary_dislikes_extractor 전용 LLM 설정
+    dislikes_extractor_provider: str = os.getenv("DISLIKES_EXTRACTOR_PROVIDER", llm_provider).lower()
+    dislikes_extractor_model: str = os.getenv("DISLIKES_EXTRACTOR_MODEL", llm_model)
+    dislikes_extractor_temperature: float = float(os.getenv("DISLIKES_EXTRACTOR_TEMPERATURE", "0.0"))
+    dislikes_extractor_max_tokens: int = int(os.getenv("DISLIKES_EXTRACTOR_MAX_TOKENS", "512"))
+    dislikes_extractor_timeout: int = int(os.getenv("DISLIKES_EXTRACTOR_TIMEOUT", "10"))
+    
     # 외부 API 설정
     kakao_rest_key: str = os.getenv("KAKAO_REST_KEY", "")
     

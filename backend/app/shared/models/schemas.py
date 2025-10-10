@@ -82,6 +82,7 @@ class PlaceResponse(PlaceBase):
     place_id: str
     why: List[str] = Field([], description="키토 점수 이유")
     tips: List[str] = Field([], description="주문 팁")
+    source_url: Optional[str] = Field(None, description="출처 URL")
     
 class PlaceSearchRequest(BaseModel):
     """장소 검색 요청 스키마"""
@@ -98,6 +99,7 @@ class PlanBase(BaseModel):
     type: Literal['recipe', 'place']
     ref_id: str
     title: str
+    url: Optional[str] = None  # ✅ URL 필드 추가
     location: Optional[Dict[str, str]] = None
     macros: Optional[Dict[str, int]] = None
     notes: Optional[str] = None
