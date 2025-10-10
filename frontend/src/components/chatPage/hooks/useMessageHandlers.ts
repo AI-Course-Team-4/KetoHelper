@@ -413,7 +413,7 @@ export function useMessageHandlers({
         if (!isSaving) {
           console.log('🚀 handleBackendCalendarSave 호출 시작')
           // 🚀 기존 임시 Optimistic 데이터를 실제 데이터로 교체
-          handleBackendCalendarSave(response.save_to_calendar_data!, parsedMeal)
+          handleBackendCalendarSave(response.save_to_calendar_data!)
         } else {
           console.log('🔒 이미 저장 중이므로 건너뜀')
         }
@@ -725,7 +725,7 @@ export function useMessageHandlers({
         console.log('✅ 백엔드 save_to_calendar_data 사용:', response.save_to_calendar_data)
         if (!isSaving) {
           setIsSaving(true)
-          handleBackendCalendarSave(response.save_to_calendar_data!, parsedMeal)
+          handleBackendCalendarSave(response.save_to_calendar_data!)
             .finally(() => setIsSaving(false))
         }
       }
@@ -1024,7 +1024,7 @@ export function useMessageHandlers({
   }, [user, isSaving, setIsSaving, setIsSavingMeal, parseDateFromMessage, createPlan, queryClient, addMessageToCache])
 
   // 백엔드 캘린더 저장 (백엔드에서 이미 저장됨 - 캐시만 무효화)
-  const handleBackendCalendarSave = useCallback(async (saveData: any, mealData: LLMParsedMeal | null) => {
+  const handleBackendCalendarSave = useCallback(async (saveData: any) => {
     if (!user?.id) return
 
     if (isSaving) {
