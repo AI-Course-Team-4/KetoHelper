@@ -98,6 +98,7 @@ class PlanBase(BaseModel):
     type: Literal['recipe', 'place']
     ref_id: str
     title: str
+    url: Optional[str] = None  # ✅ URL 필드 추가
     location: Optional[Dict[str, str]] = None
     macros: Optional[Dict[str, int]] = None
     notes: Optional[str] = None
