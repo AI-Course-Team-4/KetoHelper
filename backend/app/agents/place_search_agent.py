@@ -224,7 +224,8 @@ class PlaceSearchAgent:
                     "tips": result.get("keto_reasons", []) if result.get("keto_reasons") else ["메뉴 선택 시 주의하세요"],
                     "similarity_score": result.get("similarity", 0.0),
                     "search_type": result.get("search_type", "hybrid"),
-                    "source": "hybrid_search"
+                    "source": "hybrid_search",
+                    "source_url": result.get("source_url")
                 })
             
             # 응답 생성
@@ -299,6 +300,10 @@ class PlaceSearchAgent:
                     reasons = restaurant.get('keto_reasons', [])
                     if isinstance(reasons, list) and reasons:
                         restaurant_list += f"   - 키토 친화 이유: {', '.join(reasons)}\n"
+                
+                # 출처 URL 추가
+                if restaurant.get('source_url'):
+                    restaurant_list += f"   - 출처 URL: {restaurant.get('source_url')}\n"
                 
                 restaurant_list += "\n"
             

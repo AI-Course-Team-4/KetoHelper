@@ -17,6 +17,7 @@ interface PlaceCardProps {
     tips?: string[]
     phone?: string
     distance?: number
+    source_url?: string
   }
   onAddToPlan?: (place: any) => void
 }

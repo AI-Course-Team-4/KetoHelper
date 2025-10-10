@@ -82,6 +82,7 @@ class PlaceResponse(PlaceBase):
     place_id: str
     why: List[str] = Field([], description="키토 점수 이유")
     tips: List[str] = Field([], description="주문 팁")
+    source_url: Optional[str] = Field(None, description="출처 URL")
     
 class PlaceSearchRequest(BaseModel):
     """장소 검색 요청 스키마"""
