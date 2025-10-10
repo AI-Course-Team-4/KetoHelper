@@ -234,7 +234,7 @@ class HybridSearchTool:
 
             # 한글 최적화 검색 실행 (meal_type 추출)
             meal_type = self._extract_meal_type(query)
-            results = await korean_search_tool.korean_hybrid_search(query, max_results, user_id, meal_type)
+            results = await korean_search_tool.korean_hybrid_search(query, max_results, user_id, meal_type, allergies, dislikes)
 
             print(f"✅ RAG 벡터 검색 완료: {len(results)}개 결과 (DB 레벨 필터링 적용)")
             
