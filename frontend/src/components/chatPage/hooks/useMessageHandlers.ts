@@ -13,7 +13,7 @@ interface UseMessageHandlersProps {
   setMessage: (message: string) => void
   isLoading: boolean
   setIsLoading: (loading: boolean) => void
-  setLoadingStep: (step: 'thinking' | 'analyzing' | 'generating' | 'finalizing') => void
+  setLoadingStep?: (step: 'thinking' | 'analyzing' | 'generating' | 'finalizing') => void
   currentThreadId: string | null
   setCurrentThreadId: (threadId: string | null) => void
   isSaving: boolean
@@ -42,6 +42,12 @@ export function useMessageHandlers({
   refetchThreads,
   inputRef
 }: UseMessageHandlersProps) {
+  // 안전 호출용 래퍼: setLoadingStep이 제공되지 않은 경우 무시
+  const safeSetLoadingStep = useCallback((step: 'thinking' | 'analyzing' | 'generating' | 'finalizing') => {
+    if (typeof setLoadingStep === 'function') {
+      setLoadingStep(step)
+    }
+  }, [setLoadingStep])
   // 스토어
   const { profile } = useProfileStore()
   const { user, ensureGuestId, isGuest } = useAuthStore()
@@ -189,7 +195,7 @@ export function useMessageHandlers({
     
     setMessage('')
     setIsLoading(true)
-    setLoadingStep('thinking')
+    safeSetLoadingStep('thinking')
     console.log('🔄 로딩 단계: thinking')
 
     // 게스트 사용자의 경우 사용자 메시지를 즉시 SessionStorage에 저장
@@ -202,12 +208,12 @@ export function useMessageHandlers({
 
     try {
       // 분석 단계
-      setLoadingStep('analyzing')
+      safeSetLoadingStep('analyzing')
       console.log('🔄 로딩 단계: analyzing')
       await new Promise(resolve => setTimeout(resolve, 500)) // 0.5초 대기
       
       // 생성 단계
-      setLoadingStep('generating')
+      safeSetLoadingStep('generating')
       console.log('🔄 로딩 단계: generating')
       
       // 🚀 식단표 생성 요청인 경우 즉시 Optimistic 데이터 추가
@@ -298,7 +304,7 @@ export function useMessageHandlers({
       })
       
       // 마무리 단계
-      setLoadingStep('finalizing')
+      safeSetLoadingStep('finalizing')
       console.log('🔄 로딩 단계: finalizing')
       await new Promise(resolve => setTimeout(resolve, 300)) // 0.3초 대기
 
@@ -626,7 +632,7 @@ export function useMessageHandlers({
     }
 
     setIsLoading(true)
-    setLoadingStep('thinking')
+    safeSetLoadingStep('thinking')
     console.log('🔄 QuickMessage 로딩 단계: thinking')
 
     // 게스트 사용자의 경우 사용자 메시지를 즉시 SessionStorage에 저장
@@ -639,12 +645,12 @@ export function useMessageHandlers({
 
     try {
       // 분석 단계
-      setLoadingStep('analyzing')
+      safeSetLoadingStep('analyzing')
       console.log('🔄 QuickMessage 로딩 단계: analyzing')
       await new Promise(resolve => setTimeout(resolve, 500)) // 0.5초 대기
       
       // 생성 단계
-      setLoadingStep('generating')
+      safeSetLoadingStep('generating')
       console.log('🔄 QuickMessage 로딩 단계: generating')
       
       // 게스트 사용자의 경우 SessionStorage 채팅 히스토리를 백엔드로 전달
@@ -680,7 +686,7 @@ export function useMessageHandlers({
       })
       
       // 마무리 단계
-      setLoadingStep('finalizing')
+      safeSetLoadingStep('finalizing')
       console.log('🔄 QuickMessage 로딩 단계: finalizing')
       await new Promise(resolve => setTimeout(resolve, 300)) // 0.3초 대기
 
