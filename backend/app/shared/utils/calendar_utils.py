@@ -40,24 +40,28 @@ class CalendarUtils:
                         current_day = {}
                         day_number += 1
                     
-                    # 식사 시간별 파싱 (URL 정보 보존)
+                    # 식사 시간별 파싱 (URL 정보 보존 및 제목 정리)
                     if '아침:' in clean_line:
                         title = clean_line.split('아침:')[1].strip() if ':' in clean_line else line.split('아침:')[1].strip()
-                        # URL 정보 추출 (마크다운 링크 패턴)
+                        # URL 정보 추출 및 제목 정리
                         url = CalendarUtils._extract_url_from_markdown(title)
-                        current_day['breakfast'] = {'title': title, 'url': url}
+                        clean_title = CalendarUtils._clean_title_from_urls(title)
+                        current_day['breakfast'] = {'title': clean_title, 'url': url}
                     elif '점심:' in clean_line:
                         title = clean_line.split('점심:')[1].strip() if ':' in clean_line else line.split('점심:')[1].strip()
                         url = CalendarUtils._extract_url_from_markdown(title)
-                        current_day['lunch'] = {'title': title, 'url': url}
+                        clean_title = CalendarUtils._clean_title_from_urls(title)
+                        current_day['lunch'] = {'title': clean_title, 'url': url}
                     elif '저녁:' in clean_line:
                         title = clean_line.split('저녁:')[1].strip() if ':' in clean_line else line.split('저녁:')[1].strip()
                         url = CalendarUtils._extract_url_from_markdown(title)
-                        current_day['dinner'] = {'title': title, 'url': url}
+                        clean_title = CalendarUtils._clean_title_from_urls(title)
+                        current_day['dinner'] = {'title': clean_title, 'url': url}
                     elif '간식:' in clean_line:
                         title = clean_line.split('간식:')[1].strip() if ':' in clean_line else line.split('간식:')[1].strip()
                         url = CalendarUtils._extract_url_from_markdown(title)
-                        current_day['snack'] = {'title': title, 'url': url}
+                        clean_title = CalendarUtils._clean_title_from_urls(title)
+                        current_day['snack'] = {'title': clean_title, 'url': url}
 
                 # 마지막 날 추가
                 if current_day:
@@ -260,13 +264,16 @@ class CalendarUtils:
                             meal_url = meal_item['url']
                             print(f"🔍 DEBUG: {i+1}일차 {slot} URL 발견: {meal_url}")
                         
+                        # 제목에서 URL 제거하여 깔끔하게 정리
+                        clean_meal_title = CalendarUtils._clean_title_from_urls(meal_title.strip())
+                        
                         meal_log = {
                             "user_id": str(user_id),
                             "date": date_string,
                             "meal_type": slot,
                             "eaten": False,
-                            "note": meal_title.strip(),
-                            "url": meal_url,  # URL 정보 추가
+                            "note": clean_meal_title,  # 정리된 제목만 저장
+                            "url": meal_url,  # URL 정보는 별도 컬럼에 저장
                             "created_at": datetime.utcnow().isoformat(),
                             "updated_at": datetime.utcnow().isoformat()
                         }
@@ -334,3 +341,29 @@ class CalendarUtils:
             return url
         
         return None
+
+    @staticmethod
+    def _clean_title_from_urls(text: str) -> str:
+        """메뉴명에서 URL 제거하여 깔끔한 제목만 반환"""
+        import re
+        
+        # 마크다운 링크 패턴 제거: [텍스트](URL) -> 텍스트
+        markdown_pattern = r'\[([^\]]+)\]\([^)]+\)'
+        text = re.sub(markdown_pattern, r'\1', text)
+        
+        # 일반 URL 패턴 제거: (https://...)
+        url_pattern = r'\s*\(https?://[^\s)]+\)'
+        text = re.sub(url_pattern, '', text)
+        
+        # 일반 URL 패턴 제거: https://... (괄호 없이)
+        url_pattern2 = r'\s*https?://[^\s]+'
+        text = re.sub(url_pattern2, '', text)
+        
+        # 🔗 아이콘 제거
+        text = re.sub(r'\s*🔗\s*', '', text)
+        
+        # 앞뒤 공백 제거
+        text = text.strip()
+        
+        print(f"🔍 제목 정리: '{text}'")
+        return text
