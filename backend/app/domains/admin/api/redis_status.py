@@ -58,6 +58,13 @@ async def check_redis_status():
             except Exception as e:
                 status["error"] = str(e)
                 status["test_result"] = "CONNECTION_FAILED"
+        else:
+            # 클라이언트가 비활성화된 경우 상세 정보 추가
+            status["error"] = "Redis client not initialized"
+            if not redis_cache.enabled:
+                status["error"] += " (disabled)"
+            if not redis_cache.redis_client:
+                status["error"] += " (no client)"
         
         return status
         
