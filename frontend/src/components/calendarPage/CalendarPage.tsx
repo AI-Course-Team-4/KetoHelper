@@ -51,8 +51,6 @@ export function CalendarPage() {
     }
   }, [])
 
-  // plans-range가 네트워크에서 진행 중인지 전역 감지
-  const fetchingPlans = useIsFetching({ queryKey: ['plans-range'] })
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [isModalOpen, setIsModalOpen] = useState(false)
