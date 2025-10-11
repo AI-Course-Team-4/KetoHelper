@@ -16,6 +16,7 @@ from typing import Dict, Any, List, Optional
 from datetime import date, timedelta
 from langchain.schema import HumanMessage
 import importlib
+import random
 
 from app.tools.shared.hybrid_search import hybrid_search_tool
 from app.tools.shared.profile_tool import user_profile_tool
@@ -208,7 +209,8 @@ class MealPlannerAgent:
         allergies: List[str] = None,
         dislikes: List[str] = None,
         user_id: Optional[str] = None,
-        fast_mode: bool = True  # 빠른 모드 기본 활성화
+        fast_mode: bool = True,  # 빠른 모드 기본 활성화
+        global_used_groups: Optional[set] = None  # 🆕 전역 다양성 그룹
     ) -> Dict[str, Any]:
         """
         7일 키토 식단표 생성 (임베딩 데이터 우선 → AI 생성 폴백)
@@ -255,10 +257,19 @@ class MealPlannerAgent:
                 kcal_target, carbs_max, allergies, dislikes
             )
             
+            # 🆕 전역 다양성 추적을 위한 재료 그룹 세트
+            global_used_ingredient_groups = set()
+            
             # 1단계: 임베딩된 데이터에서 식단표 생성 시도
             print("🔍 1단계: 임베딩된 레시피 데이터에서 식단표 생성 시도")
             embedded_plan = await self._generate_meal_plan_from_embeddings(days, constraints_text, user_id, fast_mode,
-                                                                          allergies=allergies, dislikes=dislikes)
+                                                                          allergies=allergies, dislikes=dislikes,
+                                                                          global_used_groups=global_used_ingredient_groups)
+            
+            # 🆕 1단계에서 사용된 그룹 정보를 업데이트
+            if embedded_plan and 'used_groups' in embedded_plan:
+                global_used_ingredient_groups.update(embedded_plan['used_groups'])
+                # print(f"🔍 1단계 완료 후 사용된 그룹: {sorted(global_used_ingredient_groups)}")  # 디버그용 제거
             
             # 1단계 결과가 있으면 (완전 성공 or 부분 성공)
             if embedded_plan and len(embedded_plan.get("days", [])) > 0:
@@ -381,7 +392,11 @@ class MealPlannerAgent:
             # 구조를 식단표 형태로 변환(placeholder 금지, 슬롯별 부분 실패 허용)
             full_plan = []
             missing_slots: List[Dict[str, Any]] = []
-            for day_plan in full_meal_structure:
+            
+            # 🆕 3단계에서도 다양성 필터링 적용
+            used_ingredient_groups_3rd = global_used_ingredient_groups.copy() if global_used_ingredient_groups else set()
+            
+            for day_idx, day_plan in enumerate(full_meal_structure):
                 day_meals = {
                     "breakfast": None,
                     "lunch": None,
@@ -390,8 +405,63 @@ class MealPlannerAgent:
                 }
                 for slot in ['breakfast','lunch','dinner','snack']:
                     name = day_plan.get(f"{slot}_type")
+                    print(f"🔍 3단계 {day_idx+1}일차 {slot}: name='{name}', 길이={len(name.strip()) if name else 0}")
                     if name and len(name.strip()) >= 3:
-                        day_meals[slot] = {"title": name, "type": "simple"}
+                        # 🆕 3단계 다양성 필터링 적용
+                        def get_main_ingredient_group_3rd(title):
+                            """메뉴 제목에서 주요 재료 그룹 추출 (3단계용)"""
+                            title_lower = title.lower()
+                            
+                            # 계란 그룹 (완전 포괄적인 키워드)
+                            if any(keyword in title_lower for keyword in ['달걀', '계란', 'egg', '에그', '계란말이', '달걀찜', '스크램블', 'scramble', '달갈', '계란볶음', '달걀볶음', '계란샐러드', '달걀샐러드', '삶은달걀', '삶은계란', '프리타타', 'frittata', '지단', '계란지단', '달걀지단', '오믈렛', 'omelette', '동그랑땡', '동그랑떵', '계란탕']):
+                                return 'egg_group'
+                            
+                            # 닭고기 그룹
+                            if any(keyword in title_lower for keyword in ['닭', '치킨', '닭가슴', '닭다리', '닭날개']):
+                                return 'chicken_group'
+                            
+                            # 돼지고기 그룹
+                            if any(keyword in title_lower for keyword in ['돼지', '돼지고기', '삼겹', '목살', '베이컨']):
+                                return 'pork_group'
+                            
+                            # 소고기 그룹
+                            if any(keyword in title_lower for keyword in ['소고기', '소', '한우', '쇠고기', '스테이크']):
+                                return 'beef_group'
+                            
+                            # 생선 그룹
+                            if any(keyword in title_lower for keyword in ['생선', '연어', '참치', '고등어', '광어', '오징어']):
+                                return 'fish_group'
+                            
+                            # 김밥 그룹
+                            if any(keyword in title_lower for keyword in ['김밥', '초밥', '롤']):
+                                return 'gimbap_group'
+                            
+                            # 샐러드 그룹
+                            if any(keyword in title_lower for keyword in ['샐러드', '무침', '채소']):
+                                return 'salad_group'
+                            
+                            # 기타 (고유 그룹)
+                            return f'other_{hash(title) % 1000}'
+                        
+                        # 다양성 필터링 체크
+                        ingredient_group = get_main_ingredient_group_3rd(name)
+                        print(f"🔍 3단계 {day_idx+1}일차 {slot}: '{name}' → 그룹: {ingredient_group}")
+                        print(f"    📊 현재 사용된 그룹들: {sorted(used_ingredient_groups_3rd)}")
+                        
+                        if ingredient_group not in used_ingredient_groups_3rd:
+                            # 다양성 필터링 통과
+                            used_ingredient_groups_3rd.add(ingredient_group)
+                            day_meals[slot] = {"title": name, "type": "simple"}
+                            print(f"    ✅ 다양성 필터링 통과")
+                        else:
+                            # 다양성 필터링 실패 - 다른 메뉴로 대체
+                            day_meals[slot] = {
+                                "type": "no_result",
+                                "title": "추천 식단이 없습니다",
+                                "reason": f"다양성을 위해 '{name}' 대신 다른 메뉴를 추천합니다",
+                                "tips": ["다른 재료 그룹의 메뉴를 선택해주세요"]
+                            }
+                            print(f"    ❌ 다양성 필터링 실패 - 이미 사용된 그룹")
                     else:
                         # 슬롯별 부분 실패: 사유/가이드 포함해 표시
                         day_meals[slot] = {
@@ -538,7 +608,7 @@ class MealPlannerAgent:
                 if recipe_id and recipe_id not in used_recipes:
                     unique_results.append(result)
                     used_recipes.add(recipe_id)  # 중복 방지를 위해 추가
-                    print(f"  ✅ 수집: {result.get('title', 'Unknown')} (ID: {recipe_id})")
+                    # print(f"  ✅ 수집: {result.get('title', 'Unknown')} (ID: {recipe_id})")
                     if len(unique_results) >= max_results:
                         break
                 else:
@@ -550,6 +620,74 @@ class MealPlannerAgent:
             
         except Exception as e:
             print(f"❌ 다양성 검색 실패: {e}")
+            return []
+    
+    async def _search_with_diversity_optimized(
+        self,
+        search_query: str,
+        constraints: str,
+        user_id: Optional[str],
+        used_recipes: set,
+        max_results: int = 35,
+        processed_allergies: Optional[List[str]] = None,
+        processed_dislikes: Optional[List[str]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        최적화된 다양성 검색 (알레르기/비선호 정보 재사용)
+
+        Args:
+            search_query: 검색 쿼리
+            constraints: 제약 조건
+            user_id: 사용자 ID
+            used_recipes: 이미 사용된 레시피 ID 집합
+            max_results: 최대 결과 수
+            processed_allergies: 사전 처리된 알레르기 목록
+            processed_dislikes: 사전 처리된 비선호 목록
+
+        Returns:
+            중복되지 않은 레시피 목록
+        """
+        try:
+            # 하이브리드 검색 실행 (사전 처리된 알레르기/비선호 정보 사용)
+            search_results = await hybrid_search_tool.search(
+                query=search_query,
+                profile=constraints,
+                max_results=min(max_results * 3, 50),  # 더 많이 가져오기
+                user_id=user_id,
+                allergies=processed_allergies,
+                dislikes=processed_dislikes
+            )
+            
+            if not search_results:
+                return []
+            
+            # 중복되지 않은 레시피만 필터링
+            unique_results = []
+
+            for result in search_results:
+                recipe_id = result.get('id', '')
+
+                # 디버깅: ID 확인
+                if not recipe_id:
+                    print(f"⚠️ ID 없는 레시피 발견: {result.get('title', 'Unknown')}")
+                    # ID가 없으면 title로 대체
+                    recipe_id = result.get('title', '')
+
+                if recipe_id and recipe_id not in used_recipes:
+                    unique_results.append(result)
+                    used_recipes.add(recipe_id)  # 중복 방지를 위해 추가
+                    # print(f"  ✅ 수집: {result.get('title', 'Unknown')} (ID: {recipe_id})")
+                    if len(unique_results) >= max_results:
+                        break
+                else:
+                    if recipe_id:
+                        print(f"  ⚠️ 중복 제외: {result.get('title', 'Unknown')} (ID: {recipe_id})")
+
+            print(f"🔍 _search_with_diversity_optimized 결과: 검색 {len(search_results)}개 → 중복제거 후 {len(unique_results)}개")
+            return unique_results
+            
+        except Exception as e:
+            print(f"❌ 최적화된 다양성 검색 실패: {e}")
             return []
     
     async def _generate_ai_search_query(
@@ -654,28 +792,56 @@ class MealPlannerAgent:
         return {
             "meal_strategies": {
                 "breakfast": {
-                    "primary_keywords": ["아침", "브런치", "계란"],
-                    "secondary_keywords": ["베이컨", "아보카도", "치즈", "버터"],
-                    "cooking_methods": ["스크램블", "구이", "볶음", "오믈렛"],
-                    "time_keywords": ["아침", "브런치", "모닝"]
+                    "primary_keywords": ["아침", "브런치", "닭가슴살", "두부", "베이컨"],  # 계란 키워드 완전 제거
+                    "secondary_keywords": ["아보카도", "치즈", "버터", "연어", "소시지"],  # 계란 관련 키워드 완전 제거
+                    "cooking_methods": ["구이", "볶음", "찜", "스튜"],  # 계란 조리법 완전 제거
+                    "time_keywords": ["아침", "브런치", "모닝"],
+                    "variety_keywords": [  # 🆕 다양성 키워드 - 계란 완전 제거
+                        ["닭가슴살", "돼지고기"],  # 단백질 다양성
+                        ["베이컨", "소시지"],      # 육류 다양성
+                        ["아보카도", "토마토"],    # 채소 다양성
+                        ["치즈", "버터"],          # 유제품 다양성
+                        ["두부", "연어"],          # 추가 단백질 다양성
+                        ["샐러드", "구이"],        # 조리법 다양성
+                        ["김밥", "롤"],            # 형태 다양성
+                        ["찜", "스튜"]             # 계란 대신 다른 조리법
+                    ]
                 },
                 "lunch": {
                     "primary_keywords": ["점심", "샐러드", "구이"],
                     "secondary_keywords": ["스테이크", "생선", "고기", "볶음"],
                     "cooking_methods": ["그릴", "찜", "스튜", "볶음"],
-                    "time_keywords": ["점심", "런치", "미들데이"]
+                    "time_keywords": ["점심", "런치", "미들데이"],
+                    "variety_keywords": [  # 🆕 다양성 키워드 추가
+                        ["소고기", "돼지고기"],  # 단백질 다양성
+                        ["연어", "참치"],        # 생선 다양성
+                        ["샐러드", "볶음"],      # 조리법 다양성
+                        ["김밥", "롤"]          # 형태 다양성
+                    ]
                 },
                 "dinner": {
                     "primary_keywords": ["저녁", "고기", "생선"],
                     "secondary_keywords": ["삼겹살", "연어", "찜", "구이"],
                     "cooking_methods": ["구이", "찜", "스튜", "그릴"],
-                    "time_keywords": ["저녁", "디너", "이브닝"]
+                    "time_keywords": ["저녁", "디너", "이브닝"],
+                    "variety_keywords": [  # 🆕 다양성 키워드 추가
+                        ["삼겹살", "목살"],      # 돼지고기 다양성
+                        ["연어", "고등어"],     # 생선 다양성
+                        ["스테이크", "구이"],   # 조리법 다양성
+                        ["찜", "스튜"]         # 조리법 다양성
+                    ]
                 },
                 "snack": {
                     "primary_keywords": ["간식", "두부", "곤약", "해초"],
                     "secondary_keywords": ["단백질", "저탄수", "무설탕", "다이어트"],
                     "cooking_methods": ["구이", "볶음", "찜"],
-                    "time_keywords": ["간식", "스낵", "애프터눈"]
+                    "time_keywords": ["간식", "스낵", "애프터눈"],
+                    "variety_keywords": [  # 🆕 다양성 키워드 추가
+                        ["두부", "치즈"],        # 단백질 다양성
+                        ["곤약", "해초"],        # 저칼로리 다양성
+                        ["머핀", "스콘"],        # 형태 다양성
+                        ["무설탕", "천연감미료"] # 감미료 다양성
+                    ]
                 }
             },
             "diversity_strategy": "매일 다른 키워드 조합과 다양한 검색어 사용",
@@ -683,7 +849,8 @@ class MealPlannerAgent:
         }
     
     async def _generate_meal_plan_from_embeddings(self, days: int, constraints: str, user_id: Optional[str] = None, fast_mode: bool = True,
-                                                  allergies: Optional[List[str]] = None, dislikes: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
+                                                  allergies: Optional[List[str]] = None, dislikes: Optional[List[str]] = None, 
+                                                  global_used_groups: Optional[set] = None) -> Optional[Dict[str, Any]]:
         """
         1단계: 임베딩된 레시피 데이터에서 직접 식단표 생성
 
@@ -699,6 +866,7 @@ class MealPlannerAgent:
         """
         try:
             print(f"🔍 임베딩 데이터에서 {days}일 식단표 생성 시도")
+            # print(f"🔍 DEBUG: 함수 시작 - days={days}, constraints='{constraints[:50]}...', user_id={user_id}")  # 임시 비활성화
             
             # 임베딩 기반 프롬프트 사용
             embedding_prompt = self.prompts.get("embedding_based", "").format(
@@ -708,10 +876,10 @@ class MealPlannerAgent:
             
             # 빠른 모드에 따른 전략 선택
             if fast_mode:
-                print("⚡ 빠른 검색 모드: 기본 전략 사용")
+                # print("⚡ 빠른 검색 모드: 기본 전략 사용")  # 임시 비활성화
                 meal_strategies = self._get_default_meal_strategies()["meal_strategies"]
             else:
-                print("🤖 AI 검색 모드: AI 전략 생성")
+                # print("🤖 AI 검색 모드: AI 전략 생성")  # 임시 비활성화
                 ai_strategies = await self._generate_ai_meal_strategies(days, constraints)
                 meal_strategies = ai_strategies.get("meal_strategies", self._get_default_meal_strategies()["meal_strategies"])
             
@@ -722,78 +890,312 @@ class MealPlannerAgent:
             # 각 식사별로 한 번에 여러 개 검색
             meal_collections = {}
             
-            for slot, strategy in meal_strategies.items():
-                print(f"🔍 {slot} 레시피 {days}개 검색 중...")
+            # 🆕 계란 레시피 1개만 미리 선별 (랜덤 배치용)
+            egg_breakfast_recipe = None
+            egg_day = None  # 계란을 배치할 날짜
+            
+            if days > 0:  # 최소 1일 이상일 때만
+                # 계란 포함 확률 결정
+                if days == 1:
+                    include_egg = random.random() < 0.5  # 50% 확률
+                else:
+                    include_egg = True  # 2일 이상이면 무조건 포함
+                
+                if include_egg:
+                    # 계란 레시피 검색
+                    egg_search_results = await hybrid_search_tool.search(
+                        query="계란 달걀 스크램블 오믈렛 키토 아침",
+                        profile=constraints,
+                        max_results=10,
+                        user_id=user_id,
+                        allergies=allergies,
+                        dislikes=dislikes
+                    )
+                    if egg_search_results:
+                        egg_breakfast_recipe = random.choice(egg_search_results)
+                        egg_day = random.randint(0, days - 1)  # 랜덤 날짜 선택
+                        # print(f"🥚 계란 레시피 선별: '{egg_breakfast_recipe.get('title', '')}' → {egg_day + 1}일차 아침")  # 디버그용 제거
+                        
+                        # 🆕 계란 레시피를 used_recipes에 미리 추가하여 다른 검색에서 제외
+                        egg_recipe_id = egg_breakfast_recipe.get('id', f"egg_breakfast_{egg_day}")
+                        used_recipes.add(egg_recipe_id)
+                        # print(f"🚫 계란 레시피 ID '{egg_recipe_id}' 미리 제외 처리")  # 디버그용 제거
+            
+            # 알레르기/비선호 정보를 한 번만 처리하여 재사용
+            # print(f"🔍 알레르기/비선호 정보 사전 처리 시작")  # 임시 비활성화
+            processed_allergies = allergies or []
+            processed_dislikes = dislikes or []
+            # print(f"  - 알레르기: {processed_allergies}")  # 임시 비활성화
+            # print(f"  - 비선호: {processed_dislikes}")  # 임시 비활성화
+            
+            # 병렬 검색을 위한 태스크 생성
+            import asyncio
+            
+            async def search_slot(slot, strategy):
+                """개별 식사 슬롯 검색 (병렬 실행용)"""
+                # print(f"🔍 {slot} 레시피 {days}개 검색 중...")  # 임시 비활성화
                 
                 # 다양성을 위해 여러 검색 전략 시도
                 all_search_results = []
                 
-                # 1. 기본 키워드 검색
+                # 변수 초기화 (스코프 문제 해결)
+                basic_results = []
+                variety_results = []
+                cooking_results = []
+                total_variety_count = 0  # 전체 다양성 검색 결과 수
+                
+                # 1. 기본 키워드 검색 (알레르기 필터링 고려하여 증가)
                 basic_query = f"{' '.join(strategy['primary_keywords'])} 키토"
-                basic_results = await self._search_with_diversity(
-                    basic_query, constraints, user_id, used_recipes, max_results=days * 4,  # 더 많은 후보
-                    allergies=allergies, dislikes=dislikes
+                
+                # 🆕 아침의 경우 계란 키워드 완전 제외
+                if slot == 'breakfast':
+                    basic_query = basic_query.replace('계란', '').replace('달걀', '').replace('스크램블', '').replace('오믈렛', '')
+                    basic_query += ' 닭가슴살 두부 베이컨 연어'  # 계란 대신 다른 단백질 키워드 추가
+                    # print(f"🚫 아침 검색 쿼리 (계란 제외): '{basic_query}'")  # 디버그용 제거
+                else:
+                    # print(f"🔍 DEBUG: {slot} 기본 검색어: '{basic_query}'")  # 디버그용 제거
+                    pass
+                
+                basic_results = await self._search_with_diversity_optimized(
+                    basic_query, constraints, user_id, used_recipes, max_results=days * 4,  # 2 → 4로 증가
+                    processed_allergies=processed_allergies, processed_dislikes=processed_dislikes
                 )
                 all_search_results.extend(basic_results)
                 
-                # 2. 다양성 키워드 검색 (각 날짜별로 다른 키워드 조합)
-                if 'variety_keywords' in strategy:
-                    for day_idx in range(min(days, len(strategy['variety_keywords']))):
-                        variety_query = f"{' '.join(strategy['variety_keywords'][day_idx])} 키토"
-                        variety_results = await self._search_with_diversity(
-                            variety_query, constraints, user_id, used_recipes, max_results=2,
-                            allergies=allergies, dislikes=dislikes
+                # 2. 다양성 키워드 검색 (알레르기 필터링 고려하여 증가)
+                if 'variety_keywords' in strategy and len(all_search_results) < days * 3:
+                    # 모든 다양성 키워드 그룹을 순회하며 검색
+                    for i, variety_group in enumerate(strategy['variety_keywords']):
+                        variety_query = f"{' '.join(variety_group)} 키토"
+                        
+                        # 🆕 아침의 경우 계란 키워드 완전 제외
+                        if slot == 'breakfast':
+                            variety_query = variety_query.replace('계란', '').replace('달걀', '').replace('스크램블', '').replace('오믈렛', '')
+                            variety_query += ' 닭가슴살 두부 베이컨 연어'  # 계란 대신 다른 단백질 키워드 추가
+                            # print(f"🚫 아침 다양성 검색 쿼리 (계란 제외): '{variety_query}'")  # 디버그용 제거
+                        else:
+                            # print(f"🔍 DEBUG: {slot} 다양성 검색어 {i+1}: '{variety_query}'")  # 디버그용 제거
+                            pass
+                        
+                        variety_results = await self._search_with_diversity_optimized(
+                            variety_query, constraints, user_id, used_recipes, max_results=2,  # 각 그룹당 2개씩
+                            processed_allergies=processed_allergies, processed_dislikes=processed_dislikes
                         )
                         all_search_results.extend(variety_results)
+                        total_variety_count += len(variety_results)  # 다양성 결과 수 누적
+                        
+                        # 충분한 결과가 있으면 중단
+                        if len(all_search_results) >= days * 3:
+                            break
                 
-                # 3. 조리법 기반 검색
-                if 'cooking_methods' in strategy:
-                    cooking_query = f"{' '.join(strategy['cooking_methods'][:3])} 키토 {slot}"
-                    cooking_results = await self._search_with_diversity(
-                        cooking_query, constraints, user_id, used_recipes, max_results=3,
-                        allergies=allergies, dislikes=dislikes
+                # 3. 조리법 기반 검색 (알레르기 필터링 고려하여 증가)
+                if 'cooking_methods' in strategy and len(all_search_results) < days * 3:
+                    cooking_query = f"{' '.join(strategy['cooking_methods'][:2])} 키토 {slot}"  # 3 → 2로 감소
+                    
+                    # 🆕 아침의 경우 계란 키워드 완전 제외
+                    if slot == 'breakfast':
+                        cooking_query = cooking_query.replace('계란', '').replace('달걀', '').replace('스크램블', '').replace('오믈렛', '')
+                        cooking_query += ' 닭가슴살 두부 베이컨 연어'  # 계란 대신 다른 단백질 키워드 추가
+                        # print(f"🚫 아침 조리법 검색 쿼리 (계란 제외): '{cooking_query}'")  # 디버그용 제거
+                    else:
+                        # print(f"🔍 DEBUG: {slot} 조리법 검색어: '{cooking_query}'")  # 디버그용 제거
+                        pass
+                    
+                    cooking_results = await self._search_with_diversity_optimized(
+                        cooking_query, constraints, user_id, used_recipes, max_results=4,  # 2 → 4로 증가
+                        processed_allergies=processed_allergies, processed_dislikes=processed_dislikes
                     )
                     all_search_results.extend(cooking_results)
                 
                 if all_search_results:
-                    # 중복 제거 (ID 기준)
+                    # 효율적인 중복 제거 (ID 기준) - dict comprehension 사용
                     seen_ids = set()
-                    unique_results = []
-                    for result in all_search_results:
-                        result_id = result.get('id', '')
-                        if result_id and result_id not in seen_ids:
-                            seen_ids.add(result_id)
-                            unique_results.append(result)
+                    unique_results = [
+                        result for result in all_search_results
+                        if (result_id := result.get('id', '')) and result_id not in seen_ids and not seen_ids.add(result_id)
+                    ]
                     
-                    meal_collections[slot] = unique_results
-                    print(f"✅ {slot} 레시피 {len(unique_results)}개 수집 완료 (다양성 검색 적용)")
+                    # 🆕 아침의 경우 계란 관련 레시피 추가 필터링
+                    if slot == 'breakfast':
+                        def is_egg_related(title):
+                            """계란 관련 레시피인지 확인"""
+                            title_lower = title.lower()
+                            egg_keywords = ['달걀', '계란', 'egg', '에그', '계란말이', '달걀찜', '스크램블', 'scramble', '달갈', '계란볶음', '달걀볶음', '계란샐러드', '달걀샐러드', '삶은달걀', '삶은계란', '프리타타', 'frittata', '지단', '계란지단', '달걀지단', '오믈렛', 'omelette', '동그랑땡', '동그랑떵', '계란탕']
+                            return any(keyword in title_lower for keyword in egg_keywords)
+                        
+                        # 계란 관련 레시피 제외
+                        non_egg_results = [r for r in unique_results if not is_egg_related(r.get('title', ''))]
+                        
+                        if non_egg_results:
+                            # print(f"🚫 아침 계란 레시피 추가 필터링: {len(unique_results)} → {len(non_egg_results)}개")  # 디버그용 제거
+                            # 제외된 계란 레시피들 로그 출력
+                            egg_filtered = [r for r in unique_results if is_egg_related(r.get('title', ''))]
+                            # for egg_recipe in egg_filtered:
+                            #     print(f"    ❌ 계란 레시피 제외: '{egg_recipe.get('title', '')}'")  # 디버그용 제거
+                            unique_results = non_egg_results
+                        else:
+                            # print(f"⚠️ 비계란 레시피 없음 - 원본 사용")  # 디버그용 제거
+                            pass
+                    
+                    # print(f"✅ {slot} 레시피 {len(unique_results)}개 수집 완료 (다양성 검색 적용)")  # 디버그용 제거
+                    # print(f"    🔍 검색 전략별 결과: 기본={len(basic_results)}, 다양성={total_variety_count}, 조리법={len(cooking_results) if 'cooking_methods' in strategy else 0}")  # 디버그용 제거
+                    return slot, unique_results
                 else:
-                    meal_collections[slot] = []
-                    print(f"❌ {slot} 레시피 검색 실패")
+                    # print(f"❌ {slot} 레시피 검색 실패")  # 디버그용 제거
+                    return slot, []
+            
+            # 모든 식사 슬롯을 병렬로 검색
+            # print(f"🚀 {len(meal_strategies)}개 식사 슬롯 병렬 검색 시작...")  # 디버그용 제거
+            search_tasks = [
+                search_slot(slot, strategy) 
+                for slot, strategy in meal_strategies.items()
+            ]
+            
+            # 병렬 실행
+            search_results = await asyncio.gather(*search_tasks, return_exceptions=True)
+            
+            # 결과 정리
+            for result in search_results:
+                if isinstance(result, Exception):
+                    print(f"❌ 검색 오류: {result}")
+                    continue
+                
+                slot, results = result
+                meal_collections[slot] = results
             
             # 7일 식단표 구성 (다양성 보장) - 부분 성공도 허용
             missing_count = 0  # 못 찾은 슬롯 개수
+            
+            # 메뉴 다양성을 위한 재료 그룹 추적 (전체 식단 기준)
+            used_ingredient_groups = global_used_groups if global_used_groups is not None else set()  # 전역 그룹 사용
             
             for day in range(days):
                 day_meals = {}
                 
                 for slot in meal_strategies.keys():
+                    # 🆕 랜덤으로 선택된 날짜의 아침에 계란 레시피 배치
+                    if slot == 'breakfast' and day == egg_day and egg_breakfast_recipe:
+                        # print(f"🥚 {day + 1}일차 아침: 계란 레시피 배치 - '{egg_breakfast_recipe.get('title', '')}'")  # 디버그용 제거
+                        day_meals[slot] = {
+                            "type": "recipe",
+                            "id": egg_breakfast_recipe.get("id", ""),
+                            "title": egg_breakfast_recipe.get("title", ""),
+                            "macros": egg_breakfast_recipe.get("macros", {}),
+                            "ingredients": egg_breakfast_recipe.get("ingredients", []),
+                            "steps": egg_breakfast_recipe.get("steps", []),
+                            "tips": egg_breakfast_recipe.get("tips", [])
+                        }
+                        used_recipes.add(egg_breakfast_recipe.get('id', f"egg_breakfast_{day}"))
+                        continue
+                    elif slot == 'breakfast' and day != egg_day:
+                        # print(f"🚫 {day + 1}일차 아침: 계란 레시피 배치 안됨 (선택된 날짜: {egg_day + 1}일차)")  # 디버그용 제거
+                        pass
+                    
                     if slot in meal_collections and len(meal_collections[slot]) > 0:
                         # 중복 방지를 위해 선택된 레시피를 컬렉션에서 제거
                         available_recipes = meal_collections[slot]
                         
-                        # 아직 사용되지 않은 레시피만 필터링
-                        unused_recipes = [r for r in available_recipes if r.get('id', f"embedded_{slot}_{day}") not in used_recipes]
+                        # 아직 사용되지 않은 레시피만 필터링 (더 정확한 필터링)
+                        unused_recipes = []
+                        for r in available_recipes:
+                            recipe_id = r.get('id', f"embedded_{slot}_{day}")
+                            if recipe_id not in used_recipes:
+                                unused_recipes.append(r)
+                        
+                        # print(f"🔍 {day+1}일차 {slot}: 사용 가능한 레시피 {len(available_recipes)}개, 미사용 {len(unused_recipes)}개")  # 디버그용 제거
+                        
+                        # 🔍 아침 레시피는 이미 계란 키워드가 제외된 상태로 검색됨
                         
                         if unused_recipes:
-                            # 다양성을 위해 날짜별로 다른 선택 전략 적용
-                            if day % 2 == 0:
-                                # 짝수 날: 유사도가 높은 순으로 정렬 후 상위에서 선택
-                                unused_recipes.sort(key=lambda x: x.get('similarity', 0.0), reverse=True)
-                                selected_recipe = unused_recipes[min(2, len(unused_recipes)-1)]  # 상위 3개 중에서 선택
+                            # 🆕 재료 그룹 기반 다양성 필터링
+                            def get_main_ingredient_group(title):
+                                """메뉴 제목에서 주요 재료 그룹 추출"""
+                                title_lower = title.lower()
+                                
+                                # 계란 그룹 (완전 포괄적인 키워드)
+                                if any(keyword in title_lower for keyword in ['달걀', '계란', 'egg', '에그', '계란말이', '달걀찜', '스크램블', 'scramble', '달갈', '계란볶음', '달걀볶음', '계란샐러드', '달걀샐러드', '삶은달걀', '삶은계란', '프리타타', 'frittata', '지단', '계란지단', '달걀지단', '오믈렛', 'omelette', '동그랑땡', '동그랑떵', '계란탕']):
+                                    return 'egg_group'
+                                
+                                # 닭고기 그룹
+                                if any(keyword in title_lower for keyword in ['닭', '치킨', '닭가슴', '닭다리', '닭날개']):
+                                    return 'chicken_group'
+                                
+                                # 돼지고기 그룹
+                                if any(keyword in title_lower for keyword in ['돼지', '돼지고기', '삼겹', '목살', '베이컨']):
+                                    return 'pork_group'
+                                
+                                # 소고기 그룹
+                                if any(keyword in title_lower for keyword in ['소고기', '소', '한우', '쇠고기', '스테이크']):
+                                    return 'beef_group'
+                                
+                                # 생선 그룹
+                                if any(keyword in title_lower for keyword in ['생선', '연어', '참치', '고등어', '광어', '오징어']):
+                                    return 'fish_group'
+                                
+                                # 김밥 그룹
+                                if any(keyword in title_lower for keyword in ['김밥', '초밥', '롤']):
+                                    return 'gimbap_group'
+                                
+                                # 샐러드 그룹
+                                if any(keyword in title_lower for keyword in ['샐러드', '무침', '채소']):
+                                    return 'salad_group'
+                                
+                                # 기타 (고유 그룹)
+                                return f'other_{hash(title) % 1000}'
+                            
+                            # 이미 사용된 재료 그룹 제외 (더 강력한 필터링)
+                            filtered_recipes = []
+                            print(f"    🔍 {slot} 다양성 필터링 시작 - 사용된 그룹: {sorted(used_ingredient_groups)}")
+                            print(f"    🚨 강제 디버그: used_ingredient_groups 타입={type(used_ingredient_groups)}, 길이={len(used_ingredient_groups)}")
+                            
+                            # 간단한 다양성 필터링
+                            for recipe in unused_recipes:
+                                title = recipe.get('title', '')
+                                ingredient_group = get_main_ingredient_group(title)
+                                # print(f"      📝 '{title}' → 그룹: {ingredient_group}")  # 디버그용 제거
+                                
+                                if ingredient_group not in used_ingredient_groups:
+                                    filtered_recipes.append(recipe)
+                                    # print(f"        ✅ 필터링 통과")  # 디버그용 제거
+                                else:
+                                    # print(f"        ❌ 필터링 제외 (이미 사용된 그룹)")  # 디버그용 제거
+                                    pass
+                            
+                            # 필터링된 레시피가 있으면 사용
+                            if filtered_recipes:
+                                candidate_recipes = filtered_recipes
+                                # print(f"    🔍 {slot} 다양성 필터링 성공: {len(unused_recipes)} → {len(filtered_recipes)}개")  # 디버그용 제거
                             else:
-                                # 홀수 날: 랜덤 선택
-                                selected_recipe = random.choice(unused_recipes)
+                                # 필터링된 레시피가 없으면 원래 레시피 사용하되 경고
+                                candidate_recipes = unused_recipes
+                                # print(f"    ⚠️ {slot} 다양성 필터링 실패: 모든 레시피가 이미 사용된 그룹")  # 디버그용 제거
+                            
+                            # 다양성을 위해 더 복잡한 선택 전략 적용
+                            if day % 3 == 0:
+                                # 3일마다: 유사도 기반 선택 (상위 5개 중 랜덤)
+                                candidate_recipes.sort(key=lambda x: x.get('similarity', 0.0), reverse=True)
+                                top_recipes = candidate_recipes[:min(5, len(candidate_recipes))]
+                                selected_recipe = random.choice(top_recipes)
+                            elif day % 3 == 1:
+                                # 3일마다: 완전 랜덤 선택
+                                selected_recipe = random.choice(candidate_recipes)
+                            else:
+                                # 3일마다: 중간 유사도 선택 (다양성 극대화)
+                                candidate_recipes.sort(key=lambda x: x.get('similarity', 0.0), reverse=True)
+                                mid_start = len(candidate_recipes) // 3
+                                mid_end = (len(candidate_recipes) * 2) // 3
+                                mid_recipes = candidate_recipes[mid_start:mid_end]
+                                selected_recipe = random.choice(mid_recipes) if mid_recipes else random.choice(candidate_recipes)
+                            
+                            # 선택된 레시피의 재료 그룹을 사용된 그룹에 추가
+                            selected_group = get_main_ingredient_group(selected_recipe.get('title', ''))
+                            
+                            # print(f"    🚨 그룹 추가 전: used_ingredient_groups={sorted(used_ingredient_groups)}")  # 디버그용 제거
+                            used_ingredient_groups.add(selected_group)
+                            # print(f"    🚨 그룹 추가 후: used_ingredient_groups={sorted(used_ingredient_groups)}")  # 디버그용 제거
+                            # print(f"🔍 {day+1}일차 {slot}: '{selected_recipe.get('title', '')}' (그룹: {selected_group})")  # 디버그용 제거
+                            # print(f"    📊 현재 사용된 그룹들: {sorted(used_ingredient_groups)}")  # 디버그용 제거
+                            
                         else:
                             # 모든 레시피가 사용되었으면 다시 랜덤 선택 (다양성 우선)
                             selected_recipe = random.choice(available_recipes)
@@ -814,6 +1216,7 @@ class MealPlannerAgent:
                             "title": selected_recipe.get('title', f"키토 {slot}"),
                             "content": selected_recipe.get('content', ''),
                             "similarity": selected_recipe.get('similarity', 0.0),
+                            "url": selected_recipe.get('url'),  # URL 추가
                             "metadata": selected_recipe.get('metadata', {}),
                             "allergens": selected_recipe.get('allergens', []),
                             "ingredients": selected_recipe.get('ingredients', [])
@@ -850,6 +1253,7 @@ class MealPlannerAgent:
                     "total_macros": total_macros,
                     "notes": notes,
                     "source": "embeddings",
+                    "used_groups": used_ingredient_groups,  # 🆕 사용된 재료 그룹 정보 추가
                     "constraints": {
                         "kcal_target": None,  # 임베딩 데이터에서는 정확한 목표 설정 어려움
                         "carbs_max": None,
@@ -862,10 +1266,14 @@ class MealPlannerAgent:
             
         except Exception as e:
             print(f"❌ 임베딩 데이터 식단표 생성 실패: {e}")
+            import traceback
+            print(f"🔍 DEBUG: 예외 상세 정보:")
+            traceback.print_exc()
             return None
     
     async def _generate_detailed_meals_from_embeddings(self, structure: List[Dict[str, str]], constraints: str, user_id: Optional[str] = None, fast_mode: bool = True,
-                                                       allergies: Optional[List[str]] = None, dislikes: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
+                                                       allergies: Optional[List[str]] = None, dislikes: Optional[List[str]] = None, 
+                                                       global_used_groups: Optional[set] = None) -> Optional[Dict[str, Any]]:
         """
         3단계: AI 구조를 바탕으로 임베딩 데이터에서 구체적 메뉴 생성
 
@@ -885,6 +1293,9 @@ class MealPlannerAgent:
             # 효율적인 검색: 식사별로 한 번에 여러 개 검색
             detailed_days = []
             used_recipes = set()  # 중복 방지용
+            
+            # 🆕 메뉴 다양성을 위한 재료 그룹 추적
+            used_ingredient_groups = global_used_groups if global_used_groups is not None else set()
             
             # 각 식사별로 한 번에 여러 개 검색
             meal_collections = {}
@@ -933,8 +1344,79 @@ class MealPlannerAgent:
                         day_meals[slot] = await self._generate_simple_snack(meal_type)
                     else:
                         if slot in meal_collections and len(meal_collections[slot]) > day_idx:
+                            # 🆕 다양성 필터링 적용
+                            def get_main_ingredient_group(title):
+                                """메뉴 제목에서 주요 재료 그룹 추출"""
+                                title_lower = title.lower()
+                                
+                                # 계란 그룹 (완전 포괄적인 키워드)
+                                if any(keyword in title_lower for keyword in ['달걀', '계란', 'egg', '에그', '계란말이', '달걀찜', '스크램블', 'scramble', '달갈', '계란볶음', '달걀볶음', '계란샐러드', '달걀샐러드', '삶은달걀', '삶은계란', '프리타타', 'frittata', '지단', '계란지단', '달걀지단', '오믈렛', 'omelette', '동그랑땡', '동그랑떵', '계란탕']):
+                                    return 'egg_group'
+                                
+                                # 닭고기 그룹
+                                if any(keyword in title_lower for keyword in ['닭', '치킨', '닭가슴', '닭다리', '닭날개']):
+                                    return 'chicken_group'
+                                
+                                # 돼지고기 그룹
+                                if any(keyword in title_lower for keyword in ['돼지', '돼지고기', '삼겹', '목살', '베이컨']):
+                                    return 'pork_group'
+                                
+                                # 소고기 그룹
+                                if any(keyword in title_lower for keyword in ['소고기', '소', '한우', '쇠고기', '스테이크']):
+                                    return 'beef_group'
+                                
+                                # 생선 그룹
+                                if any(keyword in title_lower for keyword in ['생선', '연어', '참치', '고등어', '광어', '오징어']):
+                                    return 'fish_group'
+                                
+                                # 김밥 그룹
+                                if any(keyword in title_lower for keyword in ['김밥', '초밥', '롤']):
+                                    return 'gimbap_group'
+                                
+                                # 샐러드 그룹
+                                if any(keyword in title_lower for keyword in ['샐러드', '무침', '채소']):
+                                    return 'salad_group'
+                                
+                                # 기타 (고유 그룹)
+                                return f'other_{hash(title) % 1000}'
+                            
+                            # 사용 가능한 레시피들
+                            available_recipes = meal_collections[slot]
+                            
+                            # 다양성 필터링 적용
+                            filtered_recipes = []
+                            print(f"    🔍 {day_idx+1}일차 {slot} 다양성 필터링 시작 - 사용된 그룹: {sorted(used_ingredient_groups)}")
+                            
+                            for recipe in available_recipes:
+                                title = recipe.get('title', '')
+                                ingredient_group = get_main_ingredient_group(title)
+                                # print(f"      📝 '{title}' → 그룹: {ingredient_group}")  # 디버그용 제거
+                                
+                                if ingredient_group not in used_ingredient_groups:
+                                    filtered_recipes.append(recipe)
+                                    # print(f"        ✅ 필터링 통과")  # 디버그용 제거
+                                else:
+                                    # print(f"        ❌ 필터링 제외 (이미 사용된 그룹)")  # 디버그용 제거
+                                    pass
+                            
+                            # 필터링된 레시피가 있으면 사용
+                            if filtered_recipes:
+                                candidate_recipes = filtered_recipes
+                                print(f"    🔍 {slot} 다양성 필터링 성공: {len(available_recipes)} → {len(filtered_recipes)}개")
+                            else:
+                                # 필터링된 레시피가 없으면 원래 레시피 사용하되 경고
+                                candidate_recipes = available_recipes
+                                print(f"    ⚠️ {slot} 다양성 필터링 실패: 모든 레시피가 이미 사용된 그룹")
+                            
                             # 랜덤 선택 적용
-                            selected_recipe = random.choice(meal_collections[slot])
+                            selected_recipe = random.choice(candidate_recipes)
+                            
+                            # 선택된 레시피의 재료 그룹을 사용된 그룹에 추가
+                            selected_group = get_main_ingredient_group(selected_recipe.get('title', ''))
+                            used_ingredient_groups.add(selected_group)
+                            print(f"🔍 {day_idx+1}일차 {slot}: '{selected_recipe.get('title', '')}' (그룹: {selected_group})")
+                            print(f"    📊 현재 사용된 그룹들: {sorted(used_ingredient_groups)}")
+                            
                             recipe_id = selected_recipe.get('id', f"embedded_{slot}_{day_idx}")
                             used_recipes.add(recipe_id)
                             
@@ -944,6 +1426,7 @@ class MealPlannerAgent:
                                 "title": selected_recipe.get('title', f"키토 {slot}"),
                                 "content": selected_recipe.get('content', ''),
                                 "similarity": selected_recipe.get('similarity', 0.0),
+                                "url": selected_recipe.get('url'),  # URL 추가
                                 "metadata": selected_recipe.get('metadata', {}),
                                 "allergens": selected_recipe.get('allergens', []),
                                 "ingredients": selected_recipe.get('ingredients', [])
@@ -1005,11 +1488,11 @@ class MealPlannerAgent:
         except Exception as e:
             print(f"Structure planning error: {e}")
         
-        # 폴백: 기본 구조
+        # 폴백: 기본 구조 (계란 빈도 대폭 감소)
         return [
             {
                 "day": i + 1,
-                "breakfast_type": "계란 요리",
+                "breakfast_type": "계란 요리" if i % 7 == 0 else "닭가슴살 요리" if i % 7 == 1 else "두부 요리" if i % 7 == 2 else "베이컨 요리" if i % 7 == 3 else "연어 요리" if i % 7 == 4 else "샐러드" if i % 7 == 5 else "구이",  # 7일 중 1일만 계란
                 "lunch_type": "샐러드" if i % 2 == 0 else "구이",
                 "dinner_type": "고기 요리" if i % 2 == 0 else "생선 요리",
                 "snack_type": "견과류"
@@ -1055,14 +1538,41 @@ class MealPlannerAgent:
         
         # 하이브리드 검색 시도 (사용자 프로필 필터링 포함)
         search_query = f"{meal_type} 키토 {slot}"
+        
+        # 아침 메뉴의 경우 계란 관련 키워드 완전 제외
+        if slot == 'breakfast':
+            if "계란" in meal_type:
+                search_query = f"계란 달걀 스크램블 오믈렛 키토 {slot}"  # 계란 요리일 때만 계란 키워드 사용
+            else:
+                # 계란이 아닌 경우 계란 키워드 완전 제외하고 대안 키워드 사용
+                search_query = f"{meal_type} 키토 {slot} 닭가슴살 두부 베이컨 연어"  # 계란 대신 다른 단백질 키워드 사용
+        
         rag_results = await hybrid_search_tool.search(
             query=search_query,
             profile=constraints,
-            max_results=5,  # 1 → 5로 변경
+            max_results=10,  # 더 많이 가져와서 필터링
             user_id=getattr(self, '_current_user_id', None)  # 현재 사용자 ID 전달
         )
         
         if rag_results:
+            # 아침 메뉴의 경우 계란 관련 레시피 제외
+            if slot == 'breakfast' and "계란" not in meal_type:
+                def is_egg_related(title):
+                    """계란 관련 레시피인지 확인"""
+                    title_lower = title.lower()
+                    egg_keywords = ['달걀', '계란', 'egg', '에그', '계란말이', '달걀찜', '스크램블', 'scramble', '달갈', '계란볶음', '달걀볶음', '계란샐러드', '달걀샐러드', '삶은달걀', '삶은계란', '프리타타', 'frittata', '지단', '계란지단', '달걀지단', '오믈렛', 'omelette', '동그랑땡', '동그랑떵', '계란탕']
+                    return any(keyword in title_lower for keyword in egg_keywords)
+                
+                # 계란 관련 레시피 제외
+                non_egg_results = [r for r in rag_results if not is_egg_related(r.get('title', ''))]
+                
+                if non_egg_results:
+                    # print(f"    🚫 아침 계란 레시피 제외: {len(rag_results)} → {len(non_egg_results)}개")  # 디버그용 제거
+                    rag_results = non_egg_results
+                else:
+                    # print(f"    ⚠️ 비계란 레시피 없음 - 원본 사용")  # 디버그용 제거
+                    pass
+            
             recipe = random.choice(rag_results)  # 랜덤 선택
             return {
                 "type": "recipe",
@@ -1175,6 +1685,9 @@ class MealPlannerAgent:
         constraints: str
     ) -> Dict[str, Any]:
         """기존 LLM 메뉴 생성 방식 (폴백용)"""
+        
+        # 아침 메뉴의 경우 계란 요리는 그대로 유지 (빈도는 상위에서 제어)
+        # meal_type은 그대로 사용
         
         meal_prompt = self.prompts["generation"].format(
             slot=slot,
@@ -1534,6 +2047,7 @@ class MealPlannerAgent:
             ingredients = result.get('ingredients', 'Unknown')
             content = result.get('content', 'Unknown')
             similarity = result.get('similarity_score', 0.0)
+            url = result.get('url')  # URL 추가
             
             # 내용이 너무 길면 잘라내기
             if len(content) > 300:
@@ -1548,6 +2062,13 @@ class MealPlannerAgent:
 **조리법:**
 {content}
 """
+            # URL이 있으면 추가
+            if url:
+                recipe_info += f"\n**출처 URL:** {url}\n"
+                print(f"  ✅ 레시피 '{title}' URL 포함: {url}")
+            else:
+                print(f"  ⚠️ 레시피 '{title}' URL 없음")
+            
             formatted_recipes.append(recipe_info)
         
         return "\n".join(formatted_recipes)
@@ -1574,7 +2095,7 @@ class MealPlannerAgent:
     # 프로필 통합 편의 함수들 
     # ==========================================
     
-    async def generate_personalized_meal_plan(self, user_id: str, days: int = 7, fast_mode: bool = True) -> Dict[str, Any]:
+    async def generate_personalized_meal_plan(self, user_id: str, days: int = 7, fast_mode: bool = True, global_used_groups: Optional[set] = None) -> Dict[str, Any]:
         """
         사용자 ID만으로 개인화된 식단 계획 생성
         
@@ -1588,6 +2109,9 @@ class MealPlannerAgent:
         """
         print(f"🔧 개인화 식단 계획 생성 시작: 사용자 {user_id}, {days}일")
         
+        # 🆕 전역 다양성 추적을 위한 재료 그룹 세트
+        global_used_ingredient_groups = global_used_groups if global_used_groups is not None else set()
+        
         # 현재 사용자 ID 저장 (검색 시 프로필 필터링용)
         self._current_user_id = user_id
         
@@ -1596,7 +2120,7 @@ class MealPlannerAgent:
         
         if not profile_result["success"]:
             print(f"⚠️ 프로필 조회 실패, 기본값으로 진행: {profile_result.get('error')}")
-            return await self.generate_meal_plan(days=days, user_id=user_id)
+            return await self.generate_meal_plan(days=days, user_id=user_id, global_used_groups=global_used_ingredient_groups)
         
         prefs = profile_result["preferences"]
         
@@ -1608,7 +2132,8 @@ class MealPlannerAgent:
             allergies=prefs.get("allergies"),
             dislikes=prefs.get("dislikes"),
             user_id=user_id,
-            fast_mode=fast_mode
+            fast_mode=fast_mode,
+            global_used_groups=global_used_ingredient_groups  # 🆕 전역 그룹 전달
         )
     
     async def generate_recipe_with_profile(self, user_id: str, message: str) -> str:
@@ -1651,6 +2176,9 @@ class MealPlannerAgent:
         """
         print(f"🔧 사용자 접근 권한 확인: {user_id}")
         
+        # 🆕 전역 다양성 추적을 위한 재료 그룹 세트
+        global_used_ingredient_groups = set()
+        
         # 접근 권한 확인
         access_result = await user_profile_tool.check_user_access(user_id)
         
@@ -1674,7 +2202,7 @@ class MealPlannerAgent:
         # 요청 타입에 따라 처리
         if request_type == "meal_plan":
             days = kwargs.get("days", 7)
-            result = await self.generate_personalized_meal_plan(user_id, days)
+            result = await self.generate_personalized_meal_plan(user_id, days, global_used_groups=global_used_ingredient_groups)
             return {"success": True, "data": result, "access_info": access_info}
         
         elif request_type == "recipe":
@@ -1705,6 +2233,9 @@ class MealPlannerAgent:
             Dict[str, Any]: 업데이트할 상태 정보
         """
         print(f"🍽️ 식단 요청 처리 시작: '{message}'")
+        
+        # 🆕 전역 다양성 추적을 위한 재료 그룹 세트
+        global_used_ingredient_groups = set()
         
         # 1. 날짜 파싱
         days = self._parse_days(message, state)
@@ -1748,7 +2279,8 @@ class MealPlannerAgent:
                     allergies=constraints.get("allergies", []),
                     dislikes=constraints.get("dislikes", []),
                     user_id=user_id,
-                    fast_mode=fast_mode
+                    fast_mode=fast_mode,
+                    global_used_groups=global_used_ingredient_groups  # 🆕 전역 그룹 전달
                 )
         else:
             # 일반 식단 생성
@@ -1759,10 +2291,12 @@ class MealPlannerAgent:
                 allergies=constraints.get("allergies", []),
                 dislikes=constraints.get("dislikes", []),
                 user_id=user_id,
-                fast_mode=fast_mode
+                fast_mode=fast_mode,
+                global_used_groups=global_used_ingredient_groups  # 🆕 전역 그룹 전달
             )
         
         # 6. 응답 포맷팅
+        print(f"🔍 DEBUG: format_meal_plan 호출 - days: {days}, meal_plan.days 길이: {len(meal_plan.get('days', []))}")
         formatted_response = self.response_formatter.format_meal_plan(
             meal_plan, days
         )
@@ -1816,7 +2350,7 @@ class MealPlannerAgent:
             keto_tip = f"\n\n💡 **키토 팁**: 식단 생성이 어려울 때는 목표 칼로리를 100-200kcal 늘리거나, 탄수화물 한도를 5-10g 늘려보세요. 또한 알레르기나 비선호 음식을 일시적으로 완화하면 더 다양한 식단을 만들 수 있어요!"
             
             # 안내 메시지 추가
-            guidance_message = f"\n\n⚠️ **안내**: 일부 날짜의 특정 식단을 생성하지 못했습니다 ({', '.join(banned_slots_korean)}). 해당 식단을 제외하고 저장하려면 \"캘린더에 저장해줘\"라고 말해보세요!"
+            guidance_message = f"\n\n⚠️ **안내**: 일부 날짜의 특정 식단을 생성하지 못했습니다 ({', '.join(banned_slots_korean)}). 해당 식단을 제외하고 저장하려면 **캘린더에 저장해줘**라고 말해보세요!"
             
             formatted_response += keto_tip + guidance_message
         
@@ -1929,18 +2463,25 @@ class MealPlannerAgent:
         Returns:
             Optional[int]: 파싱된 일수 또는 None
         """
+        print(f"🔍 DEBUG: _parse_days 시작 - 메시지: '{message}'")
+        
         # LLM 파싱 시도 (대화 맥락 포함)
         try:
             chat_history = state.get("chat_history", [])
+            print(f"🔍 DEBUG: chat_history 길이: {len(chat_history)}")
             parsed_date = self.date_parser.parse_natural_date_with_context(message, chat_history)
+            print(f"🔍 DEBUG: parsed_date 결과: {parsed_date}")
             if parsed_date and parsed_date.duration_days:
                 print(f"📅 DateParser LLM이 감지한 days: {parsed_date.duration_days}")
                 return parsed_date.duration_days
+            else:
+                print(f"⚠️ DateParser LLM 파싱 결과: duration_days 없음")
         except Exception as e:
             print(f"⚠️ DateParser LLM 파싱 오류: {e}")
         
         # 슬롯에서 가져오기 (백업)
         slots_days = state.get("slots", {}).get("days")
+        print(f"🔍 DEBUG: slots에서 days: {slots_days}")
         if slots_days:
             days = int(slots_days)
             print(f"📅 슬롯에서 추출된 days: {days}")

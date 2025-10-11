@@ -270,7 +270,8 @@ async def chat_endpoint(request: ChatMessage):
             radius_km=request.radius_km or 5.0,
             profile=profile_with_user_id,
             chat_history=chat_history,
-            thread_id=thread_id
+            thread_id=thread_id,
+            days=request.days  # 일수 파라미터 전달
         )
         print(f"✅ DEBUG: 오케스트레이터 결과 [ID: {request_id}] - intent: {result.get('intent', 'unknown')}")
         
@@ -325,7 +326,7 @@ async def chat_endpoint(request: ChatMessage):
         else:
             print(f"🔍 DEBUG: save_to_calendar_data가 없거나 falsy 값입니다")
         
-        print(f"🔍 DEBUG: 최종 response_data: {response_data}")
+        # print(f"🔍 DEBUG: 최종 response_data: {response_data}")
         print(f"🔍 DEBUG: 최종 response_data 키들: {list(response_data.keys())}")
         print(f"🔍 DEBUG: save_to_calendar_data 존재 여부: {'save_to_calendar_data' in response_data}")
         

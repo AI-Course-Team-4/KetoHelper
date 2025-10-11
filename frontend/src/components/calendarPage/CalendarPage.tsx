@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useIsFetching } from '@tanstack/react-query'
 import { useCalendarJobWatcher } from '@/hooks/useCalendarJobWatcher'
 import { CalendarHeader } from './CalendarHeader'
 import { CalendarGrid } from './CalendarGrid'
@@ -10,7 +9,7 @@ import { DateDetailModal } from '@/components/DateDetailModal'
 import { useCalendarData } from './hooks/useCalendarData'
 import { useMealOperations } from './hooks/useMealOperations'
 import { useMealPlanGeneration } from './hooks/useMealPlanGeneration'
-import { useDeleteAllPlans } from '@/hooks/useApi'
+import { useDeleteAllPlans, useDeleteMonthPlans } from '@/hooks/useApi'
 import { useAuthStore } from '@/store/authStore'
 import { useCalendarStore } from '@/store/calendarStore'
 import { useQueryClient } from '@tanstack/react-query'
@@ -21,10 +20,29 @@ export function CalendarPage() {
   useCalendarJobWatcher()
   const queryClient = useQueryClient()
   
-  // 캘린더 진입 시 항상 최신 데이터로 리로드 (확실한 일관성 보장)
+  // 캘린더 진입 시 스마트 리로드 (캐시된 데이터가 있으면 사용)
   useEffect(() => {
-    console.log('🔍 CalendarPage 초기 리로드')
+    console.log('🔍 CalendarPage 스마트 리로드')
     try {
+      // plans-range 쿼리들이 캐시되어 있는지 확인
+      const queryCache = queryClient.getQueryCache()
+      const plansRangeQueries = queryCache.findAll({ queryKey: ['plans-range'] })
+      
+      // 캐시된 데이터가 있고 신선한 상태인지 확인
+      const hasFreshData = plansRangeQueries.some(query => {
+        const state = query.state
+        const now = Date.now()
+        const staleTime = 5 * 60 * 1000 // 5분
+        return state.data && state.dataUpdatedAt > now - staleTime // 5분 이내
+      })
+      
+      if (hasFreshData) {
+        console.log(`✅ 신선한 plans-range 캐시 발견 - API 요청 생략`)
+        return
+      }
+      
+      // 캐시된 데이터가 없거나 오래된 경우에만 리페치
+      console.log('⚠️ plans-range 캐시 없음 또는 오래됨 - API 요청 실행')
       queryClient.invalidateQueries({ queryKey: ['plans-range'] })
       queryClient.refetchQueries({ queryKey: ['plans-range'] })
     } catch (e) {
@@ -32,8 +50,6 @@ export function CalendarPage() {
     }
   }, [])
 
-  // plans-range가 네트워크에서 진행 중인지 전역 감지
-  const fetchingPlans = useIsFetching({ queryKey: ['plans-range'] })
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -44,12 +60,14 @@ export function CalendarPage() {
   const { user } = useAuthStore()
   const { clearSaveState } = useCalendarStore()
   const deleteAllPlansMutation = useDeleteAllPlans()
+  const deleteMonthPlansMutation = useDeleteMonthPlans()
 
   // 훅들 사용
   const {
     mealData,
     planIds,
     isLoading,
+    isLoadingOverlay,
     error,
     getMealForDate,
     toggleMealCheck,
@@ -135,6 +153,49 @@ export function CalendarPage() {
     }
   }
 
+  // 월별 삭제 핸들러
+  const handleDeleteMonthPlans = async () => {
+    if (!user?.id) {
+      toast.error('로그인이 필요합니다')
+      return
+    }
+
+    const year = currentMonth.getFullYear()
+    const month = currentMonth.getMonth() + 1 // getMonth()는 0-based
+
+    // 확인 대화상자
+    const confirmed = window.confirm(
+      `⚠️ ${year}년 ${month}월의 모든 식단 계획을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`
+    )
+    
+    if (!confirmed) return
+
+    try {
+      const result = await deleteMonthPlansMutation.mutateAsync({
+        userId: user.id,
+        year,
+        month
+      })
+      
+      // Optimistic 데이터도 정리
+      clearSaveState()
+      
+      // 🚀 React Query 캐시 무효화 (페이지 새로고침 없이)
+      queryClient.invalidateQueries({ queryKey: ['plans-range'] })
+      queryClient.invalidateQueries({ queryKey: ['plans'] })
+      queryClient.invalidateQueries({ queryKey: ['meal-log'] })
+      
+      // 강제로 데이터 다시 가져오기
+      await queryClient.refetchQueries({ queryKey: ['plans-range'] })
+      
+      toast.success(result.message || `${year}년 ${month}월의 식단 계획이 삭제되었습니다`)
+      
+    } catch (error) {
+      console.error('월별 삭제 실패:', error)
+      toast.error('삭제 중 오류가 발생했습니다')
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* 헤더 */}
@@ -144,7 +205,9 @@ export function CalendarPage() {
         isGeneratingMealPlan={isGeneratingMealPlan}
         onGenerateMealPlan={handleGenerateMealPlan}
         onDeleteAllPlans={handleDeleteAllPlans}
+        onDeleteMonthPlans={handleDeleteMonthPlans}
         isDeletingAll={deleteAllPlansMutation.isPending}
+        isDeletingMonth={deleteMonthPlansMutation.isPending}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -153,9 +216,9 @@ export function CalendarPage() {
                   currentMonth={currentMonth}
                   selectedDate={selectedDate}
                   mealData={mealData}
-                   isLoading={isLoading}
+                  isLoading={isLoading}
+                  isLoadingOverlay={isLoadingOverlay}
                   error={error}
-                  fetchingPlans={fetchingPlans}
                   onDateSelect={handleDateSelect}
                   onMonthChange={handleMonthChange}
                   onDateClick={handleDateClick}

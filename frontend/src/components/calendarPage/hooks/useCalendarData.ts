@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { format } from 'date-fns'
+import { useQueryClient } from '@tanstack/react-query'
 import { MealData, generateRandomMeal } from '@/data/ketoMeals'
 import { usePlansRange } from '@/hooks/useApi'
 import { useAuthStore } from '@/store/authStore'
@@ -14,46 +15,212 @@ export function useCalendarData(currentMonth: Date) {
     dinnerCompleted?: boolean
     snackCompleted?: boolean
   }>>({})
+  
+  // 이전 데이터와 비교하기 위한 상태
+  const [previousPlansData, setPreviousPlansData] = useState<any[] | null>(null)
 
   const { user } = useAuthStore()
   const { isRecentSave, clearSaveState, optimisticMeals, isSaving } = useCalendarStore()
   
-  // Optimistic 데이터 변화 감지 디버깅
-  useEffect(() => {
-    console.log(`🔍 useCalendarData - optimisticMeals 변화 감지: ${optimisticMeals.length}개`)
-    if (optimisticMeals.length > 0) {
-      console.log(`🔍 Optimistic 데이터 상세:`, optimisticMeals)
-    }
-  }, [optimisticMeals])
 
   // 현재 월의 시작일과 종료일 계산
   const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1)
   const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0)
 
   // API로 실제 데이터 가져오기
-  const { data: plansData, isLoading, error, refetch } = usePlansRange(
-    format(startOfMonth, 'yyyy-MM-dd'),
-    format(endOfMonth, 'yyyy-MM-dd'),
-    user?.id || ''
+  const startDate = format(startOfMonth, 'yyyy-MM-dd')
+  const endDate = format(endOfMonth, 'yyyy-MM-dd')
+  const userId = user?.id || ''
+  
+  console.log('🔍 API 호출 파라미터:', {
+    startDate,
+    endDate,
+    userId,
+    currentMonth: format(currentMonth, 'yyyy-MM')
+  })
+  
+  const { data: plansData, isLoading, isFetching, error, refetch } = usePlansRange(
+    startDate,
+    endDate,
+    userId
   )
+  
+  // React Query 캐시 상태 직접 확인
+  const queryClient = useQueryClient()
+  const cacheKey = ['plans-range', startDate, endDate, userId]
+  const cachedData = queryClient.getQueryData(cacheKey)
+  
+  console.log('🔍 React Query 캐시 상태:', {
+    cacheKey,
+    hasCachedData: !!cachedData,
+    cachedDataLength: Array.isArray(cachedData) ? cachedData.length : 'not-array',
+    cachedData: cachedData,
+    plansDataLength: plansData ? plansData.length : 0,
+    isLoading,
+    isFetching,
+    timestamp: new Date().toISOString()
+  })
+  
+  // 캐시된 데이터 우선 사용 (React Query 캐시에서 직접 가져오기)
+  const effectivePlansData = cachedData || plansData
+  const hasCachedData = !!(effectivePlansData && Array.isArray(effectivePlansData) && effectivePlansData.length > 0)
+  
+  console.log('🔍 효과적인 데이터 선택:', {
+    usingCachedData: !!cachedData,
+    cachedDataLength: Array.isArray(cachedData) ? cachedData.length : 0,
+    plansDataLength: Array.isArray(plansData) ? plansData.length : 0,
+    effectiveDataLength: Array.isArray(effectivePlansData) ? effectivePlansData.length : 0,
+    hasCachedData
+  })
+  
+  // 캐시 데이터 상태 로깅
+  console.log('🔍 캐시 데이터 상태:', {
+    hasCachedData,
+    plansDataLength: plansData ? plansData.length : 0,
+    mealDataKeys: Object.keys(mealData).length,
+    currentMonth: format(currentMonth, 'yyyy-MM'),
+    userId: user?.id || 'no-user',
+    timestamp: new Date().toISOString()
+  })
+  
+  // 월이 변경될 때마다 강제로 데이터 새로고침
+  useEffect(() => {
+    console.log(`🔄 월 변경 감지: ${format(currentMonth, 'yyyy-MM')} - 데이터 새로고침`)
+    
+    // 캐시된 데이터가 있으면 먼저 보여주고 백그라운드에서 새로고침
+    if (hasCachedData) {
+      console.log('📦 캐시된 데이터 있음 - 먼저 표시하고 백그라운드에서 새로고침')
+      // 로딩 상태는 표시하지 않음 (캐시된 데이터가 이미 보여지고 있으므로)
+      refetch()
+    } else {
+      console.log('📭 캐시된 데이터 없음 - 로딩 표시하고 새로고침')
+      // 로딩 상태 표시
+      const { setCalendarLoading } = useCalendarStore.getState()
+      setCalendarLoading(true)
+      refetch()
+    }
+  }, [currentMonth, refetch, hasCachedData])
   
   // 전역 캘린더 로딩 상태 가져오기
   const { isCalendarLoading } = useCalendarStore()
   
+  // 채팅에서 저장 후 캘린더로 이동했을 때 즉시 데이터 새로고침
+  useEffect(() => {
+    console.log('🔍 저장 감지 체크:', {
+      isRecentSave: isRecentSave(),
+      hasCachedData,
+      timestamp: new Date().toISOString()
+    })
+    
+    if (isRecentSave()) {
+      console.log('💾 최근 저장 감지 - 캘린더 데이터 즉시 새로고침')
+      
+      // 캐시된 데이터가 있으면 먼저 보여주고 백그라운드에서 새로고침
+      if (hasCachedData) {
+        console.log('📦 저장 후 캐시된 데이터 있음 - 먼저 표시하고 백그라운드에서 새로고침')
+        // 로딩 상태는 표시하지 않음 (캐시된 데이터가 이미 보여지고 있으므로)
+        refetch()
+      } else {
+        console.log('📭 저장 후 캐시된 데이터 없음 - 로딩 표시하고 새로고침')
+        // 로딩 상태 표시
+        const { setCalendarLoading } = useCalendarStore.getState()
+        setCalendarLoading(true)
+        refetch()
+      }
+      
+      // 저장 상태 초기화 (2초 후)
+      setTimeout(() => {
+        clearSaveState()
+      }, 2000)
+    } else {
+      // 저장 감지가 안되더라도 캐시된 데이터가 있으면 항상 먼저 보여주기
+      if (hasCachedData) {
+        console.log('📦 캐시된 데이터 있음 - 먼저 표시 (저장 감지 없음)')
+        // 백그라운드에서 새로고침
+        refetch()
+      }
+    }
+  }, [isRecentSave, refetch, clearSaveState, hasCachedData])
+  
+  // 저장 후 로딩 상태를 더 오래 유지하기 위한 추가 로직
+  useEffect(() => {
+    if (isCalendarLoading && isRecentSave()) {
+      console.log('🔄 저장 후 로딩 상태 유지 중...')
+      // 3초 후에 로딩 상태 해제 (데이터 로드 완료를 기다림)
+      const timer = setTimeout(() => {
+        const { setCalendarLoading } = useCalendarStore.getState()
+        setCalendarLoading(false)
+        console.log('⏰ 저장 후 로딩 상태 자동 해제')
+      }, 3000)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [isCalendarLoading, isRecentSave])
+  
+  // 월 변경 시 로딩 상태 자동 해제
+  useEffect(() => {
+    if (isCalendarLoading && !isRecentSave()) {
+      console.log('🔄 월 변경 로딩 상태 유지 중...')
+      // 2초 후에 로딩 상태 해제 (월 변경은 더 빠르게)
+      const timer = setTimeout(() => {
+        const { setCalendarLoading } = useCalendarStore.getState()
+        setCalendarLoading(false)
+        console.log('⏰ 월 변경 로딩 상태 자동 해제')
+      }, 2000)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [isCalendarLoading, isRecentSave])
+  
+  // 데이터가 실제로 변경되었는지 확인
+  const hasDataChanged = useMemo(() => {
+    if (!plansData || !Array.isArray(plansData) || !previousPlansData) {
+      return true // 첫 로드이거나 이전 데이터가 없으면 변경된 것으로 간주
+    }
+    
+    // 길이가 다르면 변경됨
+    if (plansData.length !== previousPlansData.length) {
+      return true
+    }
+    
+    // 각 항목의 핵심 필드 비교 (id, title, date, slot)
+    return plansData.some((currentPlan, index) => {
+      const previousPlan = previousPlansData[index]
+      if (!previousPlan) return true
+      
+      return (
+        currentPlan.id !== previousPlan.id ||
+        currentPlan.title !== previousPlan.title ||
+        currentPlan.date !== previousPlan.date ||
+        currentPlan.slot !== previousPlan.slot
+      )
+    })
+  }, [plansData, previousPlansData])
+  
   // 전체 로딩 상태 (API 로딩 또는 전역 캘린더 로딩)
   const isAnyLoading = isLoading || isCalendarLoading
+  
+  // 채팅 저장 후 로딩: 저장 감지 시 무조건 로딩 표시
+  const isPostSaveLoading = isCalendarLoading && isRecentSave()
+  
+  // 캐시된 데이터가 있으면 먼저 보여주고, 그 위에 로딩 오버레이만 표시
+  const shouldShowLoading = isAnyLoading && !hasCachedData
+  
+  // 오버레이 로딩: 채팅 저장 후에는 무조건 표시, 그 외에는 캐시된 데이터가 있을 때만
+  const shouldShowOverlay = isPostSaveLoading || (isAnyLoading && hasCachedData)
+  
+  
   // 초기 진입 시 데이터가 아직 없을 때도 로딩을 보장
   const isInitialLoading = !!(user?.id) && !plansData && Object.keys(mealData).length === 0
   
-  // 디버깅: 로딩 상태 변화 추적
+  // 데이터가 변경되었을 때 이전 데이터 업데이트
   useEffect(() => {
-    console.log('🔍 useCalendarData 로딩 상태 변화:', {
-      isLoading,
-      isCalendarLoading,
-      isAnyLoading,
-      timestamp: new Date().toISOString()
-    })
-  }, [isLoading, isCalendarLoading, isAnyLoading])
+    if (plansData && Array.isArray(plansData) && hasDataChanged) {
+      console.log('📊 데이터 변경 감지 - 이전 데이터 업데이트')
+      setPreviousPlansData([...plansData])
+    }
+  }, [plansData, hasDataChanged])
+
   
   // 데이터가 도착하면 전역 로딩 해제 (워치독)
   useEffect(() => {
@@ -127,24 +294,16 @@ export function useCalendarData(currentMonth: Date) {
     console.log('✅ 샘플 데이터 로드 완료')
   }
 
-  // 페이지 포커스 시 데이터 새로고침
+  // 캘린더 저장 완료 이벤트 리스너 (저장 후에만 리페치)
   useEffect(() => {
-    const handleFocus = () => {
-      console.log('🔄 페이지 포커스 - 캘린더 데이터 새로고침')
-      refetch()
-    }
-
-    // 캘린더 저장 완료 이벤트 리스너
     const handleCalendarSave = () => {
       console.log('🎉 캘린더 저장 완료 이벤트 수신 - 데이터 새로고침')
       refetch()
     }
 
-    window.addEventListener('focus', handleFocus)
     window.addEventListener('calendar-saved', handleCalendarSave)
     
     return () => {
-      window.removeEventListener('focus', handleFocus)
       window.removeEventListener('calendar-saved', handleCalendarSave)
     }
   }, [refetch])
@@ -161,14 +320,30 @@ export function useCalendarData(currentMonth: Date) {
 
   // API 데이터를 캘린더 형식으로 변환
   useEffect(() => {
-    if (plansData && user?.id) {
-      console.log('📅 API에서 식단 데이터 로드:', plansData)
-      console.log('📅 plansData 타입:', typeof plansData, '길이:', Array.isArray(plansData) ? plansData.length : 'N/A')
+    console.log('🔄 데이터 변환 로직 체크:', {
+      hasPlansData: !!plansData,
+      hasUserId: !!user?.id,
+      isArray: Array.isArray(plansData),
+      plansDataLength: plansData ? plansData.length : 0,
+      userId: user?.id || 'no-user'
+    })
+    
+    if (effectivePlansData && user?.id && Array.isArray(effectivePlansData)) {
+      console.log('📅 효과적인 식단 데이터 로드:', effectivePlansData)
+      console.log('📅 데이터 타입:', typeof effectivePlansData, '길이:', effectivePlansData.length)
 
       const convertedData: Record<string, MealData> = {}
       const convertedPlanIds: Record<string, Record<string, string>> = {}
 
-      plansData.forEach((plan: any) => {
+      effectivePlansData.forEach((plan: any, index: number) => {
+        console.log(`🔄 변환 중 [${index + 1}/${effectivePlansData.length}]:`, {
+          id: plan.id,
+          date: plan.date,
+          slot: plan.slot,
+          title: plan.title,
+          notes: plan.notes
+        })
+        
         // 날짜 유효성 검사
         if (!plan.date || !plan.id || !plan.slot) {
           console.warn('⚠️ 유효하지 않은 plan 데이터:', plan)
@@ -183,6 +358,7 @@ export function useCalendarData(currentMonth: Date) {
           }
 
           const dateKey = formatDateKey(planDate)
+          console.log(`📅 날짜 키 생성: ${plan.date} → ${dateKey}`)
 
           if (!convertedData[dateKey]) {
             convertedData[dateKey] = {
@@ -251,6 +427,15 @@ export function useCalendarData(currentMonth: Date) {
       setPlanIds(convertedPlanIds)
       console.log('✅ API + Optimistic 데이터 변환 완료:', convertedData)
       console.log('✅ Plan IDs 저장 완료:', convertedPlanIds)
+      console.log('📊 변환 결과 요약:', {
+        원본데이터개수: effectivePlansData.length,
+        변환된날짜개수: Object.keys(convertedData).length,
+        변환된데이터키: Object.keys(convertedData),
+        각날짜별슬롯개수: Object.entries(convertedData).map(([date, data]) => ({
+          날짜: date,
+          슬롯개수: Object.values(data).filter(v => v !== '').length
+        }))
+      })
       console.log('✅ 변환된 식단 데이터 키들:', Object.keys(convertedData))
 
       // ✅ 실제 데이터가 로드된 슬롯 기준으로 Optimistic 데이터 정리 (타임존/키 불일치 방지)
@@ -278,7 +463,7 @@ export function useCalendarData(currentMonth: Date) {
       // 사용자가 로그인하지 않은 경우 샘플 데이터 사용
       console.log('👤 비로그인 사용자 - 샘플 데이터 로드')
       loadSampleMealData(currentMonth)
-    } else if (user?.id && !isAnyLoading && (!plansData || plansData.length === 0)) {
+    } else if (user?.id && !isAnyLoading && (!effectivePlansData || !Array.isArray(effectivePlansData) || effectivePlansData.length === 0)) {
       // 로그인했지만 데이터가 없는 경우
       console.log('📭 로그인 사용자이지만 식단 데이터 없음')
       setMealData({})
@@ -373,7 +558,8 @@ export function useCalendarData(currentMonth: Date) {
     mealData,
     planIds,
     mealCheckState,
-    isLoading: isAnyLoading || isInitialLoading, // UI 로딩 보장
+    isLoading: shouldShowLoading || isInitialLoading, // 캐시된 데이터가 없을 때만 전체 로딩
+    isLoadingOverlay: shouldShowOverlay, // 캐시된 데이터가 있을 때 오버레이 로딩
     error,
     isSaving,
     formatDateKey,

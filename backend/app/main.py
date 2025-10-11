@@ -88,7 +88,7 @@ app.add_middleware(
 load_dotenv()
 
 # 라우터 등록
-print("🔧 DEBUG: 라우터 등록 중...")
+print("DEBUG: 라우터 등록 중...")
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(date_parser_router, prefix="/api/v1", tags=["date-parsing"])
 app.include_router(places.router, prefix="/api/v1")

@@ -33,7 +33,10 @@ class MealResponseFormatter:
             return "죄송합니다. 식단표 생성에 실패했습니다. 다시 시도해주세요."
         
         # 일수 텍스트 생성
-        day_text = "일" if days == 1 else f"{days}일"
+        day_text = "1일" if days == 1 else f"{days}일"
+        
+        # 디버그 로그
+        print(f"🔍 DEBUG: response_formatter - days: {days}, day_text: {day_text}, meal_plan.days 길이: {len(meal_plan.get('days', []))}")
         
         # 응답 시작
         response_text = f"## ✨ {day_text} 키토 식단표\n\n"
@@ -52,7 +55,13 @@ class MealResponseFormatter:
                     
                     # 기본 정보
                     title = meal.get('title', '메뉴 없음')
-                    response_text += f"- {slot_name}: {title}"
+                    url = meal.get('url')  # URL 정보 추가
+                    
+                    # URL이 있으면 링크로 표시, 없으면 일반 텍스트
+                    if url:
+                        response_text += f"- {slot_name}: [{title}]({url}) [🔗]({url})"
+                    else:
+                        response_text += f"- {slot_name}: {title}"
                     
                     # 영양 정보 추가 (있을 경우)
                     nutrition_info = []
@@ -87,6 +96,9 @@ class MealResponseFormatter:
             if nutrition.get("fat"):
                 response_text += f"- 지방: {nutrition['fat']}g\n"
             response_text += "\n"
+        
+        # 레시피 상세페이지 가이드 추가
+        response_text += "\n💡 **식단 이름을 클릭하면 레시피 관련 링크로 이동할 수 있어요!**\n\n"
         
         # 캘린더 저장 안내 (실패 슬롯이 있으면 저장 안내 숨김)
         if not missing:

@@ -45,6 +45,10 @@ class CalendarSaver:
 
             # 날짜 파싱
             parsed_date = self.date_parser.extract_date_from_message_with_context(message, chat_history)
+            
+            print(f"🔍 DEBUG: 날짜 파싱 결과 - parsed_date: {parsed_date}")
+            if parsed_date:
+                print(f"🔍 DEBUG: 파싱된 날짜 상세 - date: {parsed_date.date}, description: {parsed_date.description}, method: {parsed_date.method}")
 
             if not parsed_date:
                 return {
@@ -82,18 +86,25 @@ class CalendarSaver:
             is_specific_weekday = any(day in message.lower() for day in 
                 ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'])
             
-            # 1. 기본 parsed_date 값 우선 사용
+            # 1. 기본 parsed_date 값 우선 사용 (date_parser에서 파싱된 값)
             duration_days = parsed_date.duration_days
             print(f"🔍 초기 parsed_date에서 받은 값: {duration_days}일")
-
-            # 1-1. '일주일'류 키워드 직접 매핑(숫자 미포함 표현 보호)
-            week_keywords = ['일주일', '일주', '한 주', '한주', '일주간', '1주일']
-            if any(k in message for k in week_keywords):
-                duration_days = 7
-                print("✅ '일주일' 키워드 감지 → duration_days = 7")
             
-            # 2-1. 이전 대화에서 요일과 일수가 함께 언급된 경우 우선 체크
-            if is_specific_weekday:
+            # date_parser에서 파싱된 duration_days가 있으면 우선 사용
+            if duration_days and duration_days > 0:
+                print(f"✅ date_parser에서 파싱된 duration_days 사용: {duration_days}일")
+            else:
+                print(f"⚠️ date_parser에서 duration_days 파싱 실패 - 추가 로직 실행")
+
+            # 1-1. '일주일'류 키워드 직접 매핑(숫자 미포함 표현 보호) - date_parser에서 파싱되지 않은 경우만
+            if not duration_days or duration_days <= 0:
+                week_keywords = ['일주일', '일주', '한 주', '한주', '일주간', '1주일']
+                if any(k in message for k in week_keywords):
+                    duration_days = 7
+                    print("✅ '일주일' 키워드 감지 → duration_days = 7")
+            
+            # 2-1. 이전 대화에서 요일과 일수가 함께 언급된 경우 우선 체크 - date_parser에서 파싱되지 않은 경우만
+            if not duration_days or duration_days <= 0 and is_specific_weekday:
                 # 먼저 현재 메시지에도 일수 표현이 있는지 체크
                 import re
                 current_msg_patterns = [
@@ -156,9 +167,15 @@ class CalendarSaver:
                 else:
                     duration_days = 1
                     print(f"🔍 요일만 언급되고 이전 대화에도 일수 없음 - 1일로 설정")
-            # 3. 만약 파싱된 기간 정보가 없으면 식단 데이터에서 추론
-            elif not duration_days or duration_days <= 0:
-                duration_days = self.calendar_utils.extract_duration_from_meal_plan(meal_plan_data, chat_history)
+            # 3. 만약 파싱된 기간 정보가 없으면 식단 데이터에서 추론 - date_parser에서 파싱되지 않은 경우만
+            found_duration_from_chat = False
+            if not duration_days or duration_days <= 0:
+                # 먼저 직전 대화에서 일수 정보 찾기
+                duration_days = self._extract_duration_from_chat_history(chat_history, message)
+                if duration_days and duration_days > 0:
+                    found_duration_from_chat = True
+                elif not duration_days or duration_days <= 0:
+                    duration_days = self.calendar_utils.extract_duration_from_meal_plan(meal_plan_data, chat_history)
 
             # 4. 그래도 기간을 알 수 없다면 기본값(1일)으로 설정합니다.
             if not duration_days or duration_days <= 0:
@@ -173,6 +190,10 @@ class CalendarSaver:
                 # 사용자가 명시적으로 1일을 요청한 경우 보정하지 않음
                 if duration_days == 1 and any(keyword in message.lower() for keyword in ['하루', '1일', '오늘', '내일']):
                     print(f"🔍 사용자가 1일을 명시적으로 요청 - 보정하지 않음")
+                # "부터" 패턴으로 요청한 경우 - 식단 데이터의 실제 일수 사용 (가장 정확함)
+                elif any(keyword in message.lower() for keyword in ['부터', '21일부터', '22일부터', '23일부터', '24일부터', '25일부터']):
+                    print(f"🔍 사용자가 '부터' 패턴으로 요청 - 식단 데이터의 실제 일수({actual_days_count}) 사용")
+                    duration_days = actual_days_count
                 elif not duration_days or duration_days < actual_days_count:
                     print(f"✅ duration_days 보정: {duration_days} → {actual_days_count}")
                     duration_days = actual_days_count
@@ -195,9 +216,11 @@ class CalendarSaver:
 
             # 결과 반환
             if save_result["success"]:
+                success_message = f"✅ 성공적으로 캘린더에 저장되었습니다! {parsed_date.date.strftime('%Y년 %m월 %d일')}부터 시작합니다! 📅✨"
+                
                 return {
                     "success": True,
-                    "message": f"✅ {duration_days}일치 식단표가 캘린더에 성공적으로 저장되었습니다! {parsed_date.date.strftime('%Y년 %m월 %d일')}부터 시작합니다! 📅✨",
+                    "message": success_message,
                     "save_data": save_data
                 }
             else:
@@ -237,6 +260,63 @@ class CalendarSaver:
 
         return None
 
+    def _extract_duration_from_chat_history(self, chat_history: List[str], current_message: str) -> int:
+        """
+        직전 대화에서 일수 정보를 추출
+        예: "3일치 식단표 만들어줘" → "21일부터 캘린더에 넣어줘" → 3일치
+        """
+        print(f"🔍 DEBUG: 직전 대화에서 일수 정보 추출 시작")
+        
+        # 현재 메시지가 "부터" 패턴인지 확인
+        if not any(keyword in current_message.lower() for keyword in ['부터', '21일부터', '22일부터', '23일부터', '24일부터', '25일부터']):
+            print(f"🔍 DEBUG: '부터' 패턴이 아님 - 직전 대화 검색 건너뜀")
+            return 0
+        
+        # 직전 대화에서 일수 정보 찾기
+        korean_numbers = {
+            '하루': 1, '한날': 1, '하루치': 1, '1일치': 1,
+            '이틀': 2, '이틀치': 2, '2일치': 2,
+            '사흘': 3, '사흘치': 3, '3일치': 3,
+            '나흘': 4, '나흘치': 4, '4일치': 4,
+            '닷새': 5, '닷새치': 5, '5일치': 5,
+            '엿새': 6, '엿새치': 6, '6일치': 6,
+            '이레': 7, '이레치': 7, '일주일': 7, '일주일치': 7, '7일치': 7,
+            '여드레': 8, '여드레치': 8, '8일치': 8,
+            '아흐레': 9, '아흐레치': 9, '9일치': 9,
+            '열흘': 10, '열흘치': 10, '10일치': 10
+        }
+        
+        # 최근 5개 메시지에서 일수 정보 찾기
+        for i, msg in enumerate(reversed(chat_history[-5:])):
+            print(f"🔍 DEBUG: 이전 메시지 {i+1} 확인: '{msg.strip()[:80]}...'")
+            
+            # 한글 숫자 먼저 체크
+            for kor_key, kor_val in korean_numbers.items():
+                if f"{kor_key}치" in msg or f"{kor_key} 식단표" in msg:
+                    print(f"🔍 DEBUG: 직전 대화에서 한글 {kor_val}일치 감지!")
+                    return kor_val
+            
+            # 아라비안 숫자 패턴들
+            import re
+            patterns = [
+                (r'(\d+)일치', '일치'),
+                (r'(\d+)주치', '주치'),
+                (r'(\d+)일 식단표', '일'),
+                (r'(\d+)주 식단표', '주')
+            ]
+            
+            for pattern, suffix in patterns:
+                match = re.search(pattern, msg)
+                if match:
+                    days = int(match.group(1))
+                    if suffix == '주':
+                        days = days * 7
+                    print(f"🔍 DEBUG: 직전 대화에서 {days}일치 감지!")
+                    return days
+        
+        print(f"🔍 DEBUG: 직전 대화에서 일수 정보를 찾지 못함")
+        return 0
+
     async def _save_to_supabase(self, state: Dict[str, Any], save_data: Dict[str, Any]) -> Dict[str, Any]:
         """Supabase에 실제 저장 수행 (기존 데이터 자동 덮어쓰기)"""
 
@@ -271,12 +351,27 @@ class CalendarSaver:
             # Supabase 저장 활성화 (차단 로직이 먼저 실행됨)
             print(f"🔍 DEBUG: Supabase 저장 시도 - meal_logs_to_create 개수: {len(meal_logs_to_create)}")
             
-            # 충돌 체크 없이 바로 저장 (upsert로 자동 덮어쓰기)
+            # 기존 데이터 삭제 후 새 데이터 저장 (완전한 덮어쓰기)
             if meal_logs_to_create:
-                print(f"🔍 DEBUG: Supabase에 {len(meal_logs_to_create)}개 데이터 저장 시도 (덮어쓰기)")
-                result = supabase.table('meal_log').upsert(
-                    meal_logs_to_create,
-                    on_conflict='user_id,date,meal_type'
+                print(f"🔍 DEBUG: 기존 데이터 삭제 후 {len(meal_logs_to_create)}개 새 데이터 저장 시도")
+                
+                # 1. 기존 데이터 삭제 (저장할 기간의 모든 데이터)
+                end_date = start_date + timedelta(days=duration_days - 1)
+                print(f"🔍 DEBUG: 삭제할 기간: {start_date.date()} ~ {end_date.date()}")
+                
+                delete_result = supabase.table('meal_log').delete().eq(
+                    'user_id', user_id
+                ).gte(
+                    'date', start_date.date().isoformat()
+                ).lte(
+                    'date', end_date.date().isoformat()
+                ).execute()
+                
+                print(f"🔍 DEBUG: 기존 데이터 삭제 완료: {len(delete_result.data) if delete_result.data else 0}개")
+                
+                # 2. 새 데이터 저장
+                result = supabase.table('meal_log').insert(
+                    meal_logs_to_create
                 ).execute()
                 print(f"🔍 DEBUG: Supabase 저장 결과: {result}")
 
