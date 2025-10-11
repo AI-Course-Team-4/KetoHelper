@@ -663,10 +663,18 @@ class KoreanSearchTool:
         try:
             print(f"🔍 한글 최적화 하이브리드 검색 시작: '{query}'")
             
-            # 검색 결과 캐싱 (동일한 쿼리 + 파라미터 조합) - 임시 비활성화
+            # 검색 결과 캐싱 (Redis 우선, 메모리 폴백)
             cache_key = f"search_{hash(query)}_{k}_{user_id}_{meal_type}_{hash(tuple(sorted(allergies or [])))}_{hash(tuple(sorted(dislikes or [])))}"
-            if False and cache_key in self._search_results_cache:  # 임시로 캐시 비활성화
-                print(f"    📊 검색 결과 캐시 히트: {query[:30]}...")
+            
+            # Redis 캐시 확인
+            cached_result = redis_cache.get(cache_key)
+            if cached_result:
+                print(f"    📊 Redis 검색 결과 캐시 히트: {query[:30]}...")
+                return cached_result
+            
+            # 메모리 캐시 확인 (폴백)
+            if cache_key in self._search_results_cache:
+                print(f"    📊 메모리 검색 결과 캐시 히트: {query[:30]}...")
                 return self._search_results_cache[cache_key]
             
             all_results = []
@@ -679,14 +687,23 @@ class KoreanSearchTool:
             # 1. 벡터 검색 (가중치 40% - 가장 높음)
             print("    📊 벡터 검색 실행...")
             
-            # 쿼리 임베딩 캐싱 - 임시 비활성화
+            # 쿼리 임베딩 캐싱 (Redis 우선, 메모리 폴백)
             query_cache_key = f"query_{hash(query)}"
-            if False and query_cache_key in self._query_embedding_cache:  # 임시로 캐시 비활성화
+            
+            # Redis에서 쿼리 임베딩 확인
+            cached_embedding = redis_cache.get(query_cache_key)
+            if cached_embedding:
+                print(f"    📊 Redis 쿼리 임베딩 캐시 히트: {query[:30]}...")
+                query_embedding = cached_embedding
+            elif query_cache_key in self._query_embedding_cache:
                 print(f"    📊 쿼리 임베딩 캐시 히트: {query[:30]}...")
                 query_embedding = self._query_embedding_cache[query_cache_key]
             else:
                 query_embedding = await self._create_embedding(query)
                 if query_embedding:
+                    # Redis에 쿼리 임베딩 저장 (TTL: 1시간)
+                    redis_cache.set(query_cache_key, query_embedding, ttl=3600)
+                    # 메모리 캐시에도 저장 (폴백용)
                     self._query_embedding_cache[query_cache_key] = query_embedding
                     self._manage_cache_size(self._query_embedding_cache)
                     print(f"    📊 쿼리 임베딩 캐시 저장: {query[:30]}...")
@@ -800,10 +817,14 @@ class KoreanSearchTool:
             for i, result in enumerate(final_results[:3], 1):
                 print(f"    {i}. {result['title']} (점수: {result['final_score']:.3f}, 타입: {result['search_type']})")
             
-            # 검색 결과 캐시 저장
+            # 검색 결과 캐시 저장 (Redis 우선, 메모리 폴백)
+            # Redis에 저장 (TTL: 1시간)
+            redis_cache.set(cache_key, final_results, ttl=3600)
+            
+            # 메모리 캐시에도 저장 (폴백용)
             self._search_results_cache[cache_key] = final_results
             self._manage_cache_size(self._search_results_cache)
-            print(f"    📊 검색 결과 캐시 저장: {query[:30]}...")
+            print(f"    📊 검색 결과 캐시 저장 (Redis + 메모리): {query[:30]}...")
             
             return final_results
             
