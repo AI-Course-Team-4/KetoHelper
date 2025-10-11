@@ -770,8 +770,10 @@ class KetoCoachAgent:
             if state["messages"]:
                 chat_history = [msg.content for msg in state["messages"]]
 
-            # 1. 먼저 7일치 식단표 생성
-            print("🍽️ 7일치 식단표 생성 시작...")
+            # 1. 먼저 식단표 생성 (사용자 요청 일수 사용)
+            slots = state.get("slots", {})
+            days = slots.get("days", 7)  # 기본값 7일
+            print(f"🍽️ {days}일치 식단표 생성 시작...")
             
             # 사용자 프로필 정보 가져오기
             user_id = state.get("user_id")
@@ -780,15 +782,15 @@ class KetoCoachAgent:
                 user_id = "default_user"
                 print("⚠️ user_id를 찾을 수 없어 기본값 사용")
 
-            # 7일치 식단표 생성
+            # 식단표 생성 (사용자 요청 일수 사용)
             meal_plan_result = await self.meal_planner.generate_meal_plan(
-                days=7,
+                days=days,
                 user_id=user_id,
                 fast_mode=True
             )
 
             if meal_plan_result.get("success"):
-                print("✅ 7일치 식단표 생성 성공")
+                print(f"✅ {days}일치 식단표 생성 성공")
                 
                 # 생성된 식단표를 state에 저장
                 state["meal_plan_data"] = meal_plan_result.get("meal_plan", {})
@@ -798,10 +800,10 @@ class KetoCoachAgent:
                     state, message, chat_history
                 )
             else:
-                print("❌ 7일치 식단표 생성 실패")
+                print(f"❌ {days}일치 식단표 생성 실패")
                 result = {
                     "success": False,
-                    "message": "죄송합니다. 7일치 식단표 생성에 실패했습니다. 다시 시도해주세요."
+                    "message": f"죄송합니다. {days}일치 식단표 생성에 실패했습니다. 다시 시도해주세요."
                 }
 
             # 결과에 따라 상태 업데이트
@@ -889,7 +891,7 @@ class KetoCoachAgent:
                 "캘린더에 저장", "캘린더 저장", "저장해줘", "저장해", 
                 "캘린더에", "캘린더에 추가", "캘린더 추가", 
                 "캘린더에 저장해줘", "캘린더에 저장해", "저장해줘", "저장해",
-                "캘린더", "저장"
+                "캘린더", "저장", "넣어줘", "넣어", "추가해줘", "추가해"
             ]
             is_calendar_save = any(keyword in message for keyword in calendar_keywords)
             
@@ -1287,7 +1289,8 @@ class KetoCoachAgent:
         radius_km: float = 5.0,
         profile: Optional[Dict[str, Any]] = None,
         chat_history: Optional[List[Dict[str, Any]]] = None,
-        thread_id: Optional[str] = None
+        thread_id: Optional[str] = None,
+        days: Optional[int] = None  # 일수 파라미터 추가
     ) -> Dict[str, Any]:
         """메시지 처리 메인 함수"""
         
@@ -1324,7 +1327,7 @@ class KetoCoachAgent:
         initial_state: AgentState = {
             "messages": messages,
             "intent": "",
-            "slots": {},
+            "slots": {"days": days} if days else {},
             "results": [],
             "response": "",
             "tool_calls": [],
