@@ -237,7 +237,8 @@ class KoreanSearchTool:
                                 'ingredients': row.get('ingredients', []),
                                 'search_score': row.get('search_score', 1.0),
                                 'search_type': 'ilike_exact',
-                                'metadata': {kk: vv for kk, vv in row.items() if kk not in ['id','title','content','search_score','allergens','ingredients']}
+                                'url': row.get('url'),  # URL 추가
+                                'metadata': {kk: vv for kk, vv in row.items() if kk not in ['id','title','content','search_score','allergens','ingredients','url']}
                             })
                         return formatted
                 except Exception as e:
@@ -297,7 +298,8 @@ class KoreanSearchTool:
                     'ingredients': result.get('ingredients', []),
                     'search_score': result.get('search_score', result.get('fts_score', 0.0)),
                     'search_type': 'fts',
-                    'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'fts_score', 'allergens', 'ingredients']}
+                    'url': result.get('url'),  # URL 추가
+                    'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'fts_score', 'allergens', 'ingredients', 'url']}
                 })
             
             return formatted_results
@@ -328,7 +330,8 @@ class KoreanSearchTool:
                     'ingredients': result.get('ingredients', []),
                     'search_score': result.get('search_score', result.get('similarity_score', 0.0)),
                     'search_type': 'trigram',
-                    'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'similarity_score', 'allergens', 'ingredients']}
+                    'url': result.get('url'),  # URL 추가
+                    'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'similarity_score', 'allergens', 'ingredients', 'url']}
                 })
             
             return formatted_results
@@ -503,7 +506,8 @@ class KoreanSearchTool:
                     'ingredients': result.get('ingredients', []),
                     'search_score': result.get('search_score', result.get('similarity_score', 0.0)),
                     'search_type': 'vector',
-                    'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'similarity_score', 'allergens', 'ingredients']}
+                    'url': result.get('url'),  # URL 추가
+                    'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'similarity_score', 'allergens', 'ingredients', 'url']}
                 })
             
             if filtered_count > 0:
@@ -558,7 +562,8 @@ class KoreanSearchTool:
                     'ingredients': result.get('ingredients', []),
                     'search_score': 0.5,  # ILIKE 검색 기본 점수
                     'search_type': 'ilike',
-                    'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'allergens', 'ingredients']}
+                    'url': result.get('url'),  # URL 추가
+                    'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'allergens', 'ingredients', 'url']}
                 })
             
             return formatted_results[:k]
@@ -668,6 +673,19 @@ class KoreanSearchTool:
             
             # 상위 k개 결과 반환
             final_results = unique_results[:k]
+            
+            # URL 보완: RPC 함수가 url을 반환하지 않는 경우 직접 조회
+            for result in final_results:
+                recipe_id = result.get('id')
+                if not result.get('url') and recipe_id:
+                    try:
+                        recipe_info = self.supabase.table('recipe_blob_emb').select('url').eq('id', recipe_id).execute()
+                        if recipe_info.data and len(recipe_info.data) > 0:
+                            result['url'] = recipe_info.data[0].get('url')
+                            if result.get('url'):
+                                print(f"  📎 {result.get('title')} URL 보완: {result['url']}")
+                    except Exception as e:
+                        print(f"  ⚠️ URL 조회 실패 ({recipe_id}): {e}")
             
             # 검색 전략과 메시지 추가
             for result in final_results:
