@@ -28,21 +28,63 @@ class KoreanSearchTool:
         except Exception as e:
             print(f"⚠️ 동의어 사전 로드 실패: {e}")
             self.synonym_data = {"알레르기": {}, "비선호": {}}
+        
+        # 임베딩 캐시 (성능 최적화)
+        self._embedding_cache = {}
+        self._normalization_cache = {}
+        self._expansion_cache = {}
+        self._query_embedding_cache = {}  # 쿼리 임베딩 캐시 추가
+        self._search_results_cache = {}   # 검색 결과 캐시 추가
+        
+        # 캐시 크기 제한 (메모리 최적화)
+        self._max_cache_size = 100  # 최대 100개 항목
+    
+    def _manage_cache_size(self, cache_dict: dict):
+        """캐시 크기 관리 (LRU 방식)"""
+        if len(cache_dict) > self._max_cache_size:
+            # 가장 오래된 항목 제거 (FIFO)
+            oldest_key = next(iter(cache_dict))
+            del cache_dict[oldest_key]
+            print(f"    📊 캐시 크기 관리: {oldest_key[:30]}... 제거")
     
     def _expand_with_synonyms(self, words: List[str], category: str) -> List[str]:
-        """단어 리스트를 동의어로 확장"""
+        """단어 리스트를 동의어로 확장 (캐싱 적용)"""
+        if not words:
+            return []
+        
+        # 캐시 확인
+        cache_key = f"expand_{category}_{hash(tuple(sorted(words)))}"
+        if cache_key in self._expansion_cache:
+            print(f"📊 확장 캐시 히트: {words}")
+            return self._expansion_cache[cache_key]
+        
         expanded = []
         synonym_dict = self.synonym_data.get(category, {})
         
         for word in words:
             expanded.append(word)  # 원래 단어 추가
             if word in synonym_dict:
-                expanded.extend(synonym_dict[word])  # 동의어 추가
+                # 동의어 추가 (최대 5개로 제한)
+                synonyms = synonym_dict[word][:5]  # 처음 5개만 사용
+                expanded.extend(synonyms)
         
-        return expanded
+        # 중복 제거 (순서 유지)
+        seen = set()
+        unique_expanded = []
+        for item in expanded:
+            if item not in seen:
+                seen.add(item)
+                unique_expanded.append(item)
+        
+        # 캐시 저장
+        self._expansion_cache[cache_key] = unique_expanded
+        self._manage_cache_size(self._expansion_cache)
+        print(f"✅ 동의어 확장 완료: {words} → {len(unique_expanded)}개 (캐시 저장)")
+        print(f"    🔍 확장된 항목들: {unique_expanded[:10]}...")  # 처음 10개만 표시
+        return unique_expanded
     
     def _normalize_to_canonical(self, words: List[str], category: str) -> List[str]:
-        """입력 단어 리스트를 표준명(canonical)으로 정규화
+        """입력 단어 리스트를 표준명(canonical)으로 정규화 (캐싱 적용)
         
         Args:
             words: 입력 단어 리스트 (알레르기/비선호/검색 키워드)
@@ -51,6 +93,15 @@ class KoreanSearchTool:
         Returns:
             표준명 리스트 (정확 비교용)
         """
+        if not words:
+            return []
+        
+        # 캐시 확인
+        cache_key = f"normalize_{category}_{hash(tuple(sorted(words)))}"
+        if cache_key in self._normalization_cache:
+            print(f"📊 정규화 캐시 히트: {words}")
+            return self._normalization_cache[cache_key]
+        
         synonym_dict = self.synonym_data.get(category, {})
         canonicals = []
         
@@ -83,7 +134,13 @@ class KoreanSearchTool:
                 canonicals.append(word.strip())
         
         # 중복 제거
-        return list(set(canonicals))
+        result = list(set(canonicals))
+        
+        # 캐시 저장
+        self._normalization_cache[cache_key] = result
+        self._manage_cache_size(self._normalization_cache)
+        print(f"✅ 정규화 완료: {words} → {result} (캐시 저장)")
+        return result
     
     def _tokenize_ingredients(self, text: str) -> List[str]:
         """재료 텍스트를 토큰화
@@ -138,15 +195,28 @@ class KoreanSearchTool:
         return False
     
     async def _create_embedding(self, text: str) -> List[float]:
-        """텍스트를 임베딩으로 변환"""
+        """텍스트를 임베딩으로 변환 (캐싱 적용)"""
         try:
+            # 캐시 확인
+            cache_key = f"embedding_{hash(text)}"
+            if cache_key in self._embedding_cache:
+                print(f"📊 임베딩 캐시 히트: {text[:50]}...")
+                return self._embedding_cache[cache_key]
+            
+            print(f"📊 임베딩 생성 중: {text[:50]}...")
             response = self.openai_client.embeddings.create(
                 model="text-embedding-3-small",
                 input=text
             )
-            return response.data[0].embedding
+            embedding = response.data[0].embedding
+            
+            # 캐시 저장
+            self._embedding_cache[cache_key] = embedding
+            self._manage_cache_size(self._embedding_cache)
+            print(f"✅ 임베딩 생성 완료: {len(embedding)}차원 (캐시 저장)")
+            return embedding
         except Exception as e:
-            print(f"임베딩 생성 오류: {e}")
+            print(f"❌ 임베딩 생성 오류: {e}")
             return []
     
     def _extract_korean_keywords(self, query: str) -> List[str]:
@@ -344,7 +414,9 @@ class KoreanSearchTool:
                             allergies: Optional[List[str]] = None, dislikes: Optional[List[str]] = None) -> List[Dict]:
         """벡터 검색 (사용자 프로필 기반 필터링 + 임시 제약조건)"""
         try:
+            # print(f"🔍 DEBUG: _vector_search 함수 시작 - query='{query}', k={k}, user_id={user_id}")  # 임시 비활성화
             if isinstance(self.supabase, type(None)) or hasattr(self.supabase, '__class__') and 'DummySupabase' in str(self.supabase.__class__):
+                # print(f"🔍 DEBUG: Supabase가 None이거나 DummySupabase - 빈 결과 반환")  # 임시 비활성화
                 return []
             
             # 알레르기/비선호 정보 준비
@@ -356,9 +428,12 @@ class KoreanSearchTool:
             # 1. 파라미터로 전달된 allergies/dislikes가 있으면 우선 사용
             user_allergies = allergies if allergies is not None else []
             user_dislikes = dislikes if dislikes is not None else []
+            # print(f"    🔍 전달받은 알레르기: {user_allergies}")  # 임시 비활성화
+            # print(f"    🔍 전달받은 비선호: {user_dislikes}")  # 임시 비활성화
             
             # 2. 파라미터가 없으면 프로필에서 조회
             if not user_allergies and not user_dislikes and user_id:
+            # print(f"    🔍 프로필에서 알레르기 정보 조회: user_id={user_id}")  # 임시 비활성화
                 from app.tools.shared.profile_tool import user_profile_tool
                 user_preferences = await user_profile_tool.get_user_preferences(user_id)
                 
@@ -366,6 +441,10 @@ class KoreanSearchTool:
                     prefs = user_preferences["preferences"]
                     user_allergies = prefs.get("allergies", [])
                     user_dislikes = prefs.get("dislikes", [])
+                    # print(f"    🔍 프로필에서 조회된 알레르기: {user_allergies}")  # 임시 비활성화
+                    # print(f"    🔍 프로필에서 조회된 비선호: {user_dislikes}")  # 임시 비활성화
+                else:
+                    print(f"    ⚠️ 프로필 조회 실패: {user_preferences}")
             
             # 알레르기 임베딩 생성
             if user_allergies:
@@ -373,7 +452,7 @@ class KoreanSearchTool:
                 allergy_embedding = await self._create_embedding(allergy_text)
                 exclude_allergens_embeddings = [allergy_embedding]
                 exclude_allergens_names = user_allergies
-                print(f"🔍 알레르기 임베딩 생성 (1개): {user_allergies}")
+                # print(f"🔍 알레르기 임베딩 생성 (1개): {user_allergies}")  # 임시 비활성화
             
             # 비선호 임베딩 생성
             if user_dislikes:
@@ -383,12 +462,16 @@ class KoreanSearchTool:
                 exclude_dislikes_names = user_dislikes
                 print(f"🔍 비선호 임베딩 생성 (1개): {user_dislikes}")
             
-            # 벡터 검색 실행 (RPC 함수 사용)
+            # 벡터 검색 실행 (RPC 함수 사용) - 최대한 많은 데이터 검색
+            # 알레르기 필터링을 고려하여 충분한 데이터 확보
+            max_search_count = 1000  # 최대 1000개 검색 (DB의 모든 데이터)
+            
             rpc_params = {
                 'query_embedding': query_embedding,
-                'match_count': k,
+                'match_count': max_search_count,
                 'similarity_threshold': 0.0
             }
+            # print(f"    🔍 최대 검색 수: {max_search_count}개 (알레르기 필터링 고려)")  # 임시 비활성화
             
             # 단일 벡터로 전달 (배열의 첫 번째 요소)
             if exclude_allergens_embeddings:
@@ -416,31 +499,25 @@ class KoreanSearchTool:
             canonical_allergens = self._normalize_to_canonical(exclude_allergens_names, '알레르기') if exclude_allergens_names else []
             canonical_dislikes = self._normalize_to_canonical(exclude_dislikes_names, '비선호') if exclude_dislikes_names else []
             
-            # 동의어 확장 (표준명 기반)
-            expanded_allergens = []
-            for canonical in canonical_allergens:
-                expanded_allergens.append(canonical)
-                synonyms = self.synonym_data.get('알레르기', {}).get(canonical, [])
-                expanded_allergens.extend(synonyms)
+            # 동의어 확장 (캐싱된 함수 사용)
+            expanded_allergens = self._expand_with_synonyms(canonical_allergens, '알레르기') if canonical_allergens else []
+            expanded_dislikes = self._expand_with_synonyms(canonical_dislikes, '비선호') if canonical_dislikes else []
             
-            expanded_dislikes = []
-            for canonical in canonical_dislikes:
-                expanded_dislikes.append(canonical)
-                synonyms = self.synonym_data.get('비선호', {}).get(canonical, [])
-                expanded_dislikes.extend(synonyms)
-            
-            print(f"    🔍 정규화된 알레르기: {canonical_allergens}")
-            print(f"    🔍 확장된 알레르기: {expanded_allergens}")
-            print(f"    🔍 정규화된 비선호: {canonical_dislikes}")
-            print(f"    🔍 확장된 비선호: {expanded_dislikes}")
+            # print(f"    🔍 정규화된 알레르기: {canonical_allergens}")  # 임시 비활성화
+            # print(f"    🔍 확장된 알레르기: {len(expanded_allergens)}개 - {expanded_allergens[:10]}...")  # 임시 비활성화
+            # print(f"    🔍 정규화된 비선호: {canonical_dislikes}")  # 임시 비활성화
+            # print(f"    🔍 확장된 비선호: {len(expanded_dislikes)}개 - {expanded_dislikes[:10]}...")  # 임시 비활성화
+            # print(f"    🚨 알레르기 필터링 시작 - 총 {len(results.data or [])}개 결과 검사")  # 임시 비활성화
             
             for result in results.data or []:
                 # 🚨 Python 레벨 필터링: title, ingredients에서 알레르기/비선호 체크
                 title = result.get('title', '')
                 ingredients = result.get('ingredients', [])
                 should_skip = False
+                # print(f"    🔍 검사 중: '{title}' (재료: {ingredients[:3]}...)")  # 임시 비활성화
                 
                 # 알레르기 체크 (토큰 매칭 + 부분 문자열 매칭)
+                # print(f"    🔍 알레르기 체크 조건: expanded_allergens={len(expanded_allergens) if expanded_allergens else 0}, should_skip={should_skip}")  # 임시 비활성화
                 if expanded_allergens and not should_skip:
                     # 제목 체크 (토큰 매칭)
                     if self._exact_match_filter(title, expanded_allergens):
@@ -454,6 +531,7 @@ class KoreanSearchTool:
                         for allergen in expanded_allergens:
                             if allergen in title_lower:
                                 print(f"    ⚠️ 알레르기 제외: '{title}' (제목에 '{allergen}' 포함)")
+                                print(f"        🔍 매칭된 알레르기: '{allergen}' in '{title_lower}'")
                                 filtered_count += 1
                                 should_skip = True
                                 break
@@ -463,6 +541,7 @@ class KoreanSearchTool:
                         for ing in ingredients:
                             if self._exact_match_filter(ing, expanded_allergens):
                                 print(f"    ⚠️ 알레르기 제외: '{title}' (재료 '{ing}'에 알레르기 재료 포함)")
+                                print(f"        🔍 매칭된 재료: '{ing}' in 알레르기 목록")
                                 filtered_count += 1
                                 should_skip = True
                                 break
@@ -471,7 +550,7 @@ class KoreanSearchTool:
                 if expanded_dislikes and not should_skip:
                     # 제목 체크 (토큰 매칭)
                     if self._exact_match_filter(title, expanded_dislikes):
-                        print(f"    ⚠️ 비선호 제외: '{title}' (제목에 비선호 재료 포함)")
+                        # print(f"    ⚠️ 비선호 제외: '{title}' (제목에 비선호 재료 포함)")  # 임시 비활성화
                         filtered_count += 1
                         should_skip = True
                     
@@ -480,7 +559,7 @@ class KoreanSearchTool:
                         title_lower = title.lower()
                         for dislike in expanded_dislikes:
                             if dislike in title_lower:
-                                print(f"    ⚠️ 비선호 제외: '{title}' (제목에 '{dislike}' 포함)")
+                                # print(f"    ⚠️ 비선호 제외: '{title}' (제목에 '{dislike}' 포함)")  # 임시 비활성화
                                 filtered_count += 1
                                 should_skip = True
                                 break
@@ -489,7 +568,7 @@ class KoreanSearchTool:
                     if not should_skip:
                         for ing in ingredients:
                             if self._exact_match_filter(ing, expanded_dislikes):
-                                print(f"    ⚠️ 비선호 제외: '{title}' (재료 '{ing}'에 비선호 재료 포함)")
+                                # print(f"    ⚠️ 비선호 제외: '{title}' (재료 '{ing}'에 비선호 재료 포함)")  # 임시 비활성화
                                 filtered_count += 1
                                 should_skip = True
                                 break
@@ -513,10 +592,15 @@ class KoreanSearchTool:
             if filtered_count > 0:
                 print(f"    🔍 Python 필터링: {filtered_count}개 제외됨")
             
+            print(f"    ✅ 최종 결과: {len(formatted_results)}개 (검색 {len(results.data or [])}개 → 필터링 후 {len(formatted_results)}개)")
+            
             return formatted_results
             
         except Exception as e:
-            print(f"벡터 검색 오류: {e}")
+            print(f"❌ 벡터 검색 오류: {e}")
+            import traceback
+            print(f"🔍 DEBUG: 벡터 검색 예외 상세 정보:")
+            traceback.print_exc()
             return []
     
     async def _fallback_ilike_search(self, query: str, k: int) -> List[Dict]:
@@ -574,9 +658,15 @@ class KoreanSearchTool:
     
     async def korean_hybrid_search(self, query: str, k: int = 5, user_id: Optional[str] = None, meal_type: Optional[str] = None, 
                                    allergies: Optional[List[str]] = None, dislikes: Optional[List[str]] = None) -> List[Dict]:
-        """한글 최적화 하이브리드 검색 (병렬 실행 방식)"""
+        """한글 최적화 하이브리드 검색 (병렬 실행 방식 + 결과 캐싱)"""
         try:
             print(f"🔍 한글 최적화 하이브리드 검색 시작: '{query}'")
+            
+            # 검색 결과 캐싱 (동일한 쿼리 + 파라미터 조합) - 임시 비활성화
+            cache_key = f"search_{hash(query)}_{k}_{user_id}_{meal_type}_{hash(tuple(sorted(allergies or [])))}_{hash(tuple(sorted(dislikes or [])))}"
+            if False and cache_key in self._search_results_cache:  # 임시로 캐시 비활성화
+                print(f"    📊 검색 결과 캐시 히트: {query[:30]}...")
+                return self._search_results_cache[cache_key]
             
             all_results = []
             search_strategy = "hybrid"
@@ -587,7 +677,19 @@ class KoreanSearchTool:
             
             # 1. 벡터 검색 (가중치 40% - 가장 높음)
             print("    📊 벡터 검색 실행...")
-            query_embedding = await self._create_embedding(query)
+            
+            # 쿼리 임베딩 캐싱 - 임시 비활성화
+            query_cache_key = f"query_{hash(query)}"
+            if False and query_cache_key in self._query_embedding_cache:  # 임시로 캐시 비활성화
+                print(f"    📊 쿼리 임베딩 캐시 히트: {query[:30]}...")
+                query_embedding = self._query_embedding_cache[query_cache_key]
+            else:
+                query_embedding = await self._create_embedding(query)
+                if query_embedding:
+                    self._query_embedding_cache[query_cache_key] = query_embedding
+                    self._manage_cache_size(self._query_embedding_cache)
+                    print(f"    📊 쿼리 임베딩 캐시 저장: {query[:30]}...")
+            
             vector_results = []
             if query_embedding:
                 vector_results = await self._vector_search(query, query_embedding, k, user_id, meal_type, allergies, dislikes)
@@ -595,44 +697,42 @@ class KoreanSearchTool:
                     result['final_score'] = result['search_score'] * 0.4
                     result['search_type'] = 'vector'
                 all_results.extend(vector_results)
-                print(f"    ✅ 벡터 검색 완료: {len(vector_results)}개")
+                # print(f"    ✅ 벡터 검색 완료: {len(vector_results)}개")  # 임시 비활성화
             else:
                 print("    ⚠️ 임베딩 생성 실패, 벡터 검색 건너뜀")
             
-            # 🚨 user_id가 있으면 벡터 검색만 사용 (알레르기/비선호 필터링 적용)
-            # 다른 검색 방법은 필터링을 우회하므로 실행하지 않음
-            if user_id:
-                print("    ⚠️ 알레르기/비선호 필터링 적용 - 벡터 검색만 사용")
-                ilike_exact = []
-                fts_results = []
-                trigram_results = []
-            else:
-                # 2. 정확한 ILIKE 매칭 (가중치 35%)
-                print("    🔎 ILIKE 정확 매칭 검색...")
-                ilike_exact = await self._exact_ilike_search(query, k)
-                for result in ilike_exact:
-                    result['final_score'] = result['search_score'] * 0.35
-                    result['search_type'] = 'exact_ilike'
-                all_results.extend(ilike_exact)
-                print(f"    ✅ ILIKE 정확 매칭 완료: {len(ilike_exact)}개")
-                
-                # 3. Full-Text Search (가중치 30%)
-                print("    📝 Full-Text Search 실행...")
-                fts_results = await self._full_text_search(query, k)
-                for result in fts_results:
-                    result['final_score'] = result['search_score'] * 0.3
-                    result['search_type'] = 'fts'
-                all_results.extend(fts_results)
-                print(f"    ✅ FTS 검색 완료: {len(fts_results)}개")
-                
-                # 4. Trigram 유사도 검색 (가중치 20%)
-                print("    🔤 Trigram 검색 실행...")
-                trigram_results = await self._trigram_similarity_search(query, k)
-                for result in trigram_results:
-                    result['final_score'] = result['search_score'] * 0.2
-                    result['search_type'] = 'trigram'
-                all_results.extend(trigram_results)
-                print(f"    ✅ Trigram 검색 완료: {len(trigram_results)}개")
+            # 🚨 알레르기/비선호 필터링이 있어도 모든 검색 방식 사용 (결과 확보 우선)
+            has_filters = (allergies and len(allergies) > 0) or (dislikes and len(dislikes) > 0) or user_id
+            if has_filters:
+                print("    ⚠️ 알레르기/비선호 필터링 적용 - 모든 검색 방식 사용 (결과 확보 우선)")
+            
+            # 모든 검색 방식 실행 (필터링 여부와 관계없이)
+            # 2. 정확한 ILIKE 매칭 (가중치 35%)
+            print("    🔎 ILIKE 정확 매칭 검색...")
+            ilike_exact = await self._exact_ilike_search(query, k)
+            for result in ilike_exact:
+                result['final_score'] = result['search_score'] * 0.35
+                result['search_type'] = 'exact_ilike'
+            all_results.extend(ilike_exact)
+            # print(f"    ✅ ILIKE 정확 매칭 완료: {len(ilike_exact)}개")  # 임시 비활성화
+            
+            # 3. Full-Text Search (가중치 30%)
+            print("    📝 Full-Text Search 실행...")
+            fts_results = await self._full_text_search(query, k)
+            for result in fts_results:
+                result['final_score'] = result['search_score'] * 0.3
+                result['search_type'] = 'fts'
+            all_results.extend(fts_results)
+            # print(f"    ✅ FTS 검색 완료: {len(fts_results)}개")  # 임시 비활성화
+            
+            # 4. Trigram 유사도 검색 (가중치 20%)
+            print("    🔤 Trigram 검색 실행...")
+            trigram_results = await self._trigram_similarity_search(query, k)
+            for result in trigram_results:
+                result['final_score'] = result['search_score'] * 0.2
+                result['search_type'] = 'trigram'
+            all_results.extend(trigram_results)
+            # print(f"    ✅ Trigram 검색 완료: {len(trigram_results)}개")  # 임시 비활성화
             
             # 검색 전략 결정 (결과 종류에 따라)
             if vector_results and len(vector_results) >= 2:
@@ -698,6 +798,11 @@ class KoreanSearchTool:
             # 결과 요약 출력
             for i, result in enumerate(final_results[:3], 1):
                 print(f"    {i}. {result['title']} (점수: {result['final_score']:.3f}, 타입: {result['search_type']})")
+            
+            # 검색 결과 캐시 저장
+            self._search_results_cache[cache_key] = final_results
+            self._manage_cache_size(self._search_results_cache)
+            print(f"    📊 검색 결과 캐시 저장: {query[:30]}...")
             
             return final_results
             

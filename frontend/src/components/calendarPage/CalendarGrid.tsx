@@ -13,8 +13,8 @@ interface CalendarGridProps {
   selectedDate: Date | undefined
   mealData: Record<string, MealData>
   isLoading: boolean
+  isLoadingOverlay?: boolean
   error: any
-  fetchingPlans?: number
   onDateSelect: (date: Date | undefined) => void
   onMonthChange: (month: Date) => void
   onDateClick: (date: Date) => void
@@ -29,8 +29,8 @@ export function CalendarGrid({
   selectedDate,
   mealData,
   isLoading,
+  isLoadingOverlay,
   error,
-  fetchingPlans = 0,
   onDateSelect,
   onMonthChange,
   onDateClick,
@@ -39,8 +39,25 @@ export function CalendarGrid({
   isOptimisticMeal,
   onToggleMealCheck
 }: CalendarGridProps) {
+  // 디버깅: 오버레이 로딩 상태 확인
+  console.log('🔍 CalendarGrid 오버레이 상태:', {
+    isLoadingOverlay,
+    isLoading,
+    timestamp: new Date().toISOString()
+  })
+  
   return (
-    <Card className="lg:col-span-3 border border-gray-200">
+    <Card className="lg:col-span-3 border border-gray-200 relative">
+      {/* 오버레이 로딩 - 캘린더 전체 덮어씌우기 */}
+      {isLoadingOverlay && (
+        <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-50 flex items-center justify-center h-[600px]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-2"></div>
+            <p className="text-gray-600 font-medium">업데이트 중...</p>
+          </div>
+        </div>
+      )}
+      
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center text-xl font-bold">
@@ -71,15 +88,16 @@ export function CalendarGrid({
         </div>
       </CardHeader>
       <CardContent className="p-6 pt-0">
-                {(isLoading || fetchingPlans > 0) && (
-                    <div className="flex items-center justify-center py-8">
+                {isLoading && (
+                    <div className="flex items-center justify-center h-[600px] w-full">
                       <div className="text-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-2"></div>
-                      <p className="text-gray-600 font-medium">캘린더 데이터를 불러오는 중...</p>
+                        <p className="text-gray-600 font-medium">캘린더 데이터를 불러오는 중...</p>
                         <p className="text-sm text-gray-500 mt-1">잠시만 기다려주세요</p>
                       </div>
                     </div>
                   )}
+
 
 
         {error && (
@@ -91,7 +109,7 @@ export function CalendarGrid({
           </div>
         )}
 
-                 {!isLoading && fetchingPlans === 0 && !error && (
+                 {!isLoading && !error && (
                    <div className="calendar-container w-full flex items-start justify-center overflow-x-auto relative">
                      <DayPicker
               mode="single"

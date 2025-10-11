@@ -66,16 +66,9 @@ class DateParser:
             
         normalized = input_text.strip().lower()
         logger.debug(f"자연어 날짜 파싱 시작: '{normalized}' (맥락: {len(chat_history)}개 메시지)")
+        print(f"🔍 DEBUG: parse_natural_date_with_context 시작 - 입력: '{input_text}' -> 정규화: '{normalized}'")
 
-        # 1단계: LLM 우선 파싱 (오타 및 복잡한 표현 처리, 대화 맥락 포함)
-        if self.llm:
-            logger.debug("LLM 우선 파싱 시도 (대화 맥락 포함)")
-            llm_result = self._parse_with_llm_with_context(normalized, chat_history)
-            if llm_result:
-                logger.debug(f"LLM 파싱 성공: {llm_result.description} (신뢰도: {llm_result.confidence})")
-                return llm_result
-
-        # 2단계: 규칙 기반 파싱 (명확한 키워드 처리)
+        # 1단계: 규칙 기반 파싱 우선 (명확한 키워드 처리)
         logger.debug("규칙 기반 파싱 시도")
         rule_based_result = self._parse_with_rules(normalized)
         if rule_based_result:
@@ -100,13 +93,21 @@ class DateParser:
                 else:
                     print(f"🔍 기존 duration 유지 보호: {rule_based_result.duration_days}일")
             
-            # duration_days가 없으면 기본값 1로 설정 (하루 식단표가 더 일반적)
+            # duration_days가 없으면 기본값 7로 설정 (일주일 식단표가 더 일반적)
             if rule_based_result.duration_days is None:
-                rule_based_result.duration_days = 1
-                logger.debug("규칙 기반 파싱에서 duration_days가 없어서 기본값 1로 설정")
+                rule_based_result.duration_days = 7
+                logger.debug("규칙 기반 파싱에서 duration_days가 없어서 기본값 7로 설정")
             
             logger.debug(f"규칙 기반 파싱 성공: {rule_based_result.description} (신뢰도: {rule_based_result.confidence}, duration: {rule_based_result.duration_days}일)")
             return rule_based_result
+
+        # 2단계: LLM 파싱 (오타 및 복잡한 표현 처리, 대화 맥락 포함)
+        if self.llm:
+            logger.debug("LLM 파싱 시도 (대화 맥락 포함)")
+            llm_result = self._parse_with_llm_with_context(normalized, chat_history)
+            if llm_result:
+                logger.debug(f"LLM 파싱 성공: {llm_result.description} (신뢰도: {llm_result.confidence})")
+                return llm_result
 
         # 3단계: 폴백 (기본값)
         logger.debug("폴백 파싱 시도")
@@ -118,10 +119,10 @@ class DateParser:
                 fallback_result.duration_days = context_duration
                 logger.debug(f"대화 맥락에서 일수 정보 적용: {context_duration}일")
             
-            # duration_days가 없으면 기본값 1로 설정 (하루 식단표가 더 일반적)
+            # duration_days가 없으면 기본값 7로 설정 (일주일 식단표가 더 일반적)
             if fallback_result.duration_days is None:
-                fallback_result.duration_days = 1
-                logger.debug("폴백 파싱에서 duration_days가 없어서 기본값 1로 설정")
+                fallback_result.duration_days = 7
+                logger.debug("폴백 파싱에서 duration_days가 없어서 기본값 7로 설정")
             
             logger.debug(f"폴백 파싱 성공: {fallback_result.description} (신뢰도: {fallback_result.confidence}, duration: {fallback_result.duration_days}일)")
         else:
@@ -132,10 +133,15 @@ class DateParser:
     def _parse_with_rules(self, normalized: str) -> Optional[ParsedDateInfo]:
         """규칙 기반 날짜 파싱"""
 
-        # 오늘 관련
-        if self._contains_words(normalized, ['오늘', '오늘날', '지금', '현재']):
+        # 오늘 관련 (오늘, 금일, 하루, 1일 등 모든 동의어 포함)
+        today_synonyms = ['오늘', '오늘날', '지금', '현재', '금일', '하루', '1일', '한날', '오늘하루']
+        if self._contains_words(normalized, today_synonyms):
             # 일수 정보 추출
             duration_days = self._extract_duration_days(normalized)
+            # "오늘 식단표"는 명시적으로 1일로 설정
+            if any(keyword in normalized for keyword in ['식단표', '식단', '메뉴', '계획', '추천', '만들', '생성']):
+                duration_days = 1
+                print(f"🔍 DEBUG: '오늘 식단표' 패턴 감지 → 1일로 설정")
             return ParsedDateInfo(
                 date=self.today,
                 description='오늘',
@@ -177,8 +183,8 @@ class DateParser:
                     method='rule-based'
                 )
 
-        # 하루 관련 (내일로 해석)
-        if '하루' in normalized and any(word in normalized for word in ['만', '후', '뒤']):
+        # 하루 관련 (내일로 해석) - 단, 식단표 관련 키워드가 있으면 제외
+        if '하루' in normalized and any(word in normalized for word in ['만', '후', '뒤']) and not any(keyword in normalized for keyword in ['식단표', '식단', '계획', '추천', '만들']):
             return ParsedDateInfo(
                 date=self.today + timedelta(days=1),
                 description='내일 (하루 후)',
@@ -219,6 +225,13 @@ class DateParser:
             standalone_day_match.confidence = 0.8
             standalone_day_match.method = 'rule-based'
             return standalone_day_match
+
+        # "N일부터" 패턴 처리 (시작 날짜 + 기간 요청)
+        from_date_match = self._parse_from_date(normalized)
+        if from_date_match:
+            from_date_match.confidence = 0.9
+            from_date_match.method = 'rule-based'
+            return from_date_match
 
         # 특정 날짜 (예: "12월 25일", "25일")
         specific_date_match = self._parse_specific_date(normalized)
@@ -341,11 +354,11 @@ JSON 형식:
                         date_str = result.get("date")
                         parsed_date = datetime.strptime(date_str, "%Y-%m-%d")
 
-                        # duration_days가 없으면 기본값 1로 설정 (하루 식단표가 더 일반적)
+                        # duration_days가 없으면 기본값 7로 설정 (일주일 식단표가 더 일반적)
                         duration_days = result.get("duration_days")
                         if duration_days is None:
-                            duration_days = 1
-                            logger.warning("LLM 응답에 duration_days가 없어서 기본값 1로 설정")
+                            duration_days = 7
+                            logger.warning("LLM 응답에 duration_days가 없어서 기본값 7로 설정")
                         
                         return ParsedDateInfo(
                             date=parsed_date,
@@ -398,6 +411,7 @@ JSON 형식:
                 for i, msg in enumerate(chat_history[-3:], 1):
                     context_info += f"{i}. {msg}\n"
                 context_info += "\n중요: 위 대화 맥락에서 언급된 일수 정보(예: 3일치, 7일치)를 현재 날짜 파싱에 반영하세요."
+                context_info += "\n특히 'N일부터' 패턴의 경우, 직전 대화에서 생성된 식단표의 일수를 찾아서 duration_days로 설정하세요."
 
             prompt = f"""당신은 한국어 날짜 표현을 파싱하는 전문가입니다. 오타 교정과 지능적 날짜 파싱이 주된 역할입니다.
 
@@ -436,6 +450,8 @@ JSON 형식:
 - "3일치 식단표" → duration_days: 3
 - "다음주 식단표" → duration_days: 7
 - "2주치 식단표" → duration_days: 14
+- "21일부터" → duration_days: 직전 대화에서 찾은 일수 (없으면 None)
+- "21일부터 3일치" → duration_days: 3 (명시된 일수 사용)
 
 응답 규칙:
 1. 반드시 JSON 형식으로만 응답하세요
@@ -502,11 +518,11 @@ JSON 형식 (duration_days 필드 필수):
                         date_str = result.get("date")
                         parsed_date = datetime.strptime(date_str, "%Y-%m-%d")
 
-                        # duration_days가 없으면 기본값 1로 설정 (하루 식단표가 더 일반적)
+                        # duration_days가 없으면 기본값 7로 설정 (일주일 식단표가 더 일반적)
                         duration_days = result.get("duration_days")
                         if duration_days is None:
-                            duration_days = 1
-                            logger.warning("LLM 응답에 duration_days가 없어서 기본값 1로 설정")
+                            duration_days = 7
+                            logger.warning("LLM 응답에 duration_days가 없어서 기본값 7로 설정")
                         
                         return ParsedDateInfo(
                             date=parsed_date,
@@ -551,10 +567,13 @@ JSON 형식 (duration_days 필드 필수):
             '하루': '내일',  # "하루"를 내일로 해석
         }
         
-        # 오타를 정정한 버전 생성
+        # 오타를 정정한 버전 생성 (단, 식단표 관련 키워드가 있으면 "하루" 변환 제외)
         corrected = normalized
         for typo, correct in typo_mappings.items():
             if typo in corrected:
+                # 식단표 관련 키워드가 있을 때는 "하루"를 "내일"로 변환하지 않음
+                if typo == '하루' and any(keyword in corrected for keyword in ['식단표', '식단', '계획', '추천', '만들']):
+                    continue
                 corrected = corrected.replace(typo, correct)
         
         # 기본적인 키워드 매칭으로 폴백 처리
@@ -616,18 +635,26 @@ JSON 형식 (duration_days 필드 필수):
         """텍스트에서 일수 정보를 추출 (예: 3일치, 2주치, 5주일치)"""
         import re
         
+        print(f"🔍 DEBUG: _extract_duration_days 시작 - 텍스트: '{text}'")
+        
         # 0. 특별한 표현들 먼저 처리
         if '일주일' in text or '1주일' in text:
+            print(f"🔍 DEBUG: 일주일 패턴 매칭 → 7일")
             return 7
         if '이주일' in text or '2주일' in text:
+            print(f"🔍 DEBUG: 이주일 패턴 매칭 → 14일")
             return 14
         if '삼주일' in text or '3주일' in text:
+            print(f"🔍 DEBUG: 삼주일 패턴 매칭 → 21일")
             return 21
         if '한주' in text or '1주' in text:
+            print(f"🔍 DEBUG: 한주 패턴 매칭 → 7일")
             return 7
         if '이주' in text or '2주' in text:
+            print(f"🔍 DEBUG: 이주 패턴 매칭 → 14일")
             return 14
         if '삼주' in text or '3주' in text:
+            print(f"🔍 DEBUG: 삼주 패턴 매칭 → 21일")
             return 21
         
         # 1. "N주치" 또는 "N주일치" 패턴 찾기 (주 단위)
@@ -641,20 +668,34 @@ JSON 형식 (duration_days 필드 필수):
             match = re.search(pattern, text)
             if match:
                 weeks = int(match.group(1))
+                print(f"🔍 DEBUG: 주 패턴 매칭 '{pattern}' → {weeks}주 = {weeks * 7}일")
                 return weeks * 7  # 주를 일로 변환
         
         # 2. "N일치" 패턴 찾기 (일 단위)
         duration_match = re.search(r'(\d+)일치', text)
         if duration_match:
-            return int(duration_match.group(1))
+            days = int(duration_match.group(1))
+            print(f"🔍 DEBUG: 일치 패턴 매칭 → {days}일")
+            return days
         
         # 3. "N일" 패턴 찾기 (기간 표현)
-        if '일' in text and any(word in text for word in ['식단', '계획', '추천', '만들']):
+        has_day = '일' in text
+        has_keyword = any(word in text for word in ['식단', '계획', '추천', '만들'])
+        print(f"🔍 DEBUG: 일 패턴 체크 - '일' 있음: {has_day}, 키워드 있음: {has_keyword}")
+        
+        if has_day and has_keyword:
             days_match = re.search(r'(\d+)일', text)
             if days_match:
-                return int(days_match.group(1))
+                days = int(days_match.group(1))
+                print(f"🔍 DEBUG: 일 패턴 매칭 → {days}일")
+                return days
+            else:
+                print(f"🔍 DEBUG: 일 패턴 정규식 매칭 실패")
+        else:
+            print(f"🔍 DEBUG: 일 패턴 조건 불만족")
         
         # 기본값: 일수 정보가 없으면 None
+        print(f"🔍 DEBUG: 모든 패턴 매칭 실패 → None")
         return None
     
     def _extract_duration_from_context(self, chat_history: List[str]) -> Optional[int]:
@@ -813,62 +854,130 @@ JSON 형식 (duration_days 필드 필수):
 
         return None
 
+    def _parse_from_date(self, text: str) -> Optional[ParsedDateInfo]:
+        """
+        "N일부터" 패턴 처리 (시작 날짜 + 기간 요청)
+        예: "21일부터" → 21일부터 시작하는 기간 요청
+        """
+        print(f"🔍 DEBUG: _parse_from_date 시작 - 텍스트: '{text}'")
+        
+        # "N일부터" 패턴 매칭
+        from_date_match = re.search(r'(\d{1,2})일\s*부터', text)
+        if from_date_match:
+            day = int(from_date_match.group(1))
+            current_year = self.today.year
+            current_month = self.today.month
+            
+            try:
+                # 이번 달의 해당 날짜
+                start_date = datetime(current_year, current_month, day)
+                
+                # 과거 날짜라면 다음 달로 설정
+                if start_date < self.today:
+                    start_date = start_date + relativedelta(months=1)
+                
+                print(f"🔍 DEBUG: '부터' 패턴 매칭 → {day}일부터 시작")
+                
+                # 기본적으로 None으로 설정 (직전 대화에서 일수 확인 필요)
+                duration_days = None
+                
+                # 텍스트에서 기간 정보 추출 시도
+                duration_match = re.search(r'(\d+)일치', text)
+                if duration_match:
+                    duration_days = int(duration_match.group(1))
+                    print(f"🔍 DEBUG: 기간 정보 발견 → {duration_days}일치")
+                else:
+                    # 기간이 명시되지 않은 경우, 직전 대화에서 확인 필요
+                    print(f"🔍 DEBUG: 기간 정보 없음 → 직전 대화에서 일수 확인 필요")
+                    # duration_days를 None으로 두어서 LLM이나 다른 로직에서 처리하도록 함
+                
+                return ParsedDateInfo(
+                    date=start_date,
+                    description=f"{day}일부터 {duration_days}일치",
+                    is_relative=False,
+                    confidence=0.9,
+                    method='rule-based',
+                    duration_days=duration_days
+                )
+            except ValueError:
+                print(f"🔍 DEBUG: 날짜 생성 실패 → {day}일")
+                pass
+        
+        return None
+
     def _parse_specific_date(self, text: str) -> Optional[ParsedDateInfo]:
         current_year = self.today.year
+        print(f"🔍 DEBUG: _parse_specific_date 시작 - 입력: '{text}', 현재년도: {current_year}, 오늘: {self.today}")
 
         # "12월 25일" 형태
         month_day_match = re.search(r'(\d{1,2})월\s*(\d{1,2})일', text)
         if month_day_match:
             month = int(month_day_match.group(1))
             day = int(month_day_match.group(2))
+            print(f"🔍 DEBUG: 월일 매칭 성공 - 월: {month}, 일: {day}")
 
             try:
                 date = datetime(current_year, month, day)
+                print(f"🔍 DEBUG: 초기 날짜 생성: {date}")
 
                 # 과거 날짜라면 내년으로 설정
                 if date < self.today:
                     date = datetime(current_year + 1, month, day)
+                    print(f"🔍 DEBUG: 과거 날짜 감지 - 내년으로 변경: {date}")
+                else:
+                    print(f"🔍 DEBUG: 미래 날짜 - 그대로 유지: {date}")
 
-                return ParsedDateInfo(
+                result = ParsedDateInfo(
                     date=date,
                     description=f"{month}월 {day}일",
                     is_relative=False,
                     confidence=0.8,
                     method='rule-based'
                 )
-            except ValueError:
+                print(f"🔍 DEBUG: 특정 날짜 파싱 결과: {result.date} ({result.description})")
+                return result
+            except ValueError as e:
+                print(f"🔍 DEBUG: 날짜 생성 실패: {e}")
                 pass
 
-        # "25일" 형태 (이번 달)
-        day_only_match = re.search(r'(\d{1,2})일', text)
-        if day_only_match:
-            day = int(day_only_match.group(1))
-            current_month = self.today.month
+        # "25일" 형태 (이번 달) - 캘린더 저장 요청인 경우에만 처리
+        calendar_keywords = ['캘린더', '저장', '추가', '넣어', '일정']
+        is_calendar_request = any(keyword in text for keyword in calendar_keywords)
+        
+        if is_calendar_request and not any(keyword in text for keyword in ['식단표', '식단', '계획', '추천', '만들', '생성']):
+            day_only_match = re.search(r'(\d{1,2})일', text)
+            if day_only_match:
+                day = int(day_only_match.group(1))
+                print(f"🔍 DEBUG: 캘린더 요청에서 일만 추출 - {day}일")
+                current_month = self.today.month
 
-            try:
-                date = datetime(current_year, current_month, day)
+                try:
+                    date = datetime(current_year, current_month, day)
 
-                # 과거 날짜라면 다음 달로 설정
-                if date < self.today:
-                    date = date + relativedelta(months=1)
+                    # 과거 날짜라면 다음 달로 설정
+                    if date < self.today:
+                        date = date + relativedelta(months=1)
 
-                return ParsedDateInfo(
-                    date=date,
-                    description=f"{day}일",
-                    is_relative=False,
-                    confidence=0.8,
-                    method='rule-based'
-                )
-            except ValueError:
-                pass
+                    return ParsedDateInfo(
+                        date=date,
+                        description=f"{day}일",
+                        is_relative=False,
+                        confidence=0.8,
+                        method='rule-based'
+                    )
+                except ValueError:
+                    pass
 
         return None
 
     def _parse_days_later(self, text: str) -> Optional[ParsedDateInfo]:
+        print(f"🔍 DEBUG: _parse_days_later 시작 - 텍스트: '{text}'")
+        
         # "3일 후", "5일뒤" 등
         days_later_match = re.search(r'(\d+)일\s*[후뒤]', text)
         if days_later_match:
             days = int(days_later_match.group(1))
+            print(f"🔍 DEBUG: 일후 패턴 매칭 → {days}일")
             target_date = self.today + timedelta(days=days)
 
             return ParsedDateInfo(
@@ -879,6 +988,50 @@ JSON 형식 (duration_days 필드 필수):
                 method='rule-based'
             )
 
+        # 한국어 숫자 매핑
+        korean_numbers = {
+            '하루': 1, '한날': 1, '하루치': 1, '1일치': 1,
+            '이틀': 2, '이틀치': 2, '2일치': 2,
+            '사흘': 3, '사흘치': 3, '3일치': 3,
+            '나흘': 4, '나흘치': 4, '4일치': 4,
+            '닷새': 5, '닷새치': 5, '5일치': 5,
+            '엿새': 6, '엿새치': 6, '6일치': 6,
+            '이레': 7, '이레치': 7, '일주일': 7, '일주일치': 7, '7일치': 7,
+            '여드레': 8, '여드레치': 8, '8일치': 8,
+            '아흐레': 9, '아흐레치': 9, '9일치': 9,
+            '열흘': 10, '열흘치': 10, '10일치': 10
+        }
+        
+        # 한국어 숫자 패턴 체크 (식단 관련 키워드 포함)
+        meal_keywords = ['식단표', '식단', '메뉴', '계획', '추천', '만들', '생성']
+        for korean, days in korean_numbers.items():
+            if korean in text and any(keyword in text for keyword in meal_keywords):
+                print(f"🔍 DEBUG: 한국어 숫자 패턴 매칭 '{korean}' → {days}일")
+                return ParsedDateInfo(
+                    date=self.today,  # 시작 날짜는 오늘
+                    description=f"{korean} 식단표",
+                    is_relative=True,
+                    confidence=0.9,
+                    method='rule-based',
+                    duration_days=days  # 기간 정보 설정
+                )
+
+        # "3일 키토 식단표", "5일 식단표" 등 (기간 표현)
+        days_plan_match = re.search(r'(\d+)일\s+(?:키토\s+)?식단표', text)
+        if days_plan_match:
+            days = int(days_plan_match.group(1))
+            print(f"🔍 DEBUG: 일수 기간 패턴 매칭 → {days}일")
+            
+            return ParsedDateInfo(
+                date=self.today,  # 시작 날짜는 오늘
+                description=f"{days}일 식단표",
+                is_relative=True,
+                confidence=0.9,
+                method='rule-based',
+                duration_days=days  # 기간 정보 설정
+            )
+
+        print(f"🔍 DEBUG: _parse_days_later 패턴 매칭 실패")
         return None
 
     def _get_day_name(self, day_number: int) -> str:
@@ -928,14 +1081,34 @@ JSON 형식 (duration_days 필드 필수):
             r'\d+일\s*[후뒤]'
         ]
 
-        # 1단계: 정규표현식으로 날짜 패턴 찾기
-        for pattern in date_patterns:
-            match = re.search(pattern, message.lower())
-            if match:
-                logger.debug(f"정규표현식 패턴 매칭: '{pattern}' -> '{match.group(0)}'")
-                result = self.parse_natural_date(match.group(0))
+        # 1단계: 정규표현식으로 날짜 패턴 찾기 (저장 요청의 경우 날짜 파싱 우선)
+        # "부터" 패턴이 있으면 날짜 파싱을 우선시
+        has_from_pattern = '부터' in message
+        
+        # 식단표 생성 키워드와 저장 키워드를 구분
+        meal_plan_keywords = ['식단표', '식단', '계획', '추천', '만들', '생성']
+        has_meal_plan_keyword = any(keyword in message.lower() for keyword in meal_plan_keywords)
+        
+        # 저장 요청이거나 "부터" 패턴이 있으면 날짜 파싱 우선
+        if has_save_keyword or has_from_pattern or not has_meal_plan_keyword:
+            # 먼저 월일 형태를 직접 확인
+            month_day_match = re.search(r'(\d{1,2})월\s*(\d{1,2})일', message)
+            if month_day_match:
+                logger.debug(f"월일 패턴 직접 매칭: '{month_day_match.group(0)}'")
+                result = self._parse_specific_date(message)
                 if result:
+                    logger.debug(f"월일 패턴 파싱 성공: {result.date}")
                     return result
+            
+            for pattern in date_patterns:
+                match = re.search(pattern, message.lower())
+                if match:
+                    logger.debug(f"정규표현식 패턴 매칭: '{pattern}' -> '{match.group(0)}'")
+                    result = self.parse_natural_date(match.group(0))
+                    if result:
+                        return result
+        else:
+            logger.debug("식단표 생성 키워드 감지 - 정규표현식 패턴 건너뛰기")
 
         # 2단계: 정규표현식 매칭 실패 시, 전체 메시지를 LLM에게 전달
         # (오타, 변형된 표현, 복잡한 표현 처리)

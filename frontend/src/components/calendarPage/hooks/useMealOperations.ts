@@ -91,6 +91,9 @@ export function useMealOperations() {
 
       // 캘린더 데이터 새로고침
       queryClient.invalidateQueries({ queryKey: ['plans-range'] })
+      
+      // 캘린더 저장 완료 이벤트 발생
+      window.dispatchEvent(new CustomEvent('calendar-saved'))
 
       console.log('✅ 식단 저장/수정/삭제 완료!')
     } catch (error) {
@@ -126,6 +129,9 @@ export function useMealOperations() {
 
       // 캘린더 데이터 새로고침
       queryClient.invalidateQueries({ queryKey: ['plans-range'] })
+      
+      // 캘린더 저장 완료 이벤트 발생
+      window.dispatchEvent(new CustomEvent('calendar-saved'))
 
       console.log(`✅ ${mealType} 삭제 완료`)
     } catch (error) {
@@ -164,6 +170,9 @@ export function useMealOperations() {
 
       // 캘린더 데이터 새로고침
       queryClient.invalidateQueries({ queryKey: ['plans-range'] })
+      
+      // 캘린더 저장 완료 이벤트 발생
+      window.dispatchEvent(new CustomEvent('calendar-saved'))
 
       console.log(`✅ ${format(date, 'M월 d일')} 전체 식단 삭제 완료`)
       alert(`${format(date, 'M월 d일')} 식단이 모두 삭제되었습니다.`)
