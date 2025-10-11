@@ -222,6 +222,36 @@ export function useMessageHandlers({
       const detectDays = (content: string): number | null => {
         console.log(`🔍 detectDays 함수 호출: "${content}"`)
         
+        // 🆕 식단표 생성 키워드 우선 확인 (캘린더 키워드보다 우선)
+        const mealPlanKeywords = ['식단표', '식단', '계획', '생성', '짜줘', '만들어줘', '추천해줘', '키토', '만들고', '만들어']
+        const hasMealPlanKeyword = mealPlanKeywords.some(keyword => content.includes(keyword))
+        
+        // 🆕 캘린더 저장/추가 키워드가 있는 경우 날짜 표현으로 간주 (단, 식단표 생성 키워드가 없을 때만)
+        const calendarKeywords = ['캘린더', '저장', '추가', '넣어', '일정']
+        const hasCalendarKeyword = calendarKeywords.some(keyword => content.includes(keyword))
+        
+        // 🆕 "부터" 패턴이 있으면 식단표 생성으로 간주 (기존 식단표를 특정 날짜부터 저장)
+        const hasFromPattern = /부터/.test(content)
+        
+        if (hasCalendarKeyword && !hasMealPlanKeyword && !hasFromPattern) {
+          // 월일 형태 (예: "10월 21일 캘린더에 저장")
+          if (/\d+월\s*\d+일/.test(content)) {
+            console.log('🚫 월일 형태 + 캘린더 키워드 (식단표 생성 없음) - 날짜 표현으로 간주')
+            return null
+          }
+          
+          // 일만 있는 형태 (예: "21일 캘린더에 저장")
+          if (/\d+일(?![일월화수목금토])/.test(content)) {
+            console.log('🚫 일만 있는 형태 + 캘린더 키워드 (식단표 생성 없음) - 날짜 표현으로 간주')
+            return null
+          }
+        }
+        
+        // 🆕 식단표 생성 키워드가 있으면 일수 추출 시도
+        if (hasMealPlanKeyword) {
+          console.log('✅ 식단표 생성 키워드 감지 - 일수 추출 시도')
+        }
+        
         // 한글 키워드(숫자 미포함) 우선 매핑
         const weekKeywords = ['일주일', '일주', '한 주', '한주', '일주간', '1주일']
         if (weekKeywords.some(k => content.includes(k))) {
@@ -229,13 +259,14 @@ export function useMessageHandlers({
           return 7
         }
 
-        // 더 간단한 패턴으로 수정
+        // 식단표 생성 관련 패턴들
         const patterns = [
           /(\d+)일치/,
           /(\d+)일\s*식단/,
           /(\d+)일\s*키토/,
           /(\d+)일\s*계획/,
-          /(\d+)일/,
+          /(\d+)일\s*생성/,  // 🆕 "생성" 키워드 추가
+          /(\d+)일/,  // 일반적인 일수 패턴
           /(\d+)주치/,
           /(\d+)주\s*식단/,
           /(\d+)주\s*키토/
@@ -300,7 +331,9 @@ export function useMessageHandlers({
         user_id: userId,
         guest_id: guestId,
         // 게스트 사용자의 경우 SessionStorage 채팅 히스토리 전달
-        chat_history: !isLoggedIn ? guestChatHistory : undefined
+        chat_history: !isLoggedIn ? guestChatHistory : undefined,
+        // 파싱된 일수 정보 전달
+        days: parsedDays ?? undefined
       })
       
       // 마무리 단계

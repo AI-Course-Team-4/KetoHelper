@@ -66,6 +66,7 @@ export interface ChatRequest {
     message: string
     created_at: string
   }>
+  days?: number
 }
 
 export interface ChatResponse {
@@ -230,6 +231,23 @@ export function useSendMessage() {
         if (!variables.thread_id && data.thread_id) {
           queryClient.invalidateQueries({ queryKey: ['chat-threads'] })
         }
+      }
+      
+      // 🆕 캘린더 저장이 포함된 경우 plans-range 캐시 즉시 업데이트
+      if (data.response && (
+        data.response.includes('성공적으로 캘린더에 저장') ||
+        data.response.includes('캘린더에 저장') ||
+        data.response.includes('저장되었습니다')
+      )) {
+        console.log('💾 캘린더 저장 감지 - plans-range 캐시 즉시 업데이트')
+        
+        // 모든 plans-range 쿼리 무효화하여 새 데이터 로드
+        queryClient.invalidateQueries({ queryKey: ['plans-range'] })
+        
+        // 백그라운드에서 새 데이터 가져오기
+        queryClient.refetchQueries({ queryKey: ['plans-range'] })
+        
+        console.log('✅ plans-range 캐시 업데이트 완료')
       }
     },
     onError: (error: any, variables) => {
@@ -459,12 +477,29 @@ export function usePlansRange(startDate: string, endDate: string, userId: string
   return useQuery({
     queryKey: ['plans-range', startDate, endDate, userId],
     queryFn: async () => {
+      console.log('🌐 API 호출 시작:', {
+        url: '/plans/range',
+        params: { start: startDate, end: endDate, user_id: userId },
+        timestamp: new Date().toISOString()
+      })
+      
       const response = await api.get('/plans/range', {
         params: { start: startDate, end: endDate, user_id: userId }
       })
+      
+      console.log('🌐 API 응답 받음:', {
+        status: response.status,
+        dataLength: response.data ? response.data.length : 0,
+        data: response.data,
+        timestamp: new Date().toISOString()
+      })
+      
       return response.data
     },
-    enabled: !!(startDate && endDate && userId)
+    enabled: !!(startDate && endDate && userId),
+    refetchOnWindowFocus: false, // 포커스 시 리페치 비활성화
+    staleTime: 5 * 60 * 1000, // 5분간 신선한 데이터로 간주
+    gcTime: 30 * 60 * 1000, // 30분간 캐시 유지
   })
 }
 
@@ -503,6 +538,18 @@ export function useDeleteAllPlans() {
     mutationFn: async (userId: string) => {
       const response = await api.delete('/plans/all', {
         params: { user_id: userId }
+      })
+      return response.data
+    }
+  })
+}
+
+// 월별 식단 계획 삭제
+export function useDeleteMonthPlans() {
+  return useMutation({
+    mutationFn: async ({ userId, year, month }: { userId: string; year: number; month: number }) => {
+      const response = await api.delete('/plans/month', {
+        params: { user_id: userId, year, month }
       })
       return response.data
     }

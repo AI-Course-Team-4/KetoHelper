@@ -17,7 +17,11 @@ import { AuthProvider } from '@/contexts/AuthContext'
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5,
+      staleTime: 1000 * 60 * 5, // 5분간 신선한 데이터로 간주
+      gcTime: 1000 * 60 * 30, // 30분간 캐시 유지
+      refetchOnWindowFocus: false, // 포커스 시 리페치 비활성화
+      refetchOnMount: true, // 마운트 시 리페치 (하지만 staleTime 내에서는 생략)
+      refetchOnReconnect: true, // 재연결 시 리페치
       retry: 1,
     },
     mutations: {

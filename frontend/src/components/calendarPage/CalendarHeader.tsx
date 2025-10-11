@@ -7,7 +7,10 @@ interface CalendarHeaderProps {
   isGeneratingMealPlan: boolean
   onGenerateMealPlan: () => void
   onDeleteAllPlans: () => void
+  onDeleteMonthPlans: () => void
   isDeletingAll: boolean
+  isDeletingMonth: boolean
+  currentMonth: Date
 }
 
 export function CalendarHeader({
@@ -16,7 +19,10 @@ export function CalendarHeader({
   isGeneratingMealPlan,
   onGenerateMealPlan,
   onDeleteAllPlans,
-  isDeletingAll
+  onDeleteMonthPlans,
+  isDeletingAll,
+  isDeletingMonth,
+  currentMonth
 }: CalendarHeaderProps) {
   return (
     <div>
@@ -51,8 +57,18 @@ export function CalendarHeader({
           </Button>
           
           <Button 
+            onClick={onDeleteMonthPlans}
+            disabled={isGeneratingMealPlan || isDeletingAll || isDeletingMonth}
+            variant="destructive"
+            className="px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-semibold disabled:opacity-50 shadow-lg hover:shadow-xl transition-all duration-300"
+          >
+            <DeleteForever sx={{ fontSize: 20, mr: 1 }} />
+            {isDeletingMonth ? '삭제 중...' : '월별 삭제'}
+          </Button>
+          
+          <Button 
             onClick={onDeleteAllPlans}
-            disabled={isGeneratingMealPlan || isDeletingAll}
+            disabled={isGeneratingMealPlan || isDeletingAll || isDeletingMonth}
             variant="destructive"
             className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-lg font-semibold disabled:opacity-50 shadow-lg hover:shadow-xl transition-all duration-300"
           >
