@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useIsFetching } from '@tanstack/react-query'
 import { useCalendarJobWatcher } from '@/hooks/useCalendarJobWatcher'
 import { CalendarHeader } from './CalendarHeader'
 import { CalendarGrid } from './CalendarGrid'
