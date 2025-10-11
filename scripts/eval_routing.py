@@ -1,3 +1,7 @@
+"""
+의도분류 정확도 테스트 스크립트
+예상 의도와 실제 분기된 의도가 일치하는지 테스트하는 파일입니다.
+"""
 # scripts/eval_routing.py
 # -*- coding: utf-8 -*-
 import sys

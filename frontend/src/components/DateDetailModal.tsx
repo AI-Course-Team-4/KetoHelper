@@ -2,12 +2,10 @@ import { useState } from 'react'
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Edit, CalendarToday, AccessTime, Restaurant, GpsFixed, Delete } from '@mui/icons-material'
+import { Edit, CalendarToday, AccessTime, Restaurant, Delete } from '@mui/icons-material'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { MealData } from '@/data/ketoMeals'
-import { MealDetailModal } from './MealDetailModal'
 
 interface DateDetailModalProps {
   isOpen: boolean
@@ -39,11 +37,6 @@ export function DateDetailModal({
     dinner: mealData?.dinner || '',
     snack: mealData?.snack || ''
   })
-  const [selectedMealForDetail, setSelectedMealForDetail] = useState<{
-    type: 'breakfast' | 'lunch' | 'dinner' | 'snack'
-    content: string
-    info: { label: string; icon: string; time: string }
-  } | null>(null)
 
   const handleSave = () => {
     onSaveMeal(selectedDate, editedMealData)
@@ -60,20 +53,16 @@ export function DateDetailModal({
     setIsEditing(false)
   }
 
-  const handleMealClick = (mealKey: string) => {
-    if (!mealData || !mealData[mealKey as keyof MealData]) return
+  const handleMealClick = (mealContent: string, recipeUrl?: string) => {
+    if (!mealContent || mealContent.trim() === '') return
     
-    const meal = meals.find(m => m.key === mealKey)
-    if (meal) {
-      setSelectedMealForDetail({
-        type: mealKey as 'breakfast' | 'lunch' | 'dinner' | 'snack',
-        content: String(mealData[mealKey as keyof MealData] || ''),
-        info: {
-          label: meal.label,
-          icon: meal.icon,
-          time: meal.time
-        }
-      })
+    if (recipeUrl && recipeUrl.trim() !== '') {
+      // URL이 있으면 해당 레시피 페이지로 이동
+      window.open(recipeUrl, '_blank')
+    } else {
+      // URL이 없으면 구글 검색
+      const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(mealContent)}`
+      window.open(searchUrl, '_blank')
     }
   }
 
@@ -83,15 +72,6 @@ export function DateDetailModal({
     { key: 'dinner', label: '저녁', icon: '🌙', time: '18:00' },
     { key: 'snack', label: '간식', icon: '🍎', time: '15:00' }
   ]
-
-  // 키토 점수 계산 (예시)
-  const calculateKetoScore = () => {
-    if (!mealData) return 0
-    const mealCount = Object.values(mealData).filter(meal => meal && meal.trim() !== '').length
-    return Math.min(mealCount * 25, 100)
-  }
-
-  const ketoScore = calculateKetoScore()
 
   return (
     <Dialog open={isOpen} onClose={onClose} onOpenChange={onClose} maxWidth="md">
@@ -103,30 +83,6 @@ export function DateDetailModal({
       </DialogHeader>
 
       <div className="space-y-6">
-          {/* 키토 점수 및 통계 */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card>
-              <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-green-600">{ketoScore}%</div>
-                <div className="text-sm text-muted-foreground">키토 점수</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-blue-600">
-                  {Object.values(mealData || {}).filter(meal => meal && meal.trim() !== '').length}
-                </div>
-                <div className="text-sm text-muted-foreground">계획된 식사</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-purple-600">1,650</div>
-                <div className="text-sm text-muted-foreground">예상 칼로리</div>
-              </CardContent>
-            </Card>
-          </div>
-
           {/* 식단 정보 */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -175,7 +131,11 @@ export function DateDetailModal({
             </CardHeader>
             <CardContent className="space-y-4">
               {meals.map((meal) => {
-                const hasMealData = mealData && mealData[meal.key as keyof MealData]
+                const mealKey = meal.key as 'breakfast' | 'lunch' | 'dinner' | 'snack'
+                const mealContent = mealData?.[mealKey] || ''
+                const urlKey = `${meal.key}Url` as 'breakfastUrl' | 'lunchUrl' | 'dinnerUrl' | 'snackUrl'
+                const recipeUrl = mealData?.[urlKey]
+                const hasMealData = mealContent && mealContent.trim() !== ''
                 const currentHour = new Date().getHours()
                 const mealHour = parseInt(meal.time.split(':')[0])
                 const today = new Date()
@@ -197,7 +157,11 @@ export function DateDetailModal({
                       isCompletedMeal ? 'bg-green-50 border-green-200' : 
                       isPastMeal && !isCompletedMeal && !isEditing ? 'bg-gray-50 border-gray-200 opacity-60' : ''
                     }`}
-                    onClick={() => hasMealData && !isEditing ? handleMealClick(meal.key) : undefined}
+                    onClick={() => {
+                      if (hasMealData && !isEditing) {
+                        handleMealClick(mealContent, recipeUrl)
+                      }
+                    }}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-3">
@@ -253,15 +217,7 @@ export function DateDetailModal({
                                 <Delete sx={{ fontSize: 14 }} />
                               </Button>
                             )}
-                            <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                              클릭해서 상세보기
-                            </div>
                           </>
-                        )}
-                        {ketoScore > 75 && (
-                          <Badge variant="secondary" className="bg-green-100 text-green-800">
-                            키토 친화적
-                          </Badge>
                         )}
                       </div>
                     </div>
@@ -284,7 +240,7 @@ export function DateDetailModal({
                         'text-muted-foreground'
                       }`}>
                         {hasMealData 
-                          ? mealData[meal.key as keyof MealData]
+                          ? mealContent
                           : '계획된 식단이 없습니다'
                         }
                       </div>
@@ -294,69 +250,7 @@ export function DateDetailModal({
               })}
             </CardContent>
           </Card>
-
-          {/* 추가 정보 */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <GpsFixed sx={{ fontSize: 20 }} />
-                키토 목표
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">탄수화물</span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-24 bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="bg-green-600 h-2 rounded-full" 
-                        style={{ width: `${Math.min(ketoScore, 100)}%` }}
-                      />
-                    </div>
-                    <span className="text-sm font-medium">20g</span>
-                  </div>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">단백질</span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-24 bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="bg-blue-600 h-2 rounded-full" 
-                        style={{ width: '80%' }}
-                      />
-                    </div>
-                    <span className="text-sm font-medium">120g</span>
-                  </div>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">지방</span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-24 bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="bg-purple-600 h-2 rounded-full" 
-                        style={{ width: '90%' }}
-                      />
-                    </div>
-                    <span className="text-sm font-medium">150g</span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
         </div>
-
-      {/* 식단 상세정보 모달 */}
-      {selectedMealForDetail && (
-        <MealDetailModal
-          isOpen={!!selectedMealForDetail}
-          onClose={() => setSelectedMealForDetail(null)}
-          mealType={selectedMealForDetail.type}
-          mealContent={selectedMealForDetail.content}
-          mealInfo={selectedMealForDetail.info}
-        />
-      )}
     </Dialog>
   )
 }

@@ -16,7 +16,7 @@ class WeightConfig:
     # LLM 가중치
     llm_temperature: float = 0.1
     llm_max_tokens: int = 8192
-    llm_timeout: int = 60
+    llm_timeout: int = 180
     
     # RAG 검색 가중치
     vector_search_weight: float = 0.4

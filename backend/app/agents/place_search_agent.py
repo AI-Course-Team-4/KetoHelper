@@ -48,10 +48,18 @@ class PlaceSearchAgent:
         print(f"✅ {self.agent_name} 초기화 (프롬프트: {list(self.prompts.keys())})")
         
         try:
-            # 공통 LLM 초기화
-            self.llm = create_chat_llm()
+            # PlaceSearchAgent 전용 LLM 설정 사용
+            from app.core.config import settings
+            self.llm = create_chat_llm(
+                provider=settings.place_search_provider,
+                model=settings.place_search_model,
+                temperature=settings.place_search_temperature,
+                max_tokens=settings.place_search_max_tokens,
+                timeout=settings.place_search_timeout
+            )
+            print(f"✅ PlaceSearchAgent LLM 초기화: {settings.place_search_provider}/{settings.place_search_model}")
         except Exception as e:
-            print(f"❌ LLM 초기화 실패: {e}")
+            print(f"❌ PlaceSearchAgent LLM 초기화 실패: {e}")
             self.llm = None
         
         # 도구들 초기화
@@ -216,7 +224,8 @@ class PlaceSearchAgent:
                     "tips": result.get("keto_reasons", []) if result.get("keto_reasons") else ["메뉴 선택 시 주의하세요"],
                     "similarity_score": result.get("similarity", 0.0),
                     "search_type": result.get("search_type", "hybrid"),
-                    "source": "hybrid_search"
+                    "source": "hybrid_search",
+                    "source_url": result.get("source_url")
                 })
             
             # 응답 생성
@@ -292,6 +301,10 @@ class PlaceSearchAgent:
                     if isinstance(reasons, list) and reasons:
                         restaurant_list += f"   - 키토 친화 이유: {', '.join(reasons)}\n"
                 
+                # 출처 URL 추가
+                if restaurant.get('source_url'):
+                    restaurant_list += f"   - 출처 URL: {restaurant.get('source_url')}\n"
+                
                 restaurant_list += "\n"
             
             # 프로필 정보 구조화
@@ -335,7 +348,7 @@ class PlaceSearchAgent:
             # 타임아웃 적용하여 LLM 호출 (타임아웃 증가)
             llm_response = await asyncio.wait_for(
                 self.llm.ainvoke([HumanMessage(content=structured_prompt)]),
-                timeout=60.0  # 60초 타임아웃으로 증가
+                timeout=180.0  # 180초 타임아웃으로 증가
             )
             
             llm_end_time = time.time()

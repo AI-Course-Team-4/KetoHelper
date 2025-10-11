@@ -497,6 +497,18 @@ export function useDeletePlan() {
   })
 }
 
+// 전체 식단 계획 삭제
+export function useDeleteAllPlans() {
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      const response = await api.delete('/plans/all', {
+        params: { user_id: userId }
+      })
+      return response.data
+    }
+  })
+}
+
 // Meal Plan Generation
 export interface MealPlanRequest {
   days?: number

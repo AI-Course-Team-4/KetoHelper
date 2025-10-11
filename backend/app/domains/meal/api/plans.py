@@ -5,11 +5,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from typing import List, Optional
-from datetime import date, timedelta
-from icalendar import Calendar, Event
-from fastapi.responses import Response
-import pytz
-from datetime import datetime
+from datetime import date, timedelta, datetime
 from supabase import create_client, Client
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,13 +35,50 @@ async def get_plans_range(
     캘린더 UI에서 사용
     """
     try:
+        print(f"🔍 [DEBUG] plans/range API 호출: user_id={user_id}, start={start}, end={end}")
         response = supabase.table('meal_log').select('*').eq('user_id', str(user_id)).gte('date', start.isoformat()).lte('date', end.isoformat()).order('date').execute()
 
         meal_logs = response.data
+        print(f"🔍 [DEBUG] meal_log 조회 결과: {len(meal_logs)}개 레코드")
+        for i, log in enumerate(meal_logs[:3]):  # 처음 3개만 로그
+            print(f"🔍 [DEBUG] meal_log[{i}]: {log}")
 
         # meal_log 데이터를 PlanResponse 형태로 변환
         plans = []
         for log in meal_logs:
+            # URL 가져오기 시도
+            recipe_url = None
+            meal_title = log.get("note", "")
+            
+            # 방법 1: mealplan_id를 통한 조회
+            if log.get("mealplan_id"):
+                try:
+                    # meal_plan_item에서 recipe_blob_id 찾기
+                    plan_item_response = supabase.table('meal_plan_item').select('recipe_blob_id').eq('mealplan_id', log["mealplan_id"]).eq('meal_type', log["meal_type"]).eq('planned_date', log["date"]).limit(1).execute()
+                    
+                    if plan_item_response.data and len(plan_item_response.data) > 0:
+                        recipe_blob_id = plan_item_response.data[0].get('recipe_blob_id')
+                        
+                        if recipe_blob_id:
+                            # recipe_blob_emb에서 URL 찾기
+                            recipe_response = supabase.table('recipe_blob_emb').select('url').eq('id', recipe_blob_id).limit(1).execute()
+                            
+                            if recipe_response.data and len(recipe_response.data) > 0:
+                                recipe_url = recipe_response.data[0].get('url')
+                except Exception:
+                    pass
+            
+            # 방법 2: 제목으로 직접 검색 (mealplan_id가 없거나 방법 1 실패 시)
+            if not recipe_url and meal_title:
+                try:
+                    # recipe_blob_emb에서 제목으로 직접 검색
+                    title_response = supabase.table('recipe_blob_emb').select('url').eq('title', meal_title).limit(1).execute()
+                    
+                    if title_response.data and len(title_response.data) > 0:
+                        recipe_url = title_response.data[0].get('url')
+                except Exception:
+                    pass
+            
             plan = {
                 "id": str(log["id"]),
                 "user_id": log["user_id"],
@@ -54,6 +87,7 @@ async def get_plans_range(
                 "type": "recipe",  # 기본값
                 "ref_id": str(log.get("mealplan_id", "")),
                 "title": log.get("note", "식단 기록"),
+                "url": recipe_url,  # ✅ URL 추가
                 "location": None,
                 "macros": None,
                 "notes": log.get("note"),
@@ -63,6 +97,10 @@ async def get_plans_range(
             }
             plans.append(plan)
 
+        print(f"🔍 [DEBUG] 변환된 plans: {len(plans)}개")
+        for i, plan in enumerate(plans[:3]):  # 처음 3개만 로그
+            print(f"🔍 [DEBUG] plan[{i}]: {plan}")
+        
         return plans
 
     except Exception as e:
@@ -70,6 +108,41 @@ async def get_plans_range(
             status_code=500,
             detail=f"식단 계획 조회 중 오류 발생: {str(e)}"
         )
+
+@router.get("/status")
+async def get_save_status(
+    user_id: str = Query(..., description="사용자 ID"),
+    start: date = Query(..., description="시작 날짜 (YYYY-MM-DD)"),
+    duration_days: int = Query(..., ge=1, le=365, description="기간(일)"),
+):
+    """간단 버전 저장 상태 확인: 기간 내 `meal_log` 존재 여부로 처리.
+
+    - 존재하면 status=done
+    - 없으면 status=processing
+    """
+    try:
+        end = start + timedelta(days=duration_days)
+
+        resp = supabase.table('meal_log') \
+            .select('id,date') \
+            .eq('user_id', str(user_id)) \
+            .gte('date', start.isoformat()) \
+            .lt('date', end.isoformat()) \
+            .execute()
+
+        rows = resp.data or []
+        # 날짜별 최소 1건씩 저장되었는지 확인 (하루만 먼저 저장되는 상황 방지)
+        distinct_days = {r.get('date') for r in rows if r.get('date')}
+        done = len(distinct_days) >= duration_days
+        return {
+            "status": "done" if done else "processing",
+            "found_count": len(rows),
+            "distinct_days": len(distinct_days),
+            "expected_days": duration_days,
+            "range": {"start": start.isoformat(), "end": end.isoformat()}
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"상태 조회 중 오류: {str(e)}")
 
 @router.post("/item", response_model=PlanResponse)
 async def create_or_update_plan(
@@ -81,6 +154,9 @@ async def create_or_update_plan(
     동일한 날짜/슬롯이 있으면 업데이트 (upsert)
     """
     try:
+        # 사전 차단 로직 제거 - 부분 저장 로직으로 대체됨
+        print("✅ plans.py 차단 로직 제거됨 - 부분 저장 로직 사용")
+
         # 기존 계획 확인
         existing_response = supabase.table('meal_log').select('*').eq('user_id', str(user_id)).eq('date', plan.date.isoformat()).eq('meal_type', plan.slot).execute()
 
@@ -207,6 +283,40 @@ async def delete_plan_item(
         raise HTTPException(
             status_code=500,
             detail=f"식단 계획 삭제 중 오류 발생: {str(e)}"
+        )
+
+@router.delete("/all")
+async def delete_all_plans(
+    user_id: str = Query(..., description="사용자 ID")
+):
+    """사용자의 모든 식단 계획 삭제 (meal_log 테이블)"""
+    try:
+        print(f"🗑️ [DEBUG] 전체 삭제 요청: user_id={user_id}")
+        
+        # 기존 데이터 확인
+        existing_response = supabase.table('meal_log').select('*').eq('user_id', str(user_id)).execute()
+        existing_count = len(existing_response.data) if existing_response.data else 0
+        
+        print(f"🗑️ [DEBUG] 기존 데이터 개수: {existing_count}")
+        
+        if existing_count == 0:
+            return {"message": "삭제할 식단 계획이 없습니다", "deleted_count": 0}
+
+        # 모든 식단 계획 삭제
+        delete_response = supabase.table('meal_log').delete().eq('user_id', str(user_id)).execute()
+        
+        print(f"🗑️ [DEBUG] 삭제 완료: {delete_response}")
+        
+        return {
+            "message": f"모든 식단 계획이 삭제되었습니다 ({existing_count}개)",
+            "deleted_count": existing_count
+        }
+
+    except Exception as e:
+        print(f"❌ [ERROR] 전체 삭제 실패: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"식단 계획 전체 삭제 중 오류 발생: {str(e)}"
         )
 
 @router.post("/generate", response_model=MealPlanResponse)
@@ -370,7 +480,8 @@ async def commit_meal_plan(
             print(f"🔍 [DEBUG] meal_log[{i}]: {log}")
 
         # 기존 계획들 삭제 (충돌 방지)
-        end_date = start_date + timedelta(days=len(meal_plan.days) - 1)
+        duration_days = max(1, len(meal_plan.days) if hasattr(meal_plan.days, '__len__') else 1)
+        end_date = start_date + timedelta(days=duration_days - 1)
         print(f"🔍 [DEBUG] 기존 데이터 삭제: {start_date} ~ {end_date}")
         supabase.table('meal_log').delete().eq('user_id', str(user_id)).gte('date', start_date.isoformat()).lte('date', end_date.isoformat()).execute()
 
@@ -383,7 +494,8 @@ async def commit_meal_plan(
         return {
             "message": f"{len(meal_logs_to_create)}개의 식단 계획이 저장되었습니다",
             "start_date": start_date,
-            "end_date": end_date
+            "end_date": end_date,
+            "duration_days": duration_days
         }
 
     except Exception as e:
@@ -391,272 +503,6 @@ async def commit_meal_plan(
             status_code=500,
             detail=f"식단표 저장 중 오류 발생: {str(e)}"
         )
-
-@router.get("/week/{start_date}/export.ics")
-async def export_week_ics(
-    start_date: date = Path(..., description="주 시작 날짜"),
-    user_id: str = Query(..., description="사용자 ID"),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    한 주 식단 계획을 ICS 파일로 내보내기
-    Google/Naver 캘린더에 가져오기 가능
-    """
-    try:
-        end_date = start_date + timedelta(days=6)
-        
-        # 해당 주의 계획들 조회
-        result = await db.execute(
-            select(Plan)
-            .where(
-                and_(
-                    Plan.user_id == user_id,
-                    Plan.date >= start_date,
-                    Plan.date <= end_date
-                )
-            )
-            .order_by(Plan.date, Plan.slot)
-        )
-        plans = result.scalars().all()
-        
-        # ICS 캘린더 생성
-        cal = Calendar()
-        cal.add('prodid', '-//키토 코치//키토 식단 계획//KR')
-        cal.add('version', '2.0')
-        cal.add('calscale', 'GREGORIAN')
-        
-        seoul = pytz.timezone('Asia/Seoul')
-        
-        for plan in plans:
-            event = Event()
-            
-            # 제목 설정
-            title = f"[키토] {plan.slot} - {plan.title}"
-            event.add('summary', title)
-            
-            # 시간 설정 (슬롯별 기본 시간)
-            slot_times = {
-                'breakfast': 8,
-                'lunch': 12,
-                'dinner': 18,
-                'snack': 15
-            }
-            
-            start_time = seoul.localize(
-                datetime.combine(plan.date, datetime.min.time()).replace(
-                    hour=slot_times.get(plan.slot, 12)
-                )
-            )
-            end_time = start_time + timedelta(hours=1)
-            
-            event.add('dtstart', start_time)
-            event.add('dtend', end_time)
-            
-            # 설명 추가
-            description = f"타입: {plan.type}\n"
-            if plan.macros:
-                description += f"칼로리: {plan.macros.get('kcal', 0)}kcal\n"
-                description += f"탄수화물: {plan.macros.get('carb', 0)}g\n"
-            if plan.notes:
-                description += f"메모: {plan.notes}\n"
-            
-            event.add('description', description)
-            
-            # 위치 설정 (식당인 경우)
-            if plan.location and plan.location.get('address'):
-                event.add('location', plan.location['address'])
-            
-            cal.add_component(event)
-        
-        # ICS 파일 응답
-        ics_content = cal.to_ical()
-        
-        return Response(
-            content=ics_content,
-            media_type='text/calendar',
-            headers={
-                'Content-Disposition': f'attachment; filename="keto_meal_plan_{start_date}.ics"'
-            }
-        )
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"ICS 내보내기 중 오류 발생: {str(e)}"
-        )
-
-@router.get("/week/{start_date}/shopping-list")
-async def get_shopping_list(
-    start_date: date = Path(..., description="주 시작 날짜"),
-    user_id: str = Query(..., description="사용자 ID"),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    한 주 레시피의 재료를 집계한 쇼핑리스트 생성
-    """
-    try:
-        end_date = start_date + timedelta(days=6)
-        
-        # 레시피 타입의 계획들 조회
-        result = await db.execute(
-            select(Plan)
-            .where(
-                and_(
-                    Plan.user_id == user_id,
-                    Plan.date >= start_date,
-                    Plan.date <= end_date,
-                    Plan.type == 'recipe'
-                )
-            )
-        )
-        recipe_plans = result.scalars().all()
-        
-        # 레시피 정보 조회
-        recipe_ids = [plan.ref_id for plan in recipe_plans]
-        recipe_result = await db.execute(
-            select(Recipe)
-            .where(Recipe.id.in_(recipe_ids))
-        )
-        recipes = {str(recipe.id): recipe for recipe in recipe_result.scalars().all()}
-        
-        # 재료 집계
-        ingredient_summary = {}
-        
-        for plan in recipe_plans:
-            recipe = recipes.get(plan.ref_id)
-            if recipe and recipe.ingredients:
-                for ingredient in recipe.ingredients:
-                    name = ingredient.get('name', '')
-                    amount = ingredient.get('amount', 0)
-                    unit = ingredient.get('unit', '')
-                    
-                    key = f"{name}_{unit}"
-                    if key in ingredient_summary:
-                        ingredient_summary[key]['amount'] += amount
-                    else:
-                        ingredient_summary[key] = {
-                            'name': name,
-                            'amount': amount,
-                            'unit': unit,
-                            'category': _categorize_ingredient(name)
-                        }
-        
-        # 카테고리별 정렬
-        categorized = {}
-        for ingredient in ingredient_summary.values():
-            category = ingredient['category']
-            if category not in categorized:
-                categorized[category] = []
-            categorized[category].append(ingredient)
-        
-        return {
-            "week_start": start_date,
-            "week_end": end_date,
-            "total_recipes": len(recipe_plans),
-            "shopping_list": categorized,
-            "summary": {
-                "total_items": len(ingredient_summary),
-                "categories": list(categorized.keys())
-            }
-        }
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"쇼핑리스트 생성 중 오류 발생: {str(e)}"
-        )
-
-@router.get("/stats/{start_date}/{end_date}", response_model=StatsSummary)
-async def get_plan_statistics(
-    start_date: date = Path(..., description="시작 날짜"),
-    end_date: date = Path(..., description="종료 날짜"),
-    user_id: str = Query(..., description="사용자 ID"),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    식단 계획 실행 통계
-    이행률, 평균 탄수화물, 외식 비중 등
-    """
-    try:
-        result = await db.execute(
-            select(Plan)
-            .where(
-                and_(
-                    Plan.user_id == user_id,
-                    Plan.date >= start_date,
-                    Plan.date <= end_date
-                )
-            )
-        )
-        plans = result.scalars().all()
-        
-        if not plans:
-            return StatsSummary(
-                compliance_rate=0.0,
-                avg_carbs=0.0,
-                dining_out_ratio=0.0,
-                total_days=0
-            )
-        
-        # 통계 계산
-        total_plans = len(plans)
-        completed_plans = len([p for p in plans if p.status == 'done'])
-        dining_out_plans = len([p for p in plans if p.type == 'place'])
-        
-        # 평균 탄수화물 계산
-        total_carbs = 0
-        carb_count = 0
-        for plan in plans:
-            if plan.status == 'done' and plan.macros and 'carb' in plan.macros:
-                total_carbs += plan.macros['carb']
-                carb_count += 1
-        
-        avg_carbs = total_carbs / carb_count if carb_count > 0 else 0
-        
-        return StatsSummary(
-            compliance_rate=round((completed_plans / total_plans) * 100, 1),
-            avg_carbs=round(avg_carbs, 1),
-            dining_out_ratio=round((dining_out_plans / total_plans) * 100, 1),
-            total_days=(end_date - start_date).days + 1
-        )
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"통계 조회 중 오류 발생: {str(e)}"
-        )
-
-def _categorize_ingredient(name: str) -> str:
-    """재료를 카테고리별로 분류"""
-    meat_keywords = ['고기', '돼지', '소', '닭', '양', '오리', '삼겹살', '목살', '등심']
-    vegetable_keywords = ['양파', '마늘', '생강', '배추', '상추', '시금치', '브로콜리', '양배추']
-    seafood_keywords = ['생선', '연어', '참치', '새우', '조개', '오징어', '문어', '회']
-    dairy_keywords = ['치즈', '버터', '우유', '요거트', '크림']
-    seasoning_keywords = ['소금', '후추', '간장', '고추장', '된장', '참기름', '올리브오일']
-    
-    name_lower = name.lower()
-    
-    for keyword in meat_keywords:
-        if keyword in name_lower:
-            return '육류'
-    
-    for keyword in seafood_keywords:
-        if keyword in name_lower:
-            return '해산물'
-    
-    for keyword in vegetable_keywords:
-        if keyword in name_lower:
-            return '채소'
-    
-    for keyword in dairy_keywords:
-        if keyword in name_lower:
-            return '유제품'
-    
-    for keyword in seasoning_keywords:
-        if keyword in name_lower:
-            return '양념/조미료'
-    
-    return '기타'
 
 # 캘린더 페이지에서 입력한 텍스트를 식단으로 추가 (기존 생성 로직 재사용)
 @router.post("/calendar/add_meal", response_model=PlanResponse)
