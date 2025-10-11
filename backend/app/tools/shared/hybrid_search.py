@@ -159,7 +159,8 @@ class HybridSearchTool:
                     'keyword_score': 1.0,
                     'hybrid_score': 1.0,
                     'search_type': 'keyword',
-                    'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'embedding']}
+                    'url': result.get('url'),  # URL 추가
+                    'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'embedding', 'url']}
                 })
             
             return formatted_results[:k]
@@ -201,7 +202,8 @@ class HybridSearchTool:
                     'keyword_score': result.get('keyword_score', 0.0),
                     'hybrid_score': result.get('hybrid_score', 0.0),
                     'search_type': 'hybrid',
-                    'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'vector_score', 'keyword_score', 'hybrid_score']}
+                    'url': result.get('url'),  # URL 추가
+                    'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'vector_score', 'keyword_score', 'hybrid_score', 'url']}
                 })
             
             print(f"  ✅ 최종 결과: {len(formatted_results)}개")
@@ -256,6 +258,7 @@ class HybridSearchTool:
                     'allergens': result.get('allergens', []),
                     'ingredients': result.get('ingredients', []),
                     'similarity': result.get('final_score', 0.0),
+                    'url': result.get('url'),  # URL 추가
                     'metadata': result.get('metadata', {}),
                     'search_types': [result.get('search_type', 'hybrid')],
                     'search_strategy': search_strategy,
@@ -295,6 +298,7 @@ class HybridSearchTool:
                         'allergens': result.get('allergens', []),
                         'ingredients': result.get('ingredients', []),
                         'similarity': result.get('hybrid_score', 0.0),
+                        'url': result.get('url'),  # URL 추가
                         'metadata': result.get('metadata', {}),
                         'search_types': [result.get('search_type', 'hybrid')]
                     })
