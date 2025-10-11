@@ -21,6 +21,7 @@ from app.domains.restaurant.api import places
 from app.domains.meal.api import plans
 from app.domains.profile.api import profile
 from app.domains.admin.api import metrics as admin_metrics
+from app.domains.admin.api.redis_status import router as redis_status_router
 from app.shared.api import auth as auth_api
 from app.core.config import settings
 from app.core.database import init_db
@@ -95,6 +96,7 @@ app.include_router(places.router, prefix="/api/v1")
 app.include_router(plans.router, prefix="/api/v1")
 app.include_router(profile.router, prefix="/api/v1")
 app.include_router(admin_metrics.router, prefix="/api/v1")
+app.include_router(redis_status_router, prefix="/api/v1", tags=["admin"])
 app.include_router(auth_api.router, prefix="/api/v1")
 print("✅ DEBUG: 모든 라우터 등록 완료")
 
