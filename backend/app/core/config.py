@@ -97,6 +97,10 @@ class Settings(BaseSettings):
     enable_cache: bool = os.getenv("ENABLE_CACHE", "true").lower() == "true"
     cache_ttl_seconds: int = int(os.getenv("CACHE_TTL_SECONDS", "3600"))
     
+    # Redis 설정
+    redis_url: str = os.getenv("REDIS_URL", "")
+    redis_enabled: bool = os.getenv("REDIS_ENABLED", "false").lower() == "true"
+    
     # pydantic v2 설정 (예전 class Config 대체)
     model_config = SettingsConfigDict(
         env_file=".env",
