@@ -155,12 +155,12 @@ export function useChatLogic() {
     return result
   }, [unifiedChatHistory])
   
-  console.log('🔍 useGetChatHistory 상태:', {
-    currentThreadId,
-    chatHistoryLength: chatHistory.length,
-    chatHistory: chatHistory.map(msg => ({ id: msg.id, message: msg.message })),
-    isLoadingHistory
-  })
+  // console.log('🔍 useGetChatHistory 상태:', {
+  //   currentThreadId,
+  //   chatHistoryLength: chatHistory.length,
+  //   chatHistory: chatHistory.map(msg => ({ id: msg.id, message: msg.message })),
+  //   isLoadingHistory
+  // })
   
   // 프로필 데이터 로드
   useEffect(() => {

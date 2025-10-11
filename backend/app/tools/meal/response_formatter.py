@@ -33,7 +33,10 @@ class MealResponseFormatter:
             return "죄송합니다. 식단표 생성에 실패했습니다. 다시 시도해주세요."
         
         # 일수 텍스트 생성
-        day_text = "일" if days == 1 else f"{days}일"
+        day_text = "1일" if days == 1 else f"{days}일"
+        
+        # 디버그 로그
+        print(f"🔍 DEBUG: response_formatter - days: {days}, day_text: {day_text}, meal_plan.days 길이: {len(meal_plan.get('days', []))}")
         
         # 응답 시작
         response_text = f"## ✨ {day_text} 키토 식단표\n\n"

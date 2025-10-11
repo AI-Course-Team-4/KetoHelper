@@ -319,6 +319,53 @@ async def delete_all_plans(
             detail=f"식단 계획 전체 삭제 중 오류 발생: {str(e)}"
         )
 
+@router.delete("/month")
+async def delete_month_plans(
+    user_id: str = Query(..., description="사용자 ID"),
+    year: int = Query(..., description="년도 (예: 2025)"),
+    month: int = Query(..., ge=1, le=12, description="월 (1-12)")
+):
+    """특정 월의 식단 계획 삭제 (meal_log 테이블)"""
+    try:
+        print(f"🗑️ [DEBUG] 월별 삭제 요청: user_id={user_id}, {year}년 {month}월")
+        
+        # 해당 월의 시작일과 끝일 계산
+        month_start = date(year, month, 1)
+        if month == 12:
+            month_end = date(year + 1, 1, 1) - timedelta(days=1)
+        else:
+            month_end = date(year, month + 1, 1) - timedelta(days=1)
+        
+        print(f"🗑️ [DEBUG] 삭제 범위: {month_start} ~ {month_end}")
+        
+        # 기존 데이터 확인
+        existing_response = supabase.table('meal_log').select('*').eq('user_id', str(user_id)).gte('date', month_start.isoformat()).lte('date', month_end.isoformat()).execute()
+        existing_count = len(existing_response.data) if existing_response.data else 0
+        
+        print(f"🗑️ [DEBUG] 해당 월 데이터 개수: {existing_count}")
+        
+        if existing_count == 0:
+            return {"message": f"{year}년 {month}월에 삭제할 식단 계획이 없습니다", "deleted_count": 0}
+
+        # 해당 월의 식단 계획 삭제
+        delete_response = supabase.table('meal_log').delete().eq('user_id', str(user_id)).gte('date', month_start.isoformat()).lte('date', month_end.isoformat()).execute()
+        
+        print(f"🗑️ [DEBUG] 월별 삭제 완료: {delete_response}")
+        
+        return {
+            "message": f"{year}년 {month}월의 모든 식단 계획이 삭제되었습니다 ({existing_count}개)",
+            "deleted_count": existing_count,
+            "year": year,
+            "month": month
+        }
+
+    except Exception as e:
+        print(f"❌ [ERROR] 월별 삭제 실패: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"월별 식단 계획 삭제 중 오류 발생: {str(e)}"
+        )
+
 @router.post("/generate", response_model=MealPlanResponse)
 async def generate_meal_plan(
     request: MealPlanRequest,
