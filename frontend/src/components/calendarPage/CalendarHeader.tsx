@@ -10,7 +10,6 @@ interface CalendarHeaderProps {
   onDeleteMonthPlans: () => void
   isDeletingAll: boolean
   isDeletingMonth: boolean
-  currentMonth: Date
 }
 
 export function CalendarHeader({
@@ -21,8 +20,7 @@ export function CalendarHeader({
   onDeleteAllPlans,
   onDeleteMonthPlans,
   isDeletingAll,
-  isDeletingMonth,
-  currentMonth
+  isDeletingMonth
 }: CalendarHeaderProps) {
   return (
     <div>

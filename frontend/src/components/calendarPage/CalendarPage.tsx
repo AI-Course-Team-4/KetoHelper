@@ -211,7 +211,6 @@ export function CalendarPage() {
         onDeleteMonthPlans={handleDeleteMonthPlans}
         isDeletingAll={deleteAllPlansMutation.isPending}
         isDeletingMonth={deleteMonthPlansMutation.isPending}
-        currentMonth={currentMonth}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -223,7 +222,6 @@ export function CalendarPage() {
                   isLoading={isLoading}
                   isLoadingOverlay={isLoadingOverlay}
                   error={error}
-                  fetchingPlans={fetchingPlans}
                   onDateSelect={handleDateSelect}
                   onMonthChange={handleMonthChange}
                   onDateClick={handleDateClick}

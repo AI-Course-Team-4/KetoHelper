@@ -15,7 +15,6 @@ interface CalendarGridProps {
   isLoading: boolean
   isLoadingOverlay?: boolean
   error: any
-  fetchingPlans?: number
   onDateSelect: (date: Date | undefined) => void
   onMonthChange: (month: Date) => void
   onDateClick: (date: Date) => void
@@ -32,7 +31,6 @@ export function CalendarGrid({
   isLoading,
   isLoadingOverlay,
   error,
-  fetchingPlans = 0,
   onDateSelect,
   onMonthChange,
   onDateClick,
