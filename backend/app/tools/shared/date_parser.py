@@ -100,10 +100,10 @@ class DateParser:
                 else:
                     print(f"🔍 기존 duration 유지 보호: {rule_based_result.duration_days}일")
             
-            # duration_days가 없으면 기본값 7로 설정
+            # duration_days가 없으면 기본값 1로 설정 (하루 식단표가 더 일반적)
             if rule_based_result.duration_days is None:
-                rule_based_result.duration_days = 7
-                logger.debug("규칙 기반 파싱에서 duration_days가 없어서 기본값 7로 설정")
+                rule_based_result.duration_days = 1
+                logger.debug("규칙 기반 파싱에서 duration_days가 없어서 기본값 1로 설정")
             
             logger.debug(f"규칙 기반 파싱 성공: {rule_based_result.description} (신뢰도: {rule_based_result.confidence}, duration: {rule_based_result.duration_days}일)")
             return rule_based_result
@@ -118,10 +118,10 @@ class DateParser:
                 fallback_result.duration_days = context_duration
                 logger.debug(f"대화 맥락에서 일수 정보 적용: {context_duration}일")
             
-            # duration_days가 없으면 기본값 7로 설정
+            # duration_days가 없으면 기본값 1로 설정 (하루 식단표가 더 일반적)
             if fallback_result.duration_days is None:
-                fallback_result.duration_days = 7
-                logger.debug("폴백 파싱에서 duration_days가 없어서 기본값 7로 설정")
+                fallback_result.duration_days = 1
+                logger.debug("폴백 파싱에서 duration_days가 없어서 기본값 1로 설정")
             
             logger.debug(f"폴백 파싱 성공: {fallback_result.description} (신뢰도: {fallback_result.confidence}, duration: {fallback_result.duration_days}일)")
         else:
@@ -341,11 +341,11 @@ JSON 형식:
                         date_str = result.get("date")
                         parsed_date = datetime.strptime(date_str, "%Y-%m-%d")
 
-                        # duration_days가 없으면 기본값 7로 설정
+                        # duration_days가 없으면 기본값 1로 설정 (하루 식단표가 더 일반적)
                         duration_days = result.get("duration_days")
                         if duration_days is None:
-                            duration_days = 7
-                            logger.warning("LLM 응답에 duration_days가 없어서 기본값 7로 설정")
+                            duration_days = 1
+                            logger.warning("LLM 응답에 duration_days가 없어서 기본값 1로 설정")
                         
                         return ParsedDateInfo(
                             date=parsed_date,
@@ -502,11 +502,11 @@ JSON 형식 (duration_days 필드 필수):
                         date_str = result.get("date")
                         parsed_date = datetime.strptime(date_str, "%Y-%m-%d")
 
-                        # duration_days가 없으면 기본값 7로 설정
+                        # duration_days가 없으면 기본값 1로 설정 (하루 식단표가 더 일반적)
                         duration_days = result.get("duration_days")
                         if duration_days is None:
-                            duration_days = 7
-                            logger.warning("LLM 응답에 duration_days가 없어서 기본값 7로 설정")
+                            duration_days = 1
+                            logger.warning("LLM 응답에 duration_days가 없어서 기본값 1로 설정")
                         
                         return ParsedDateInfo(
                             date=parsed_date,

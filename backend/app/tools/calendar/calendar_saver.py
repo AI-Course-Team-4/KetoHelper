@@ -165,11 +165,15 @@ class CalendarSaver:
                 duration_days = 1
                 print(f"⚠️ 기간을 특정할 수 없어 기본값 1일로 설정합니다.")
                 
-            # 🚨 식단 데이터 개수 기반 보정: 실제 days가 더 크면 우선 사용
+            # 🚨 식단 데이터 개수 기반 보정: 사용자가 명시적으로 요청한 일수 우선
             if meal_plan_data and "days" in meal_plan_data:
                 actual_days_count = len(meal_plan_data["days"])
                 print(f"🔍 DEBUG: 식단 데이터에서 {actual_days_count}개 일 찾음")
-                if not duration_days or duration_days < actual_days_count:
+                
+                # 사용자가 명시적으로 1일을 요청한 경우 보정하지 않음
+                if duration_days == 1 and any(keyword in message.lower() for keyword in ['하루', '1일', '오늘', '내일']):
+                    print(f"🔍 사용자가 1일을 명시적으로 요청 - 보정하지 않음")
+                elif not duration_days or duration_days < actual_days_count:
                     print(f"✅ duration_days 보정: {duration_days} → {actual_days_count}")
                     duration_days = actual_days_count
                 else:
