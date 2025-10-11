@@ -1,108 +1,142 @@
 """
 Redis 캐시 관리 클래스
-서버리스 환경에서도 작동하는 캐시 시스템
+서버리스/컨테이너 환경에서도 안전하게 동작하도록 초기화/로깅 강화
 """
 
 import json
-import redis
-from typing import Any, Optional, Union
-from app.core.config import settings
 import logging
+from typing import Any, Optional
+
+import redis
+
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+
 class RedisCache:
     """Redis 캐시 관리 클래스"""
-    
+
     def __init__(self):
-        self.redis_client = None
-        self.enabled = False
-        
-        # Redis 설정 확인 (배포 환경에서만 활성화)
-        redis_url = getattr(settings, 'redis_url', None)
-        is_production = settings.environment == "production"
-        
-        if redis_url and getattr(settings, 'redis_enabled', False) and is_production:
+        self.redis_client: Optional[redis.Redis] = None
+        self.enabled: bool = False
+        self.init_error: Optional[str] = None  # ⬅ 초기화 실패 원인 저장(상태 엔드포인트 노출용)
+
+        # 설정값 읽기
+        redis_url: str = (getattr(settings, "redis_url", "") or "").strip()
+        is_production: bool = str(getattr(settings, "environment", "")).strip().lower() == "production"
+        redis_enabled_flag: bool = bool(getattr(settings, "redis_enabled", False))
+        force_enable: bool = str(getattr(settings, "redis_force_enable", "false")).lower() == "true"
+        no_verify: bool = str(getattr(settings, "redis_ssl_no_verify", "false")).lower() == "true"
+
+        logger.info(
+            "🔎 Redis boot check | env=%r, prod=%r, redis_enabled=%r, url_set=%r, force=%r",
+            getattr(settings, "environment", None),
+            is_production,
+            redis_enabled_flag,
+            bool(redis_url),
+            force_enable,
+        )
+
+        # 활성화 게이트: (URL 있고, 플래그 true이고, prod) 또는 강제활성
+        if (redis_url and redis_enabled_flag and is_production) or force_enable:
             try:
-                # TLS 설정 확인
-                use_ssl = redis_url.startswith("rediss://")
-                
-                # 연결 타임아웃 설정
-                socket_timeout = 1 if settings.environment == "development" else 5
-                
-                self.redis_client = redis.from_url(
-                    redis_url, 
+                # 서버리스에서 너무 짧으면 불안정, 너무 길면 지연 → 5초 정도 권장
+                socket_timeout = 5
+
+                # redis-py는 rediss:// 스킴이면 내부적으로 TLS 적용
+                client_kwargs = dict(
                     decode_responses=True,
                     socket_timeout=socket_timeout,
                     socket_connect_timeout=socket_timeout,
-                    ssl=use_ssl,  # TLS 설정 추가
-                    ssl_cert_reqs=None,  # 인증서 검증 완화 (Upstash 호환)
-                    health_check_interval=30,  # 연결 유지
-                    retry_on_timeout=True
+                    health_check_interval=30,
+                    retry_on_timeout=True,
                 )
-                
-                # 연결 테스트 (동기식이지만 초기화 시에만 사용)
+
+                # 인증서 검증 이슈(Managed Redis/프록시 환경 등) 있을 때만 임시 완화
+                if redis_url.startswith("rediss://") and no_verify:
+                    client_kwargs["ssl"] = True
+                    client_kwargs["ssl_cert_reqs"] = None  # 구버전 호환 목적
+
+                self.redis_client = redis.from_url(redis_url, **client_kwargs)
+
+                # 연결 확인 + 간단한 read/write 검증
                 self.redis_client.ping()
+                self.redis_client.setex("healthcheck", 30, "ok")
+                assert self.redis_client.get("healthcheck") == "ok"
+
                 self.enabled = True
-                logger.info(f"✅ Redis 캐시 연결 성공 (배포 환경, SSL: {use_ssl})")
+                self.init_error = None
+                logger.info(
+                    "✅ Redis 연결 성공 (scheme=%s)",
+                    "rediss" if redis_url.startswith("rediss://") else "redis",
+                )
+
             except Exception as e:
-                logger.warning(f"❌ Redis 연결 실패, 메모리 캐시 사용: {e}")
+                # 실패시 메모리 모드로 폴백
+                self.redis_client = None
                 self.enabled = False
+                self.init_error = repr(e)
+                logger.warning("❌ Redis 연결 실패 → 메모리 캐시 사용: %r", e)
+
         else:
-            if not is_production:
-                logger.info("ℹ️ 로컬 환경 - 메모리 캐시 사용 (빠름)")
-            else:
-                logger.info("ℹ️ Redis 설정 없음, 메모리 캐시 사용")
-    
+            # 게이트에서 비활성화된 케이스(원인을 기록)
+            reasons = []
+            if not redis_url:
+                reasons.append("no_url")
+            if not redis_enabled_flag:
+                reasons.append("flag_off")
+            if not is_production and not force_enable:
+                reasons.append("not_prod")
+            self.enabled = False
+            self.redis_client = None
+            self.init_error = f"disabled_by_gate({','.join(reasons)})"
+            logger.info("ℹ️ Redis 비활성: %s", self.init_error)
+
     def get(self, key: str) -> Optional[Any]:
-        """캐시에서 값 가져오기"""
+        """캐시에서 값 가져오기 (JSON 역직렬화)"""
         if not self.enabled or not self.redis_client:
             return None
-            
         try:
             value = self.redis_client.get(key)
-            if value:
-                return json.loads(value)
-            return None
+            return json.loads(value) if value else None
         except Exception as e:
-            logger.warning(f"Redis GET 오류: {e}")
+            logger.warning("Redis GET 오류: %r", e)
             return None
-    
+
     def set(self, key: str, value: Any, ttl: int = 3600) -> bool:
-        """캐시에 값 저장하기"""
+        """캐시에 값 저장 (JSON 직렬화)"""
         if not self.enabled or not self.redis_client:
             return False
-            
         try:
             serialized_value = json.dumps(value, ensure_ascii=False)
             self.redis_client.setex(key, ttl, serialized_value)
             return True
         except Exception as e:
-            logger.warning(f"Redis SET 오류: {e}")
+            logger.warning("Redis SET 오류: %r", e)
             return False
-    
+
     def delete(self, key: str) -> bool:
-        """캐시에서 값 삭제하기"""
+        """캐시에서 값 삭제"""
         if not self.enabled or not self.redis_client:
             return False
-            
         try:
             self.redis_client.delete(key)
             return True
         except Exception as e:
-            logger.warning(f"Redis DELETE 오류: {e}")
+            logger.warning("Redis DELETE 오류: %r", e)
             return False
-    
+
     def exists(self, key: str) -> bool:
-        """캐시 키 존재 여부 확인"""
+        """키 존재 여부"""
         if not self.enabled or not self.redis_client:
             return False
-            
         try:
             return bool(self.redis_client.exists(key))
         except Exception as e:
-            logger.warning(f"Redis EXISTS 오류: {e}")
+            logger.warning("Redis EXISTS 오류: %r", e)
             return False
 
-# 전역 Redis 캐시 인스턴스
+
+# 전역 단일 인스턴스 — 상태 엔드포인트 등에서 반드시 이걸 참조
 redis_cache = RedisCache()
