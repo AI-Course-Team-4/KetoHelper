@@ -11,6 +11,7 @@ from typing import List, Dict, Any, Optional
 from pathlib import Path
 from app.core.database import supabase
 from app.core.config import settings
+from app.core.redis_cache import redis_cache
 
 class KoreanSearchTool:
     """한글 최적화 검색 도구 클래스"""
