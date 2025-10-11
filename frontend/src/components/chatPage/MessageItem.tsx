@@ -186,7 +186,7 @@ export function MessageItem({
                       code: ({ children }) => <code className="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono">{children}</code>,
                       pre: ({ children }) => <pre className="bg-gray-100 p-3 rounded-lg overflow-x-auto text-sm">{children}</pre>,
                       blockquote: ({ children }) => <blockquote className="border-l-4 border-gray-300 pl-4 italic text-gray-600">{children}</blockquote>,
-                      a: ({ href, children }) => <a href={href} className="text-gray-900 hover:text-gray-700 underline" target="_blank" rel="noopener noreferrer">{children}</a>,
+                      a: ({ href, children }) => <a href={href} className="text-gray-700 hover:text-gray-900 underline [&>*]:text-gray-700 [&>*]:hover:text-gray-900" target="_blank" rel="noopener noreferrer">{children}</a>,
                     }}
                   >
                     {displayedText}

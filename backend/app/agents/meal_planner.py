@@ -1216,6 +1216,7 @@ class MealPlannerAgent:
                             "title": selected_recipe.get('title', f"키토 {slot}"),
                             "content": selected_recipe.get('content', ''),
                             "similarity": selected_recipe.get('similarity', 0.0),
+                            "url": selected_recipe.get('url'),  # URL 추가
                             "metadata": selected_recipe.get('metadata', {}),
                             "allergens": selected_recipe.get('allergens', []),
                             "ingredients": selected_recipe.get('ingredients', [])
@@ -1425,6 +1426,7 @@ class MealPlannerAgent:
                                 "title": selected_recipe.get('title', f"키토 {slot}"),
                                 "content": selected_recipe.get('content', ''),
                                 "similarity": selected_recipe.get('similarity', 0.0),
+                                "url": selected_recipe.get('url'),  # URL 추가
                                 "metadata": selected_recipe.get('metadata', {}),
                                 "allergens": selected_recipe.get('allergens', []),
                                 "ingredients": selected_recipe.get('ingredients', [])
@@ -2045,6 +2047,7 @@ class MealPlannerAgent:
             ingredients = result.get('ingredients', 'Unknown')
             content = result.get('content', 'Unknown')
             similarity = result.get('similarity_score', 0.0)
+            url = result.get('url')  # URL 추가
             
             # 내용이 너무 길면 잘라내기
             if len(content) > 300:
@@ -2059,6 +2062,13 @@ class MealPlannerAgent:
 **조리법:**
 {content}
 """
+            # URL이 있으면 추가
+            if url:
+                recipe_info += f"\n**출처 URL:** {url}\n"
+                print(f"  ✅ 레시피 '{title}' URL 포함: {url}")
+            else:
+                print(f"  ⚠️ 레시피 '{title}' URL 없음")
+            
             formatted_recipes.append(recipe_info)
         
         return "\n".join(formatted_recipes)
