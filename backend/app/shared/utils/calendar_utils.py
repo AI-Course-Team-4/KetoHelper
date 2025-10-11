@@ -40,19 +40,24 @@ class CalendarUtils:
                         current_day = {}
                         day_number += 1
                     
-                    # 식사 시간별 파싱 (이모지 제거된 라인 사용)
+                    # 식사 시간별 파싱 (URL 정보 보존)
                     if '아침:' in clean_line:
                         title = clean_line.split('아침:')[1].strip() if ':' in clean_line else line.split('아침:')[1].strip()
-                        current_day['breakfast'] = {'title': title}
+                        # URL 정보 추출 (마크다운 링크 패턴)
+                        url = CalendarUtils._extract_url_from_markdown(title)
+                        current_day['breakfast'] = {'title': title, 'url': url}
                     elif '점심:' in clean_line:
                         title = clean_line.split('점심:')[1].strip() if ':' in clean_line else line.split('점심:')[1].strip()
-                        current_day['lunch'] = {'title': title}
+                        url = CalendarUtils._extract_url_from_markdown(title)
+                        current_day['lunch'] = {'title': title, 'url': url}
                     elif '저녁:' in clean_line:
                         title = clean_line.split('저녁:')[1].strip() if ':' in clean_line else line.split('저녁:')[1].strip()
-                        current_day['dinner'] = {'title': title}
+                        url = CalendarUtils._extract_url_from_markdown(title)
+                        current_day['dinner'] = {'title': title, 'url': url}
                     elif '간식:' in clean_line:
                         title = clean_line.split('간식:')[1].strip() if ':' in clean_line else line.split('간식:')[1].strip()
-                        current_day['snack'] = {'title': title}
+                        url = CalendarUtils._extract_url_from_markdown(title)
+                        current_day['snack'] = {'title': title, 'url': url}
 
                 # 마지막 날 추가
                 if current_day:
@@ -249,12 +254,19 @@ class CalendarUtils:
                     print(f"  - 빈 문자열: {not meal_title or not meal_title.strip()}")
                     
                     if meal_title and meal_title.strip() and not has_banned:
+                        # URL 정보 추출 (meal_item이 딕셔너리인 경우)
+                        meal_url = None
+                        if isinstance(meal_item, dict) and meal_item.get('url'):
+                            meal_url = meal_item['url']
+                            print(f"🔍 DEBUG: {i+1}일차 {slot} URL 발견: {meal_url}")
+                        
                         meal_log = {
                             "user_id": str(user_id),
                             "date": date_string,
                             "meal_type": slot,
                             "eaten": False,
                             "note": meal_title.strip(),
+                            "url": meal_url,  # URL 정보 추가
                             "created_at": datetime.utcnow().isoformat(),
                             "updated_at": datetime.utcnow().isoformat()
                         }
@@ -297,3 +309,28 @@ class CalendarUtils:
                 print(f"⚠️ thread에서 user_id 조회 실패: {thread_error}")
 
         return user_id
+
+    @staticmethod
+    def _extract_url_from_markdown(text: str) -> Optional[str]:
+        """마크다운 링크에서 URL 추출"""
+        import re
+        
+        # 마크다운 링크 패턴: [텍스트](URL)
+        markdown_pattern = r'\[([^\]]+)\]\(([^)]+)\)'
+        match = re.search(markdown_pattern, text)
+        
+        if match:
+            url = match.group(2)
+            print(f"🔍 마크다운에서 URL 추출: {url}")
+            return url
+        
+        # 일반 URL 패턴도 체크 (http/https로 시작하는 링크)
+        url_pattern = r'https?://[^\s]+'
+        url_match = re.search(url_pattern, text)
+        
+        if url_match:
+            url = url_match.group(0)
+            print(f"🔍 일반 URL에서 추출: {url}")
+            return url
+        
+        return None
