@@ -31,6 +31,9 @@ sqlalchemy==2.0.23
 pgvector==0.2.5
 supabase==2.18.1
 
+# Redis (배포 환경용)
+redis[hiredis]>=5.0.0,<6.0
+
 # Utils
 pydantic>=2.11.7,<3
 httpx>=0.26,<0.29
