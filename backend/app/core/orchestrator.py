@@ -1273,7 +1273,7 @@ class KetoCoachAgent:
                                 print(f"    🥘 ingredients 배열 사용: {main_ingredients}")
                             
                             if main_ingredients:
-                                response_text += f"- **주요 재료**: {', '.join(main_ingredients)}\n"
+                                response_text += f"- **준비물**: {', '.join(main_ingredients)}\n"
                             
                             # 2. 조리 방법 및 팁 (blob 데이터 직접 활용)
                             cooking_method = ""
