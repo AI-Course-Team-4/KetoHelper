@@ -10,10 +10,10 @@ interface QuickActionsProps {
 
 export function QuickActions({ onQuickMessage, isLoading, isWelcomeScreen = false, isChatLimitReached = false, disabled = false }: QuickActionsProps) {
   const quickMessages = [
-    "아침 키토 레시피 추천해줘",
-    "강남역 근처 키토 식당 찾아줘",
+    "키토 다이어트 방법 알려줘",
     "7일 키토 식단표 만들어줘",
-    "키토 다이어트 방법 알려줘"
+    "강남역 근처 키토 식당 찾아줘",
+    "아침 키토 레시피 추천해줘",
   ]
 
   const buttonClass = isWelcomeScreen 

@@ -51,11 +51,33 @@ def create_chat_llm(
 
     # 기본: Gemini
     from langchain_google_genai import ChatGoogleGenerativeAI
+    import os
+    import warnings
 
     if not settings.google_api_key:
         raise ValueError("GOOGLE_API_KEY is not set")
 
+    # Google API 관련 경고 완전 비활성화
+    warnings.filterwarnings("ignore", category=UserWarning, module="google")
+    warnings.filterwarnings("ignore", category=DeprecationWarning, module="google")
+    
+    # ALTS credentials 오류 완전 방지
+    os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+    os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
+    os.environ.pop("GCLOUD_PROJECT", None)
+    os.environ.pop("GOOGLE_CLOUD_PROJECT_ID", None)
+    
+    # Google API 인증 방식 강제 설정
+    os.environ["GOOGLE_API_USE_CLIENT_CERTIFICATE"] = "false"
+    os.environ["GOOGLE_API_USE_MTLS"] = "false"
+    os.environ["GOOGLE_API_USE_GRPC"] = "false"
+    
+    # Google API 라이브러리 설정
+    os.environ["GOOGLE_CLOUD_DISABLE_GRPC"] = "true"
+    os.environ["GOOGLE_CLOUD_DISABLE_MTLS"] = "true"
+
     return ChatGoogleGenerativeAI(
         google_api_key=settings.google_api_key,
+        timeout=float(selected_timeout),
         **common_kwargs,
     )

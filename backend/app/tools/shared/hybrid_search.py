@@ -151,17 +151,20 @@ class HybridSearchTool:
             # 키워드 검색 결과 포맷팅
             formatted_results = []
             for result in unique_results:
-                formatted_results.append({
-                    'id': str(result.get('id', '')),
-                    'title': result.get('title', '제목 없음'),
-                    'content': result.get('content', ''),
-                    'vector_score': 0.0,
-                    'keyword_score': 1.0,
-                    'hybrid_score': 1.0,
-                    'search_type': 'keyword',
-                    'url': result.get('url'),  # URL 추가
-                    'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'embedding', 'url']}
-                })
+                    formatted_results.append({
+                        'id': str(result.get('id', '')),
+                        'title': result.get('title', '제목 없음'),
+                        'content': result.get('content', ''),
+                        'blob': result.get('blob', ''),  # blob 데이터 추가
+                        'content': result.get('content', ''),
+                        'blob': result.get('blob', ''),  # blob 데이터 추가
+                        'vector_score': 0.0,
+                        'keyword_score': 1.0,
+                        'hybrid_score': 1.0,
+                        'search_type': 'keyword',
+                        'url': result.get('url'),  # URL 추가
+                        'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'embedding', 'url', 'blob']}
+                    })
             
             return formatted_results[:k]
             
@@ -191,20 +194,152 @@ class HybridSearchTool:
                 print("  ⚠️ RPC 검색 실패, 키워드 검색으로 폴백")
                 return await self._fallback_keyword_search(query, k)
             
-            # 3. 결과 포맷팅
-            formatted_results = []
-            for result in results:
-                formatted_results.append({
-                    'id': str(result.get('id', '')),
-                    'title': result.get('title', '제목 없음'),
-                    'content': result.get('content', ''),
-                    'vector_score': result.get('vector_score', 0.0),
-                    'keyword_score': result.get('keyword_score', 0.0),
-                    'hybrid_score': result.get('hybrid_score', 0.0),
-                    'search_type': 'hybrid',
-                    'url': result.get('url'),  # URL 추가
-                    'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'vector_score', 'keyword_score', 'hybrid_score', 'url']}
-                })
+            # 3. 결과 포맷팅 및 다양성 개선 (강화된 버전)
+            # 🎯 아침 식사에만 특별 로직 적용: 계란 포함/제외 분리 후 랜덤 선택
+            # 아침 키워드 체크
+            breakfast_keywords = ['아침', '브렉퍼스트', '모닝', 'breakfast', 'morning']
+            is_breakfast_query = any(keyword in query.lower() for keyword in breakfast_keywords)
+            
+            if is_breakfast_query:
+                print(f"    🌅 아침 식사 감지 - 특별 다양성 로직 적용")
+                
+                egg_recipes = []
+                non_egg_recipes = []
+                
+                # 계란 관련 키워드 (동의어 포함)
+                egg_keywords = ['계란', 'egg', '달걀', '계란프라이', '스크램블', '오믈렛', '에그']
+                
+                for result in results:
+                    title = result.get('title', '제목 없음')
+                    content = result.get('content', '')
+                    
+                    # 계란 포함 여부 체크
+                    is_egg = any(keyword in title.lower() or keyword in content.lower() for keyword in egg_keywords)
+                    
+                    if is_egg:
+                        egg_recipes.append(result)
+                    else:
+                        non_egg_recipes.append(result)
+                
+                print(f"    🔍 계란 포함 레시피: {len(egg_recipes)}개")
+                print(f"    🔍 계란 제외 레시피: {len(non_egg_recipes)}개")
+                
+                # 다양성 확보: 계란 1개 + 비계란 2개 (총 3개)
+                import random
+                selected_results = []
+                
+                # 계란 레시피 1개 선택 (있으면)
+                if egg_recipes:
+                    selected_egg = random.choice(egg_recipes)
+                    selected_results.append(selected_egg)
+                    print(f"    ✅ 계란 레시피 선택: {selected_egg.get('title')}")
+                
+                # 비계란 레시피 2개 선택 (부족하면 가능한 만큼)
+                non_egg_count = min(2, len(non_egg_recipes))
+                if non_egg_count > 0:
+                    selected_non_egg = random.sample(non_egg_recipes, non_egg_count)
+                    selected_results.extend(selected_non_egg)
+                    print(f"    ✅ 비계란 레시피 선택: {[r.get('title') for r in selected_non_egg]}")
+                
+                # 결과가 부족하면 나머지 추가
+                if len(selected_results) < 3 and len(results) > len(selected_results):
+                    remaining = [r for r in results if r not in selected_results]
+                    needed = 3 - len(selected_results)
+                    selected_results.extend(remaining[:needed])
+                    print(f"    ✅ 추가 레시피 선택: {[r.get('title') for r in remaining[:needed]]}")
+                
+                print(f"    ✅ 최종 선택된 레시피: {len(selected_results)}개")
+                
+                # 선택된 결과로 formatted_results 생성
+                formatted_results = []
+                for result in selected_results:
+                    title = result.get('title', '제목 없음')
+                    content = result.get('content', '')
+                    
+                    # 간단한 결과 포맷팅 (이미 다양성이 확보된 상태)
+                    
+                    formatted_results.append({
+                        'id': str(result.get('id', '')),
+                        'title': result.get('title', '제목 없음'),
+                        'content': result.get('content', ''),
+                        'blob': result.get('blob', ''),  # blob 데이터 추가
+                        'vector_score': result.get('vector_score', 0.0),
+                        'keyword_score': result.get('keyword_score', 0.0),
+                        'hybrid_score': result.get('hybrid_score', 0.0),
+                        'search_type': 'hybrid',
+                        'url': result.get('url'),
+                        'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'vector_score', 'keyword_score', 'hybrid_score', 'url', 'blob']}
+                    })
+            else:
+                print(f"    🍽️ 일반 식사 - 기존 다양성 로직 적용")
+                
+                # 기존 다양성 필터링 로직 (아침이 아닌 경우)
+                formatted_results = []
+                seen_titles = set()
+                seen_ingredients = set()
+                seen_categories = set()
+                seen_proteins = set()
+                
+                for result in results:
+                    title = result.get('title', '제목 없음')
+                    content = result.get('content', '')
+                    
+                    # 다양성 체크: 같은 제목이나 유사한 카테고리 제외
+                    if title in seen_titles:
+                        continue
+                    
+                    # 배추류 중복 체크
+                    cabbage_keywords = ['양배추', '알배추', '배추', 'cabbage']
+                    is_cabbage = any(keyword in title.lower() or keyword in content.lower() for keyword in cabbage_keywords)
+                    if is_cabbage and '배추류' in seen_ingredients:
+                        print(f"    ⚠️ 배추류 중복 제외: '{title}'")
+                        continue
+                    if is_cabbage:
+                        seen_ingredients.add('배추류')
+                    
+                    # 계란 중복 체크 (일반적인 경우)
+                    egg_keywords = ['계란', 'egg', '달걀', '계란프라이', '스크램블', '오믈렛', '에그']
+                    is_egg = any(keyword in title.lower() or keyword in content.lower() for keyword in egg_keywords)
+                    if is_egg and '계란' in seen_ingredients:
+                        print(f"    ⚠️ 계란 중복 제외: '{title}'")
+                        continue
+                    if is_egg:
+                        seen_ingredients.add('계란')
+                    
+                    # 김밥 중복 체크
+                    if '김밥' in title.lower() or 'gimbap' in title.lower():
+                        if '김밥' in seen_categories:
+                            print(f"    ⚠️ 김밥 중복 제외: '{title}'")
+                            continue
+                        seen_categories.add('김밥')
+                    
+                    # 단백질원 중복 체크
+                    protein_keywords = ['닭고기', '소고기', '돼지고기', '연어', '새우', '참치', '베이컨', '치즈']
+                    for protein in protein_keywords:
+                        if protein in title.lower() or protein in content.lower():
+                            if protein in seen_proteins:
+                                print(f"    ⚠️ 단백질원 중복 제외: '{title}' (단백질원: {protein})")
+                                continue
+                            seen_proteins.add(protein)
+                            break
+                    
+                    formatted_results.append({
+                        'id': str(result.get('id', '')),
+                        'title': result.get('title', '제목 없음'),
+                        'content': result.get('content', ''),
+                        'blob': result.get('blob', ''),  # blob 데이터 추가
+                        'vector_score': result.get('vector_score', 0.0),
+                        'keyword_score': result.get('keyword_score', 0.0),
+                        'hybrid_score': result.get('hybrid_score', 0.0),
+                        'search_type': 'hybrid',
+                        'url': result.get('url'),
+                        'metadata': {k: v for k, v in result.items() if k not in ['id', 'title', 'content', 'vector_score', 'keyword_score', 'hybrid_score', 'url', 'blob']}
+                    })
+                    
+                    # 다양성 확보를 위해 최대 3개로 제한
+                    if len(formatted_results) >= 3:
+                        print(f"    ✅ 다양성 확보: {len(formatted_results)}개 결과로 제한")
+                        break
             
             print(f"  ✅ 최종 결과: {len(formatted_results)}개")
             
@@ -251,10 +386,19 @@ class HybridSearchTool:
                     search_strategy = result.get('search_strategy', 'unknown')
                     search_message = result.get('search_message', '')
                 
+                # blob 데이터 디버깅
+                blob_data = result.get('blob', '')
+                print(f"    🔍 하이브리드 검색 blob 확인: {result.get('title', '제목없음')}")
+                print(f"    🔍 blob 존재: {bool(blob_data)}")
+                print(f"    🔍 blob 길이: {len(str(blob_data))}")
+                if blob_data:
+                    print(f"    🔍 blob 내용: {str(blob_data)[:100]}...")
+                
                 formatted_results.append({
                     'id': result.get('id', ''),
                     'title': result.get('title', '제목 없음'),
                     'content': result.get('content', ''),
+                    'blob': result.get('blob', ''),  # blob 데이터 추가
                     'allergens': result.get('allergens', []),
                     'ingredients': result.get('ingredients', []),
                     'similarity': result.get('final_score', 0.0),
@@ -295,6 +439,7 @@ class HybridSearchTool:
                         'id': result.get('id', ''),
                         'title': result.get('title', '제목 없음'),
                         'content': result.get('content', ''),
+                        'blob': result.get('blob', ''),  # blob 데이터 추가
                         'allergens': result.get('allergens', []),
                         'ingredients': result.get('ingredients', []),
                         'similarity': result.get('hybrid_score', 0.0),
