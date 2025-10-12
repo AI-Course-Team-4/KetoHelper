@@ -31,7 +31,7 @@ from app.prompts.meal.guest_recipe_templates import get_guest_recipe_template, f
 from app.prompts.meal.recipe_response import RECIPE_RESPONSE_GENERATION_PROMPT
 from app.prompts.restaurant.search_failure import PLACE_SEARCH_FAILURE_PROMPT
 from app.prompts.shared.common_templates import create_standard_prompt
-from app.prompts.chat.general_templates import get_general_response_template, format_keto_start_guide
+from app.prompts.chat.general_templates import get_general_response_template
 from app.prompts.calendar import (
     CALENDAR_SAVE_CONFIRMATION_PROMPT,
     CALENDAR_SAVE_FAILURE_PROMPT,
@@ -797,7 +797,7 @@ class KetoCoachAgent:
             
             if is_keto_start:
                 # 템플릿 기반 빠른 응답 (0.1초) - 기존 프로필 정보 직접 활용
-                state["response"] = format_keto_start_guide(state.get("profile", {}))
+                state["response"] = get_general_response_template(current_message, state.get("profile", {}))
                 state["tool_calls"].append({
                     "tool": "general",
                     "method": "template_based",
@@ -1417,7 +1417,7 @@ class KetoCoachAgent:
                             response_text += "💡 **개인화된 레시피**: 프로필 기반 맞춤형 추천입니다.\n"
                         
                         # 링크 안내 메시지 추가
-                        response_text += "\n🔗 **레시피** 혹은 🔗을 클릭하면 더욱 상세한 정보를 얻을 수 있습니다.\n"
+                        response_text += "\n💡 **레시피** 혹은 🔗을 클릭하면 더욱 상세한 정보를 얻을 수 있습니다.\n"
                         
                         state["response"] = response_text
                         state["tool_calls"].append({
