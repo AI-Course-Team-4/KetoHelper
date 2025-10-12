@@ -46,38 +46,17 @@ async def get_plans_range(
         # meal_log 데이터를 PlanResponse 형태로 변환
         plans = []
         for log in meal_logs:
-            # URL 가져오기 시도
-            recipe_url = None
-            meal_title = log.get("note", "")
+            # ✅ meal_log 테이블에서 URL 직접 사용 (간소화)
+            recipe_url = log.get("url")
             
-            # 방법 1: mealplan_id를 통한 조회
-            if log.get("mealplan_id"):
-                try:
-                    # meal_plan_item에서 recipe_blob_id 찾기
-                    plan_item_response = supabase.table('meal_plan_item').select('recipe_blob_id').eq('mealplan_id', log["mealplan_id"]).eq('meal_type', log["meal_type"]).eq('planned_date', log["date"]).limit(1).execute()
-                    
-                    if plan_item_response.data and len(plan_item_response.data) > 0:
-                        recipe_blob_id = plan_item_response.data[0].get('recipe_blob_id')
-                        
-                        if recipe_blob_id:
-                            # recipe_blob_emb에서 URL 찾기
-                            recipe_response = supabase.table('recipe_blob_emb').select('url').eq('id', recipe_blob_id).limit(1).execute()
-                            
-                            if recipe_response.data and len(recipe_response.data) > 0:
-                                recipe_url = recipe_response.data[0].get('url')
-                except Exception:
-                    pass
-            
-            # 방법 2: 제목으로 직접 검색 (mealplan_id가 없거나 방법 1 실패 시)
-            if not recipe_url and meal_title:
-                try:
-                    # recipe_blob_emb에서 제목으로 직접 검색
-                    title_response = supabase.table('recipe_blob_emb').select('url').eq('title', meal_title).limit(1).execute()
-                    
-                    if title_response.data and len(title_response.data) > 0:
-                        recipe_url = title_response.data[0].get('url')
-                except Exception:
-                    pass
+            # URL 정리: 괄호, 따옴표 등 제거
+            if recipe_url:
+                recipe_url = recipe_url.strip()
+                # 마크다운 링크에서 괄호가 남아있는 경우 제거
+                recipe_url = recipe_url.rstrip(')')
+                recipe_url = recipe_url.lstrip('(')
+                # 따옴표 제거
+                recipe_url = recipe_url.strip('"\'')
             
             plan = {
                 "id": str(log["id"]),
@@ -87,7 +66,7 @@ async def get_plans_range(
                 "type": "recipe",  # 기본값
                 "ref_id": str(log.get("mealplan_id", "")),
                 "title": log.get("note", "식단 기록"),
-                "url": recipe_url,  # ✅ URL 추가
+                "url": recipe_url,  # ✅ 정리된 URL 사용
                 "location": None,
                 "macros": None,
                 "notes": log.get("note"),
