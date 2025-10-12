@@ -101,7 +101,7 @@ INTRODUCTION_TEMPLATE_GUEST = """
 KETO_EXPLANATION_TEMPLATE_LOGGED_IN = """
 # 🥑 키토 다이어트란?
 
-**키토제닉 다이어트(Ketogenic Diet)**는 고지방, 저탄수화물 식단입니다.
+**키토제닉 다이어트** (Ketogenic Diet)는 고지방, 저탄수화물 식단입니다.
 
 ## 📊 기본 원리
 - **탄수화물**: 20g 이하 (일일 칼로리의 5%)
@@ -150,7 +150,7 @@ KETO_EXPLANATION_TEMPLATE_LOGGED_IN = """
 KETO_EXPLANATION_TEMPLATE_GUEST = """
 # 🥑 키토 다이어트란?
 
-**키토제닉 다이어트(Ketogenic Diet)**는 고지방, 저탄수화물 식단입니다.
+**키토제닉 다이어트** (Ketogenic Diet)는 고지방, 저탄수화물 식단입니다.
 
 ## 📊 기본 원리
 - **탄수화물**: 20g 이하 (일일 칼로리의 5%)
