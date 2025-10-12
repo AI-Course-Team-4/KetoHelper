@@ -30,6 +30,8 @@ from app.prompts.chat.response_generation import RESPONSE_GENERATION_PROMPT, PLA
 from app.prompts.meal.guest_recipe_templates import get_guest_recipe_template, format_guest_recipe_template
 from app.prompts.meal.recipe_response import RECIPE_RESPONSE_GENERATION_PROMPT
 from app.prompts.restaurant.search_failure import PLACE_SEARCH_FAILURE_PROMPT
+from app.prompts.shared.common_templates import create_standard_prompt
+from app.prompts.chat.general_templates import get_general_response_template, format_keto_start_guide
 from app.prompts.calendar import (
     CALENDAR_SAVE_CONFIRMATION_PROMPT,
     CALENDAR_SAVE_FAILURE_PROMPT,
@@ -577,7 +579,7 @@ class KetoCoachAgent:
                     "tool": "ai_recipe_generator",
                     "query": message,
                     "method": "gemini_generation",
-                    "reason": "diversity_insufficient" if diversity_score < 0.5 else "no_results"
+                    "reason": "no_results"
                 })
             else:
                 # 검색 결과가 있을 때
