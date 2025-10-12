@@ -24,10 +24,12 @@ from app.tools.shared.date_parser import DateParser
 from app.tools.shared.temporary_dislikes_extractor import temp_dislikes_extractor
 from app.tools.meal.response_formatter import MealResponseFormatter
 from app.core.llm_factory import create_chat_llm
+from app.core.redis_cache import redis_cache
 from config import get_personal_configs, get_agent_config
 
 # 기본값 상수 정의
 DEFAULT_MEAL_PLAN_DAYS = 7
+MAX_MEAL_PLAN_DAYS = 7  # 최대 7일 제한
 
 class MealPlannerAgent:
     """7일 키토 식단표 생성 에이전트"""
@@ -2244,8 +2246,27 @@ class MealPlannerAgent:
             days = DEFAULT_MEAL_PLAN_DAYS
             print(f"📅 일수 파악 실패 → plans.py 기본값 {days}일 사용")
         
-        # 2. 제약조건 추출
+        # 🚨 일수 제한 가드 (최대 7일) - 사용자 친화적 메시지
+        if days > MAX_MEAL_PLAN_DAYS:
+            original_days = days
+            days = MAX_MEAL_PLAN_DAYS
+            print(f"⚠️ 요청 일수({original_days}일)가 최대 제한({MAX_MEAL_PLAN_DAYS}일)을 초과합니다.")
+            print(f"✅ 일수를 {MAX_MEAL_PLAN_DAYS}일로 제한합니다.")
+            
+            # 사용자에게 친화적인 메시지 추가
+            state["days_limited_message"] = f"💡 **안내**: 식단 생성은 최대 {MAX_MEAL_PLAN_DAYS}일까지만 가능합니다.\n\n요청하신 {original_days}일 대신 {MAX_MEAL_PLAN_DAYS}일 식단을 생성해드릴게요. 매주 새로운 식단을 받아보시면 더욱 다양하고 신선한 메뉴를 즐기실 수 있어요! 🍽️"
+        
+        print(f"📅 최종 일수: {days}일")
+        
+        # 🚀 식단 생성 캐싱 로직 추가
         constraints = self._extract_all_constraints(message, state)
+        cache_key = f"meal_plan_{days}_{constraints.get('kcal_target', '')}_{constraints.get('carbs_max', 30)}_{hash(tuple(sorted(constraints.get('allergies', []))))}_{hash(tuple(sorted(constraints.get('dislikes', []))))}_{state.get('profile', {}).get('user_id', '')}"
+        
+        # Redis 캐시 확인
+        cached_result = redis_cache.get(cache_key)
+        if cached_result:
+            print(f"    📊 Redis 식단 생성 캐시 히트: {days}일 식단")
+            return cached_result
         
         # 3. fast_mode 결정
         fast_mode = state.get("fast_mode", self._determine_fast_mode(message))
@@ -2357,6 +2378,10 @@ class MealPlannerAgent:
         # 7. 결과 반환 - 프론트엔드가 인식할 수 있는 형태로 results 구성
         # 프론트엔드 MealParserService가 찾는 형태: result.type === 'meal_plan' || result.days
         
+        # 제한 메시지가 있으면 응답에 추가
+        if state.get("days_limited_message"):
+            formatted_response = state["days_limited_message"] + "\n\n" + formatted_response
+        
         # 프론트엔드로 전송할 데이터 구성
         frontend_meal_result = {
             "type": "meal_plan",
@@ -2382,6 +2407,10 @@ class MealPlannerAgent:
             }]
         }
         
+        # 🚀 식단 생성 결과 캐싱 (TTL: 1시간)
+        redis_cache.set(cache_key, result_data, ttl=3600)
+        print(f"    📊 식단 생성 결과 캐시 저장: {days}일 식단")
+        
         print("🔍 DEBUG: 최종 반환 데이터 구조:")
         print(f"  - results length: {len(result_data.get('results', []))}")
         print(f"  - meal_plan_data 존재: {bool(result_data.get('meal_plan_data'))}")
@@ -2400,6 +2429,17 @@ class MealPlannerAgent:
             Dict[str, Any]: 업데이트할 상태 정보
         """
         print(f"🍳 레시피 요청 처리 시작: '{message}'")
+        
+        # 🚀 레시피 요청 캐싱 로직 추가
+        constraints = self._extract_all_constraints(message, state)
+        user_id = state.get("profile", {}).get("user_id", "")
+        cache_key = f"recipe_{hash(message)}_{constraints.get('kcal_target', '')}_{constraints.get('carbs_max', 30)}_{hash(tuple(sorted(constraints.get('allergies', []))))}_{hash(tuple(sorted(constraints.get('dislikes', []))))}_{user_id}"
+        
+        # Redis 캐시 확인
+        cached_result = redis_cache.get(cache_key)
+        if cached_result:
+            print(f"    📊 Redis 레시피 요청 캐시 히트: {message[:30]}...")
+            return cached_result
         
         # 1. 제약조건 추출
         constraints = self._extract_all_constraints(message, state)
@@ -2430,15 +2470,15 @@ class MealPlannerAgent:
             recipe, message
         )
         
-        # 5. 결과 반환
-        return {
+        # 5. 결과 반환 (response 제거하여 _answer_node에서 템플릿 처리)
+        result_data = {
             "results": [{
                 "title": f"AI 생성: {message}",
                 "content": recipe,
                 "source": "meal_planner_agent",
                 "type": "recipe"
             }],
-            "response": formatted_response,
+            # "response": formatted_response,  # 제거하여 _answer_node에서 템플릿 처리
             "formatted_response": formatted_response,
             "tool_calls": [{
                 "tool": "meal_planner",
@@ -2447,6 +2487,12 @@ class MealPlannerAgent:
                 "has_profile": bool(user_id and state.get("profile"))
             }]
         }
+        
+        # 🚀 레시피 요청 결과 캐싱 (TTL: 30분)
+        redis_cache.set(cache_key, result_data, ttl=1800)
+        print(f"    📊 레시피 요청 결과 캐시 저장: {message[:30]}...")
+        
+        return result_data
     
     # ==========================================
     # 헬퍼 메서드들
@@ -2472,8 +2518,16 @@ class MealPlannerAgent:
             parsed_date = self.date_parser.parse_natural_date_with_context(message, chat_history)
             print(f"🔍 DEBUG: parsed_date 결과: {parsed_date}")
             if parsed_date and parsed_date.duration_days:
-                print(f"📅 DateParser LLM이 감지한 days: {parsed_date.duration_days}")
-                return parsed_date.duration_days
+                days = parsed_date.duration_days
+                print(f"📅 DateParser LLM이 감지한 days: {days}")
+                
+                # 🚨 일수 제한 가드 (최대 7일)
+                if days > MAX_MEAL_PLAN_DAYS:
+                    print(f"⚠️ 파싱된 일수({days}일)가 최대 제한({MAX_MEAL_PLAN_DAYS}일)을 초과합니다.")
+                    days = MAX_MEAL_PLAN_DAYS
+                    print(f"✅ 일수를 {MAX_MEAL_PLAN_DAYS}일로 제한합니다.")
+                
+                return days
             else:
                 print(f"⚠️ DateParser LLM 파싱 결과: duration_days 없음")
         except Exception as e:
@@ -2485,6 +2539,13 @@ class MealPlannerAgent:
         if slots_days:
             days = int(slots_days)
             print(f"📅 슬롯에서 추출된 days: {days}")
+            
+            # 🚨 일수 제한 가드 (최대 7일)
+            if days > MAX_MEAL_PLAN_DAYS:
+                print(f"⚠️ 슬롯에서 추출된 일수({days}일)가 최대 제한({MAX_MEAL_PLAN_DAYS}일)을 초과합니다.")
+                days = MAX_MEAL_PLAN_DAYS
+                print(f"✅ 일수를 {MAX_MEAL_PLAN_DAYS}일로 제한합니다.")
+            
             return days
         
         # 기본값 없이 None 반환

@@ -19,6 +19,7 @@ from app.tools.restaurant.restaurant_hybrid_search import restaurant_hybrid_sear
 from app.tools.meal.keto_score import KetoScoreCalculator
 from config import get_personal_configs, get_agent_config
 from app.core.llm_factory import create_chat_llm
+from app.core.redis_cache import redis_cache
 
 class PlaceSearchAgent:
     """키토 친화적 식당 검색 전용 에이전트"""
@@ -170,12 +171,28 @@ class PlaceSearchAgent:
             
             print(f"🔍 PlaceSearchAgent 검색 시작: '{message}' (위치: {lat}, {lng})")
             
+            # 🚀 캐싱 로직 추가
+            cache_key = f"restaurant_{hash(message)}_{lat}_{lng}_{radius_km}_{hash(tuple(sorted(profile.items())) if profile else '')}"
+            
+            # Redis 캐시 확인
+            cached_result = redis_cache.get(cache_key)
+            if cached_result:
+                print(f"    📊 Redis 식당 검색 캐시 히트: {message[:30]}...")
+                return cached_result
+            
             # 전체 검색에 타임아웃 적용
             try:
-                return await asyncio.wait_for(
+                result = await asyncio.wait_for(
                     self._execute_search_with_timeout(message, lat, lng, radius_km, profile),
                     timeout=90.0  # 90초 타임아웃으로 증가
                 )
+                
+                # 🚀 검색 결과 캐싱 (TTL: 30분)
+                redis_cache.set(cache_key, result, ttl=1800)
+                print(f"    📊 식당 검색 결과 캐시 저장: {message[:30]}...")
+                
+                return result
+                
             except asyncio.TimeoutError:
                 print(f"⏰ 검색 타임아웃 (90초)")
                 return self._get_timeout_response()
