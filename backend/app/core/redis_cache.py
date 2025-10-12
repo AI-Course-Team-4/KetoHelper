@@ -5,7 +5,8 @@ Redis 캐시 관리 클래스
 
 import json
 import logging
-from typing import Any, Optional
+import time
+from typing import Any, Optional, Dict, Tuple
 
 import redis
 
@@ -21,6 +22,9 @@ class RedisCache:
         self.redis_client: Optional[redis.Redis] = None
         self.enabled: bool = False
         self.init_error: Optional[str] = None  # ⬅ 초기화 실패 원인 저장(상태 엔드포인트 노출용)
+        
+        # 🚀 로컬용 메모리 캐시 추가
+        self.memory_cache: Dict[str, Tuple[Any, float]] = {}  # key: (value, expire_time)
 
         # 설정값 읽기
         redis_url: str = (getattr(settings, "redis_url", "") or "").strip()
@@ -95,6 +99,17 @@ class RedisCache:
 
     def get(self, key: str) -> Optional[Any]:
         """캐시에서 값 가져오기 (JSON 역직렬화)"""
+        # 🚀 메모리 캐시 먼저 확인
+        if key in self.memory_cache:
+            value, expire_time = self.memory_cache[key]
+            if time.time() < expire_time:
+                logger.debug("메모리 캐시 히트: %s", key)
+                return value
+            else:
+                # 만료된 캐시 삭제
+                del self.memory_cache[key]
+        
+        # Redis 캐시 확인
         if not self.enabled or not self.redis_client:
             return None
         try:
@@ -106,29 +121,51 @@ class RedisCache:
 
     def set(self, key: str, value: Any, ttl: int = 3600) -> bool:
         """캐시에 값 저장 (JSON 직렬화)"""
+        # 🚀 메모리 캐시에도 저장
+        expire_time = time.time() + ttl
+        self.memory_cache[key] = (value, expire_time)
+        logger.debug("메모리 캐시 저장: %s (TTL: %ds)", key, ttl)
+        
+        # Redis 캐시 저장
         if not self.enabled or not self.redis_client:
-            return False
+            return True  # 메모리 캐시는 성공했으므로 True 반환
         try:
             serialized_value = json.dumps(value, ensure_ascii=False)
             self.redis_client.setex(key, ttl, serialized_value)
             return True
         except Exception as e:
             logger.warning("Redis SET 오류: %r", e)
-            return False
+            return True  # 메모리 캐시는 성공했으므로 True 반환
 
     def delete(self, key: str) -> bool:
         """캐시에서 값 삭제"""
+        # 🚀 메모리 캐시에서도 삭제
+        if key in self.memory_cache:
+            del self.memory_cache[key]
+            logger.debug("메모리 캐시 삭제: %s", key)
+        
+        # Redis 캐시 삭제
         if not self.enabled or not self.redis_client:
-            return False
+            return True  # 메모리 캐시는 성공했으므로 True 반환
         try:
             self.redis_client.delete(key)
             return True
         except Exception as e:
             logger.warning("Redis DELETE 오류: %r", e)
-            return False
+            return True  # 메모리 캐시는 성공했으므로 True 반환
 
     def exists(self, key: str) -> bool:
         """키 존재 여부"""
+        # 🚀 메모리 캐시 먼저 확인
+        if key in self.memory_cache:
+            value, expire_time = self.memory_cache[key]
+            if time.time() < expire_time:
+                return True
+            else:
+                # 만료된 캐시 삭제
+                del self.memory_cache[key]
+        
+        # Redis 캐시 확인
         if not self.enabled or not self.redis_client:
             return False
         try:

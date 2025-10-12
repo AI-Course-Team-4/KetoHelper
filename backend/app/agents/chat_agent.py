@@ -13,6 +13,7 @@ from langchain.schema import HumanMessage
 import importlib
 
 from app.core.llm_factory import create_chat_llm
+from app.core.redis_cache import redis_cache
 from config import get_personal_configs, get_agent_config
 
 class SimpleKetoCoachAgent:
@@ -45,6 +46,7 @@ class SimpleKetoCoachAgent:
                 timeout=settings.chat_agent_timeout
             )
             print(f"✅ ChatAgent LLM 초기화: {settings.chat_agent_provider}/{settings.chat_agent_model}")
+            print(f"🔧 ChatAgent 설정: max_tokens={settings.chat_agent_max_tokens}, timeout={settings.chat_agent_timeout}s")
         except Exception as e:
             print(f"❌ ChatAgent LLM 초기화 실패: {e}")
             self.llm = None
@@ -101,15 +103,58 @@ class SimpleKetoCoachAgent:
                     "tool_calls": []
                 }
             
+            # 🚀 일반 채팅 캐싱 로직 추가 (meal_planner와 동일한 방식)
+            user_id = profile.get("user_id", "") if profile else ""
+            allergies = profile.get("allergies", []) if profile else []
+            dislikes = profile.get("dislikes", []) if profile else []
+            
+            cache_key = f"general_chat_{hash(message)}_{user_id}_{hash(tuple(sorted(allergies)))}_{hash(tuple(sorted(dislikes)))}"
+            
+            # 🔍 디버깅 로그 추가
+            print(f"🔍 일반 채팅 캐시 키: {cache_key}")
+            print(f"🔍 사용자 ID: {user_id}")
+            print(f"🔍 알레르기 해시: {hash(tuple(sorted(allergies)))}")
+            print(f"🔍 기피식품 해시: {hash(tuple(sorted(dislikes)))}")
+            print(f"🔍 메시지 해시: {hash(message)}")
+            
+            # Redis 캐시 확인
+            print(f"    🔍 캐시 확인 시작: {cache_key}")
+            print(f"    🔍 Redis 활성화 상태: {redis_cache.is_enabled}")
+            print(f"    🔍 Redis 객체: {redis_cache}")
+            print(f"    🔍 Redis 타입: {type(redis_cache)}")
+            
+            try:
+                cached_result = redis_cache.get(cache_key)
+                print(f"    🔍 Redis get 결과: {cached_result is not None}")
+            except Exception as e:
+                print(f"    ❌ Redis get 오류: {e}")
+                cached_result = None
+            
+            if cached_result:
+                print(f"    ✅ Redis 일반 채팅 캐시 히트: {message[:30]}...")
+                print(f"    ✅ 캐시된 응답 길이: {len(str(cached_result))} 문자")
+                return cached_result
+            else:
+                print(f"    ❌ Redis 일반 채팅 캐시 미스: {message[:30]}...")
+                print(f"    ❌ 캐시 키: {cache_key}")
+            
             # 일반 채팅 응답 생성
             response = await self._generate_general_response(message, profile)
             
-            return {
+            result_data = {
                 "response": response,
                 "intent": "general_chat",
                 "results": [],
                 "tool_calls": [{"tool": "general_chat_agent", "message": message}]
             }
+            
+            # 🚀 일반 채팅 결과 캐싱 (TTL: 30분)
+            print(f"    💾 캐시 저장 시작: {cache_key}")
+            redis_cache.set(cache_key, result_data, ttl=1800)
+            print(f"    ✅ 일반 채팅 결과 캐시 저장 완료: {message[:30]}...")
+            print(f"    ✅ 저장된 응답 길이: {len(str(result_data))} 문자")
+            
+            return result_data
             
         except Exception as e:
             return {
@@ -123,6 +168,41 @@ class SimpleKetoCoachAgent:
         """일반 채팅 응답 생성 (개인화된 프롬프트 사용)"""
         
         try:
+            # 🚀 일반 채팅 캐싱 로직 추가 (meal_planner와 동일한 방식)
+            user_id = profile.get("user_id", "") if profile else ""
+            allergies = profile.get("allergies", []) if profile else []
+            dislikes = profile.get("dislikes", []) if profile else []
+            
+            cache_key = f"general_chat_response_{hash(message)}_{user_id}_{hash(tuple(sorted(allergies)))}_{hash(tuple(sorted(dislikes)))}"
+            
+            # 🔍 디버깅 로그 추가
+            print(f"🔍 _generate_general_response 캐시 키: {cache_key}")
+            print(f"🔍 사용자 ID: {user_id}")
+            print(f"🔍 알레르기 해시: {hash(tuple(sorted(allergies)))}")
+            print(f"🔍 기피식품 해시: {hash(tuple(sorted(dislikes)))}")
+            print(f"🔍 메시지 해시: {hash(message)}")
+            
+            # Redis 캐시 확인
+            print(f"    🔍 캐시 확인 시작: {cache_key}")
+            print(f"    🔍 Redis 활성화 상태: {redis_cache.is_enabled}")
+            print(f"    🔍 Redis 객체: {redis_cache}")
+            print(f"    🔍 Redis 타입: {type(redis_cache)}")
+            
+            try:
+                cached_result = redis_cache.get(cache_key)
+                print(f"    🔍 Redis get 결과: {cached_result is not None}")
+            except Exception as e:
+                print(f"    ❌ Redis get 오류: {e}")
+                cached_result = None
+            
+            if cached_result:
+                print(f"    ✅ Redis 일반 채팅 응답 캐시 히트: {message[:30]}...")
+                print(f"    ✅ 캐시된 응답 길이: {len(str(cached_result))} 문자")
+                return cached_result
+            else:
+                print(f"    ❌ Redis 일반 채팅 응답 캐시 미스: {message[:30]}...")
+                print(f"    ❌ 캐시 키: {cache_key}")
+            
             # 프로필 정보 컨텍스트
             profile_context = ""
             if profile:
@@ -140,7 +220,15 @@ class SimpleKetoCoachAgent:
             )
             
             response = await self.llm.ainvoke([HumanMessage(content=prompt)])
-            return response.content
+            response_content = response.content
+            
+            # 🚀 일반 채팅 응답 캐싱 (TTL: 30분)
+            print(f"    💾 캐시 저장 시작: {cache_key}")
+            redis_cache.set(cache_key, response_content, ttl=1800)
+            print(f"    ✅ 일반 채팅 응답 캐시 저장 완료: {message[:30]}...")
+            print(f"    ✅ 저장된 응답 길이: {len(str(response_content))} 문자")
+            
+            return response_content
             
         except Exception as e:
             return f"AI 응답 생성 중 오류가 발생했습니다: {str(e)}"

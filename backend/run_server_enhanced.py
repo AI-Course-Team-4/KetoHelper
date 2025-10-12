@@ -15,6 +15,28 @@ os.environ['PYTHONIOENCODING'] = 'utf-8'
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
 
+# Google API 최적화 (ALTS credentials 오류 완전 방지)
+os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
+os.environ.pop("GCLOUD_PROJECT", None)
+os.environ.pop("GOOGLE_CLOUD_PROJECT_ID", None)
+
+# Google API 인증 방식 강제 설정
+os.environ["GOOGLE_API_USE_CLIENT_CERTIFICATE"] = "false"
+os.environ["GOOGLE_API_USE_MTLS"] = "false"
+os.environ["GOOGLE_API_USE_GRPC"] = "false"
+
+# Google API 라이브러리 설정
+os.environ["GOOGLE_CLOUD_DISABLE_GRPC"] = "true"
+os.environ["GOOGLE_CLOUD_DISABLE_MTLS"] = "true"
+
+# Google API 관련 경고 완전 비활성화
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="google")
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="google")
+warnings.filterwarnings("ignore", message=".*ALTS.*")
+warnings.filterwarnings("ignore", message=".*GCP.*")
+
 # 현재 디렉토리를 Python path에 추가
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)

@@ -27,9 +27,11 @@ from app.core.llm_factory import create_chat_llm
 # 프롬프트 모듈 import (중앙집중화된 구조)
 from app.prompts.chat.intent_classification import INTENT_CLASSIFICATION_PROMPT, get_intent_prompt
 from app.prompts.chat.response_generation import RESPONSE_GENERATION_PROMPT, PLACE_RESPONSE_GENERATION_PROMPT
-from app.prompts.chat.general_chat import GENERAL_CHAT_PROMPT
+from app.prompts.meal.guest_recipe_templates import get_guest_recipe_template, format_guest_recipe_template
 from app.prompts.meal.recipe_response import RECIPE_RESPONSE_GENERATION_PROMPT
 from app.prompts.restaurant.search_failure import PLACE_SEARCH_FAILURE_PROMPT
+from app.prompts.shared.common_templates import create_standard_prompt
+from app.prompts.chat.general_templates import get_general_response_template
 from app.prompts.calendar import (
     CALENDAR_SAVE_CONFIRMATION_PROMPT,
     CALENDAR_SAVE_FAILURE_PROMPT,
@@ -391,6 +393,8 @@ class KetoCoachAgent:
             return intent.value
         return str(intent)
     
+    # 🎯 다양성 점수 계산 함수 제거됨 - 검색 단계에서 다양성 확보
+    
     async def _recipe_search_node(self, state: AgentState) -> AgentState:
         """레시피 검색 노드 - MealPlannerAgent 우선 사용"""
         
@@ -400,23 +404,56 @@ class KetoCoachAgent:
         try:
             message = state["messages"][-1].content if state["messages"] else ""
             
-            # MealPlannerAgent 사용 플래그 확인
-            if state.get("use_meal_planner_recipe", False):
-                # handle_recipe_request 메서드가 있는지 확인
-                if hasattr(self.meal_planner, 'handle_recipe_request'):
-                    print("🍳 MealPlannerAgent.handle_recipe_request() 사용")
-                    
-                    # MealPlannerAgent에 위임
-                    result = await self.meal_planner.handle_recipe_request(
-                        message=message,
-                        state=state
-                    )
-                    
-                    # 결과 상태에 병합
-                    state.update(result)
-                    return state
-                else:
-                    print("⚠️ handle_recipe_request 메서드 없음, 기존 방식 사용")
+            # 🚀 비로그인 사용자용 레시피 템플릿 우선 확인 (0.1초)
+            profile = state.get("profile", {})
+            is_logged_in = bool(profile.get("user_id"))
+            
+            if not is_logged_in:
+                # 비로그인 사용자용 인기 재료 템플릿 확인
+                popular_ingredients = ["닭가슴살", "계란", "연어", "아보카도", "소고기", "돼지고기", "새우", "참치"]
+                is_popular_recipe = any(ingredient in message.lower() for ingredient in popular_ingredients)
+                
+                if is_popular_recipe:
+                    # 인기 재료 추출
+                    for ingredient in popular_ingredients:
+                        if ingredient in message.lower():
+                            template = get_guest_recipe_template(ingredient)
+                            if template:
+                                # 템플릿 기반 빠른 응답 (0.1초)
+                                state["response"] = format_guest_recipe_template(template)
+                                state["tool_calls"].append({
+                                    "tool": "guest_recipe_template",
+                                    "ingredient": ingredient,
+                                    "method": "template_based"
+                                })
+                                
+                                # 성능 측정 완료
+                                node_end_time = time.time()
+                                node_time = node_end_time - node_start_time
+                                print(f"🍳 GUEST_RECIPE_TEMPLATE | Time: {node_time:.2f}s")
+                                
+                                return state
+                            break
+            
+            # 기존 하이브리드 검색 로직 (로그인 사용자 또는 템플릿에 없는 경우)
+            print(f"  🔍 하이브리드 검색 실행...")
+            # 🚀 MealPlannerAgent 사용 비활성화 - 템플릿 기반 빠른 응답을 위해
+            # if state.get("use_meal_planner_recipe", False):
+            #     # handle_recipe_request 메서드가 있는지 확인
+            #     if hasattr(self.meal_planner, 'handle_recipe_request'):
+            #         print("🍳 MealPlannerAgent.handle_recipe_request() 사용")
+            #         
+            #         # MealPlannerAgent에 위임
+            #         result = await self.meal_planner.handle_recipe_request(
+            #             message=message,
+            #             state=state
+            #         )
+            #         
+            #         # 결과 상태에 병합
+            #         state.update(result)
+            #         return state
+            #     else:
+            #         print("⚠️ handle_recipe_request 메서드 없음, 기존 방식 사용")
             
             # 기존 하이브리드 검색 로직
             
@@ -436,9 +473,12 @@ class KetoCoachAgent:
                 dislikes = temp_dislikes_extractor.combine_with_profile_dislikes(
                     temp_dislikes, profile_dislikes
                 )
+                
+                print(f"  🔍 프로필 정보: 알레르기={allergies}, 비선호={dislikes}")
             else:
                 # 프로필이 없는 경우 임시 불호 식재료만 사용
                 dislikes = temp_dislikes
+                print(f"  ⚠️ 프로필 없음: 임시 불호 식재료만 사용={dislikes}")
             
             if allergies:
                 profile_context += f"알레르기: {', '.join(allergies)}. "
@@ -458,6 +498,11 @@ class KetoCoachAgent:
             
             # 검색 결과가 없거나 관련성이 낮을 때 AI 레시피 생성
             valid_results = [r for r in search_results if r.get('title') != '검색 결과 없음']
+
+            # 🎯 다양성은 이미 검색 단계에서 확보됨 (계란 1개 + 비계란 2개)
+            # 검색 결과가 있으면 바로 사용 (AI 생성 불필요)
+            max_score = max([r.get('similarity', 0) for r in valid_results]) if valid_results else 0
+            should_generate_ai = not search_results or len(valid_results) == 0 or max_score < 0.1
 
             # 개인화로 인해 모두 제외된 경우 사용자 친화적 안내 반환
             if not valid_results:
@@ -495,7 +540,7 @@ class KetoCoachAgent:
                 should_generate_ai = not search_results or len(valid_results) == 0 or max_score < 0.1
             
             if should_generate_ai:
-                print(f"  🤖 검색 결과 없음, AI 레시피 생성 실행...")
+                print(f"  🤖 검색 결과 없음 또는 다양성 부족, AI 레시피 생성 실행...")
                 
                 # AI 레시피 생성 시에도 합쳐진 불호 식재료 사용
                 ai_profile_context = ""
@@ -510,10 +555,22 @@ class KetoCoachAgent:
                     profile_context=ai_profile_context
                 )
                 
-                # AI 생성 레시피를 결과로 설정
+                # AI 생성 레시피를 결과로 설정 (사용자에게 알림 포함)
+                ai_response = f"""## 🤖 AI 생성 레시피
+
+**검색 결과가 다양하지 않아 AI가 맞춤형 레시피를 생성했습니다!**
+
+{ai_recipe}
+
+---
+💡 **AI 생성 레시피란?**
+- 검색된 레시피가 모두 비슷하거나 다양성이 부족할 때
+- 개인 프로필(알레르기, 비선호 식품)을 고려하여 새로 생성
+- 더 다양하고 맞춤형인 레시피를 제공합니다"""
+                
                 state["results"] = [{
                     "title": f"AI 생성: {message}",
-                    "content": ai_recipe,
+                    "content": ai_response,
                     "source": "ai_generated",
                     "type": "recipe"
                 }]
@@ -521,7 +578,8 @@ class KetoCoachAgent:
                 state["tool_calls"].append({
                     "tool": "ai_recipe_generator",
                     "query": message,
-                    "method": "gemini_generation"
+                    "method": "gemini_generation",
+                    "reason": "no_results"
                 })
             else:
                 # 검색 결과가 있을 때
@@ -733,14 +791,54 @@ class KetoCoachAgent:
                 state["response"] = "\n".join(lines)
                 return state
 
-            prompt = GENERAL_CHAT_PROMPT.format(
-                message=current_message,
-                profile_context=profile_context,
-                context=context_text + f"\n대화 상황: {conversation_context}"
-            )
+            # 키토 시작 질문 감지 (템플릿 사용) - 우선 적용
+            keto_start_keywords = ["키토 다이어트 시작", "키토 시작", "키토 다이어트", "키토", "다이어트 시작"]
+            is_keto_start = any(keyword in current_message.lower() for keyword in keto_start_keywords)
+            
+            if is_keto_start:
+                # 템플릿 기반 빠른 응답 (0.1초) - 기존 프로필 정보 직접 활용
+                state["response"] = get_general_response_template(current_message, state.get("profile", {}))
+                state["tool_calls"].append({
+                    "tool": "general",
+                    "method": "template_based",
+                    "template": "keto_start_guide"
+                })
+                return state
 
-            response = await self.llm.ainvoke([HumanMessage(content=prompt)])
-            state["response"] = response.content
+            # 일반 질문 템플릿 감지 (빠른 응답)
+            general_keywords = ["안녕", "안녕하세요", "너는", "당신은", "뭐야", "누구야", "다이어트", "무엇", "설명", "알려줘"]
+            is_general_question = any(keyword in current_message.lower() for keyword in general_keywords)
+            
+            if is_general_question:
+                # 템플릿 기반 빠른 응답 (0.1초) - 사용자 상태별
+                state["response"] = get_general_response_template(current_message, state.get("profile", {}))
+                state["tool_calls"].append({
+                    "tool": "general",
+                    "method": "template_based",
+                    "template": "general_question"
+                })
+                return state
+
+            # 간단한 프롬프트 (개인화 정보 + MD 형식 적용)
+            base_prompt = f"""키토 전문가로서 답변해주세요.
+
+질문: {current_message}
+프로필: {profile_context}
+
+간결하고 도움이 되는 답변을 해주세요."""
+            
+            # 🚀 common_templates의 마크다운 서식 규칙 적용
+            prompt = create_standard_prompt(base_prompt)
+
+            # 공통 LLM 직접 사용 (간단하고 빠름) - 안전한 호출
+            try:
+                response = await self.llm.ainvoke([HumanMessage(content=prompt)])
+                state["response"] = response.content
+            except Exception as llm_error:
+                print(f"LLM 호출 오류: {llm_error}")
+                print(f"LLM 오류 타입: {type(llm_error)}")
+                # LLM 오류 시 기본 응답
+                state["response"] = "키토 다이어트에 대한 질문이시군요! 구체적인 질문을 해주시면 더 정확한 답변을 드릴 수 있습니다."
             
             state["tool_calls"].append({
                 "tool": "general",
@@ -750,6 +848,10 @@ class KetoCoachAgent:
             
         except Exception as e:
             print(f"General chat error: {e}")
+            print(f"Error type: {type(e)}")
+            print(f"Error details: {str(e)}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
             state["response"] = "죄송합니다. 일반 채팅 처리 중 오류가 발생했습니다. 다시 시도해주세요."
         
         # 성능 측정 완료
@@ -999,38 +1101,331 @@ class KetoCoachAgent:
                         state["response"] = ai_text or "레시피 생성에 실패했습니다."
                     return state
                 
-                # 검색 결과 기반 레시피 포맷팅
-                elif state["intent"] == "recipe":
-                    context = "추천 레시피:\n"
-                    for idx, result in enumerate(state["results"][:3], 1):
-                        context += f"{idx}. {result.get('title', result.get('name', '이름 없음'))}\n"
-                        if result.get('content'):
-                            context += f"   내용: {result['content'][:200]}...\n"
-                        if result.get('ingredients'):
-                            context += f"   재료: {result['ingredients']}\n"
-                        if result.get('carbs'):
-                            context += f"   탄수화물: {result['carbs']}g\n"
+                # 검색 결과 기반 레시피 포맷팅 - 조건부 템플릿 적용
+                elif state["intent"] == "recipe" or state["intent"] == "recipe_search":
+                    # 🎯 특정 레시피 요청인지 확인 (더 정확한 조건)
+                    specific_recipe_keywords = ['만드는법', '조리법', '어떻게', '방법', '레시피를', '레시피가']
+                    meal_time_keywords = ['아침', '점심', '저녁', '브렉퍼스트', '모닝', 'breakfast', 'lunch', 'dinner']
                     
-                    # 레시피 전용 응답 생성 프롬프트 사용
-                    # 프로필 컨텍스트 구성(있으면)
-                    profile_parts = []
-                    if state.get("profile"):
-                        p = state["profile"]
-                        if p.get("allergies"):
-                            profile_parts.append(f"알레르기: {', '.join(p['allergies'])}")
-                        if p.get("dislikes"):
-                            profile_parts.append(f"비선호: {', '.join(p['dislikes'])}")
-                        if p.get("goals_kcal"):
-                            profile_parts.append(f"목표 칼로리: {p['goals_kcal']}kcal")
-                        if p.get("goals_carbs_g") is not None:
-                            profile_parts.append(f"탄수 제한: {p['goals_carbs_g']}g")
-                    profile_context = "; ".join(profile_parts)
+                    has_specific_request = any(keyword in message.lower() for keyword in specific_recipe_keywords)
+                    has_meal_time = any(keyword in message.lower() for keyword in meal_time_keywords)
+                    
+                    print(f"  🔍 조건 확인:")
+                    print(f"    - has_specific_request: {has_specific_request}")
+                    print(f"    - has_meal_time: {has_meal_time}")
+                    print(f"    - message: {message}")
+                    print(f"    - 조건: has_specific_request and not has_meal_time = {has_specific_request and not has_meal_time}")
+                    
+                    # 특정 레시피 요청이면서 식사 시간 키워드가 없으면 LLM 사용
+                    if has_specific_request and not has_meal_time:
+                        print(f"  🤖 특정 레시피 요청 감지 - LLM 응답 생성")
+                        print(f"    🔍 has_specific_request: {has_specific_request}")
+                        print(f"    🔍 has_meal_time: {has_meal_time}")
+                        print(f"    🔍 message: {message}")
+                        # 기존 LLM 방식 사용
+                        context = "추천 레시피:\n"
+                        for idx, result in enumerate(state["results"][:3], 1):
+                            context += f"{idx}. {result.get('title', result.get('name', '이름 없음'))}\n"
+                            if result.get('content'):
+                                context += f"   내용: {result['content'][:200]}...\n"
+                            if result.get('ingredients'):
+                                context += f"   재료: {result['ingredients']}\n"
+                            if result.get('carbs'):
+                                context += f"   탄수화물: {result['carbs']}g\n"
+                        
+                        # 프로필 컨텍스트 구성
+                        profile_parts = []
+                        if state.get("profile"):
+                            p = state["profile"]
+                            if p.get("allergies"):
+                                profile_parts.append(f"알레르기: {', '.join(p['allergies'])}")
+                            if p.get("dislikes"):
+                                profile_parts.append(f"비선호: {', '.join(p['dislikes'])}")
+                            if p.get("goals_kcal"):
+                                profile_parts.append(f"목표 칼로리: {p['goals_kcal']}kcal")
+                            if p.get("goals_carbs_g") is not None:
+                                profile_parts.append(f"탄수 제한: {p['goals_carbs_g']}g")
+                        profile_context = "; ".join(profile_parts)
 
-                    answer_prompt = RECIPE_RESPONSE_GENERATION_PROMPT.format(
-                        message=message,
-                        context=context,
-                        profile_context=profile_context
-                    )
+                        answer_prompt = RECIPE_RESPONSE_GENERATION_PROMPT.format(
+                            message=message,
+                            context=context,
+                            profile_context=profile_context
+                        )
+                    else:
+                        # 🚀 템플릿 기반 빠른 응답 생성 (식사 시간 키워드 있거나 일반 추천)
+                        print(f"  ⚡ 템플릿 기반 빠른 응답 생성")
+                        print(f"    🔍 템플릿 경로로 진입")
+                        print(f"    🔍 has_specific_request: {has_specific_request}")
+                        print(f"    🔍 has_meal_time: {has_meal_time}")
+                        print(f"    🔍 message: {message}")
+                        response_text = "## 🍽️ 추천 키토 레시피 TOP 3\n\n"
+                        
+                        # 프로필 정보 수집 (개인화 설명용)
+                        profile_info = []
+                        if state.get("profile"):
+                            p = state["profile"]
+                            if p.get("allergies"):
+                                profile_info.append(f"알레르기({', '.join(p['allergies'])})")
+                            if p.get("dislikes"):
+                                profile_info.append(f"비선호({', '.join(p['dislikes'])})")
+                        
+                        # 각 레시피를 상세한 형식으로 포맷팅 (실제 DB 데이터 활용)
+                        print(f"    🔍 state['results'] 타입: {type(state['results'])}")
+                        print(f"    🔍 state['results'] 길이: {len(state['results'])}")
+                        if state["results"]:
+                            print(f"    🔍 첫 번째 결과 키들: {list(state['results'][0].keys())}")
+                            print(f"    🔍 첫 번째 결과 전체: {state['results'][0]}")
+                        
+                        for idx, result in enumerate(state["results"][:3], 1):
+                            title = result.get('title', result.get('name', '이름 없음'))
+                            content = result.get('content', '')
+                            blob = result.get('blob', '')  # 실제 레시피 데이터
+                            ingredients = result.get('ingredients', [])  # 재료 배열
+                            url = result.get('url', '')
+                            
+                            # blob이 비어있으면 content 사용
+                            if not blob and content:
+                                blob = content
+                                print(f"    ✅ blob이 비어있어서 content 사용: {title}")
+                            
+                            # blob 데이터 디버깅
+                            print(f"    🔍 레시피 {idx}: {title}")
+                            print(f"    🔍 blob 존재 여부: {bool(blob)}")
+                            print(f"    🔍 blob 타입: {type(blob)}")
+                            print(f"    🔍 blob 길이: {len(str(blob))}")
+                            if blob:
+                                print(f"    🔍 blob 내용: {str(blob)[:200]}...")
+                            else:
+                                print(f"    ❌ blob이 비어있음")
+                            
+                            # URL 디버깅 및 처리
+                            print(f"    🔗 URL 확인: {title[:20]}... -> {url[:50] if url else 'None'}")
+                            
+                            # 제목 표시 (URL이 있으면 제목도 클릭 가능)
+                            if url and url.strip():
+                                response_text += f"**{idx}. [{title}]({url})** [🔗]({url})"
+                            else:
+                                response_text += f"**{idx}. {title}**"
+                            
+                            response_text += "\n"
+                            
+                            # 실제 DB 데이터 활용
+                            # 1. 재료 정보 (blob의 재료 섹션 우선 사용)
+                            main_ingredients = []
+                            
+                            # blob에서 재료 정보 추출
+                            if blob:
+                                import re
+                                print(f"    🔍 blob 전체 내용 (재료 추출 전):")
+                                print(f"    {blob}")
+                                print(f"    🔍 blob 길이: {len(blob)}")
+                                
+                                # 재료 섹션 찾기 (실제 blob 구조에 맞게)
+                                ingredient_match = re.search(r'재료[:\s]*([^\n]+)', blob)
+                                if ingredient_match:
+                                    ingredient_text = ingredient_match.group(1).strip()
+                                    print(f"    🔍 원본 재료 텍스트: {ingredient_text}")
+                                    
+                                    # 설명문이 아닌 실제 재료인지 확인
+                                    if not any(word in ingredient_text for word in ['구성되어', '적합하다', '들로', '있습니다', '만들', '요리', '로 한', '로한', '입니다', '합니다', '되다', '이다']) and not ingredient_text.endswith('니다') and not ingredient_text.endswith('합니다'):
+                                        # 재료를 쉼표로 분리 (공백으로는 분리하지 않음)
+                                        ingredients_list = re.split(r'[,，]', ingredient_text)
+                                        for ingredient in ingredients_list[:5]:  # 최대 5개
+                                            if ingredient.strip():
+                                                # 재료명 정리 (양, 단위, 특수문자 제거)
+                                                clean_ingredient = ingredient.strip()
+                                                # 영어 중복 제거 (예: "계란egg" -> "계란", "마요네즈mayonnaise" -> "마요네즈")
+                                                clean_ingredient = re.sub(r'([가-힣]+)[a-zA-Z]+', r'\1', clean_ingredient)
+                                                # 괄호와 내용 제거 (예: "(egg)" -> "", "(soy sauce)" -> "")
+                                                clean_ingredient = re.sub(r'\([^)]*\)', '', clean_ingredient)
+                                                # 숫자, 단위, ~ 제거 (예: "토마토 4~" -> "토마토", "매실청 2~" -> "매실청")
+                                                clean_ingredient = re.sub(r'\s*\d+[~숟가락mlg개공기]*\s*', '', clean_ingredient)
+                                                # 특수문자 제거 (~, *, -, 등)
+                                                clean_ingredient = re.sub(r'[~*\-+()\[\]{}]', '', clean_ingredient)
+                                                # 공백 정리
+                                                clean_ingredient = clean_ingredient.strip()
+                                                if clean_ingredient and len(clean_ingredient) > 1:
+                                                    main_ingredients.append(clean_ingredient)
+                                    else:
+                                        print(f"    ⚠️ 재료 섹션이 설명문입니다: {ingredient_text}")
+                                
+                                print(f"    🥘 blob 재료 추출: {main_ingredients}")
+                            
+                            # blob에서 재료를 찾지 못한 경우 ingredients 배열 사용
+                            if not main_ingredients and ingredients and isinstance(ingredients, list):
+                                for ingredient in ingredients[:5]:
+                                    if isinstance(ingredient, str) and ingredient.strip():
+                                        clean_ingredient = ingredient.strip()
+                                        import re
+                                        # 영어 중복 제거 (예: "마요네즈mayonnaise" -> "마요네즈")
+                                        clean_ingredient = re.sub(r'([가-힣]+)[a-zA-Z]+', r'\1', clean_ingredient)
+                                        # 괄호와 내용 제거 (예: "(soy sauce)" -> "")
+                                        clean_ingredient = re.sub(r'\([^)]*\)', '', clean_ingredient)
+                                        # 숫자, 단위, ~ 제거 (예: "토마토 4~" -> "토마토")
+                                        clean_ingredient = re.sub(r'\s*\d+[~숟가락mlg개공기]*\s*', '', clean_ingredient)
+                                        # 특수문자 제거
+                                        clean_ingredient = re.sub(r'[~*\-+()\[\]{}]', '', clean_ingredient)
+                                        clean_ingredient = clean_ingredient.strip()
+                                        if clean_ingredient and len(clean_ingredient) > 1:
+                                            main_ingredients.append(clean_ingredient)
+                                
+                                print(f"    🥘 ingredients 배열 사용: {main_ingredients}")
+                            
+                            if main_ingredients:
+                                response_text += f"- **준비물**: {', '.join(main_ingredients)}\n"
+                            
+                            # 2. 조리 방법 및 팁 (blob 데이터 직접 활용)
+                            cooking_method = ""
+                            cooking_tip = ""
+                            
+                            # blob에서 핵심 요약 추출 (조리 팁으로 사용)
+                            if blob:
+                                import re
+                                print(f"    🔍 blob 전체 내용:")
+                                print(f"    {blob}")
+                                print(f"    🔍 blob 길이: {len(blob)}")
+                                
+                                # 1. '핵심 요약:'을 찾아서 '재료:' 앞까지 가져오기
+                                summary_section = ""
+                                
+                                # 핵심 요약 섹션 찾기
+                                summary_start = blob.find('핵심 요약:')
+                                if summary_start != -1:
+                                    print(f"    ✅ '핵심 요약:' 발견 at position {summary_start}")
+                                    
+                                    # 재료 섹션 시작점 찾기
+                                    ingredients_start = blob.find('재료:', summary_start)
+                                    if ingredients_start != -1:
+                                        print(f"    ✅ '재료:' 발견 at position {ingredients_start}")
+                                        # 핵심 요약부터 재료 앞까지 추출
+                                        summary_section = blob[summary_start:ingredients_start].strip()
+                                    else:
+                                        # 재료가 없으면 다음 섹션까지 찾기
+                                        next_section_patterns = ['태그:', '알레르기:', '보조 키워드:', '식사:']
+                                        next_positions = []
+                                        for pattern in next_section_patterns:
+                                            pos = blob.find(pattern, summary_start)
+                                            if pos != -1:
+                                                next_positions.append(pos)
+                                        
+                                        if next_positions:
+                                            next_start = min(next_positions)
+                                            summary_section = blob[summary_start:next_start].strip()
+                                        else:
+                                            # 다음 섹션이 없으면 끝까지
+                                            summary_section = blob[summary_start:].strip()
+                                    
+                                    print(f"    📝 핵심 요약 섹션: {summary_section}")
+                                    
+                                    # 2. '핵심 요약:' 제거하고 실제 내용만 추출
+                                    if summary_section.startswith('핵심 요약:'):
+                                        content = summary_section[5:].strip()  # '핵심 요약:' (5글자) 제거
+                                        print(f"    📝 핵심 요약 내용: {content}")
+                                        
+                                        # 3. '.'으로 문장 분리 (더 정확한 패턴)
+                                        sentences = re.split(r'[.]\s+', content)
+                                        sentences = [s.strip() for s in sentences if s.strip() and len(s.strip()) > 5]
+                                        
+                                        print(f"    📝 분리된 문장 수: {len(sentences)}")
+                                        for i, sentence in enumerate(sentences, 1):
+                                            print(f"    📝 문장 {i}: {sentence}")
+                                        
+                                        # 4. 번호가 매겨진 리스트로 변환 (Markdown 들여쓰기 적용)
+                                        if sentences:
+                                            cooking_tips = []
+                                            for i, sentence in enumerate(sentences, 1):
+                                                # 콜론 제거 (문장 앞과 뒤의 : 제거)
+                                                clean_sentence = sentence.strip().lstrip(':').rstrip(':').strip()
+                                                # 마지막 항목의 마침표 제거
+                                                if i == len(sentences):
+                                                    clean_sentence = clean_sentence.rstrip('.')
+                                                print(f"    🔍 원본 문장: '{sentence}'")
+                                                print(f"    🔍 정리된 문장: '{clean_sentence}'")
+                                                cooking_tips.append(f"  {i}. {clean_sentence}")
+                                            cooking_tip = '\n'.join(cooking_tips)
+                                            print(f"    ✅ 조리 팁 생성 완료: {len(sentences)}개 문장")
+                                            print(f"    🔍 최종 조리 팁: {cooking_tip}")
+                                        else:
+                                            # 문장 분리가 안 되면 전체 내용을 하나의 팁으로
+                                            clean_content = content.strip().lstrip(':').rstrip(':').strip().rstrip('.')
+                                            cooking_tip = f"  1. {clean_content}"
+                                            print(f"    ⚠️ 문장 분리 실패, 전체 내용을 하나의 팁으로 사용")
+                                    else:
+                                        print(f"    ❌ 핵심 요약 섹션 형식 오류")
+                                else:
+                                    print(f"    ❌ '핵심 요약:'을 찾을 수 없음")
+                            else:
+                                print(f"    ❌ blob 데이터가 없음")
+                                
+                                # 핵심 요약을 찾지 못한 경우 blob의 첫 번째 문장 사용
+                                if not cooking_tip:
+                                    # 첫 번째 문장 추출 (마침표까지)
+                                    first_sentence = re.search(r'^([^.]*\.)', blob, re.MULTILINE)
+                                    if first_sentence:
+                                        cooking_tip = first_sentence.group(1).strip()
+                                        print(f"    📝 첫 문장 추출: {cooking_tip[:50]}...")
+                                
+                                # blob에서 조리 방법 추출 (더 상세한 섹션 찾기)
+                                # 다양한 조리 방법 패턴 시도
+                                method_patterns = [
+                                    r'조리[:\s]*([^핵심|태그|알레르기|보조|식사].*?)(?=핵심|태그|알레르기|보조|식사|$)',
+                                    r'만들기[:\s]*([^핵심|태그|알레르기|보조|식사].*?)(?=핵심|태그|알레르기|보조|식사|$)',
+                                    r'방법[:\s]*([^핵심|태그|알레르기|보조|식사].*?)(?=핵심|태그|알레르기|보조|식사|$)',
+                                    r'레시피[:\s]*([^핵심|태그|알레르기|보조|식사].*?)(?=핵심|태그|알레르기|보조|식사|$)'
+                                ]
+                                
+                                for pattern in method_patterns:
+                                    method_match = re.search(pattern, blob, re.DOTALL | re.IGNORECASE)
+                                    if method_match:
+                                        cooking_method = method_match.group(1).strip()[:200] + "..."
+                                        break
+                                
+                                if cooking_method:
+                                    print(f"    🍳 조리 방법 추출: {cooking_method[:50]}...")
+                                else:
+                                    print(f"    ⚠️ 조리 방법 추출 실패")
+                            
+                            # 조리 방법 표시
+                            if cooking_method:
+                                response_text += f"- **조리 방법**: {cooking_method}\n"
+                            
+                            # 조리 팁이 없으면 에러 메시지
+                            if not cooking_tip:
+                                cooking_tip = "❌ 핵심 요약을 찾을 수 없습니다"
+                                print(f"    ❌ 조리 팁 없음 - blob 데이터 확인 필요")
+                            
+                            # 간단 설명 표시 (여러 줄 지원)
+                            if cooking_tip:
+                                if '\n' in cooking_tip:
+                                    # 여러 줄인 경우 (번호가 매겨진 리스트)
+                                    response_text += f"- **간단 설명**:\n{cooking_tip}\n"
+                                else:
+                                    # 한 줄인 경우
+                                    response_text += f"- **간단 설명**: {cooking_tip}\n"
+                            
+                            # 4. 탄수화물 정보 (있는 경우)
+                            if result.get('carbs'):
+                                response_text += f"- **탄수화물**: {result['carbs']}g\n"
+                            
+                            response_text += "\n"
+                        
+                        # 개인화 설명 추가
+                        if profile_info:
+                            response_text += f"💡 **개인화된 레시피**: {', '.join(profile_info)}를 제외한 맞춤형 추천입니다.\n"
+                        else:
+                            response_text += "💡 **개인화된 레시피**: 프로필 기반 맞춤형 추천입니다.\n"
+                        
+                        # 링크 안내 메시지 추가
+                        response_text += "\n💡 **레시피** 혹은 🔗을 클릭하면 더욱 상세한 정보를 얻을 수 있습니다.\n"
+                        
+                        state["response"] = response_text
+                        state["tool_calls"].append({
+                            "tool": "recipe_template",
+                            "method": "fast_template",
+                            "results_count": len(state["results"])
+                        })
+                        return state
                 elif state["intent"] == "place":
                     context = "추천 식당:\n"
                     for idx, result in enumerate(state["results"][:5], 1):

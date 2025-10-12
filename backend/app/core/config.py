@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     # Gemini 설정
     google_api_key: str = os.getenv("GOOGLE_API_KEY", "")
     
+    # Google API 최적화 설정
+    google_application_credentials: str = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
+    google_cloud_project: str = os.getenv("GOOGLE_CLOUD_PROJECT", "")
+    
     # RecipeValidator 전용 LLM 설정
     recipe_validator_provider: str = os.getenv("RECIPE_VALIDATOR_PROVIDER", "openai").lower()
     recipe_validator_model: str = os.getenv("RECIPE_VALIDATOR_MODEL", "gpt-4o-mini")
@@ -61,12 +65,12 @@ class Settings(BaseSettings):
     place_search_max_tokens: int = int(os.getenv("PLACE_SEARCH_MAX_TOKENS", str(llm_max_tokens)))
     place_search_timeout: int = int(os.getenv("PLACE_SEARCH_TIMEOUT", str(llm_timeout)))
     
-    # ChatAgent 전용 LLM 설정
+    # ChatAgent 전용 LLM 설정 (초고속 응답용)
     chat_agent_provider: str = os.getenv("CHAT_AGENT_PROVIDER", llm_provider).lower()
     chat_agent_model: str = os.getenv("CHAT_AGENT_MODEL", llm_model)
-    chat_agent_temperature: float = float(os.getenv("CHAT_AGENT_TEMPERATURE", str(llm_temperature)))
-    chat_agent_max_tokens: int = int(os.getenv("CHAT_AGENT_MAX_TOKENS", str(llm_max_tokens)))
-    chat_agent_timeout: int = int(os.getenv("CHAT_AGENT_TIMEOUT", str(llm_timeout)))
+    chat_agent_temperature: float = float(os.getenv("CHAT_AGENT_TEMPERATURE", "0.1"))
+    chat_agent_max_tokens: int = int(os.getenv("CHAT_AGENT_MAX_TOKENS", "256"))  # 512 → 256로 더 단축
+    chat_agent_timeout: int = int(os.getenv("CHAT_AGENT_TIMEOUT", "3"))  # 5 → 3초로 더 단축
     
     # DateParser 전용 LLM 설정
     date_parser_provider: str = os.getenv("DATE_PARSER_PROVIDER", llm_provider).lower()

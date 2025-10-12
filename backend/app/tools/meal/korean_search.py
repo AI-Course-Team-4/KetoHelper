@@ -663,8 +663,22 @@ class KoreanSearchTool:
         try:
             print(f"🔍 한글 최적화 하이브리드 검색 시작: '{query}'")
             
-            # 검색 결과 캐싱 (Redis 우선, 메모리 폴백)
-            cache_key = f"search_{hash(query)}_{k}_{user_id}_{meal_type}_{hash(tuple(sorted(allergies or [])))}_{hash(tuple(sorted(dislikes or [])))}"
+            # 스마트 캐시 시스템: 다양성 확보를 위한 랜덤 요소 추가
+            import random
+            import time
+            
+            # 기본 캐시 키
+            base_cache_key = f"search_{hash(query)}_{k}_{user_id}_{meal_type}_{hash(tuple(sorted(allergies or [])))}_{hash(tuple(sorted(dislikes or [])))}"
+            
+            # 다양성을 위한 랜덤 요소 (매번 다른 결과를 위해 캐시 비활성화)
+            # random_seed = int(time.time() / 300)  # 5분마다 변경
+            # random_factor = random.randint(1, 10)
+            # cache_key = f"{base_cache_key}_{random_seed}_{random_factor}"
+            
+            # 🚀 다양성 확보를 위해 캐시 비활성화 (매번 새로운 결과)
+            cache_key = f"{base_cache_key}_{int(time.time())}_{random.randint(1, 1000)}"
+            
+            print(f"  🎲 스마트 캐시 키: {cache_key}")
             
             # Redis 캐시 확인
             cached_result = redis_cache.get(cache_key)
@@ -786,11 +800,129 @@ class KoreanSearchTool:
                             unique_results[i] = result
                             break
             
-            # 최종 점수로 정렬
+            # 최종 점수로 정렬 + 다양성을 위한 랜덤 요소 추가
             unique_results.sort(key=lambda x: x['final_score'], reverse=True)
             
-            # 상위 k개 결과 반환
-            final_results = unique_results[:k]
+            # 🎯 아침 식사에만 특별 로직 적용: 계란 포함/제외 분리 후 랜덤 선택
+            # 아침 키워드 체크
+            breakfast_keywords = ['아침', '브렉퍼스트', '모닝', 'breakfast', 'morning']
+            is_breakfast_query = any(keyword in query.lower() for keyword in breakfast_keywords)
+            
+            if is_breakfast_query:
+                print(f"    🌅 아침 식사 감지 - 특별 다양성 로직 적용")
+                
+                egg_recipes = []
+                non_egg_recipes = []
+                
+                # 계란 관련 키워드 (동의어 포함)
+                egg_keywords = ['계란', 'egg', '달걀', '계란프라이', '스크램블', '오믈렛', '에그']
+                
+                for result in unique_results:
+                    title = result.get('title', '').lower()
+                    content = result.get('content', '').lower()
+                    
+                    # 계란 포함 여부 체크
+                    is_egg = any(keyword in title or keyword in content for keyword in egg_keywords)
+                    
+                    if is_egg:
+                        egg_recipes.append(result)
+                    else:
+                        non_egg_recipes.append(result)
+                
+                print(f"    🔍 계란 포함 레시피: {len(egg_recipes)}개")
+                print(f"    🔍 계란 제외 레시피: {len(non_egg_recipes)}개")
+                
+                # 다양성 확보: 계란 1개 + 비계란 2개 (총 3개)
+                import random
+                selected_results = []
+                
+                # 계란 레시피 1개 선택 (있으면)
+                if egg_recipes:
+                    selected_egg = random.choice(egg_recipes)
+                    selected_results.append(selected_egg)
+                    print(f"    ✅ 계란 레시피 선택: {selected_egg.get('title')}")
+                
+                # 비계란 레시피 2개 선택 (부족하면 가능한 만큼)
+                non_egg_count = min(2, len(non_egg_recipes))
+                if non_egg_count > 0:
+                    selected_non_egg = random.sample(non_egg_recipes, non_egg_count)
+                    selected_results.extend(selected_non_egg)
+                    print(f"    ✅ 비계란 레시피 선택: {[r.get('title') for r in selected_non_egg]}")
+                
+                # 결과가 부족하면 나머지 추가
+                if len(selected_results) < 3 and len(unique_results) > len(selected_results):
+                    remaining = [r for r in unique_results if r not in selected_results]
+                    needed = 3 - len(selected_results)
+                    selected_results.extend(remaining[:needed])
+                    print(f"    ✅ 추가 레시피 선택: {[r.get('title') for r in remaining[:needed]]}")
+                
+                print(f"    ✅ 최종 선택된 레시피: {len(selected_results)}개")
+                
+                filtered_results = selected_results
+            else:
+                print(f"    🍽️ 일반 식사 - 기존 다양성 로직 적용")
+                
+                # 기존 다양성 필터링 로직 (아침이 아닌 경우)
+                filtered_results = []
+                seen_ingredients = set()
+                seen_categories = set()
+                seen_proteins = set()
+                
+                for result in unique_results:
+                    title = result.get('title', '').lower()
+                    content = result.get('content', '').lower()
+                    
+                    # 배추류 중복 체크
+                    cabbage_keywords = ['양배추', '알배추', '배추', 'cabbage']
+                    is_cabbage = any(keyword in title or keyword in content for keyword in cabbage_keywords)
+                    if is_cabbage and '배추류' in seen_ingredients:
+                        print(f"    ⚠️ 배추류 중복 제외: {result.get('title')}")
+                        continue
+                    if is_cabbage:
+                        seen_ingredients.add('배추류')
+                    
+                    # 계란 중복 체크 (일반적인 경우)
+                    egg_keywords = ['계란', 'egg', '달걀', '계란프라이', '스크램블', '오믈렛', '에그']
+                    is_egg = any(keyword in title or keyword in content for keyword in egg_keywords)
+                    if is_egg and '계란' in seen_ingredients:
+                        print(f"    ⚠️ 계란 중복 제외: {result.get('title')}")
+                        continue
+                    if is_egg:
+                        seen_ingredients.add('계란')
+                    
+                    # 김밥 중복 체크
+                    if '김밥' in title or 'gimbap' in title:
+                        if '김밥' in seen_categories:
+                            print(f"    ⚠️ 김밥 중복 제외: {result.get('title')}")
+                            continue
+                        seen_categories.add('김밥')
+                    
+                    # 단백질원 중복 체크
+                    protein_keywords = ['닭고기', '소고기', '돼지고기', '연어', '새우', '참치', '베이컨', '치즈']
+                    for protein in protein_keywords:
+                        if protein in title or protein in content:
+                            if protein in seen_proteins:
+                                print(f"    ⚠️ 단백질원 중복 제외: {result.get('title')} (단백질원: {protein})")
+                                continue
+                            seen_proteins.add(protein)
+                            break
+                    
+                    filtered_results.append(result)
+                    
+                    # 다양성 확보를 위해 최대 3개로 제한
+                    if len(filtered_results) >= 3:
+                        print(f"    ✅ 다양성 확보: {len(filtered_results)}개 결과로 제한")
+                        break
+            
+            # 다양성 확보: 상위 결과에서 랜덤하게 선택
+            if len(filtered_results) > k:
+                # 상위 70%에서 랜덤 선택
+                top_count = max(k, int(len(filtered_results) * 0.7))
+                top_results = filtered_results[:top_count]
+                final_results = random.sample(top_results, k)
+                print(f"  🎲 다양성 확보: 상위 {top_count}개에서 {k}개 랜덤 선택")
+            else:
+                final_results = filtered_results[:k]
             
             # URL 보완: RPC 함수가 url을 반환하지 않는 경우 직접 조회
             for result in final_results:
@@ -848,7 +980,12 @@ class KoreanSearchTool:
             meal_hint = None
             if any(k in query for k in ["아침", "브렉퍼스트", "아침식사", "morning", "breakfast"]):
                 meal_hint = '아침'
-                adjusted_query = f"{query} 오믈렛 계란 샐러드 요거트"
+                # 아침 키워드별로 랜덤하게 하나씩 선택
+                import random
+                breakfast_keywords = ["오믈렛", "샐러드", "요거트", "베이컨", "아보카도", "연어", "닭가슴살", "소고기"]
+                selected_keywords = random.sample(breakfast_keywords, min(3, len(breakfast_keywords)))
+                adjusted_query = f"{query} {' '.join(selected_keywords)}"
+                print(f"  🎲 아침 키워드 랜덤 선택: {selected_keywords}")
             elif any(k in query for k in ["점심", "런치", "lunch"]):
                 meal_hint = '점심'
                 adjusted_query = f"{query} 샐러드 스테이크 볶음 구이"
@@ -857,8 +994,10 @@ class KoreanSearchTool:
                 adjusted_query = f"{query} 스테이크 구이 찜 볶음"
 
             # 스마트 하이브리드 검색 실행(강화 쿼리 우선)
+            print(f"  🔍 확장된 쿼리로 검색: '{adjusted_query}'")
             results = await self.korean_hybrid_search(adjusted_query, max_results)
             if not results and adjusted_query != query:
+                print(f"  🔍 원본 쿼리로 재검색: '{query}'")
                 results = await self.korean_hybrid_search(query, max_results)
             
             # 결과 포맷팅 (검색 전략과 메시지 포함)
@@ -874,10 +1013,19 @@ class KoreanSearchTool:
                     if meal_hint and not search_message:
                         search_message = f"'{meal_hint}' 키워드를 반영해 레시피를 추천했습니다."
                 
+                # blob 데이터 디버깅
+                blob_data = result.get('blob', '')
+                print(f"    🔍 검색 결과 blob 확인: {result.get('title', '제목없음')}")
+                print(f"    🔍 blob 존재: {bool(blob_data)}")
+                print(f"    🔍 blob 길이: {len(str(blob_data))}")
+                if blob_data:
+                    print(f"    🔍 blob 내용: {str(blob_data)[:100]}...")
+                
                 formatted_results.append({
                     'id': result.get('id', ''),
                     'title': result.get('title', '제목 없음'),
                     'content': result.get('content', ''),
+                    'blob': result.get('blob', ''),  # blob 데이터 추가
                     'allergens': result.get('allergens', []),
                     'ingredients': result.get('ingredients', []),
                     'similarity': result.get('final_score', 0.0),
