@@ -341,7 +341,8 @@ export function useCalendarData(currentMonth: Date) {
           date: plan.date,
           slot: plan.slot,
           title: plan.title,
-          notes: plan.notes
+          notes: plan.notes,
+          url: plan.url
         })
         
         // 날짜 유효성 검사
@@ -372,21 +373,25 @@ export function useCalendarData(currentMonth: Date) {
           if (!convertedPlanIds[dateKey]) {
             convertedPlanIds[dateKey] = {}
           }
-          // 슬롯에 맞는 식단 데이터 설정
+          // 슬롯에 맞는 식단 데이터 설정 (URL 포함)
           if (plan.slot === 'breakfast') {
             convertedData[dateKey].breakfast = plan.title || plan.notes || ''
+            convertedData[dateKey].breakfastUrl = plan.url || undefined
             convertedData[dateKey].breakfastCompleted = plan.status === 'done'
             convertedPlanIds[dateKey].breakfast = plan.id
           } else if (plan.slot === 'lunch') {
             convertedData[dateKey].lunch = plan.title || plan.notes || ''
+            convertedData[dateKey].lunchUrl = plan.url || undefined
             convertedData[dateKey].lunchCompleted = plan.status === 'done'
             convertedPlanIds[dateKey].lunch = plan.id
           } else if (plan.slot === 'dinner') {
             convertedData[dateKey].dinner = plan.title || plan.notes || ''
+            convertedData[dateKey].dinnerUrl = plan.url || undefined
             convertedData[dateKey].dinnerCompleted = plan.status === 'done'
             convertedPlanIds[dateKey].dinner = plan.id
           } else if (plan.slot === 'snack') {
             convertedData[dateKey].snack = plan.title || plan.notes || ''
+            convertedData[dateKey].snackUrl = plan.url || undefined
             convertedData[dateKey].snackCompleted = plan.status === 'done'
             convertedPlanIds[dateKey].snack = plan.id
           } else {
