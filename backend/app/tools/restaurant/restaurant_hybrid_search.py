@@ -15,8 +15,15 @@ from app.core.redis_cache import redis_cache
 # Windows 콘솔에서 이모지 출력을 위한 인코딩 설정
 if sys.platform == "win32":
     import codecs
-    sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
-    sys.stderr = codecs.getwriter("utf-8")(sys.stderr.detach())
+    # Windows 콘솔 UTF-8 출력: detach()는 uvicorn 멀티프로세스와 충돌할 수 있으므로 사용하지 않음
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        if hasattr(sys.stderr, "reconfigure"):
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        # 일부 환경에서는 reconfigure 미지원: 환경 변수 또는 기본 출력 사용
+        pass
 from app.core.config import settings
 
 class RestaurantHybridSearchTool:
@@ -428,20 +435,20 @@ class RestaurantHybridSearchTool:
                 # 2. 임베딩 생성
                 print("  📊 임베딩 생성 중...")
                 query_embedding = await self._create_embedding(query)
-            
+                
                 # 3. 병렬 검색 실행 (모든 결과)
                 vector_results = []
                 keyword_results = []
-            
+                
                 if query_embedding:
                     print("  🔄 벡터 검색 실행...")
                     vector_results = await self._supabase_vector_search(query_embedding, search_limit)
                     if not vector_results:
                         print("  ⚠️ 벡터 검색 결과 없음 - 키워드 검색에 의존")
-            
+                
                 print("  🔄 키워드 검색 실행...")
                 keyword_results = await self._supabase_keyword_search(query, search_limit)
-            
+                
                 # 4. 결과 통합
                 all_results = []
                 all_results.extend(vector_results)
@@ -450,10 +457,61 @@ class RestaurantHybridSearchTool:
                 print(f"  📊 벡터 검색 결과: {len(vector_results)}개")
                 print(f"  📊 키워드 검색 결과: {len(keyword_results)}개")
                 print(f"  📊 통합 결과: {len(all_results)}개 (중복 제거 전)")
-            
+                
                 # 중복 제거
                 unique_results = self._deduplicate_results(all_results)
                 print(f"  📊 중복 제거 후: {len(unique_results)}개")
+                if len(unique_results) == 0:
+                    print("  ⚠️ base_pool=0 (벡터/키워드 통합 후 후보 없음)")
+
+                # 🧪 디버그: 필터/회전/개인화 완전 우회 모드 (이번 요청 한정)
+                debug_no_filter = bool((location or {}).get("debug_no_filter"))
+                if debug_no_filter:
+                    print("  🧪 디버그 모드: 필터/회전/개인화 우회 → 원시 결과에서 바로 선택")
+                    choose_pool = list(unique_results)
+                    # 충분하면 다양성 선택, 아니면 그대로 사용
+                    if len(choose_pool) > max_results:
+                        try:
+                            selected_results = self._select_diverse_results(choose_pool, max_results)
+                        except Exception:
+                            import random
+                            selected_results = random.sample(choose_pool, max_results)
+                    else:
+                        selected_results = choose_pool
+
+                    # 결과 포맷만 맞춰 바로 반환
+                    formatted_results = []
+                    for result in selected_results[:max_results]:
+                        restaurant_id = str(result.get('restaurant_id', ''))
+                        source_url = result.get('source_url')
+                        if not source_url and restaurant_id:
+                            try:
+                                restaurant_info = self.supabase.table('restaurant').select('source_url').eq('id', restaurant_id).execute()
+                                if restaurant_info.data and len(restaurant_info.data) > 0:
+                                    source_url = restaurant_info.data[0].get('source_url')
+                            except Exception as e:
+                                print(f"  ⚠️ source_url 조회 실패: {e}")
+                        formatted_results.append({
+                            'restaurant_id': restaurant_id,
+                            'restaurant_name': result.get('restaurant_name', '이름 없음'),
+                            'category': result.get('restaurant_category', ''),
+                            'addr_road': result.get('addr_road', ''),
+                            'addr_jibun': result.get('addr_jibun', ''),
+                            'lat': result.get('lat', 0.0),
+                            'lng': result.get('lng', 0.0),
+                            'phone': result.get('phone', ''),
+                            'menu_name': result.get('menu_name', ''),
+                            'menu_description': result.get('menu_description', ''),
+                            'menu_price': result.get('menu_price'),
+                            'keto_score': result.get('keto_score', 0),
+                            'keto_reasons': result.get('keto_reasons'),
+                            'similarity': result.get('vector_score', result.get('ilike_score', result.get('trigram_score', result.get('similarity_score', 0.0)))),
+                            'search_type': result.get('search_type', 'hybrid'),
+                            'final_score': result.get('final_score', 0.0),
+                            'source_url': source_url
+                        })
+                    print(f"  ✅ 디버그 모드 결과: {len(formatted_results)}개")
+                    return formatted_results
 
                 # 🔒 강력 필터: (키토 점수 ≥ 50) 또는 (점수 None 이고 키토 키워드 포함)
                 def is_keto_keyword(r: Dict) -> bool:
@@ -475,7 +533,24 @@ class RestaurantHybridSearchTool:
                         filtered_pool.append(r)
 
                 print(f"  ✅ 강력 필터 후: {len(filtered_pool)}개 (≥50 또는 None+키토키워드)")
-                unique_results = filtered_pool
+                # 후보가 0이면 자동 완화(이번 요청 한정)
+                if len(filtered_pool) == 0:
+                    print("  🪄 자동 완화: 임계 50→45로 한시 하향 적용")
+                    soft_pool = []
+                    for r in unique_results:
+                        sc = r.get('keto_score')
+                        if (isinstance(sc, (int, float)) and sc >= 45) or (sc is None and is_keto_keyword(r)):
+                            # None+키워드는 포함, 그 외 45점 이상 허용
+                            if sc is None:
+                                r['keto_score'] = 50
+                                r['score_correction'] = 'None→+50(키토키워드-soft)'
+                            soft_pool.append(r)
+                    if len(soft_pool) == 0:
+                        print("  ⚠️ 완화 후에도 0 → 필터 미적용으로 전체 후보 사용")
+                        soft_pool = list(unique_results)
+                    unique_results = soft_pool
+                else:
+                    unique_results = filtered_pool
                 # 결과 풀 캐시 저장 (5분)
                 if unique_results:
                     redis_cache.set(pool_cache_key, unique_results, ttl=300)
@@ -497,6 +572,7 @@ class RestaurantHybridSearchTool:
             rotation_key = f"restaurant_rotation:{rotation_user}:{normalized_query}"
             recent_last_batch_key = rotation_key + ":last"
             menu_rotation_key = f"menu_rotation:{rotation_user}:{normalized_query}"
+            last_menu_batch_key = f"{menu_rotation_key}:last"
 
             # 요청으로 회전 캐시 초기화
             if reset_rotation:
@@ -562,17 +638,46 @@ class RestaurantHybridSearchTool:
                 remaining_after_menu = [r for r in available_results if _mid(r) not in used_menus]
                 print(f"  🍽️ 메뉴 회전 제외: {before-len(remaining_after_menu)}개 제외")
 
-                # ✅ 자동 회전 초기화: 남은 후보가 3개 미만(또는 max_results 미만)이면 회전 리스트 리셋
+                # ✅ 자동 회전 초기화 대신: 사용 이력 제외 유지한 채 베이스 풀에서 보충 시도
                 if len(remaining_after_menu) < max_results:
-                    print("  🔄 메뉴 회전 자동 초기화: 남은 후보 부족 → 회전 목록 리셋")
+                    print("  🔄 회전 유지 보충: 남은 후보 부족 → 사용 이력 제외하고 베이스 풀에서 채움")
                     try:
-                        redis_cache.delete(menu_rotation_key)
+                        picked_mids_tmp = set(_mid(r) for r in remaining_after_menu)
+                        candidates = []
+                        for cand in base_pool:
+                            mid_c = _mid(cand)
+                            if mid_c in used_menus or mid_c in picked_mids_tmp:
+                                continue
+                            candidates.append(cand)
+                        # 점수 우선 정렬 후 보충
+                        candidates.sort(key=lambda x: x.get('keto_score') or 0, reverse=True)
+                        need = max_results - len(remaining_after_menu)
+                        fill = candidates[:need]
+                        available_results = remaining_after_menu + fill
                     except Exception as e:
-                        print(f"  ⚠️ 메뉴 회전 리셋 실패: {e}")
-                    used_menus = set()
-                    available_results = list(available_results)  # 회전 무시하고 전체에서 다시 선택
+                        print(f"  ⚠️ 회전 유지 보충 실패: {e}")
+                        available_results = remaining_after_menu
                 else:
                     available_results = remaining_after_menu
+
+            # 🧱 직전 배치 메뉴 1회 우선 제외(부족하면 해제)
+            try:
+                last_menu_batch = set(str(x) for x in (redis_cache.get(last_menu_batch_key) or []))
+                if last_menu_batch:
+                    before = len(available_results)
+                    tmp = [r for r in available_results if _mid(r) not in last_menu_batch]
+                    print(f"  ⛔ 직전 배치 메뉴 우선 제외: {before-len(tmp)}개 제외")
+                    if len(tmp) >= max_results:
+                        available_results = tmp
+                    else:
+                        print("  ↩️ 직전 배치 제외 해제(후보 부족)")
+            except Exception as e:
+                print(f"  ⚠️ 직전 배치 제외 처리 실패: {e}")
+
+            # 🔁 회전/직전배치 제외 후 후보가 0이면, 이번 요청은 회전 무시하고 전체 풀로 복원
+            if len(available_results) == 0 and len(base_pool) > 0:
+                print("  🔁 후보 0 → 회전 무시하고 전체 풀로 복원")
+                available_results = list(base_pool)
 
             # 식당 회전 제외를 쓰지 않으므로 직전 배치 보충 단계는 건너뜀
 
@@ -589,9 +694,17 @@ class RestaurantHybridSearchTool:
                     name = (r.get('menu_name') or r.get('restaurant_name') or '').lower()
                     # 알레르기/비선호 키워드가 이름에 포함되면 제외
                     tokens = list(allergies) + list(dislikes)
-                    return any(t.lower() in name for t in tokens if isinstance(t, str))
+                    return any((isinstance(t, str) and t and t.lower() in name) for t in tokens)
 
+                before_cnt = len(available_results)
                 filtered = [r for r in available_results if not is_blocked(r)]
+                print(f"  👤 개인화 필터: {before_cnt}→{len(filtered)}개")
+
+                # 후보가 부족하면(또는 0) 이번 요청 한정으로 개인화 제외를 완화/해제
+                if len(filtered) < max_results:
+                    print("  🩹 개인화 완화: 후보 부족으로 이번 요청은 제외 해제")
+                    filtered = list(available_results)
+
                 # 간단 가점: 키토 점수 + (키워드 보정) + 목표 존재시 +5
                 for r in filtered:
                     base = (r.get('keto_score') or 0)
@@ -601,7 +714,7 @@ class RestaurantHybridSearchTool:
                     if kcal_goal is not None:
                         bonus += 5
                     r['final_score'] = float(base) + bonus
-                available_results = filtered if filtered else available_results
+                available_results = filtered
 
             # 다양성 선택
             if len(available_results) > max_results:
@@ -614,7 +727,8 @@ class RestaurantHybridSearchTool:
                     def _cat(name: str) -> str:
                         return self._categorize_menu(name or '')
                     prev_gimbap = any(_cat(r.get('menu_name')) == '김밥류' for r in prev_menus)
-                    gimbap_cap = 0 if prev_gimbap else 1
+                    # 김밥 최대 1개 + 나머지 2개는 회전 우선
+                    gimbap_cap = 1 if prev_gimbap else 1
                 except Exception:
                     gimbap_cap = 1
                 selected_results = self._select_diverse_results(available_results, max_results, gimbap_cap=gimbap_cap)
@@ -730,6 +844,11 @@ class RestaurantHybridSearchTool:
                     'source_url': source_url
                 })
             
+            if len(unique_results) == 0:
+                try:
+                    print("  📉 요약: base_pool=", len(base_pool))
+                except Exception:
+                    pass
             print(f"  ✅ 최종 결과: {len(formatted_results)}개")
 
             # 7. 🧠 회전 추천 상태 업데이트 (최근 추천 식당 기록)
@@ -762,8 +881,16 @@ class RestaurantHybridSearchTool:
                                 merged_m.append(mid)
                                 seen_m.add(mid)
                         merged_m = merged_m[-200:]
-                        redis_cache.set(menu_rotation_key, merged_m, ttl=1800)
+                        try:
+                            redis_cache.set(menu_rotation_key, merged_m, ttl=1800)
+                        except Exception as e:
+                            print(f"  ⚠️ 메뉴 회전 키 저장 실패: {e}")
                         print(f"  🍽️ 메뉴 회전 업데이트: 총 {len(merged_m)}개 저장")
+                        # 직전 배치(메뉴)도 별도 저장하여 1회 제외에 활용
+                        try:
+                            redis_cache.set(last_menu_batch_key, new_menu_ids, ttl=1800)
+                        except Exception as e:
+                            print(f"  ⚠️ 직전 배치 키 저장 실패: {e}")
                 except Exception as e:
                     print(f"  ⚠️ 메뉴 회전 상태 저장 실패: {e}")
             except Exception as e:
