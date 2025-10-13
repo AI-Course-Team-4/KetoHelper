@@ -214,15 +214,38 @@ class PlaceSearchAgent:
             if profile and isinstance(profile, dict):
                 location_payload["profile"] = profile
 
-            # 🔧 테스트 1회용 초기화 플래그 (테스트 후 주석 처리하세요)
-            # location_payload["reset_rotation"] = True
-            # location_payload["bypass_pool_cache"] = True
+            # 🔧 테스트 1회용 초기화 플래그 (이번 한 번만)
+            location_payload["reset_rotation"] = True   # TODO: 확인 후 주석 처리
+            location_payload["bypass_pool_cache"] = True # TODO: 확인 후 주석 처리
+            location_payload["ignore_rotation"] = True  # 필요시 1회 완전 무시
+
+            # 디버그 로그: 전달 플래그 확인
+            try:
+                print(
+                    "  🧪 테스트 플래그:",
+                    {
+                        "reset_rotation": location_payload.get("reset_rotation"),
+                        "bypass_pool_cache": location_payload.get("bypass_pool_cache"),
+                        "ignore_rotation": location_payload.get("ignore_rotation"),
+                        "user_id": location_payload.get("user_id", "anon")
+                    }
+                )
+            except Exception:
+                pass
 
             hybrid_results = await self.restaurant_hybrid_search.hybrid_search(
                 query=message,
                 location=location_payload,
                 max_results=20
             )
+            # 결과 집계 로그
+            try:
+                print(f"  📦 에이전트 수신 결과: {len(hybrid_results)}개")
+                # 샘플 3개만 요약 출력
+                for i, r in enumerate(hybrid_results[:3], 1):
+                    print(f"    {i}. {r.get('restaurant_name')} - {r.get('menu_name')} (keto:{r.get('keto_score')})")
+            except Exception:
+                pass
             
             print(f"  ✅ 하이브리드 검색 결과: {len(hybrid_results)}개")
             
