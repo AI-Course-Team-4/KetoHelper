@@ -1,8 +1,5 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { CalendarToday, ChevronLeft, ChevronRight } from '@mui/icons-material'
+import { Card, CardContent } from '@/components/ui/card'
 import { DayPicker } from 'react-day-picker'
-import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import 'react-day-picker/dist/style.css'
 import { CalendarDay } from './CalendarDay'
@@ -47,7 +44,7 @@ export function CalendarGrid({
   })
   
   return (
-    <Card className="lg:col-span-3 border border-gray-200 relative">
+    <Card className="lg:col-span-4 relative max-w-[1600px] mx-auto w-full">
       {/* 오버레이 로딩 - 캘린더 전체 덮어씌우기 */}
       {isLoadingOverlay && (
         <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-50 flex items-center justify-center h-[600px]">
@@ -58,36 +55,8 @@ export function CalendarGrid({
         </div>
       )}
       
-      <CardHeader className="pb-4">
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center text-xl font-bold">
-            <CalendarToday sx={{ fontSize: 24, mr: 1.5, color: 'green.600' }} />
-            월간 캘린더
-          </CardTitle>
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onMonthChange(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
-              className="hover:bg-green-50 hover:border-green-300"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="text-lg font-bold min-w-[140px] text-center bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-              {format(currentMonth, 'yyyy년 M월', { locale: ko })}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onMonthChange(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
-              className="hover:bg-green-50 hover:border-green-300"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="p-6 pt-0">
+      {/* 상단 헤더/월 이동 제거: 외부 헤더에서 제어 */}
+      <CardContent className="p-4 sm:p-6 pt-0">
                 {isLoading && (
                     <div className="flex items-center justify-center h-[600px] w-full">
                       <div className="text-center">
@@ -118,7 +87,7 @@ export function CalendarGrid({
               month={currentMonth}
               onMonthChange={onMonthChange}
               locale={ko}
-              className="rdp-custom w-full"
+              className="rdp-custom w-full max-w-[1400px]"
               modifiers={{
                 hasMeal: Object.keys(mealData).map(date => new Date(date)),
                 hasPartialMeal: Object.keys(mealData).filter(date => {
