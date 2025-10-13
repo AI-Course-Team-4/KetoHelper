@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { format } from 'date-fns'
 import { useQueryClient } from '@tanstack/react-query'
 import { MealData, generateRandomMeal } from '@/data/ketoMeals'
-import { usePlansRange } from '@/hooks/useApi'
+import { usePlansRange, useUpdatePlan } from '@/hooks/useApi'
 import { useAuthStore } from '@/store/authStore'
 import { useCalendarStore } from '@/store/calendarStore'
 
@@ -83,6 +83,27 @@ export function useCalendarData(currentMonth: Date) {
     timestamp: new Date().toISOString()
   })
   
+  // 서버에서 받은 status(eaten) 기반으로 체크 상태 동기화
+  useEffect(() => {
+    try {
+      const nextState: Record<string, { breakfastCompleted?: boolean; lunchCompleted?: boolean; dinnerCompleted?: boolean; snackCompleted?: boolean }> = {}
+      const list = (effectivePlansData as any[]) || []
+      list.forEach((p) => {
+        const dateKey = p.date
+        const slot: 'breakfast'|'lunch'|'dinner'|'snack' = p.slot
+        const isDone = p.status === 'done' || p.eaten === true
+        if (!nextState[dateKey]) nextState[dateKey] = {}
+        if (slot === 'breakfast') nextState[dateKey].breakfastCompleted = isDone
+        else if (slot === 'lunch') nextState[dateKey].lunchCompleted = isDone
+        else if (slot === 'dinner') nextState[dateKey].dinnerCompleted = isDone
+        else if (slot === 'snack') nextState[dateKey].snackCompleted = isDone
+      })
+      setMealCheckState(nextState)
+    } catch (e) {
+      console.error('❌ 서버 데이터→체크 상태 동기화 실패', e)
+    }
+  }, [effectivePlansData])
+
   // 월이 변경될 때마다 강제로 데이터 새로고침
   useEffect(() => {
     console.log(`🔄 월 변경 감지: ${format(currentMonth, 'yyyy-MM')} - 데이터 새로고침`)
@@ -499,27 +520,51 @@ export function useCalendarData(currentMonth: Date) {
     }
   }, [plansData, user?.id, currentMonth, isAnyLoading, optimisticMeals])
 
-  // 간단한 체크 토글 함수 (로컬 UI만)
+  const updatePlan = useUpdatePlan()
+
+  // 체크 토글: 서버 PATCH 호출 + 낙관 업데이트
   const toggleMealCheck = (date: Date, mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack') => {
     try {
       const dateKey = formatDateKey(date)
+      const thisDayPlans = (effectivePlansData as any[] | undefined)?.filter(p => p.date === dateKey) || []
+      const planId = thisDayPlans.find(p => p.slot === mealType)?.id
+      if (!planId || !user?.id) {
+        console.warn('⚠️ planId 또는 userId 없음 - 토글 저장 스킵', { planId, userId: user?.id, dateKey, mealType })
+        return
+      }
 
+      // 현재 UI 상태 읽기
+      const current = isMealChecked(date, mealType)
+      const next = !current
+
+      // 낙관 업데이트
       setMealCheckState(prev => {
         const currentState = prev[dateKey] || {}
         const newState = { ...currentState }
-
-        if (mealType === 'breakfast') newState.breakfastCompleted = !currentState.breakfastCompleted
-        else if (mealType === 'lunch') newState.lunchCompleted = !currentState.lunchCompleted
-        else if (mealType === 'dinner') newState.dinnerCompleted = !currentState.dinnerCompleted
-        else if (mealType === 'snack') newState.snackCompleted = !currentState.snackCompleted
-
-        return {
-          ...prev,
-          [dateKey]: newState
-        }
+        if (mealType === 'breakfast') newState.breakfastCompleted = next
+        else if (mealType === 'lunch') newState.lunchCompleted = next
+        else if (mealType === 'dinner') newState.dinnerCompleted = next
+        else if (mealType === 'snack') newState.snackCompleted = next
+        return { ...prev, [dateKey]: newState }
       })
 
-      console.log(`✅ ${mealType} 체크 토글 (로컬 UI)`)
+      // 서버 저장 호출 (기존 정식 엔드포인트)
+      updatePlan.mutate(
+        {
+          planId,
+          userId: user.id,
+          updates: { status: next ? 'done' : 'planned' }
+        },
+        {
+          onSettled: () => {
+            // 서버 반영 후 월 범위 데이터 강제 새로고침하여 재진입 시 상태 유지
+            const cacheKey: any = ['plans-range', startDate, endDate, user?.id || '']
+            queryClient.invalidateQueries({ queryKey: cacheKey })
+          }
+        }
+      )
+
+      console.log(`✅ ${mealType} 체크 토글 → 서버 저장 호출`, { planId, next })
     } catch (error) {
       console.error('❌ 식단 체크 토글 오류:', error, date, mealType)
     }
