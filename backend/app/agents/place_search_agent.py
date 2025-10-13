@@ -171,26 +171,7 @@ class PlaceSearchAgent:
             
             print(f"🔍 PlaceSearchAgent 검색 시작: '{message}' (위치: {lat}, {lng})")
             
-            # 🚀 캐싱 로직 추가
-            # profile을 안전하게 해시 가능한 형태로 변환
-            profile_hash = ""
-            if profile:
-                try:
-                    # profile 딕셔너리를 JSON 문자열로 변환 후 해시
-                    import json
-                    profile_str = json.dumps(profile, sort_keys=True, ensure_ascii=False)
-                    profile_hash = hash(profile_str)
-                except Exception as e:
-                    print(f"⚠️ profile 해시 생성 실패: {e}")
-                    profile_hash = ""
-            
-            cache_key = f"restaurant_{hash(message)}_{lat}_{lng}_{radius_km}_{profile_hash}"
-            
-            # Redis 캐시 확인
-            cached_result = redis_cache.get(cache_key)
-            if cached_result:
-                print(f"    📊 Redis 식당 검색 캐시 히트: {message[:30]}...")
-                return cached_result
+            # ⚠️ 에이전트 레벨 결과 캐시는 비활성화 (회전 추천/개인화가 즉시 반영되어야 함)
             
             # 전체 검색에 타임아웃 적용
             try:
@@ -198,10 +179,6 @@ class PlaceSearchAgent:
                     self._execute_search_with_timeout(message, lat, lng, radius_km, profile),
                     timeout=90.0  # 90초 타임아웃으로 증가
                 )
-                
-                # 🚀 검색 결과 캐싱 (TTL: 30분)
-                redis_cache.set(cache_key, result, ttl=1800)
-                print(f"    📊 식당 검색 결과 캐시 저장: {message[:30]}...")
                 
                 return result
                 
@@ -228,9 +205,22 @@ class PlaceSearchAgent:
         
         try:
             # 하이브리드 검색 실행
+            # hybrid_search에 사용자별 회전/개인화 정보를 전달
+            location_payload = {"lat": lat, "lng": lng}
+            # 사용자 ID 전달 (있다면)
+            if profile and isinstance(profile, dict) and profile.get("user_id"):
+                location_payload["user_id"] = profile.get("user_id")
+            # 프로필 전체 전달 (개인화 가중치용)
+            if profile and isinstance(profile, dict):
+                location_payload["profile"] = profile
+
+            # 🔧 테스트 1회용 초기화 플래그 (테스트 후 주석 처리하세요)
+            # location_payload["reset_rotation"] = True
+            # location_payload["bypass_pool_cache"] = True
+
             hybrid_results = await self.restaurant_hybrid_search.hybrid_search(
                 query=message,
-                location={"lat": lat, "lng": lng},
+                location=location_payload,
                 max_results=20
             )
             
