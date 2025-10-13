@@ -202,6 +202,23 @@ def get_general_response_template(message: str, profile: dict = None) -> str:
     message_lower = message.lower().strip()
     is_logged_in = is_logged_in_user(profile or {})
     
+    # 키토 시작 가이드 관련 (정확한 시작 의도만 감지)
+    keto_start_keywords = [
+        "키토 다이어트 시작하려고 해",
+        "키토 다이어트 시작하려고",
+        "키토 다이어트 시작",
+        "키토 시작하려고 해",
+        "키토 시작하려고",
+        "키토 시작",
+        "다이어트 시작하려고 해",
+        "다이어트 시작하려고",
+        "다이어트 시작"
+    ]
+    if any(keyword in message_lower for keyword in keto_start_keywords):
+        # 키토 시작 가이드 템플릿 import 및 사용
+        from .keto_start_template import format_keto_start_guide
+        return format_keto_start_guide(profile or {})
+    
     # 인사 관련
     greeting_keywords = ["안녕", "안녕하세요", "하이", "hi", "hello"]
     if any(keyword in message_lower for keyword in greeting_keywords):
@@ -212,8 +229,24 @@ def get_general_response_template(message: str, profile: dict = None) -> str:
     if any(keyword in message_lower for keyword in intro_keywords):
         return INTRODUCTION_TEMPLATE_LOGGED_IN if is_logged_in else INTRODUCTION_TEMPLATE_GUEST
     
-    # 키토 설명 관련
-    keto_keywords = ["키토", "다이어트", "뭐야", "무엇", "설명", "알려줘"]
+    # 키토 설명 관련 (일반적인 키토 질문)
+    keto_keywords = [
+        "키토 다이어트 방법",
+        "키토 다이어트 뭐야",
+        "키토 다이어트 무엇",
+        "키토 다이어트 설명",
+        "키토 다이어트 알려줘",
+        "키토 방법",
+        "키토 뭐야",
+        "키토 무엇",
+        "키토 설명",
+        "키토 알려줘",
+        "다이어트 방법",
+        "다이어트 뭐야",
+        "다이어트 무엇",
+        "다이어트 설명",
+        "다이어트 알려줘"
+    ]
     if any(keyword in message_lower for keyword in keto_keywords):
         return KETO_EXPLANATION_TEMPLATE_LOGGED_IN if is_logged_in else KETO_EXPLANATION_TEMPLATE_GUEST
     

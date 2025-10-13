@@ -792,7 +792,17 @@ class KetoCoachAgent:
                 return state
 
             # 키토 시작 질문 감지 (템플릿 사용) - 우선 적용
-            keto_start_keywords = ["키토 다이어트 시작", "키토 시작", "키토 다이어트", "키토", "다이어트 시작"]
+            keto_start_keywords = [
+                "키토 다이어트 시작하려고 해",
+                "키토 다이어트 시작하려고",
+                "키토 다이어트 시작",
+                "키토 시작하려고 해",
+                "키토 시작하려고",
+                "키토 시작",
+                "다이어트 시작하려고 해",
+                "다이어트 시작하려고",
+                "다이어트 시작"
+            ]
             is_keto_start = any(keyword in current_message.lower() for keyword in keto_start_keywords)
             
             if is_keto_start:
