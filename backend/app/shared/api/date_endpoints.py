@@ -24,6 +24,32 @@ class DateParseResponse(BaseModel):
     error_message: Optional[str] = None
 
 
+def _infer_days_from_history(history: Optional[List[str]]) -> Optional[int]:
+    """이전 대화에서 기간(일수)을 추정한다.
+    - '3일', '7일' 등의 패턴
+    - '일주일' → 7
+    가장 마지막에 등장한 값을 사용
+    """
+    try:
+        if not history:
+            return None
+        import re
+        days: Optional[int] = None
+        for msg in reversed(history):
+            if not isinstance(msg, str):
+                continue
+            # 일주일/한 주
+            if '일주일' in msg or '한 주' in msg:
+                days = 7
+                break
+            m = re.search(r"(\d+)\s*일", msg)
+            if m:
+                days = int(m.group(1))
+                break
+        return days
+    except Exception:
+        return None
+
 @router.post("/parse-date", response_model=DateParseResponse)
 async def parse_date_from_message(request: DateParseRequest):
     """
@@ -66,7 +92,14 @@ async def parse_date_from_message(request: DateParseRequest):
             "display_string": date_parser.to_display_string(parsed_date)
         }
 
-        logger.info(f"날짜 파싱 성공: {parsed_date.description} -> {parsed_date.date.isoformat()}, 일수: {parsed_date.duration_days}")
+        # 🔁 일수 보정: 파서가 못 찾았으면 최근 히스토리에서 추정
+        if not date_dict["duration_days"]:
+            inferred = _infer_days_from_history(request.chat_history)
+            if inferred:
+                date_dict["duration_days"] = inferred
+                logger.info(f"일수 보정 적용: chat_history → {inferred}일")
+
+        logger.info(f"날짜 파싱 성공: {parsed_date.description} -> {parsed_date.date.isoformat()}, 일수: {date_dict['duration_days']}")
         return DateParseResponse(
             success=True,
             parsed_date=date_dict
@@ -128,7 +161,14 @@ async def parse_natural_date(request: DateParseRequest):
             "display_string": date_parser.to_display_string(parsed_date)
         }
 
-        logger.info(f"자연어 날짜 파싱 성공: {parsed_date.description} -> {parsed_date.date.isoformat()} (신뢰도: {parsed_date.confidence:.2f}, 일수: {parsed_date.duration_days})")
+        # 🔁 일수 보정: 파서가 못 찾았으면 최근 히스토리에서 추정
+        if not date_dict["duration_days"]:
+            inferred = _infer_days_from_history(request.chat_history)
+            if inferred:
+                date_dict["duration_days"] = inferred
+                logger.info(f"일수 보정 적용: chat_history → {inferred}일")
+
+        logger.info(f"자연어 날짜 파싱 성공: {parsed_date.description} -> {parsed_date.date.isoformat()} (신뢰도: {parsed_date.confidence:.2f}, 일수: {date_dict['duration_days']})")
         return DateParseResponse(
             success=True,
             parsed_date=date_dict
