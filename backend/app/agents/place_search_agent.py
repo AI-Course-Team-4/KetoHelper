@@ -172,7 +172,19 @@ class PlaceSearchAgent:
             print(f"🔍 PlaceSearchAgent 검색 시작: '{message}' (위치: {lat}, {lng})")
             
             # 🚀 캐싱 로직 추가
-            cache_key = f"restaurant_{hash(message)}_{lat}_{lng}_{radius_km}_{hash(tuple(sorted(profile.items())) if profile else '')}"
+            # profile을 안전하게 해시 가능한 형태로 변환
+            profile_hash = ""
+            if profile:
+                try:
+                    # profile 딕셔너리를 JSON 문자열로 변환 후 해시
+                    import json
+                    profile_str = json.dumps(profile, sort_keys=True, ensure_ascii=False)
+                    profile_hash = hash(profile_str)
+                except Exception as e:
+                    print(f"⚠️ profile 해시 생성 실패: {e}")
+                    profile_hash = ""
+            
+            cache_key = f"restaurant_{hash(message)}_{lat}_{lng}_{radius_km}_{profile_hash}"
             
             # Redis 캐시 확인
             cached_result = redis_cache.get(cache_key)
