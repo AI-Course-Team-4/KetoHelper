@@ -171,14 +171,7 @@ class PlaceSearchAgent:
             
             print(f"🔍 PlaceSearchAgent 검색 시작: '{message}' (위치: {lat}, {lng})")
             
-            # 🚀 캐싱 로직 추가
-            cache_key = f"restaurant_{hash(message)}_{lat}_{lng}_{radius_km}_{hash(tuple(sorted(profile.items())) if profile else '')}"
-            
-            # Redis 캐시 확인
-            cached_result = redis_cache.get(cache_key)
-            if cached_result:
-                print(f"    📊 Redis 식당 검색 캐시 히트: {message[:30]}...")
-                return cached_result
+            # ⚠️ 에이전트 레벨 결과 캐시는 비활성화 (회전 추천/개인화가 즉시 반영되어야 함)
             
             # 전체 검색에 타임아웃 적용
             try:
@@ -186,10 +179,6 @@ class PlaceSearchAgent:
                     self._execute_search_with_timeout(message, lat, lng, radius_km, profile),
                     timeout=90.0  # 90초 타임아웃으로 증가
                 )
-                
-                # 🚀 검색 결과 캐싱 (TTL: 30분)
-                redis_cache.set(cache_key, result, ttl=1800)
-                print(f"    📊 식당 검색 결과 캐시 저장: {message[:30]}...")
                 
                 return result
                 
@@ -216,11 +205,47 @@ class PlaceSearchAgent:
         
         try:
             # 하이브리드 검색 실행
+            # hybrid_search에 사용자별 회전/개인화 정보를 전달
+            location_payload = {"lat": lat, "lng": lng}
+            # 사용자 ID 전달 (있다면)
+            if profile and isinstance(profile, dict) and profile.get("user_id"):
+                location_payload["user_id"] = profile.get("user_id")
+            # 프로필 전체 전달 (개인화 가중치용)
+            if profile and isinstance(profile, dict):
+                location_payload["profile"] = profile
+
+            # 🔧 테스트 1회용 초기화 플래그 (이번 한 번만)
+            location_payload["reset_rotation"] = True   # TODO: 확인 후 주석 처리
+            location_payload["bypass_pool_cache"] = True # TODO: 확인 후 주석 처리
+            location_payload["ignore_rotation"] = True  # 필요시 1회 완전 무시
+
+            # 디버그 로그: 전달 플래그 확인
+            try:
+                print(
+                    "  🧪 테스트 플래그:",
+                    {
+                        "reset_rotation": location_payload.get("reset_rotation"),
+                        "bypass_pool_cache": location_payload.get("bypass_pool_cache"),
+                        "ignore_rotation": location_payload.get("ignore_rotation"),
+                        "user_id": location_payload.get("user_id", "anon")
+                    }
+                )
+            except Exception:
+                pass
+
             hybrid_results = await self.restaurant_hybrid_search.hybrid_search(
                 query=message,
-                location={"lat": lat, "lng": lng},
+                location=location_payload,
                 max_results=20
             )
+            # 결과 집계 로그
+            try:
+                print(f"  📦 에이전트 수신 결과: {len(hybrid_results)}개")
+                # 샘플 3개만 요약 출력
+                for i, r in enumerate(hybrid_results[:3], 1):
+                    print(f"    {i}. {r.get('restaurant_name')} - {r.get('menu_name')} (keto:{r.get('keto_score')})")
+            except Exception:
+                pass
             
             print(f"  ✅ 하이브리드 검색 결과: {len(hybrid_results)}개")
             
