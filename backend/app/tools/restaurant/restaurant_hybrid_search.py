@@ -457,12 +457,12 @@ class RestaurantHybridSearchTool:
                 print(f"  📊 벡터 검색 결과: {len(vector_results)}개")
                 print(f"  📊 키워드 검색 결과: {len(keyword_results)}개")
                 print(f"  📊 통합 결과: {len(all_results)}개 (중복 제거 전)")
-                
-                # 중복 제거
-                unique_results = self._deduplicate_results(all_results)
-                print(f"  📊 중복 제거 후: {len(unique_results)}개")
-                if len(unique_results) == 0:
-                    print("  ⚠️ base_pool=0 (벡터/키워드 통합 후 후보 없음)")
+            
+            # 중복 제거
+            unique_results = self._deduplicate_results(all_results)
+            print(f"  📊 중복 제거 후: {len(unique_results)}개")
+            if len(unique_results) == 0:
+                print("  ⚠️ base_pool=0 (벡터/키워드 통합 후 후보 없음)")
 
                 # 🧪 디버그: 필터/회전/개인화 완전 우회 모드 (이번 요청 한정)
                 debug_no_filter = bool((location or {}).get("debug_no_filter"))
