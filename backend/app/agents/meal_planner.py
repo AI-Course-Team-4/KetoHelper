@@ -2258,15 +2258,45 @@ class MealPlannerAgent:
         
         print(f"📅 최종 일수: {days}일")
         
-        # 🚀 식단 생성 캐싱 로직 추가
+        # 🚀 식단 생성 캐싱 로직 (풀 캐시 기반 재조합)
         constraints = self._extract_all_constraints(message, state)
         cache_key = f"meal_plan_{days}_{constraints.get('kcal_target', '')}_{constraints.get('carbs_max', 30)}_{hash(tuple(sorted(constraints.get('allergies', []))))}_{hash(tuple(sorted(constraints.get('dislikes', []))))}_{state.get('profile', {}).get('user_id', '')}"
         
         # Redis 캐시 확인
         cached_result = redis_cache.get(cache_key)
         if cached_result:
-            print(f"    📊 Redis 식단 생성 캐시 히트: {days}일 식단")
-            return cached_result
+            print(f"    📊 Redis 식단 생성 캐시 히트: {days}일 식단 (풀 재조합)")
+            try:
+                base_meal_plan = cached_result.get("meal_plan_data") or (
+                    cached_result.get("results", [{}])[0].get("days")
+                )
+                reshuffled_plan = self._reshuffle_meal_plan_from_pool(base_meal_plan, days)
+                formatted_response = self.response_formatter.format_meal_plan(reshuffled_plan, days)
+                frontend_meal_result = {
+                    "type": "meal_plan",
+                    "days": reshuffled_plan.get("days", []),
+                    "duration_days": days,
+                    "total_macros": reshuffled_plan.get("total_macros"),
+                    "notes": reshuffled_plan.get("notes", []),
+                    "source": "meal_planner(pool_recombine)"
+                }
+                result_data = {
+                    "results": [frontend_meal_result],
+                    "response": formatted_response,
+                    "formatted_response": formatted_response,
+                    "meal_plan_days": days,
+                    "meal_plan_data": reshuffled_plan,
+                    "tool_calls": [{
+                        "tool": "meal_planner",
+                        "method": "handle_meal_request(pool_recombine)",
+                        "days": days,
+                        "fast_mode": state.get("fast_mode"),
+                        "personalized": state.get("use_personalized", False)
+                    }]
+                }
+                return result_data
+            except Exception as e:
+                print(f"  ⚠️ 풀 재조합 실패, 일반 생성으로 폴백: {e}")
         
         # 3. fast_mode 결정
         fast_mode = state.get("fast_mode", self._determine_fast_mode(message))
@@ -2407,15 +2437,53 @@ class MealPlannerAgent:
             }]
         }
         
-        # 🚀 식단 생성 결과 캐싱 (TTL: 1시간)
-        redis_cache.set(cache_key, result_data, ttl=3600)
-        print(f"    📊 식단 생성 결과 캐시 저장: {days}일 식단")
+        # 🚀 풀 캐시 저장 (TTL: 5분) - 최종 결과가 아니라 풀로 저장하여 재조합에 사용
+        try:
+            redis_cache.set(cache_key, result_data, ttl=300)
+            print(f"    💾 풀 캐시 저장: {days}일 식단 (TTL 300s)")
+        except Exception as e:
+            print(f"  ⚠️ 풀 캐시 저장 실패: {e}")
         
         print("🔍 DEBUG: 최종 반환 데이터 구조:")
         print(f"  - results length: {len(result_data.get('results', []))}")
         print(f"  - meal_plan_data 존재: {bool(result_data.get('meal_plan_data'))}")
         
         return result_data
+
+    def _reshuffle_meal_plan_from_pool(self, base_plan: Dict[str, Any], days: int) -> Dict[str, Any]:
+        """캐시된 식단 풀에서 빠르게 재조합하여 새 식단을 생성.
+        - 슬롯별 후보를 모아 랜덤 샘플링
+        - 추가 검색 없이 즉시 반환
+        """
+        import copy
+        if not base_plan:
+            return {"days": []}
+        # base_plan이 dict(meal_plan_data) 또는 days 배열일 수 있음
+        plan_days = base_plan.get("days") if isinstance(base_plan, dict) else base_plan
+        plan_days = plan_days or []
+        slot_names = ["breakfast", "lunch", "dinner", "snack"]
+        slot_pool: Dict[str, List[Any]] = {s: [] for s in slot_names}
+        for day in plan_days:
+            for s in slot_names:
+                item = day.get(s) if isinstance(day, dict) else None
+                if item:
+                    slot_pool[s].append(item)
+        new_days: List[Dict[str, Any]] = []
+        for _ in range(days):
+            day_obj: Dict[str, Any] = {}
+            for s in slot_names:
+                candidates = slot_pool.get(s, [])
+                if not candidates:
+                    day_obj[s] = None
+                    continue
+                choice = random.choice(candidates)
+                day_obj[s] = copy.deepcopy(choice)
+            new_days.append(day_obj)
+        return {
+            "days": new_days,
+            "notes": base_plan.get("notes") if isinstance(base_plan, dict) else [],
+            "total_macros": base_plan.get("total_macros") if isinstance(base_plan, dict) else None,
+        }
     
     async def handle_recipe_request(self, message: str, state: Dict[str, Any]) -> Dict[str, Any]:
         """
