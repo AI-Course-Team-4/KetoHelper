@@ -517,13 +517,7 @@ export function useUpdatePlan() {
     },
     // 동시 실행 허용 및 재시도 설정
     retry: 2,
-    retryDelay: 1000,
-    // 동일한 planId에 대한 동시 요청 허용
-    mutationKey: ['update-plan'],
-    // 네트워크 오류 시에만 재시도
-    retryCondition: (error) => {
-      return error?.response?.status >= 500 || !error?.response
-    }
+    retryDelay: 1000
   })
 }
 
