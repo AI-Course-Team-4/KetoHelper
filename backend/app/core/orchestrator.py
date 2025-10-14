@@ -791,54 +791,31 @@ class KetoCoachAgent:
                 state["response"] = "\n".join(lines)
                 return state
 
-            # 키토 시작 질문 감지 (템플릿 사용) - 우선 적용
-            keto_start_keywords = [
-                "키토 다이어트 시작하려고 해",
-                "키토 다이어트 시작하려고",
-                "키토 다이어트 시작",
-                "키토 시작하려고 해",
-                "키토 시작하려고",
-                "키토 시작",
-                "다이어트 시작하려고 해",
-                "다이어트 시작하려고",
-                "다이어트 시작"
-            ]
-            is_keto_start = any(keyword in current_message.lower() for keyword in keto_start_keywords)
+            # 최소한의 템플릿만 사용 (인사말, 키토 시작 가이드)
+            # 나머지는 모두 LLM이 처리하도록
             
-            if is_keto_start:
-                # 템플릿 기반 빠른 응답 (0.1초) - 기존 프로필 정보 직접 활용
-                state["response"] = get_general_response_template(current_message, state.get("profile", {}))
+            # 템플릿 확인 (최소한의 템플릿만 사용)
+            template_response = get_general_response_template(current_message, state.get("profile", {}))
+            
+            if template_response:
+                # 템플릿 응답이 있으면 사용 (빠른 응답)
+                state["response"] = template_response
                 state["tool_calls"].append({
                     "tool": "general",
-                    "method": "template_based",
-                    "template": "keto_start_guide"
+                    "method": "template_based"
                 })
+                print(f"✅ 템플릿 응답 사용: {len(template_response)}자")
                 return state
-
-            # 일반 질문 템플릿 감지 (빠른 응답)
-            general_keywords = ["안녕", "안녕하세요", "너는", "당신은", "뭐야", "누구야", "다이어트", "무엇", "설명", "알려줘"]
-            is_general_question = any(keyword in current_message.lower() for keyword in general_keywords)
             
-            if is_general_question:
-                # 템플릿 기반 빠른 응답 (0.1초) - 사용자 상태별
-                state["response"] = get_general_response_template(current_message, state.get("profile", {}))
-                state["tool_calls"].append({
-                    "tool": "general",
-                    "method": "template_based",
-                    "template": "general_question"
-                })
-                return state
+            # 템플릿 매칭 실패 -> LLM이 처리
+            print(f"🤖 LLM 응답 생성: {current_message[:50]}...")
 
-            # 간단한 프롬프트 (개인화 정보 + MD 형식 적용)
-            base_prompt = f"""키토 전문가로서 답변해주세요.
-
-질문: {current_message}
-프로필: {profile_context}
-
-간결하고 도움이 되는 답변을 해주세요."""
-            
-            # 🚀 common_templates의 마크다운 서식 규칙 적용
-            prompt = create_standard_prompt(base_prompt)
+            # general_chat.py의 상세한 프롬프트 사용
+            from app.prompts.chat.general_chat import GENERAL_CHAT_PROMPT
+            prompt = GENERAL_CHAT_PROMPT.format(
+                message=current_message,
+                profile_context=profile_context if profile_context else '프로필 정보 없음 (일반적인 키토 조언 제공)'
+            )
 
             # 공통 LLM 직접 사용 (간단하고 빠름) - 안전한 호출
             try:
@@ -1725,8 +1702,14 @@ class KetoCoachAgent:
         else:
             print("⚠️ 오케스트레이터: chat_history가 비어있습니다!")
         
-        # 현재 메시지는 이미 히스토리에 포함되어 있으므로 추가하지 않음
-        # (chat.py에서 DB 저장 후 히스토리에 포함됨)
+        # 현재 메시지 추가 (chat_history에 없을 수 있으므로 항상 추가)
+        # 프로덕션: chat.py에서 DB 저장 후 히스토리에 포함됨
+        # 테스트/첫 메시지: 히스토리가 비어있을 수 있음
+        if message:
+            # 이미 마지막 메시지가 현재 메시지와 같은지 확인
+            if not messages or (messages and messages[-1].content != message):
+                messages.append(HumanMessage(content=message))
+                print(f"📝 현재 메시지를 messages 배열에 추가: {message[:50]}...")
         
         # 초기 상태 설정
         initial_state: AgentState = {
