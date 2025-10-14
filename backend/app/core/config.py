@@ -69,8 +69,8 @@ class Settings(BaseSettings):
     chat_agent_provider: str = os.getenv("CHAT_AGENT_PROVIDER", llm_provider).lower()
     chat_agent_model: str = os.getenv("CHAT_AGENT_MODEL", llm_model)
     chat_agent_temperature: float = float(os.getenv("CHAT_AGENT_TEMPERATURE", "0.1"))
-    chat_agent_max_tokens: int = int(os.getenv("CHAT_AGENT_MAX_TOKENS", "256"))  # 512 → 256로 더 단축
-    chat_agent_timeout: int = int(os.getenv("CHAT_AGENT_TIMEOUT", "3"))  # 5 → 3초로 더 단축
+    chat_agent_max_tokens: int = int(os.getenv("CHAT_AGENT_MAX_TOKENS", "1024"))  # 512 → 256로 더 단축
+    chat_agent_timeout: int = int(os.getenv("CHAT_AGENT_TIMEOUT", "30"))  # 5 → 3초로 더 단축
     
     # DateParser 전용 LLM 설정
     date_parser_provider: str = os.getenv("DATE_PARSER_PROVIDER", llm_provider).lower()
