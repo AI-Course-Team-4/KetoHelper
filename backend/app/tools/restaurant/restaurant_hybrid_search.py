@@ -898,7 +898,7 @@ class RestaurantHybridSearchTool:
             
             # 결과 요약 출력
             for i, result in enumerate(formatted_results[:3], 1):
-                print(f"    {i}. {result['restaurant_name']} - {result['menu_name']} (점수: {result['similarity']:.3f}, 키토: {result['keto_score']})")
+                print(f"    {i}. {result['restaurant_name']} - {result['menu_name']} (점수: {result['similarity']:.3f})")  # 키토 점수 제거
             
             return formatted_results
             
