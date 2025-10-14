@@ -12,7 +12,7 @@ import { AuthRouteGuard } from '@/components/AuthRouteGuard'
 
 function App() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-screen bg-background">
       <Layout>
         <AuthRouteGuard />
         <Routes>

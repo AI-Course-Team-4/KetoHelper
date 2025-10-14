@@ -1,8 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { CalendarToday, ChevronLeft, ChevronRight } from '@mui/icons-material'
 import { DayPicker } from 'react-day-picker'
-import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import 'react-day-picker/dist/style.css'
 import { CalendarDay } from './CalendarDay'
@@ -47,7 +43,7 @@ export function CalendarGrid({
   })
   
   return (
-    <Card className="lg:col-span-3 border border-gray-200 relative">
+    <div className="relative max-w-[1600px] mx-auto w-full">
       {/* 오버레이 로딩 - 캘린더 전체 덮어씌우기 */}
       {isLoadingOverlay && (
         <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-50 flex items-center justify-center h-[600px]">
@@ -58,36 +54,8 @@ export function CalendarGrid({
         </div>
       )}
       
-      <CardHeader className="pb-4">
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center text-xl font-bold">
-            <CalendarToday sx={{ fontSize: 24, mr: 1.5, color: 'green.600' }} />
-            월간 캘린더
-          </CardTitle>
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onMonthChange(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
-              className="hover:bg-green-50 hover:border-green-300"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="text-lg font-bold min-w-[140px] text-center bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-              {format(currentMonth, 'yyyy년 M월', { locale: ko })}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onMonthChange(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
-              className="hover:bg-green-50 hover:border-green-300"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="p-6 pt-0">
+      {/* 상단 헤더/월 이동 제거: 외부 헤더에서 제어 */}
+      <div className="px-2 sm:px-3">
                 {isLoading && (
                     <div className="flex items-center justify-center h-[600px] w-full">
                       <div className="text-center">
@@ -110,7 +78,7 @@ export function CalendarGrid({
         )}
 
                  {!isLoading && !error && (
-                   <div className="calendar-container w-full flex items-start justify-center overflow-x-auto relative">
+                   <div className="calendar-container w-full flex items-start justify-center overflow-x-auto relative" style={{ minHeight: '715px' }}>
                      <DayPicker
               mode="single"
               selected={selectedDate}
@@ -118,7 +86,7 @@ export function CalendarGrid({
               month={currentMonth}
               onMonthChange={onMonthChange}
               locale={ko}
-              className="rdp-custom w-full"
+              className="rdp-custom w-full max-w-[1400px]"
               modifiers={{
                 hasMeal: Object.keys(mealData).map(date => new Date(date)),
                 hasPartialMeal: Object.keys(mealData).filter(date => {
@@ -194,11 +162,11 @@ export function CalendarGrid({
                 },
                 cell: {
                   width: '120px',
-                  height: '100px',
+                  height: '135px',
                   minWidth: '120px',
                   maxWidth: '120px',
-                  minHeight: '100px',
-                  maxHeight: '100px',
+                  minHeight: '135px',
+                  maxHeight: '135px',
                   fontSize: '12px',
                   padding: '2px',
                   borderRight: '1px solid #e2e8f0',
@@ -214,8 +182,8 @@ export function CalendarGrid({
                   borderRadius: '8px',
                   transition: 'all 0.2s ease-in-out',
                   width: '100%',
-                  height: '96px',
-                  maxHeight: '96px',
+                  height: '131px',
+                  maxHeight: '131px',
                   display: 'flex',
                   alignItems: 'flex-start',
                   justifyContent: 'center',
@@ -237,7 +205,8 @@ export function CalendarGrid({
                   borderSpacing: '0',
                   borderRadius: '16px',
                   overflow: 'hidden',
-                  backgroundColor: '#ffffff'
+                  backgroundColor: '#ffffff',
+                  minHeight: '715px' // 5주 * 135px + 헤더 40px = 715px (5주월 기준)
                 },
                 months: {
                   width: '100%'
@@ -255,7 +224,7 @@ export function CalendarGrid({
                      />
                    </div>
                  )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }

@@ -241,6 +241,7 @@ async def update_plan_item(
             detail=f"식단 계획 업데이트 중 오류 발생: {str(e)}"
         )
 
+
 @router.delete("/item/{plan_id}")
 async def delete_plan_item(
     plan_id: str = Path(..., description="계획 ID"),

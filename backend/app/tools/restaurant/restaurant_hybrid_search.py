@@ -4,6 +4,7 @@ Supabase 벡터 검색 + 키워드 검색을 통한 식당 RAG
 """
 
 import re
+import random
 import openai
 import asyncio
 import sys
@@ -261,9 +262,10 @@ class RestaurantHybridSearchTool:
             
             if results.data:
                 print(f"✅ 식당 메뉴 벡터 검색 성공: {len(results.data)}개 (임계값 0.4 이상)")
-                # 키토 점수 필터링 제거 - 모든 결과 포함
-                print(f"✅ 벡터 검색 필터링 후 (모든 결과): {len(results.data)}개")
-                return results.data
+                # 키토 점수 필터링 적용 (0점 제외)
+                filtered_results = [r for r in results.data if (r.get('keto_score') or 0) > 0]
+                print(f"✅ 벡터 검색 필터링 후 (키토 점수 > 0): {len(filtered_results)}개")
+                return filtered_results
             else:
                 print("⚠️ 식당 메뉴 벡터 검색 결과 없음 - 임계값 0.4 미만")
                 return []
@@ -299,9 +301,10 @@ class RestaurantHybridSearchTool:
                     
                     print(f"    ILIKE 결과: {len(ilike_results.data) if ilike_results.data else 0}개")
                     if ilike_results.data:
-                        # 키토 점수 필터링 제거 - 모든 결과 포함
-                        print(f"    ILIKE 필터링 후 (모든 결과): {len(ilike_results.data)}개")
-                        all_results.extend(ilike_results.data)
+                        # 키토 점수 필터링 적용 (0점 제외)
+                        filtered_results = [r for r in ilike_results.data if (r.get('keto_score') or 0) > 0]
+                        print(f"    ILIKE 필터링 후 (키토 점수 > 0): {len(filtered_results)}개")
+                        all_results.extend(filtered_results)
                     
                     # Trigram 검색
                     trgm_results = self.supabase.rpc('restaurant_trgm_search', {
@@ -312,9 +315,10 @@ class RestaurantHybridSearchTool:
                     
                     print(f"    Trigram 결과: {len(trgm_results.data) if trgm_results.data else 0}개")
                     if trgm_results.data:
-                        # 키토 점수 필터링 제거 - 모든 결과 포함
-                        print(f"    Trigram 필터링 후 (모든 결과): {len(trgm_results.data)}개")
-                        all_results.extend(trgm_results.data)
+                        # 키토 점수 필터링 적용 (0점 제외)
+                        filtered_results = [r for r in trgm_results.data if (r.get('keto_score') or 0) > 0]
+                        print(f"    Trigram 필터링 후 (키토 점수 > 0): {len(filtered_results)}개")
+                        all_results.extend(filtered_results)
                         
                 except Exception as e:
                     print(f"키워드 검색 오류 for '{keyword}': {e}")
@@ -402,7 +406,7 @@ class RestaurantHybridSearchTool:
             print(f"폴백 직접 검색 오류: {e}")
             return []
     
-    async def hybrid_search(self, query: str, location: Optional[Dict[str, float]] = None, max_results: int = 5) -> List[Dict]:
+    async def hybrid_search(self, query: str, location: Optional[Dict[str, float]] = None, max_results: int = 5, user_id: Optional[str] = None) -> List[Dict]:
         """식당 하이브리드 검색 메인 함수 (전체 결과 기반 다양성 확보)"""
         try:
             print(f"🔍 식당 하이브리드 검색 시작: '{query}' (전체 결과 기반 다양성)")
@@ -422,12 +426,12 @@ class RestaurantHybridSearchTool:
             bypass_pool_cache = bool((location or {}).get("bypass_pool_cache"))
             
             # 🎲 식당은 데이터가 적으므로 제한 없이 모든 결과 가져오기
-            search_limit = 100  # 충분히 큰 수로 설정 (실제로는 모든 결과)
+            search_limit = 5000  # 충분히 큰 수로 설정 (실제로는 모든 결과)
             print(f"  🎯 전체 결과 검색: 제한 없이 모든 식당 검색 후 {max_results}개 랜덤 선택")
             
-            # 1. 결과 풀 캐시 확인 (쿼리 기준)
+            # 1. 결과 풀 캐시 확인 (쿼리 기준) - 회전을 위해 캐시 비활성화
             pool_cache_key = f"restaurant_result_pool:{normalized_query}"
-            cached_pool = None if bypass_pool_cache else redis_cache.get(pool_cache_key)
+            cached_pool = None  # 회전을 위해 항상 새로 검색
             if cached_pool:
                 print(f"  ⚡ 캐시 히트 - 결과 풀 재사용: {len(cached_pool)}개")
                 unique_results = cached_pool
@@ -449,10 +453,37 @@ class RestaurantHybridSearchTool:
                 print("  🔄 키워드 검색 실행...")
                 keyword_results = await self._supabase_keyword_search(query, search_limit)
                 
+                # 비김밥 메뉴를 더 많이 가져오기 위한 추가 검색
+                print("  🔄 비김밥 메뉴 추가 검색...")
+                non_gimbap_queries = [
+                    f"{query} 샐러드",
+                    f"{query} 연어",
+                    f"{query} 참치",
+                    f"{query} 치킨",
+                    f"{query} 스테이크",
+                    f"{query} 파스타",
+                    f"{query} 리조또",
+                    f"{query} 볶음밥",
+                    f"{query} 덮밥",
+                    f"{query} 국수"
+                ]
+                
+                additional_results = []
+                for search_query in non_gimbap_queries:
+                    try:
+                        additional_keyword_results = await self._supabase_keyword_search(search_query, 50)
+                        if additional_keyword_results:
+                            additional_results.extend(additional_keyword_results)
+                    except Exception as e:
+                        print(f"  ⚠️ 추가 검색 실패 ({search_query}): {e}")
+                
+                print(f"  📊 추가 검색 결과: {len(additional_results)}개")
+                
                 # 4. 결과 통합
                 all_results = []
                 all_results.extend(vector_results)
                 all_results.extend(keyword_results)
+                all_results.extend(additional_results)
                 
                 print(f"  📊 벡터 검색 결과: {len(vector_results)}개")
                 print(f"  📊 키워드 검색 결과: {len(keyword_results)}개")
@@ -461,6 +492,34 @@ class RestaurantHybridSearchTool:
             # 중복 제거
             unique_results = self._deduplicate_results(all_results)
             print(f"  📊 중복 제거 후: {len(unique_results)}개")
+            print(f"  🔍 실제 검색된 메뉴들: {[r.get('menu_name', 'Unknown') for r in unique_results[:10]]}")
+            
+            # 김밥/비김밥 비율 조정 (회전을 위해)
+            if len(unique_results) > 0:
+                def _categorize_menu(name: str) -> str:
+                    return self._categorize_menu(name or '')
+                
+                # 김밥과 비김밥 분리
+                gimbap_results = []
+                non_gimbap_results = []
+                
+                for result in unique_results:
+                    menu_name = str(result.get('menu_name', '')).strip()
+                    category = _categorize_menu(menu_name)
+                    if category == '김밥류':
+                        gimbap_results.append(result)
+                    else:
+                        non_gimbap_results.append(result)
+                
+                print(f"  🍙 원본 분류: 김밥 {len(gimbap_results)}개, 비김밥 {len(non_gimbap_results)}개")
+                
+                # 김밥 50개, 비김밥 100개로 제한
+                final_gimbap = gimbap_results[:50]  # 김밥 최대 50개
+                final_non_gimbap = non_gimbap_results[:100]  # 비김밥 최대 100개
+                
+                unique_results = final_gimbap + final_non_gimbap
+                print(f"  🎯 최종 비율 조정: 김밥 {len(final_gimbap)}개, 비김밥 {len(final_non_gimbap)}개 (총 {len(unique_results)}개)")
+            
             if len(unique_results) == 0:
                 print("  ⚠️ base_pool=0 (벡터/키워드 통합 후 후보 없음)")
 
@@ -531,6 +590,7 @@ class RestaurantHybridSearchTool:
                         r['keto_score'] = 50
                         r['score_correction'] = 'None→+50(키토키워드)'
                         filtered_pool.append(r)
+                    # score == 0인 경우는 명시적으로 제외 (키토 키워드가 있어도 0점은 제외)
 
                 print(f"  ✅ 강력 필터 후: {len(filtered_pool)}개 (≥50 또는 None+키토키워드)")
                 # 후보가 0이면 자동 완화(이번 요청 한정)
@@ -546,9 +606,16 @@ class RestaurantHybridSearchTool:
                                 r['score_correction'] = 'None→+50(키토키워드-soft)'
                             soft_pool.append(r)
                     if len(soft_pool) == 0:
-                        print("  ⚠️ 완화 후에도 0 → 필터 미적용으로 전체 후보 사용")
-                        soft_pool = list(unique_results)
-                    unique_results = soft_pool
+                        print("  ⚠️ 완화 후에도 0 → 키토 점수 45점 이상만 허용")
+                        # 키토 점수 45점 이상만 허용 (0점은 절대 제외)
+                        final_pool = []
+                        for r in unique_results:
+                            sc = r.get('keto_score')
+                            if isinstance(sc, (int, float)) and sc >= 45:
+                                final_pool.append(r)
+                        unique_results = final_pool
+                    else:
+                        unique_results = soft_pool
                 else:
                     unique_results = filtered_pool
                 # 결과 풀 캐시 저장 (5분)
@@ -559,30 +626,47 @@ class RestaurantHybridSearchTool:
             # 4. 결과가 없으면 폴백 검색
             if not unique_results:
                 print("  ⚠️ 하이브리드 검색 결과 없음, 폴백 검색 실행...")
-                unique_results = await self._fallback_direct_search(query, search_limit)
+                fallback_results = await self._fallback_direct_search(query, search_limit)
+                # 폴백 검색 결과도 키토 점수 필터링 적용
+                if fallback_results:
+                    print(f"  🔍 폴백 검색 결과: {len(fallback_results)}개")
+                    # 폴백 결과에서 키토 점수 45점 이상만 필터링
+                    filtered_fallback = []
+                    for r in fallback_results:
+                        sc = r.get('keto_score')
+                        if isinstance(sc, (int, float)) and sc >= 45:
+                            filtered_fallback.append(r)
+                    unique_results = filtered_fallback
+                    print(f"  ✅ 폴백 필터링 후: {len(unique_results)}개 (45점 이상만)")
+                else:
+                    unique_results = []
             
             # 5. ♻️ 회전 추천: 최근 선택 식당 제외 → 부족하면 리셋
-            user_id = None
-            try:
-                # location 인자에 사용자 컨텍스트가 들어오는 경우 대비(옵셔널)
-                user_id = (location or {}).get("user_id")
-            except Exception:
-                user_id = None
+            # 사용자 ID 우선순위: 직접 전달된 user_id > location의 user_id > None
+            if not user_id:
+                try:
+                    user_id = (location or {}).get("user_id")
+                except Exception:
+                    user_id = None
             rotation_user = str(user_id) if user_id else "anon"
             rotation_key = f"restaurant_rotation:{rotation_user}:{normalized_query}"
             recent_last_batch_key = rotation_key + ":last"
             menu_rotation_key = f"menu_rotation:{rotation_user}:{normalized_query}"
             last_menu_batch_key = f"{menu_rotation_key}:last"
 
-            # 요청으로 회전 캐시 초기화
+            # 요청으로 회전 캐시 초기화 (비활성화)
             if reset_rotation:
-                print("  🧹 테스트: 회전 캐시 초기화 요청 수신")
-                try:
-                    redis_cache.delete(rotation_key)
-                    redis_cache.delete(recent_last_batch_key)
-                    redis_cache.delete(menu_rotation_key)
-                except Exception as e:
-                    print(f"  ⚠️ 회전 캐시 초기화 실패: {e}")
+                print("  🧹 테스트: 회전 캐시 초기화 요청 수신 (무시됨)")
+                reset_rotation = False  # 회전 초기화 플래그 비활성화
+                # try:
+                #     redis_cache.delete(rotation_key)
+                #     redis_cache.delete(recent_last_batch_key)
+                #     redis_cache.delete(menu_rotation_key)
+                # except Exception as e:
+                #     print(f"  ⚠️ 회전 캐시 초기화 실패: {e}")
+
+
+                
             recent_restaurant_ids = redis_cache.get(rotation_key) or []
             recent_last_batch = redis_cache.get(recent_last_batch_key) or []
             recent_set = set(str(rid) for rid in recent_restaurant_ids)
@@ -627,7 +711,8 @@ class RestaurantHybridSearchTool:
             base_pool = list(unique_results)
             # 식당 회전 제외는 비활성화(메뉴 회전만 적용)
             if ignore_rotation:
-                print("  🚫 테스트: 회전 제외 무시 플래그 적용")
+                print("  🚫 테스트: 회전 제외 무시 플래그 적용 (무시됨)")
+                ignore_rotation = False  # 회전 무시 플래그 비활성화
             available_results = list(unique_results)
             print(f"  🔁 회전 추천(식당 제외 비활성): 최근 리스트 {len(recent_set)}개 → 사용 가능 {len(available_results)}개")
 
@@ -716,60 +801,126 @@ class RestaurantHybridSearchTool:
                     r['final_score'] = float(base) + bonus
                 available_results = filtered
 
-            # 다양성 선택
-            if len(available_results) > max_results:
-                # 메뉴 다양성을 위한 선택 로직
-                # 직전 배치가 김밥 위주였으면, 이번 배치는 김밥 상한을 0으로 낮추는 쿨다운 적용
+            # 회전 추천: 사용 가능한 메뉴 풀 관리
+            rotation_user = str(user_id) if user_id else "anon"
+            menu_rotation_key = f"menu_rotation:{rotation_user}:{normalized_query}"
+            used_menus = set(str(x) for x in (redis_cache.get(menu_rotation_key) or []))
+            
+            # 전체 메뉴 풀 생성
+            all_menu_names = set(str(r.get('menu_name', '')).strip() for r in available_results if r.get('menu_name'))
+            
+            # 처음 요청이면 전체 메뉴를 회전 풀에 저장
+            if len(used_menus) == 0:
+                print(f"  🆕 첫 요청: 전체 메뉴 {len(all_menu_names)}개를 회전 풀에 저장")
+                redis_cache.set(menu_rotation_key, list(all_menu_names), ttl=1800)
+                used_menus = set()
+            
+            # 사용 가능한 메뉴 풀 생성 (전체 메뉴 - 사용한 메뉴)
+            unused_menus = all_menu_names - used_menus
+            
+            print(f"  🔁 회전 상태: 사용한 메뉴 {len(used_menus)}개, 사용 가능한 메뉴 {len(unused_menus)}개")
+            print(f"  🔍 회전 키: {menu_rotation_key}")
+            print(f"  👤 사용자 ID: {user_id} → 회전 사용자: {rotation_user}")
+            
+            # 사용 가능한 메뉴가 부족하면 회전 리셋
+            if len(unused_menus) < max_results:
+                print(f"  🔄 회전 리셋: 사용 가능한 메뉴 {len(unused_menus)}개 → 전체 메뉴로 리셋")
                 try:
-                    prev_batch = redis_cache.get(recent_last_batch_key) or []
-                    # prev_batch에는 식당ID만 있으므로, 베이스 풀에서 매칭해 김밥 여부 추정
-                    prev_menus = [r for r in base_pool if str(r.get('restaurant_id')) in set(str(x) for x in prev_batch)]
-                    def _cat(name: str) -> str:
-                        return self._categorize_menu(name or '')
-                    prev_gimbap = any(_cat(r.get('menu_name')) == '김밥류' for r in prev_menus)
-                    # 김밥 최대 1개 + 나머지 2개는 회전 우선
-                    gimbap_cap = 1 if prev_gimbap else 1
-                except Exception:
-                    gimbap_cap = 1
-                selected_results = self._select_diverse_results(available_results, max_results, gimbap_cap=gimbap_cap)
-                print(f"  🎲 메뉴 다양성 고려 랜덤 선택: {len(available_results)}개 중 {len(selected_results)}개 선택 (회전 적용)")
-                unique_results = selected_results
-            else:
-                unique_results = available_results
-
-            # ✅ 김밥 상한을 최종 단계에서도 강제: 김밥이 2개 이상이면 비-김밥으로 교체 시도
-            try:
+                    # 전체 메뉴로 리셋
+                    redis_cache.delete(menu_rotation_key)
+                    used_menus = set()
+                    unused_menus = all_menu_names
+                    print(f"  ✅ 회전 리셋 완료: 전체 메뉴 {len(unused_menus)}개 사용 가능")
+                except Exception as e:
+                    print(f"  ⚠️ 회전 리셋 실패: {e}")
+            
+            # 사용 가능한 메뉴에서만 선택
+            deduplicated_results = []
+            for result in available_results:
+                menu_name = str(result.get('menu_name', '')).strip()
+                
+                # 사용 가능한 메뉴만 선택
+                if menu_name and menu_name in unused_menus:
+                    deduplicated_results.append(result)
+                    print(f"  ✅ 회전 추천: {result.get('restaurant_name')} - {menu_name}")
+                else:
+                    print(f"  ⚠️ 회전 제외: {result.get('restaurant_name')} - {menu_name} (사용 불가: {menu_name not in unused_menus})")
+            
+            print(f"  📊 회전 후보 수: {len(deduplicated_results)}개 (전체: {len(available_results)}개)")
+            
+            # 회전 리셋으로 선택된 메뉴가 있으면 해당 메뉴들로 결과 구성
+            if len(unused_menus) < max_results and len(used_menus) > 0:
+                print(f"  🔄 회전 리셋으로 선택된 메뉴 {len(used_menus)}개로 결과 구성")
+                deduplicated_results = []
+                for result in available_results:
+                    menu_name = str(result.get('menu_name', '')).strip()
+                    if menu_name and menu_name in used_menus:
+                        deduplicated_results.append(result)
+                        print(f"  ✅ 회전 리셋 선택: {result.get('restaurant_name')} - {menu_name}")
+            
+            # 다양성 선택 (김밥 제한 포함)
+            if len(deduplicated_results) > max_results:
+                # 메뉴 다양성을 위한 선택 로직
+                # 김밥 메뉴는 하루 최대 1개만 포함 가능
+                import random
                 def _cat(name: str) -> str:
                     return self._categorize_menu(name or '')
-
-                gimbap_cap = 1
-                picked_mids = set(_mid(r) for r in unique_results)
-                picked_rids = set(_rid(r) for r in unique_results)
-                gimbap_indices = [i for i, r in enumerate(unique_results) if _cat(r.get('menu_name')) == '김밥류']
-                if len(gimbap_indices) > gimbap_cap:
-                    # 교체 후보: 베이스 풀에서 비-김밥, 아직 선택 안된 것, 점수 높은 순
-                    pool_candidates = [c for c in base_pool if _cat(c.get('menu_name')) != '김밥류' and _mid(c) not in picked_mids and _rid(c) not in picked_rids]
-                    pool_candidates.sort(key=lambda x: x.get('keto_score') or 0, reverse=True)
-                    # 초과된 김밥들을 뒤에서부터 교체
-                    excess = gimbap_indices[gimbap_cap:]
-                    for idx in reversed(excess):
-                        if not pool_candidates:
-                            break
-                        replacement = pool_candidates.pop(0)
-                        picked_mids.add(_mid(replacement))
-                        picked_rids.add(_rid(replacement))
-                        unique_results[idx] = replacement
-                    # 김밥이 여전히 과하면(후보 부족), 가능한 범위에서 유지
-            except Exception as e:
-                print(f"  ⚠️ 김밥 상한 강제 단계 오류: {e}")
+                
+                # 김밥 메뉴와 비김밥 메뉴 분리
+                gimbap_results = []
+                non_gimbap_results = []
+                
+                for result in deduplicated_results:
+                    menu_name = str(result.get('menu_name', '')).strip()
+                    category = _cat(menu_name)
+                    if category == '김밥류':
+                        gimbap_results.append(result)
+                    else:
+                        non_gimbap_results.append(result)
+                
+                print(f"  🍙 김밥 메뉴: {len(gimbap_results)}개")
+                print(f"  🍽️ 비김밥 메뉴: {len(non_gimbap_results)}개")
+                
+                # 선택 로직: 김밥 최대 1개 + 나머지 2개
+                selected_results = []
+                
+                # 1. 김밥 메뉴 최대 1개 선택
+                if gimbap_results:
+                    selected_gimbap = random.sample(gimbap_results, min(1, len(gimbap_results)))
+                    selected_results.extend(selected_gimbap)
+                    print(f"  🍙 김밥 선택: {len(selected_gimbap)}개")
+                
+                # 2. 나머지 2개는 비김밥에서 선택
+                remaining_needed = max_results - len(selected_results)
+                if non_gimbap_results and remaining_needed > 0:
+                    selected_non_gimbap = random.sample(non_gimbap_results, min(remaining_needed, len(non_gimbap_results)))
+                    selected_results.extend(selected_non_gimbap)
+                    print(f"  🍽️ 비김밥 선택: {len(selected_non_gimbap)}개")
+                
+                # 3. 여전히 부족하면 김밥에서 추가 선택 (최대 1개 제한 유지)
+                if len(selected_results) < max_results and gimbap_results:
+                    additional_needed = max_results - len(selected_results)
+                    if additional_needed > 0:
+                        # 이미 김밥이 1개 선택되었으면 추가 선택 안함
+                        if len([r for r in selected_results if _cat(r.get('menu_name')) == '김밥류']) == 0:
+                            additional_gimbap = random.sample(gimbap_results, min(additional_needed, len(gimbap_results)))
+                            selected_results.extend(additional_gimbap)
+                            print(f"  🍙 김밥 추가 선택: {len(additional_gimbap)}개")
+                
+                deduplicated_results = selected_results
+                print(f"  🎯 최종 선택: {len(deduplicated_results)}개 (김밥: {len([r for r in selected_results if _cat(r.get('menu_name')) == '김밥류'])}개)")
+                
+            else:
+                # 후보가 충분하지 않으면 그대로 사용
+                print(f"  🎯 최종 선택: {len(deduplicated_results)}개 (후보 부족으로 그대로 사용)")
 
             # 만약 회전/다양성 적용 후 결과가 부족하면, 회전 무시하고 베이스 풀에서 보충
-            if len(unique_results) < max_results and len(base_pool) > 0:
+            if len(deduplicated_results) < max_results and len(base_pool) > 0:
                 print("  ➕ 최종 보충: 회전 무시하고 베이스 풀에서 식당/메뉴 중복 없이 채움")
-                picked_mids = set(_mid(r) for r in unique_results)
-                picked_rids = set(_rid(r) for r in unique_results)
+                picked_mids = set(_mid(r) for r in deduplicated_results)
+                picked_rids = set(_rid(r) for r in deduplicated_results)
                 for cand in base_pool:
-                    if len(unique_results) >= max_results:
+                    if len(deduplicated_results) >= max_results:
                         break
                     if _mid(cand) in picked_mids:
                         continue
@@ -779,12 +930,12 @@ class RestaurantHybridSearchTool:
                     try:
                         def _cat2(name: str) -> str:
                             return self._categorize_menu(name or '')
-                        gimbap_count = sum(1 for r in unique_results if _cat2(r.get('menu_name')) == '김밥류')
+                        gimbap_count = sum(1 for r in deduplicated_results if _cat2(r.get('menu_name')) == '김밥류')
                         if _cat2(cand.get('menu_name')) == '김밥류' and gimbap_count >= 1:
                             continue
                     except Exception:
                         pass
-                    unique_results.append(cand)
+                    deduplicated_results.append(cand)
                     picked_mids.add(_mid(cand))
                     picked_rids.add(_rid(cand))
             
@@ -810,7 +961,7 @@ class RestaurantHybridSearchTool:
                 except Exception:
                     return name
             formatted_results = []
-            for result in unique_results[:max_results]:
+            for result in deduplicated_results[:max_results]:
                 restaurant_id = str(result.get('restaurant_id', ''))
                 
                 # source_url이 없으면 직접 조회
@@ -844,7 +995,7 @@ class RestaurantHybridSearchTool:
                     'source_url': source_url
                 })
             
-            if len(unique_results) == 0:
+            if len(deduplicated_results) == 0:
                 try:
                     print("  📉 요약: base_pool=", len(base_pool))
                 except Exception:
@@ -868,31 +1019,24 @@ class RestaurantHybridSearchTool:
                 redis_cache.set(recent_last_batch_key, new_ids, ttl=1800)
                 print(f"  🧠 회전 추천 업데이트: 총 {len(merged)}개 저장")
 
-                # 메뉴 레벨 회전 업데이트
+                # 메뉴 레벨 회전 업데이트 (사용한 메뉴 추가)
                 try:
-                    new_menu_ids = [(_mid(r) or None) for r in unique_results]
-                    new_menu_ids = [x for x in new_menu_ids if x]
-                    if new_menu_ids:
-                        prev = list(used_menus) if used_menus else []
-                        merged_m = [*prev]
-                        seen_m = set(prev)
-                        for mid in new_menu_ids:
-                            if mid not in seen_m:
-                                merged_m.append(mid)
-                                seen_m.add(mid)
-                        merged_m = merged_m[-200:]
+                    # 실제 추천된 메뉴명 수집
+                    new_menu_names = [str(r.get('menu_name', '')).strip() for r in formatted_results if r.get('menu_name')]
+                    if new_menu_names:
+                        # 사용한 메뉴에 추가
+                        updated_used_menus = used_menus | set(new_menu_names)
+                        
+                        # Redis에 저장
                         try:
-                            redis_cache.set(menu_rotation_key, merged_m, ttl=1800)
+                            redis_cache.set(menu_rotation_key, list(updated_used_menus), ttl=1800)
+                            print(f"  🍽️ 메뉴 회전 업데이트: 사용한 메뉴 {len(updated_used_menus)}개 저장")
                         except Exception as e:
                             print(f"  ⚠️ 메뉴 회전 키 저장 실패: {e}")
-                        print(f"  🍽️ 메뉴 회전 업데이트: 총 {len(merged_m)}개 저장")
-                        # 직전 배치(메뉴)도 별도 저장하여 1회 제외에 활용
-                        try:
-                            redis_cache.set(last_menu_batch_key, new_menu_ids, ttl=1800)
-                        except Exception as e:
-                            print(f"  ⚠️ 직전 배치 키 저장 실패: {e}")
+                    else:
+                        print(f"  ⚠️ 메뉴 회전 업데이트: 추천된 메뉴 없음")
                 except Exception as e:
-                    print(f"  ⚠️ 메뉴 회전 상태 저장 실패: {e}")
+                    print(f"  ⚠️ 메뉴 회전 업데이트 오류: {e}")
             except Exception as e:
                 print(f"  ⚠️ 회전 추천 상태 저장 실패: {e}")
             

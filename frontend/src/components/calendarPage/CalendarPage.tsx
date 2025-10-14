@@ -2,13 +2,10 @@ import { useEffect, useState } from 'react'
 import { useCalendarJobWatcher } from '@/hooks/useCalendarJobWatcher'
 import { CalendarHeader } from './CalendarHeader'
 import { CalendarGrid } from './CalendarGrid'
-import { SelectedDateMeals } from './SelectedDateMeals'
-import { RecentActivity } from './RecentActivity'
 import { MealModal } from '@/components/MealModal'
 import { DateDetailModal } from '@/components/DateDetailModal'
 import { useCalendarData } from './hooks/useCalendarData'
 import { useMealOperations } from './hooks/useMealOperations'
-import { useMealPlanGeneration } from './hooks/useMealPlanGeneration'
 import { useDeleteAllPlans, useDeleteMonthPlans } from '@/hooks/useApi'
 import { useAuthStore } from '@/store/authStore'
 import { useCalendarStore } from '@/store/calendarStore'
@@ -81,12 +78,7 @@ export function CalendarPage() {
     handleDeleteAllMeals
   } = useMealOperations()
 
-  const {
-    selectedDays,
-    setSelectedDays,
-    isGeneratingMealPlan,
-    handleGenerateMealPlan
-  } = useMealPlanGeneration()
+  // AI 식단표 생성/기간 선택 제거
 
   // 이벤트 핸들러들
   const handleDateSelect = (date: Date | undefined) => {
@@ -100,11 +92,6 @@ export function CalendarPage() {
 
   const handleMonthChange = (month: Date) => {
     setCurrentMonth(month)
-  }
-
-  const handleOpenModal = (mealType?: string) => {
-    setSelectedMealType(mealType || null)
-    setIsModalOpen(true)
   }
 
   const handleCloseModal = () => {
@@ -197,48 +184,35 @@ export function CalendarPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-1">
       {/* 헤더 */}
       <CalendarHeader
-        selectedDays={selectedDays}
-        setSelectedDays={setSelectedDays}
-        isGeneratingMealPlan={isGeneratingMealPlan}
-        onGenerateMealPlan={handleGenerateMealPlan}
         onDeleteAllPlans={handleDeleteAllPlans}
         onDeleteMonthPlans={handleDeleteMonthPlans}
         isDeletingAll={deleteAllPlansMutation.isPending}
         isDeletingMonth={deleteMonthPlansMutation.isPending}
+        currentMonth={currentMonth}
+        onMonthChange={handleMonthChange}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* 캘린더 */}
-                <CalendarGrid
-                  currentMonth={currentMonth}
-                  selectedDate={selectedDate}
-                  mealData={mealData}
-                  isLoading={isLoading}
-                  isLoadingOverlay={isLoadingOverlay}
-                  error={error}
-                  onDateSelect={handleDateSelect}
-                  onMonthChange={handleMonthChange}
-                  onDateClick={handleDateClick}
-                  getMealForDate={getMealForDate}
-                  isMealChecked={isMealChecked}
-                  isOptimisticMeal={isOptimisticMeal}
-                  onToggleMealCheck={toggleMealCheck}
-                />
-
-        {/* 선택된 날짜의 식단 */}
-        <SelectedDateMeals
+      {/* 캘린더를 독립적인 컨테이너로 분리 */}
+      <div className="w-full">
+        <CalendarGrid
+          currentMonth={currentMonth}
           selectedDate={selectedDate}
+          mealData={mealData}
+          isLoading={isLoading}
+          isLoadingOverlay={isLoadingOverlay}
+          error={error}
+          onDateSelect={handleDateSelect}
+          onMonthChange={handleMonthChange}
+          onDateClick={handleDateClick}
           getMealForDate={getMealForDate}
-          onOpenModal={handleOpenModal}
+          isMealChecked={isMealChecked}
+          isOptimisticMeal={isOptimisticMeal}
+          onToggleMealCheck={toggleMealCheck}
         />
       </div>
-
-      {/* 최근 활동 */}
-      <RecentActivity />
-
       {/* 식단 모달 */}
       {selectedDate && (
         <MealModal

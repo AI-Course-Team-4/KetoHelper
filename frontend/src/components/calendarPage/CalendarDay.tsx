@@ -37,16 +37,16 @@ export function CalendarDay({
 
   return (
     <div
-      className="relative w-full h-full flex flex-col min-w-0 cursor-pointer hover:bg-gray-50 transition-colors rounded-lg"
+        className="relative w-full h-[135px] flex flex-col min-w-0 cursor-pointer hover:bg-gray-50 transition-colors rounded-lg"
       onClick={() => isCurrentMonth && onDateClick(date)}
     >
       {isCurrentMonth && (
         <div className="date-number w-full flex items-center justify-between px-3">
-          <span className={`font-semibold ${isToday ? 'bg-gray-700 text-white px-2 py-1 rounded' : ''}`}>
+          <span className={`font-semibold px-2 py-1 rounded min-w-[28px] text-center ${isToday ? 'bg-gray-700 text-white' : 'bg-transparent text-gray-700'}`}>
             {date.getDate()}
           </span>
           {checkedCount > 0 && (
-            <div className="absolute -top-1 -right-1 bg-green-500 rounded-full w-4 h-4 flex items-center justify-center">
+            <div className="absolute top-2 right-2 bg-green-500 rounded-full w-4 h-4 flex items-center justify-center">
               <span className="text-white text-xs font-bold">✓</span>
             </div>
           )}
@@ -54,7 +54,7 @@ export function CalendarDay({
       )}
 
       {meal && isCurrentMonth && (
-        <div className="meal-info-container w-full min-w-0 flex flex-col p-1 gap-0.5">
+        <div className="meal-info-container w-full min-w-0 flex flex-col max-h-[115px] overflow-hidden h-[115px]">
           {/* 아침 */}
           {meal.breakfast?.trim() && (
             <div className={`w-full grid grid-cols-[auto,1fr,auto] items-center gap-1 group px-2 ${isOptimisticMeal?.(date, 'breakfast') ? 'opacity-90' : ''}`}>
@@ -68,7 +68,7 @@ export function CalendarDay({
               </span>
               <button
                 onClick={(e) => { e.stopPropagation(); onToggleMealCheck(date, 'breakfast'); }}
-                className="justify-self-end opacity-60 group-hover:opacity-100 transition-opacity text-xs"
+                className="justify-self-end opacity-100 transition-all duration-150 text-xs min-w-[20px] min-h-[20px] flex items-center justify-center"
                 aria-label="breakfast done"
                 disabled={isOptimisticMeal?.(date, 'breakfast')}
               >
@@ -90,7 +90,7 @@ export function CalendarDay({
               </span>
               <button
                 onClick={(e) => { e.stopPropagation(); onToggleMealCheck(date, 'lunch'); }}
-                className="justify-self-end opacity-60 group-hover:opacity-100 transition-opacity text-xs"
+                className="justify-self-end opacity-100 transition-all duration-150 text-xs min-w-[20px] min-h-[20px] flex items-center justify-center"
                 aria-label="lunch done"
                 disabled={isOptimisticMeal?.(date, 'lunch')}
               >
@@ -112,7 +112,7 @@ export function CalendarDay({
               </span>
               <button
                 onClick={(e) => { e.stopPropagation(); onToggleMealCheck(date, 'dinner'); }}
-                className="justify-self-end opacity-60 group-hover:opacity-100 transition-opacity text-xs"
+                className="justify-self-end opacity-100 transition-all duration-150 text-xs min-w-[20px] min-h-[20px] flex items-center justify-center"
                 aria-label="dinner done"
                 disabled={isOptimisticMeal?.(date, 'dinner')}
               >
@@ -134,7 +134,7 @@ export function CalendarDay({
               </span>
               <button
                 onClick={(e) => { e.stopPropagation(); onToggleMealCheck(date, 'snack'); }}
-                className="justify-self-end opacity-60 group-hover:opacity-100 transition-opacity text-xs"
+                className="justify-self-end opacity-100 transition-all duration-150 text-xs min-w-[20px] min-h-[20px] flex items-center justify-center"
                 aria-label="snack done"
                 disabled={isOptimisticMeal?.(date, 'snack')}
               >

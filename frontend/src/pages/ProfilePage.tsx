@@ -405,7 +405,7 @@ export function ProfilePage() {
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, height: '100%', overflow: 'auto' }}>
       {/* 헤더 */}
       <Box>
         <Typography 
