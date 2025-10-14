@@ -662,6 +662,12 @@ class KetoCoachAgent:
                 state=state
             )
             
+            # 디버깅: 결과 확인
+            print(f"🔍 MealPlannerAgent 결과 타입: {type(result)}")
+            print(f"🔍 MealPlannerAgent 결과 키: {result.keys() if isinstance(result, dict) else 'Not a dict'}")
+            if isinstance(result, dict) and "response" in result:
+                print(f"🔍 응답 내용 (처음 200자): {result['response'][:200]}...")
+            
             # 결과 상태에 병합
             state.update(result)
             
@@ -791,30 +797,68 @@ class KetoCoachAgent:
                 state["response"] = "\n".join(lines)
                 return state
 
-            # 최소한의 템플릿만 사용 (인사말, 키토 시작 가이드)
-            # 나머지는 모두 LLM이 처리하도록
+            # 키토 시작 질문 감지 (템플릿 사용) - 우선 적용
+            keto_start_keywords = [
+                "키토 다이어트 시작하려고 해",
+                "키토 다이어트 시작하려고",
+                "키토 다이어트 시작",
+                "키토 시작하려고 해",
+                "키토 시작하려고",
+                "키토 시작",
+                "다이어트 시작하려고 해",
+                "다이어트 시작하려고",
+                "다이어트 시작"
+            ]
+            is_keto_start = any(keyword in current_message.lower() for keyword in keto_start_keywords)
             
-            # 템플릿 확인 (최소한의 템플릿만 사용)
-            template_response = get_general_response_template(current_message, state.get("profile", {}))
-            
-            if template_response:
-                # 템플릿 응답이 있으면 사용 (빠른 응답)
-                state["response"] = template_response
+            if is_keto_start:
+                # 템플릿 기반 빠른 응답 (0.1초) - 기존 프로필 정보 직접 활용
+                state["response"] = get_general_response_template(current_message, state.get("profile", {}))
                 state["tool_calls"].append({
                     "tool": "general",
-                    "method": "template_based"
+                    "method": "template_based",
+                    "template": "keto_start_guide"
                 })
-                print(f"✅ 템플릿 응답 사용: {len(template_response)}자")
                 return state
-            
-            # 템플릿 매칭 실패 -> LLM이 처리
-            print(f"🤖 LLM 응답 생성: {current_message[:50]}...")
 
-            # general_chat.py의 상세한 프롬프트 사용
+            # 일반 질문 템플릿 감지 (빠른 응답) - 인사/소개 질문만 템플릿 사용
+            general_keywords = ["안녕", "안녕하세요", "너는", "당신은", "누구야"]
+            
+            # 키토 관련 구체적인 질문은 LLM이 답변하도록 제외
+            keto_question_keywords = ["뭘", "무엇", "어떻게", "왜", "언제", "어디서", "얼마나", "몇", "어떤", "뭐야"]
+            is_keto_specific_question = any(keyword in current_message.lower() for keyword in keto_question_keywords)
+            
+            # 디버깅 로그 추가
+            print(f"🔍 의도 분류 디버깅:")
+            print(f"  - 질문: '{current_message}'")
+            print(f"  - 키토 질문 키워드 매칭: {is_keto_specific_question}")
+            print(f"  - 매칭된 키워드: {[kw for kw in keto_question_keywords if kw in current_message.lower()]}")
+            
+            is_general_question = any(keyword in current_message.lower() for keyword in general_keywords) and not is_keto_specific_question
+            print(f"  - 일반 질문으로 분류: {is_general_question}")
+            
+            if is_general_question:
+                # 템플릿 기반 빠른 응답 (0.1초) - 사용자 상태별
+                template_response = get_general_response_template(current_message, state.get("profile", {}))
+                
+                # 빈 문자열이면 LLM 답변으로 처리
+                if not template_response or template_response.strip() == "":
+                    print("템플릿 응답이 비어있음, LLM 답변으로 처리")
+                    # LLM 답변 로직으로 계속 진행
+                else:
+                    state["response"] = template_response
+                    state["tool_calls"].append({
+                        "tool": "general",
+                        "method": "template_based",
+                        "template": "general_question"
+                    })
+                    return state
+
+            # general_chat.py의 프롬프트 사용 (마크다운 규칙 포함)
             from app.prompts.chat.general_chat import GENERAL_CHAT_PROMPT
             prompt = GENERAL_CHAT_PROMPT.format(
                 message=current_message,
-                profile_context=profile_context if profile_context else '프로필 정보 없음 (일반적인 키토 조언 제공)'
+                profile_context=profile_context
             )
 
             # 공통 LLM 직접 사용 (간단하고 빠름) - 안전한 호출

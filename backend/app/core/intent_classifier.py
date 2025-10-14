@@ -34,20 +34,38 @@ class IntentClassifier:
     
     def __init__(self):
         try:
-            self.llm = create_chat_llm()
-            print(f"[OK] LLM 초기화 성공: {settings.llm_provider}::{settings.llm_model}")
+            # IntentClassifier 전용 LLM 설정 사용
+            from app.core.llm_factory import create_llm
+            self.llm = create_llm(
+                provider=settings.intent_classifier_provider,
+                model=settings.intent_classifier_model,
+                temperature=settings.intent_classifier_temperature,
+                max_tokens=settings.intent_classifier_max_tokens,
+                timeout=settings.intent_classifier_timeout
+            )
+            print(f"[OK] IntentClassifier LLM 초기화 성공: {settings.intent_classifier_provider}::{settings.intent_classifier_model}")
         except Exception as e:
-            print(f"[ERROR] LLM 초기화 실패: {str(e)}")
-            print(f"   - 공급자: {settings.llm_provider}")
-            print(f"   - 모델: {settings.llm_model}")
-            print(f"   - 온도: {settings.llm_temperature}")
+            print(f"[ERROR] IntentClassifier LLM 초기화 실패: {str(e)}")
+            print(f"   - 공급자: {settings.intent_classifier_provider}")
+            print(f"   - 모델: {settings.intent_classifier_model}")
+            print(f"   - 온도: {settings.intent_classifier_temperature}")
+            print(f"   - 타임아웃: {settings.intent_classifier_timeout}")
             self.llm = None
+        
+        # 캐시 초기화
+        try:
+            from app.core.redis_cache import RedisCache
+            self.cache = RedisCache()
+            print("[OK] IntentClassifier 캐시 초기화 성공")
+        except Exception as e:
+            print(f"[WARNING] IntentClassifier 캐시 초기화 실패: {e}")
+            self.cache = None
         
         # 최소한의 핵심 키워드만 유지 - LLM이 90% 담당
         self.critical_keywords = {
             "calendar_save": ["캘린더에 저장", "캘린더에 저장해줘", "저장해줘", "일정 등록", "캘린더 추가", "캘린더에", "저장", "넣어줘", "넣어", "추가해줘", "추가해"],
-            "recipe_search": ["레시피", "조리법", "만들어줘"],
-            "meal_plan": ["식단표", "식단 계획", "일주일", "7일"],
+            "recipe_search": ["레시피", "조리법"],
+            "meal_plan": ["식단표", "식단 계획", "일주일", "7일", "만들어줘"],
             "place_search": ["맛집", "식당", "근처"]
         }
     
@@ -65,7 +83,13 @@ class IntentClassifier:
         
         text = user_input.lower().strip()
         
-        # 1. LLM 분류 우선 시도 (90% 담당)
+        # 1. 키워드 우선 분류 (식단표 관련은 무조건 meal_plan)
+        keyword_result = self._minimal_keyword_classify(text)
+        if keyword_result['intent'] == Intent.MEAL_PLAN:
+            print(f"    [KEYWORD] 식단표 키워드 감지: {keyword_result['intent'].value} (신뢰도: {keyword_result['confidence']:.2f})")
+            return keyword_result
+        
+        # 2. LLM 분류 시도 (나머지 90% 담당)
         if self.llm:
             try:
                 print(f"🔍 LLM 분류 시도: '{text}'")
@@ -94,24 +118,28 @@ class IntentClassifier:
         
         print(f"🔍 키워드 분류 시작: '{text}'")
         
-        # 매우 명확한 경우만 키워드로 처리
-        for intent_name, keywords in self.critical_keywords.items():
-            print(f"🔍 {intent_name} 키워드 검사: {keywords}")
-            matched_keywords = [kw for kw in keywords if kw in text]
-            if matched_keywords:
-                print(f"✅ {intent_name} 매칭됨: {matched_keywords}")
-                intent_map = {
-                    "calendar_save": Intent.CALENDAR_SAVE,
-                    "recipe_search": Intent.RECIPE_SEARCH,
-                    "meal_plan": Intent.MEAL_PLAN,
-                    "place_search": Intent.PLACE_SEARCH
-                }
-                return {
-                    "intent": intent_map[intent_name],
-                    "confidence": 0.7,
-                    "method": "minimal_keyword",
-                    "detected_keywords": matched_keywords
-                }
+        # 우선순위 순서로 키워드 검사 (meal_plan 우선)
+        priority_order = ["meal_plan", "calendar_save", "place_search", "recipe_search"]
+        
+        for intent_name in priority_order:
+            if intent_name in self.critical_keywords:
+                keywords = self.critical_keywords[intent_name]
+                print(f"🔍 {intent_name} 키워드 검사: {keywords}")
+                matched_keywords = [kw for kw in keywords if kw in text]
+                if matched_keywords:
+                    print(f"✅ {intent_name} 매칭됨: {matched_keywords}")
+                    intent_map = {
+                        "calendar_save": Intent.CALENDAR_SAVE,
+                        "recipe_search": Intent.RECIPE_SEARCH,
+                        "meal_plan": Intent.MEAL_PLAN,
+                        "place_search": Intent.PLACE_SEARCH
+                    }
+                    return {
+                        "intent": intent_map[intent_name],
+                        "confidence": 0.7,
+                        "method": "minimal_keyword",
+                        "detected_keywords": matched_keywords
+                    }
         
         print("❌ 키워드 매칭 실패 - GENERAL로 폴백")
         # 나머지는 모두 LLM이 판단하도록 GENERAL로 폴백
@@ -128,7 +156,18 @@ class IntentClassifier:
         return initial_intent
     
     async def _llm_classify(self, user_input: str, context: str = "") -> Dict[str, Any]:
-        """LLM 기반 정확한 분류 - 프롬프트 파일 사용"""
+        """LLM 기반 정확한 분류 - 프롬프트 파일 사용 (캐시 적용)"""
+        
+        # 캐시 확인
+        cache_key = f"intent_classify:{hash(user_input)}"
+        if self.cache:
+            try:
+                cached_result = self.cache.get(cache_key)
+                if cached_result:
+                    print(f"✅ 의도 분류 캐시 히트: {cache_key}")
+                    return cached_result
+            except Exception as cache_error:
+                print(f"⚠️ 의도 분류 캐시 조회 오류: {cache_error}")
         
         # intent_classification.py의 프롬프트 사용
         prompt = get_intent_prompt(user_input)
@@ -155,20 +194,40 @@ class IntentClassifier:
                 intent = intent_map.get(result["intent"], Intent.GENERAL)
                 confidence = max(0.5, min(1.0, result.get("confidence", 0.8)))  # 0.5~1.0 범위로 제한
                 
-                return {
+                classification_result = {
                     "intent": intent,
                     "confidence": confidence,
                     "method": "llm",
                     "reasoning": result.get("reasoning", "")
                 }
+                
+                # 결과를 캐시에 저장
+                if self.cache:
+                    try:
+                        self.cache.set(cache_key, classification_result, ttl=7200)  # 2시간 캐시
+                        print(f"✅ 의도 분류 결과 캐시 저장: {cache_key}")
+                    except Exception as cache_error:
+                        print(f"⚠️ 의도 분류 캐시 저장 오류: {cache_error}")
+                
+                return classification_result
         except Exception as e:
             print(f"LLM 분류 오류: {e}")
         
         # 실패시 일반 대화로 분류
-        return {
+        fallback_result = {
             "intent": Intent.GENERAL,
             "confidence": 0.5,
             "method": "llm_fallback",
             "reasoning": "LLM 분류 실패"
         }
+        
+        # 실패 결과도 캐시에 저장 (짧은 시간)
+        if self.cache:
+            try:
+                self.cache.set(cache_key, fallback_result, ttl=300)  # 5분 캐시
+                print(f"✅ 의도 분류 실패 결과 캐시 저장: {cache_key}")
+            except Exception as cache_error:
+                print(f"⚠️ 의도 분류 실패 캐시 저장 오류: {cache_error}")
+        
+        return fallback_result
     

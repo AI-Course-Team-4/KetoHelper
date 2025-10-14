@@ -229,5 +229,26 @@ def get_general_response_template(message: str, profile: dict = None) -> str:
     if any(keyword == message_lower for keyword in intro_exact_keywords):
         return INTRODUCTION_TEMPLATE_LOGGED_IN if is_logged_in else INTRODUCTION_TEMPLATE_GUEST
     
-    # 템플릿 미매칭 시 None 반환 (LLM이 처리하도록)
-    return None
+    # 키토 설명 관련 (일반적인 키토 질문)
+    keto_keywords = [
+        "키토 다이어트 방법",
+        "키토 다이어트 뭐야",
+        "키토 다이어트 무엇",
+        "키토 다이어트 설명",
+        "키토 다이어트 알려줘",
+        "키토 방법",
+        "키토 뭐야",
+        "키토 무엇",
+        "키토 설명",
+        "키토 알려줘",
+        "다이어트 방법",
+        "다이어트 뭐야",
+        "다이어트 무엇",
+        "다이어트 설명",
+        "다이어트 알려줘"
+    ]
+    if any(keyword in message_lower for keyword in keto_keywords):
+        return KETO_EXPLANATION_TEMPLATE_LOGGED_IN if is_logged_in else KETO_EXPLANATION_TEMPLATE_GUEST
+    
+    # 기본 응답 - LLM에게 위임 (빈 문자열 반환으로 처리)
+    return ""  # 빈 문자열을 반환하면 general_chat.py의 프롬프트가 사용됨
