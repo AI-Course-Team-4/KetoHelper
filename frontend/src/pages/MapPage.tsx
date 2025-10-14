@@ -12,6 +12,8 @@ export function MapPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [selectedCategory, setSelectedCategory] = useState('')
+  const [mapLoaded, setMapLoaded] = useState(false)
+  const [dataLoaded, setDataLoaded] = useState(false)
   const [mapRestaurants, setMapRestaurants] = useState<Array<{ 
     id: string; 
     name: string; 
@@ -41,6 +43,9 @@ export function MapPage() {
   const itemRefs = useRef<Array<HTMLDivElement | null>>([])
 
   const searchPlaces = useSearchPlaces()
+  // 지도와 데이터가 모두 준비되어야 표시
+  const ready = mapLoaded && dataLoaded
+  const isBusy = isLoading || !ready
 
   // 카테고리 목록을 백엔드에서 로드
   const [categories, setCategories] = useState<Array<{ code: string; name: string }>>([
@@ -112,10 +117,10 @@ export function MapPage() {
           tips: Array.isArray(p.tips) ? p.tips : undefined,
           category: p.category || undefined,
         }))
-        console.log('매핑된 데이터:', mapped)
         setMapRestaurants(mapped)
         setListRestaurants(mapped)
         setNearbyCount(mapped.length)
+        setDataLoaded(true)
       } catch (e) {
         console.error('백엔드 식당 로드 중 에러:', e)
       } finally {
@@ -139,16 +144,19 @@ export function MapPage() {
     }
   }, [selectedIndex, listContainerRef])
 
-  const handleSearch = async () => {
+  const handleSearch = async (categoryCodeOverride?: string) => {
     if (!userLocation) return
     setIsLoading(true)
+    setDataLoaded(false)
     try {
-      const hasKeyword = searchQuery.trim().length > 0
-      const hasCategory = !!selectedCategory
+      const sanitized = (searchQuery || '').trim()
+      const categoryCode = categoryCodeOverride ?? selectedCategory
+      const categoryName = categories.find(c => c.code === categoryCode)?.name
+      const hasCategory = !!categoryCode && categoryName !== '전체'
+      const hasKeyword = (categoryName === '전체') ? false : (sanitized.length > 0 && sanitized !== '전체')
 
       if (hasKeyword || hasCategory) {
-        const categoryName = categories.find(c => c.code === selectedCategory)?.name
-        const queryForBackend = hasKeyword ? searchQuery.trim() : (categoryName || '키토')
+        const queryForBackend = hasKeyword ? sanitized : (categoryName || '키토')
 
         const res = await api.get('/places', {
           params: {
@@ -156,7 +164,8 @@ export function MapPage() {
             lat: userLocation.lat,
             lng: userLocation.lng,
             radius: 2000,
-            category: hasCategory ? selectedCategory : undefined,
+            // 백엔드의 엄격 카테고리 비교로 인한 누락을 피하기 위해 category 필터는 보내지 않음
+            category: undefined,
           },
         })
         const places = res.data || []
@@ -174,6 +183,7 @@ export function MapPage() {
         setMapRestaurants(mapped)
         setListRestaurants(mapped)
         setNearbyCount(mapped.length)
+        setDataLoaded(true)
         setSelectedIndex(null)
       } else {
         const res = await api.get('/places/high-keto-score', {
@@ -200,6 +210,7 @@ export function MapPage() {
         setMapRestaurants(mapped)
         setListRestaurants(mapped)
         setNearbyCount(mapped.length)
+        setDataLoaded(true)
         setSelectedIndex(null)
       }
     } catch (e) {
@@ -209,20 +220,20 @@ export function MapPage() {
     }
   }
 
-  // 전체 페이지 로딩 화면: 위치 획득 중 또는 리스트 로딩 중
-  if (!userLocation || isLoading) {
+  // 위치 정보가 없을 때만 전체 로딩 화면 표시
+  if (!userLocation) {
     return (
       <div className="min-h-[80vh] flex flex-col items-center justify-center gap-3">
         <CircularProgress size={40} />
         <div className="text-sm text-muted-foreground">
-          {!userLocation ? '위치 정보를 가져오는 중...' : '식당 목록을 불러오는 중...'}
+          위치 정보를 가져오는 중...
         </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6 h-full overflow-auto">
+    <div className="space-y-6 h-full relative">
       {/* 헤더 */}
       <div>
         <h1 className="text-2xl font-bold text-gradient">키토 친화 식당 지도</h1>
@@ -242,10 +253,11 @@ export function MapPage() {
         <CardContent className="space-y-4">
           <div className="flex gap-2">
             <div className="relative flex-1">
-              <Input
+            <Input
                 placeholder="식당명이나 음식 종류를 검색하세요..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              disabled={isBusy}
                 onKeyDown={(e) => {
                   const anyEvt = e as any
                   const composing = anyEvt?.nativeEvent?.isComposing || anyEvt?.keyCode === 229
@@ -265,7 +277,7 @@ export function MapPage() {
                 </button>
               )}
             </div>
-            <Button onClick={handleSearch} disabled={!userLocation || isLoading}>
+            <Button onClick={() => handleSearch()} disabled={!userLocation || isBusy}>
               {isLoading ? (
                 <>
                   <CircularProgress size={16} sx={{ mr: 1 }} />
@@ -287,7 +299,15 @@ export function MapPage() {
                 key={category.code}
                 variant={selectedCategory === category.code ? "default" : "outline"}
                 size="sm"
-                onClick={() => setSelectedCategory(category.code)}
+                disabled={isBusy}
+                onClick={() => {
+                  setSelectedCategory(category.code)
+                  if (category.code === '') {
+                    setSearchQuery('')
+                  }
+                  // 카테고리 선택 시 즉시 해당 값으로 검색 실행 (타이밍 이슈 방지)
+                  handleSearch(category.code)
+                }}
               >
                 {category.name}
               </Button>
@@ -305,11 +325,19 @@ export function MapPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[800px] bg-muted rounded-lg flex items-center justify-center">
+            <div className="h-[800px] bg-muted rounded-lg flex items-center justify-center relative">
+              {isBusy ? (
+                <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
+                  <div className="flex flex-col items-center gap-2">
+                    <CircularProgress size={32} />
+                    <span className="text-sm text-muted-foreground">검색 중...</span>
+                  </div>
+                </div>
+              ) : null}
               <KakaoMap
                 lat={userLocation?.lat}
                 lng={userLocation?.lng}
-                level={2}
+                initialLevel={5}
                 fitToBounds={false}
                 onMarkerClick={(payload) => {
                   const source = (listRestaurants.length ? listRestaurants : mapRestaurants)
@@ -317,6 +345,7 @@ export function MapPage() {
                   console.log('Marker clicked:', payload, 'matched list item:', matched)
                   if (typeof payload.index === 'number') setSelectedIndex(payload.index)
                 }}
+                onLoaded={() => setMapLoaded(true)}
                 markers={[]}
                 restaurants={listRestaurants.length ? listRestaurants : mapRestaurants}
                 specialMarker={userLocation
@@ -333,15 +362,17 @@ export function MapPage() {
             <CardTitle className="text-lg flex items-center">
               <Restaurant sx={{ fontSize: 20, mr: 1 }} />
               주변 키토 친화 식당
-              <span className="ml-auto text-muted-foreground text-sm">{nearbyCount.toLocaleString()}개</span>
+              <span className="ml-auto text-muted-foreground text-sm">{ (!isBusy) && nearbyCount.toLocaleString() + '개'}</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[800px] overflow-auto pr-4 md:pr-6" ref={listContainerRef}>
-              {isLoading ? (
+              {isBusy ? (
                 <div className="flex items-center justify-center h-full">
-                  <CircularProgress size={32} />
-                  <span className="ml-2">로딩 중...</span>
+                  <div className="flex flex-col items-center gap-2">
+                    <CircularProgress size={32} />
+                    <span className="text-sm text-muted-foreground">검색 중...</span>
+                  </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-4">

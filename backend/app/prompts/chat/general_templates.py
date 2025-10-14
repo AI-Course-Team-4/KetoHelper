@@ -224,9 +224,9 @@ def get_general_response_template(message: str, profile: dict = None) -> str:
     if any(keyword in message_lower for keyword in greeting_keywords):
         return GREETING_TEMPLATE_LOGGED_IN if is_logged_in else GREETING_TEMPLATE_GUEST
     
-    # 자기소개 관련
-    intro_keywords = ["너는", "당신은", "뭐야", "누구야", "소개", "자기소개"]
-    if any(keyword in message_lower for keyword in intro_keywords):
+    # 자기소개만 템플릿으로 처리 (정확한 매칭)
+    intro_exact_keywords = ["너는 뭐야", "당신은 뭐야", "너는 누구야", "당신은 누구야", "너 뭐야", "당신 뭐야", "너 누구야", "당신 누구야"]
+    if any(keyword == message_lower for keyword in intro_exact_keywords):
         return INTRODUCTION_TEMPLATE_LOGGED_IN if is_logged_in else INTRODUCTION_TEMPLATE_GUEST
     
     # 키토 설명 관련 (일반적인 키토 질문)
@@ -250,17 +250,5 @@ def get_general_response_template(message: str, profile: dict = None) -> str:
     if any(keyword in message_lower for keyword in keto_keywords):
         return KETO_EXPLANATION_TEMPLATE_LOGGED_IN if is_logged_in else KETO_EXPLANATION_TEMPLATE_GUEST
     
-    # 기본 응답
-    return f"""
-# 🤔 질문해주셔서 감사합니다!
-
-"{message}"에 대한 답변을 드리겠습니다.
-
-## 💡 제가 도와드릴 수 있는 것들
-- **식단표 생성**: "7일 식단표 만들어줘"
-- **레시피 추천**: "닭가슴살 레시피 알려줘"
-- **식당 검색**: "강남역 근처 키토 식당 찾아줘"
-- **키토 정보**: 키토 다이어트에 대한 모든 질문
-
-더 구체적인 질문을 해주시면 정확한 답변을 드릴 수 있습니다! 😊
-"""
+    # 기본 응답 - LLM에게 위임 (빈 문자열 반환으로 처리)
+    return ""  # 빈 문자열을 반환하면 general_chat.py의 프롬프트가 사용됨

@@ -23,6 +23,7 @@ async def search_places(
     lng: float = Query(..., description="경도"),
     radius: int = Query(1000, description="검색 반경(m)"),
     category: Optional[str] = Query(None, description="카테고리 필터"),
+    user_id: Optional[str] = Query(None, description="사용자 ID"),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -164,6 +165,7 @@ async def get_nearby_keto_places(
     lng: float = Query(..., description="경도"),
     radius: int = Query(1000, description="검색 반경(m)"),
     min_score: int = Query(30, description="최소 키토 스코어"),
+    user_id: Optional[str] = Query(None, description="사용자 ID"),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -271,6 +273,7 @@ async def get_high_keto_score_places(
     radius: int = Query(2000, description="검색 반경(m)"),
     min_score: int = Query(30, description="최소 키토 스코어 (기본값: 30)"),
     max_results: int = Query(10, description="최대 결과 수"),
+    user_id: Optional[str] = Query(None, description="사용자 ID"),
     db: AsyncSession = Depends(get_db)
 ):
     """
