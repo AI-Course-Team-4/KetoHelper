@@ -5,6 +5,10 @@ import { fileURLToPath, URL } from 'node:url'
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   plugins: [react()],
+  // prod 번들에서 console/debugger 제거는 최상위 esbuild 옵션으로 설정해야 적용됩니다.
+  esbuild: {
+    drop: mode === 'production' ? ['console', 'debugger'] : [],
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -36,15 +40,8 @@ export default defineConfig(({ mode }) => ({
         }
       }
     },
-    // esbuild 옵션으로 prod에서만 드롭
-    // (vite는 내부적으로 esbuild를 사용해 drop 옵션을 지원)
+    // esbuild drop은 최상위에서 설정됨
     target: 'es2018',
-    // 모드별 설정 분기
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore - esbuild options pass-through
-    esbuild: {
-      drop: mode === 'production' ? ['console', 'debugger'] : [],
-    },
     chunkSizeWarningLimit: 1000
   }
 }))
