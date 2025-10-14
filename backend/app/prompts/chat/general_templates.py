@@ -224,9 +224,9 @@ def get_general_response_template(message: str, profile: dict = None) -> str:
     if any(keyword in message_lower for keyword in greeting_keywords):
         return GREETING_TEMPLATE_LOGGED_IN if is_logged_in else GREETING_TEMPLATE_GUEST
     
-    # 자기소개 관련
-    intro_keywords = ["너는", "당신은", "뭐야", "누구야", "소개", "자기소개"]
-    if any(keyword in message_lower for keyword in intro_keywords):
+    # 자기소개만 템플릿으로 처리 (정확한 매칭)
+    intro_exact_keywords = ["너는 뭐야", "당신은 뭐야", "너는 누구야", "당신은 누구야", "너 뭐야", "당신 뭐야", "너 누구야", "당신 누구야"]
+    if any(keyword == message_lower for keyword in intro_exact_keywords):
         return INTRODUCTION_TEMPLATE_LOGGED_IN if is_logged_in else INTRODUCTION_TEMPLATE_GUEST
     
     # 키토 설명 관련 (일반적인 키토 질문)

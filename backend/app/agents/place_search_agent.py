@@ -243,7 +243,7 @@ class PlaceSearchAgent:
                 print(f"  📦 에이전트 수신 결과: {len(hybrid_results)}개")
                 # 샘플 3개만 요약 출력
                 for i, r in enumerate(hybrid_results[:3], 1):
-                    print(f"    {i}. {r.get('restaurant_name')} - {r.get('menu_name')} (keto:{r.get('keto_score')})")
+                    print(f"    {i}. {r.get('restaurant_name')} - {r.get('menu_name')}")  # keto 점수 제거
             except Exception:
                 pass
             
@@ -314,7 +314,7 @@ class PlaceSearchAgent:
             for i, restaurant in enumerate(results[:3], 1):
                 response += f"**{i}. {restaurant.get('name', '이름 없음')}**\n"
                 response += f"📍 {restaurant.get('address', '')}\n"
-                response += f"⭐ 키토 점수: {restaurant.get('keto_score', 0)}/100\n\n"
+                # response += f"⭐ 키토 점수: {restaurant.get('keto_score', 0)}/100\n\n"  # 키토 점수 표시 제거
             
             return response
         
@@ -327,7 +327,7 @@ class PlaceSearchAgent:
             restaurant_list = ""
             for i, restaurant in enumerate(results[:3], 1):
                 restaurant_list += f"{i}. {restaurant.get('name', '이름 없음')}\n"
-                restaurant_list += f"   - 키토 점수: {restaurant.get('keto_score', 0)}/100\n"
+                # restaurant_list += f"   - 키토 점수: {restaurant.get('keto_score', 0)}/100\n"  # 키토 점수 표시 제거
                 restaurant_list += f"   - 주소: {restaurant.get('address', '')}\n"
                 restaurant_list += f"   - 카테고리: {restaurant.get('category', '')}\n"
                 
@@ -417,8 +417,8 @@ class PlaceSearchAgent:
             print(f"⏰ LLM 응답 생성 타임아웃 (20초)")
             # 타임아웃 시 템플릿 기반 응답으로 폴백
             return f"🍽️ 키토 친화적 식당 {len(results)}곳을 찾았습니다!\n\n" + \
-                   "\n".join([f"• {r.get('name', '이름 없음')} (키토점수: {r.get('keto_score', 0)}/100)" 
-                             for r in results[:3]])
+                   "\n".join([f"• {r.get('name', '이름 없음')}" 
+                             for r in results[:3]])  # 키토점수 제거
             
         except Exception as e:
             print(f"❌ 빠른 응답 생성 실패: {e}")
