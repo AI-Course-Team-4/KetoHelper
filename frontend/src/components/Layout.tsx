@@ -8,11 +8,11 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-screen bg-background flex flex-col">
       <Header />
-      <div className="flex">
+      <div className="flex flex-1 overflow-hidden">
         <Navigation />
-        <main className="flex-1 p-6">
+        <main className="flex-1 p-6 overflow-auto" style={{ scrollbarGutter: 'stable' }}>
           {children}
         </main>
       </div>

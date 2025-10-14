@@ -222,7 +222,7 @@ export function MapPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 h-full overflow-auto">
       {/* 헤더 */}
       <div>
         <h1 className="text-2xl font-bold text-gradient">키토 친화 식당 지도</h1>

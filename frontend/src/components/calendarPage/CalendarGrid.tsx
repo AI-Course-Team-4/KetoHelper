@@ -44,7 +44,7 @@ export function CalendarGrid({
   })
   
   return (
-    <Card className="lg:col-span-4 relative max-w-[1600px] mx-auto w-full">
+    <div className="relative max-w-[1600px] mx-auto w-full">
       {/* 오버레이 로딩 - 캘린더 전체 덮어씌우기 */}
       {isLoadingOverlay && (
         <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-50 flex items-center justify-center h-[600px]">
@@ -56,7 +56,7 @@ export function CalendarGrid({
       )}
       
       {/* 상단 헤더/월 이동 제거: 외부 헤더에서 제어 */}
-      <CardContent className="p-4 sm:p-6 pt-0">
+      <div className="px-2 sm:px-3">
                 {isLoading && (
                     <div className="flex items-center justify-center h-[600px] w-full">
                       <div className="text-center">
@@ -79,7 +79,7 @@ export function CalendarGrid({
         )}
 
                  {!isLoading && !error && (
-                   <div className="calendar-container w-full flex items-start justify-center overflow-x-auto relative">
+                   <div className="calendar-container w-full flex items-start justify-center overflow-x-auto relative" style={{ minHeight: '715px' }}>
                      <DayPicker
               mode="single"
               selected={selectedDate}
@@ -163,11 +163,11 @@ export function CalendarGrid({
                 },
                 cell: {
                   width: '120px',
-                  height: '100px',
+                  height: '135px',
                   minWidth: '120px',
                   maxWidth: '120px',
-                  minHeight: '100px',
-                  maxHeight: '100px',
+                  minHeight: '135px',
+                  maxHeight: '135px',
                   fontSize: '12px',
                   padding: '2px',
                   borderRight: '1px solid #e2e8f0',
@@ -183,8 +183,8 @@ export function CalendarGrid({
                   borderRadius: '8px',
                   transition: 'all 0.2s ease-in-out',
                   width: '100%',
-                  height: '96px',
-                  maxHeight: '96px',
+                  height: '131px',
+                  maxHeight: '131px',
                   display: 'flex',
                   alignItems: 'flex-start',
                   justifyContent: 'center',
@@ -206,7 +206,8 @@ export function CalendarGrid({
                   borderSpacing: '0',
                   borderRadius: '16px',
                   overflow: 'hidden',
-                  backgroundColor: '#ffffff'
+                  backgroundColor: '#ffffff',
+                  minHeight: '715px' // 5주 * 135px + 헤더 40px = 715px (5주월 기준)
                 },
                 months: {
                   width: '100%'
@@ -224,7 +225,7 @@ export function CalendarGrid({
                      />
                    </div>
                  )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }
