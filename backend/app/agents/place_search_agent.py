@@ -379,7 +379,6 @@ class PlaceSearchAgent:
             print(structured_prompt[:500])  # 처음 500자만 출력
             print(f"{'='*60}")
             print(f"✅ 프롬프트 길이: {len(structured_prompt)} 글자")
-            print(f"✅ '냥체' 포함 여부: {'냥체' in structured_prompt}")
             print(f"✅ '응답 형식' 포함 여부: {'응답 형식' in structured_prompt}")
             print(f"✅ '키토 점수' 포함 여부: {'키토 점수' in structured_prompt}")
             print(f"{'='*60}\n")
@@ -408,7 +407,6 @@ class PlaceSearchAgent:
             print(f"{'='*60}")
             print(f"✅ 응답 길이: {len(llm_response.content)} 글자")
             print(f"✅ '🍽️' 포함 여부: {'🍽️' in llm_response.content}")
-            print(f"✅ '냥' 포함 여부: {'냥' in llm_response.content}")
             print(f"✅ '키토 점수' 포함 여부: {'키토 점수' in llm_response.content}")
             print(f"⏱️ 총 생성 시간: {total_time:.2f}초")
             print(f"{'='*60}\n")

@@ -51,7 +51,8 @@ async def search_places(
         hybrid_results = await restaurant_hybrid_search_tool.hybrid_search(
             query=q,
             location={"lat": lat, "lng": lng},
-            max_results=15
+            max_results=15,
+            user_id=user_id
         )
         
         # 하이브리드 검색 결과를 PlaceResponse 형식으로 변환
@@ -183,7 +184,8 @@ async def get_nearby_keto_places(
                 hybrid_results = await restaurant_hybrid_search_tool.hybrid_search(
                     query=keyword,
                     location={"lat": lat, "lng": lng},
-                    max_results=8
+                    max_results=8,
+                    user_id=user_id
                 )
                 
                 # 결과를 PlaceResponse 형식으로 변환
@@ -290,7 +292,8 @@ async def get_high_keto_score_places(
                 hybrid_results = await restaurant_hybrid_search_tool.hybrid_search(
                     query=keyword,
                     location={"lat": lat, "lng": lng},
-                    max_results=5
+                    max_results=5,
+                    user_id=user_id
                 )
                 
                 # 결과를 PlaceResponse 형식으로 변환
