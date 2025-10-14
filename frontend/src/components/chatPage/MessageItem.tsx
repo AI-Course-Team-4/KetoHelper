@@ -387,7 +387,7 @@ export function MessageItem({
                             key={`map-${msg.id}`}
                             lat={userLocation?.lat}
                             lng={userLocation?.lng}
-                            level={1}
+                            initialLevel={5}
                             fitToBounds={true}
                             restaurants={restaurants}
                             activeIndex={typeof selectedPlaceIndexByMsg[msg.id] === 'number' ? selectedPlaceIndexByMsg[msg.id]! : null}
