@@ -22,31 +22,32 @@ export function CalendarHeader({
 }: CalendarHeaderProps) {
   return (
     <div>
-      <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-        <div className="flex-1 flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start gap-2">
+        <div className="flex items-center">
           <h1 className="text-2xl font-bold text-gradient">식단 캘린더</h1>
-          {/* 월 이동 컨트롤 */}
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onMonthChange(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
-              className="hover:bg-green-50 hover:border-green-300"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="text-lg font-bold min-w-[140px] text-center bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+        </div>
+        
+        {/* 월 이동 컨트롤 - 가운데 배치 */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onMonthChange(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
+            className="hover:bg-green-50 hover:border-green-300"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+            <span className="text-lg font-bold w-[140px] text-center bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
               {format(currentMonth, 'yyyy년 M월', { locale: ko })}
             </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onMonthChange(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
-              className="hover:bg-green-50 hover:border-green-300"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onMonthChange(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
+            className="hover:bg-green-50 hover:border-green-300"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
         </div>
         
         <div className="flex items-center gap-3">

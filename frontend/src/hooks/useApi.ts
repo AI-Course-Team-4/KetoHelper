@@ -514,7 +514,10 @@ export function useUpdatePlan() {
         params: { user_id: userId }
       })
       return response.data
-    }
+    },
+    // 동시 실행 허용 및 재시도 설정
+    retry: 2,
+    retryDelay: 1000
   })
 }
 

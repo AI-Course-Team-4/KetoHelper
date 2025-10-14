@@ -184,7 +184,7 @@ export function CalendarPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-1">
       {/* 헤더 */}
       <CalendarHeader
         onDeleteAllPlans={handleDeleteAllPlans}
@@ -195,8 +195,8 @@ export function CalendarPage() {
         onMonthChange={handleMonthChange}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* 캘린더 */}
+      {/* 캘린더를 독립적인 컨테이너로 분리 */}
+      <div className="w-full">
         <CalendarGrid
           currentMonth={currentMonth}
           selectedDate={selectedDate}

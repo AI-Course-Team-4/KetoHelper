@@ -522,7 +522,7 @@ export function useCalendarData(currentMonth: Date) {
 
   const updatePlan = useUpdatePlan()
 
-  // 체크 토글: 서버 PATCH 호출 + 낙관 업데이트
+  // 체크 토글: 서버 PATCH 호출 + 낙관 업데이트 (개선된 버전)
   const toggleMealCheck = (date: Date, mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack') => {
     try {
       const dateKey = formatDateKey(date)
@@ -537,7 +537,7 @@ export function useCalendarData(currentMonth: Date) {
       const current = isMealChecked(date, mealType)
       const next = !current
 
-      // 낙관 업데이트
+      // 즉시 낙관 업데이트 (UI 반응성 향상)
       setMealCheckState(prev => {
         const currentState = prev[dateKey] || {}
         const newState = { ...currentState }
@@ -548,7 +548,7 @@ export function useCalendarData(currentMonth: Date) {
         return { ...prev, [dateKey]: newState }
       })
 
-      // 서버 저장 호출 (기존 정식 엔드포인트)
+      // 서버 저장 호출 (동시 실행 허용)
       updatePlan.mutate(
         {
           planId,
@@ -556,6 +556,19 @@ export function useCalendarData(currentMonth: Date) {
           updates: { status: next ? 'done' : 'planned' }
         },
         {
+          onError: (error) => {
+            console.error('❌ 서버 저장 실패 - 상태 롤백:', error)
+            // 실패 시 이전 상태로 롤백
+            setMealCheckState(prev => {
+              const currentState = prev[dateKey] || {}
+              const newState = { ...currentState }
+              if (mealType === 'breakfast') newState.breakfastCompleted = !next
+              else if (mealType === 'lunch') newState.lunchCompleted = !next
+              else if (mealType === 'dinner') newState.dinnerCompleted = !next
+              else if (mealType === 'snack') newState.snackCompleted = !next
+              return { ...prev, [dateKey]: newState }
+            })
+          },
           onSettled: () => {
             // 서버 반영 후 월 범위 데이터 강제 새로고침하여 재진입 시 상태 유지
             const cacheKey: any = ['plans-range', startDate, endDate, user?.id || '']
