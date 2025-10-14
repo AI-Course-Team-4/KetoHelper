@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     llm_max_tokens: int = int(
         os.getenv("LLM_MAX_TOKENS", os.getenv("GEMINI_MAX_TOKENS", "8192"))
     )
-    llm_timeout: int = int(os.getenv("LLM_TIMEOUT", "60"))
+    llm_timeout: int = int(os.getenv("LLM_TIMEOUT", "10"))
 
     # Gemini 설정
     google_api_key: str = os.getenv("GOOGLE_API_KEY", "")
@@ -69,8 +69,8 @@ class Settings(BaseSettings):
     chat_agent_provider: str = os.getenv("CHAT_AGENT_PROVIDER", llm_provider).lower()
     chat_agent_model: str = os.getenv("CHAT_AGENT_MODEL", llm_model)
     chat_agent_temperature: float = float(os.getenv("CHAT_AGENT_TEMPERATURE", "0.1"))
-    chat_agent_max_tokens: int = int(os.getenv("CHAT_AGENT_MAX_TOKENS", "256"))  # 512 → 256로 더 단축
-    chat_agent_timeout: int = int(os.getenv("CHAT_AGENT_TIMEOUT", "3"))  # 5 → 3초로 더 단축
+    chat_agent_max_tokens: int = int(os.getenv("CHAT_AGENT_MAX_TOKENS", "512"))  # 1024 → 512로 축소
+    chat_agent_timeout: int = int(os.getenv("CHAT_AGENT_TIMEOUT", "5"))  # 10 → 5초로 축소
     
     # DateParser 전용 LLM 설정
     date_parser_provider: str = os.getenv("DATE_PARSER_PROVIDER", llm_provider).lower()
@@ -85,6 +85,13 @@ class Settings(BaseSettings):
     dislikes_extractor_temperature: float = float(os.getenv("DISLIKES_EXTRACTOR_TEMPERATURE", "0.0"))
     dislikes_extractor_max_tokens: int = int(os.getenv("DISLIKES_EXTRACTOR_MAX_TOKENS", "512"))
     dislikes_extractor_timeout: int = int(os.getenv("DISLIKES_EXTRACTOR_TIMEOUT", "10"))
+    
+    # IntentClassifier 전용 LLM 설정 (초고속 의도 분류용)
+    intent_classifier_provider: str = os.getenv("INTENT_CLASSIFIER_PROVIDER", llm_provider).lower()
+    intent_classifier_model: str = os.getenv("INTENT_CLASSIFIER_MODEL", llm_model)
+    intent_classifier_temperature: float = float(os.getenv("INTENT_CLASSIFIER_TEMPERATURE", "0.0"))
+    intent_classifier_max_tokens: int = int(os.getenv("INTENT_CLASSIFIER_MAX_TOKENS", "256"))
+    intent_classifier_timeout: int = int(os.getenv("INTENT_CLASSIFIER_TIMEOUT", "5"))
     
     # 외부 API 설정
     kakao_rest_key: str = os.getenv("KAKAO_REST_KEY", "")

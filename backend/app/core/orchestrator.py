@@ -662,6 +662,12 @@ class KetoCoachAgent:
                 state=state
             )
             
+            # 디버깅: 결과 확인
+            print(f"🔍 MealPlannerAgent 결과 타입: {type(result)}")
+            print(f"🔍 MealPlannerAgent 결과 키: {result.keys() if isinstance(result, dict) else 'Not a dict'}")
+            if isinstance(result, dict) and "response" in result:
+                print(f"🔍 응답 내용 (처음 200자): {result['response'][:200]}...")
+            
             # 결과 상태에 병합
             state.update(result)
             
@@ -815,30 +821,45 @@ class KetoCoachAgent:
                 })
                 return state
 
-            # 일반 질문 템플릿 감지 (빠른 응답)
-            general_keywords = ["안녕", "안녕하세요", "너는", "당신은", "뭐야", "누구야", "다이어트", "무엇", "설명", "알려줘"]
-            is_general_question = any(keyword in current_message.lower() for keyword in general_keywords)
+            # 일반 질문 템플릿 감지 (빠른 응답) - 인사/소개 질문만 템플릿 사용
+            general_keywords = ["안녕", "안녕하세요", "너는", "당신은", "누구야"]
+            
+            # 키토 관련 구체적인 질문은 LLM이 답변하도록 제외
+            keto_question_keywords = ["뭘", "무엇", "어떻게", "왜", "언제", "어디서", "얼마나", "몇", "어떤", "뭐야"]
+            is_keto_specific_question = any(keyword in current_message.lower() for keyword in keto_question_keywords)
+            
+            # 디버깅 로그 추가
+            print(f"🔍 의도 분류 디버깅:")
+            print(f"  - 질문: '{current_message}'")
+            print(f"  - 키토 질문 키워드 매칭: {is_keto_specific_question}")
+            print(f"  - 매칭된 키워드: {[kw for kw in keto_question_keywords if kw in current_message.lower()]}")
+            
+            is_general_question = any(keyword in current_message.lower() for keyword in general_keywords) and not is_keto_specific_question
+            print(f"  - 일반 질문으로 분류: {is_general_question}")
             
             if is_general_question:
                 # 템플릿 기반 빠른 응답 (0.1초) - 사용자 상태별
-                state["response"] = get_general_response_template(current_message, state.get("profile", {}))
-                state["tool_calls"].append({
-                    "tool": "general",
-                    "method": "template_based",
-                    "template": "general_question"
-                })
-                return state
+                template_response = get_general_response_template(current_message, state.get("profile", {}))
+                
+                # 빈 문자열이면 LLM 답변으로 처리
+                if not template_response or template_response.strip() == "":
+                    print("템플릿 응답이 비어있음, LLM 답변으로 처리")
+                    # LLM 답변 로직으로 계속 진행
+                else:
+                    state["response"] = template_response
+                    state["tool_calls"].append({
+                        "tool": "general",
+                        "method": "template_based",
+                        "template": "general_question"
+                    })
+                    return state
 
-            # 간단한 프롬프트 (개인화 정보 + MD 형식 적용)
-            base_prompt = f"""키토 전문가로서 답변해주세요.
-
-질문: {current_message}
-프로필: {profile_context}
-
-간결하고 도움이 되는 답변을 해주세요."""
-            
-            # 🚀 common_templates의 마크다운 서식 규칙 적용
-            prompt = create_standard_prompt(base_prompt)
+            # general_chat.py의 프롬프트 사용 (마크다운 규칙 포함)
+            from app.prompts.chat.general_chat import GENERAL_CHAT_PROMPT
+            prompt = GENERAL_CHAT_PROMPT.format(
+                message=current_message,
+                profile_context=profile_context
+            )
 
             # 공통 LLM 직접 사용 (간단하고 빠름) - 안전한 호출
             try:
