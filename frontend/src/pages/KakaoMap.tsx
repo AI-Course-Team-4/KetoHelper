@@ -4,11 +4,12 @@ import { useEffect, useRef } from "react";
 type KakaoMapProps = {
   lat?: number;
   lng?: number;
-  level?: number;
+  initialLevel?: number;
   height?: number | string;
   markers?: { lat: number; lng: number; title?: string; phone?: string }[];
   markerSize?: number; // px
   onMarkerClick?: (payload: { index: number; lat: number; lng: number; title?: string; }) => void;
+  onLoaded?: () => void;
   // 레스토랑 데이터로 마커를 찍고 싶을 때 사용 (lat/lng 없으면 address로 지오코딩)
   restaurants?: Array<{
     id: string;
@@ -29,10 +30,11 @@ type KakaoMapProps = {
 const KakaoMap: React.FC<KakaoMapProps> = ({
   lat,
   lng,
-  level = 5,
+  initialLevel = 5,
   height = '100%',
   markerSize = 64,
   onMarkerClick,
+  onLoaded,
   markers,
   restaurants,
   fitToBounds = true,
@@ -416,6 +418,13 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
         setTimeout(() => { isMarkerClickRef.current = false; }, 150);
       });
     }
+
+    // 마커/오버레이 생성이 완료된 시점에 로딩 완료 콜백 호출
+    try {
+      if (typeof onLoaded === 'function') {
+        onLoaded();
+      }
+    } catch {}
   };
 
   useEffect(() => {
@@ -435,15 +444,28 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
         // 지도 옵션
         const options = {
           center: new window.kakao.maps.LatLng(lat, lng),
-          level,
+          level: initialLevel,
         };
         const map = new window.kakao.maps.Map(container, options);
+        // 초기 레벨은 최초 1회만 적용(상태 초기값처럼 동작)
+        
         mapRef.current = map;
         // 초기 1회: 맵 클릭시 닫기만 설정, 마커/오버레이는 별도 함수로 구성
 
 
         // 최초 로드시 마커/오버레이 구성
         await rebuildMarkers();
+
+        // 타일 렌더 완료 이벤트에서 한 번 더 보장적으로 콜백 호출
+        try {
+          if (typeof onLoaded === 'function') {
+            const once = () => {
+              onLoaded();
+              window.kakao.maps.event.removeListener(map, 'tilesloaded', once);
+            };
+            window.kakao.maps.event.addListener(map, 'tilesloaded', once);
+          }
+        } catch {}
 
 
         // 맵 상호작용 시 열린 말풍선 닫기 (마커 클릭 직후는 예외)
@@ -494,7 +516,7 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
       selectedMarkerKeyRef.current = null;
     };
     // 데이터 변경 시 마커/오버레이만 갱신
-  }, [lat, lng, level]);
+  }, [lat, lng]);
 
   useEffect(() => {
     // 지도 생성 이후에만 갱신
@@ -502,6 +524,8 @@ const KakaoMap: React.FC<KakaoMapProps> = ({
     rebuildMarkers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [markers, markerSize, restaurants, fitToBounds, specialMarker]);
+
+  // (초기 레벨만 적용하므로 이후 변경은 반영하지 않음)
 
   // 외부에서 선택된 인덱스를 받아 해당 말풍선을 열고 마커 색상을 노란색으로 변경
   useEffect(() => {

@@ -10,7 +10,7 @@ export function MainPage() {
     const navigate = useNavigate()
 
     return (
-        <div className="space-y-6 h-full overflow-auto">
+        <div className="space-y-6 h-full">
             {/* 헤더 */}
             <div>
                 <h1 className="text-2xl font-bold text-gradient">KetoHelper</h1>
