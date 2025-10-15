@@ -1,30 +1,25 @@
 import axios from 'axios'
 import { useAuthStore } from '@/store/authStore'
 import { authService } from '@/services/AuthService';
+import { API_BASE_URL } from '@/lib/apiBase'
 
-// useApi.ts와 동일한 baseURL 로직 적용
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, ''); // 끝 슬래시 제거
-// 배포 도메인(예: *.vercel.app)에서는 강제로 프록시(/api/v1) 사용
-const host = (typeof window !== 'undefined' ? window.location.hostname : '')
-const forceProxy = /vercel\.app$/.test(host)
-const isDev = import.meta.env.DEV;
+// 배포에서 http 베이스가 들어오면 즉시 차단 (혼합 콘텐츠 예방)
+if (import.meta.env.PROD && API_BASE_URL.startsWith('http://')) {
+  throw new Error('Mixed Content: API_BASE_URL must start with https:// in production.')
+}
 
-// 배포에서도 상대경로(/api/v1)로 프록시 태우는 전략을 허용
-
-const client = axios.create({ 
-  baseURL: (isDev || forceProxy || !API_BASE) ? "/api/v1" : `${API_BASE}/api/v1`,
+const client = axios.create({
+  baseURL: API_BASE_URL,
   withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 300000, // 300초 (5분) - 7일 식단표용
+  timeout: 300000,
 })
 
-console.log('axiosClient 설정:', {
-  API_BASE,
-  host: typeof window !== 'undefined' ? window.location.hostname : 'unknown',
-  forceProxy,
-  isDev,
-  finalBaseURL: (isDev || forceProxy || !API_BASE) ? "/api/v1" : `${API_BASE}/api/v1`
-});
+if (!import.meta.env.PROD) {
+  console.log('axiosClient 설정:', {
+    API_BASE_URL,
+  })
+}
 
 client.interceptors.request.use((config) => {
   // 단순히 메모리에 있는 토큰만 붙인다. 인증 판정/리다이렉트는 response 401에서만 처리
