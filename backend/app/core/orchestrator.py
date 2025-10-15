@@ -289,18 +289,9 @@ class KetoCoachAgent:
                 else:
                     state["intent"] = "general"
                 
-                # 추가 검증 규칙 적용: 추천만 있고 도메인 키워드 없으면 general 강제 등
-                try:
-                    validated = self._validate_intent(message, state["intent"])
-                    if validated != state["intent"]:
-                        print(f"    🔧 의도 재조정: {state['intent']} → {validated}")
-                        state["intent"] = validated
-                except Exception as _e:
-                    print(f"    ⚠️ 의도 재검증 실패: {_e}")
-
-                # 기존 로직에서 확신도 검증도 필요하다면 추가
-                if intent_value != "calendar_save" and confidence >= 0.8:
-                    print(f"  ✅ 높은 확신도 → 분류 채택")
+                # 높은 신뢰도(0.8 이상)일 때는 LLM 분류 신뢰하고 추가 검증 스킵
+                if intent_value != "calendar_save" and confidence >= 0.7:
+                    print(f"  ✅ 높은 확신도({confidence}) → LLM 분류 신뢰, 추가 검증 스킵")
                     
                     state["tool_calls"].append({
                         "tool": "router",
@@ -310,6 +301,15 @@ class KetoCoachAgent:
                     })
                     
                     return state
+                else:
+                    # 낮은 신뢰도일 때만 추가 검증 수행
+                    try:
+                        validated = self._validate_intent(message, state["intent"], confidence)
+                        if validated != state["intent"]:
+                            print(f"    🔧 의도 재조정: {state['intent']} → {validated} (낮은 신뢰도: {confidence})")
+                            state["intent"] = validated
+                    except Exception as _e:
+                        print(f"    ⚠️ 의도 재검증 실패: {_e}")
                 
             except Exception as e:
                 print(f"IntentClassifier 오류, SimpleAgent로 폴백: {e}")
@@ -318,11 +318,16 @@ class KetoCoachAgent:
             
         return state
     
-    def _validate_intent(self, message: str, initial_intent: str) -> str:
+    def _validate_intent(self, message: str, initial_intent: str, confidence: float = 0.0) -> str:
         """의도 분류 검증 및 수정 (간소화된 버전)
         
         IntentClassifier에서 이미 검증이 완료되었으므로,
         여기서는 orchestrator 특화 검증만 수행
+        
+        Args:
+            message: 사용자 메시지
+            initial_intent: LLM이 분류한 초기 의도
+            confidence: LLM 분류 신뢰도 (0.8 미만일 때 이 메서드 호출됨)
         """
         # 0) 추천 키워드만 있고 도메인 키워드가 없으면 general로 강제
         try:

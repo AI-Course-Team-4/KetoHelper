@@ -34,9 +34,8 @@ class IntentClassifier:
     
     def __init__(self):
         try:
-            # IntentClassifier 전용 LLM 설정 사용
-            from app.core.llm_factory import create_llm
-            self.llm = create_llm(
+            # IntentClassifier 전용 LLM 설정 사용 (상단에서 이미 import한 create_chat_llm 사용)
+            self.llm = create_chat_llm(
                 provider=settings.intent_classifier_provider,
                 model=settings.intent_classifier_model,
                 temperature=settings.intent_classifier_temperature,
@@ -175,6 +174,9 @@ class IntentClassifier:
         try:
             response = await self.llm.ainvoke([HumanMessage(content=prompt)])
             content = response.content.strip()
+            
+            # 디버깅: LLM 응답 출력
+            print(f"🔍 LLM 원본 응답 (길이: {len(content)}자): {content[:200] if content else '(빈 응답)'}...")
             
             # JSON 파싱
             json_match = re.search(r'\{.*\}', content, re.DOTALL)
