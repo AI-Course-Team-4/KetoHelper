@@ -17,6 +17,8 @@ from langchain.schema import HumanMessage
 
 from app.tools.restaurant.restaurant_hybrid_search import restaurant_hybrid_search_tool
 from app.tools.meal.keto_score import KetoScoreCalculator
+from app.core.semantic_cache import semantic_cache_service
+from app.core.config import settings
 from config import get_personal_configs, get_agent_config
 from app.core.llm_factory import create_chat_llm
 from app.core.redis_cache import redis_cache
@@ -200,7 +202,29 @@ class PlaceSearchAgent:
     ) -> Dict[str, Any]:
         """타임아웃이 적용된 검색 실행"""
         
-        # 1. 하이브리드 검색 실행 (벡터 + 키워드 + RAG)
+        # 1. 시맨틱 캐시 확인 (식당 검색용)
+        if settings.semantic_cache_enabled:
+            try:
+                user_id = profile.get("user_id", "") if profile else ""
+                model_ver = f"place_search_{settings.llm_model}"
+                opts_hash = f"{lat:.2f}_{lng:.2f}_{radius_km}_{user_id}"
+                
+                semantic_result = await semantic_cache_service.semantic_lookup(
+                    message, user_id, model_ver, opts_hash
+                )
+                
+                if semantic_result:
+                    print(f"    🧠 시맨틱 캐시 히트: 식당 검색")
+                    return {
+                        "response": semantic_result,
+                        "intent": "place_search",
+                        "results": [],
+                        "source": "semantic_cache"
+                    }
+            except Exception as e:
+                print(f"    ⚠️ 시맨틱 캐시 조회 오류: {e}")
+        
+        # 2. 하이브리드 검색 실행 (벡터 + 키워드 + RAG)
         print("  🚀 하이브리드 검색 시작...")
         
         try:
@@ -273,7 +297,7 @@ class PlaceSearchAgent:
             # 응답 생성
             response = await self._generate_fast_response(message, formatted_results, profile)
             
-            return {
+            result_data = {
                 "results": formatted_results[:10],  # 상위 10개
                 "response": response,
                 "search_stats": {
@@ -288,6 +312,29 @@ class PlaceSearchAgent:
                     "location": {"lat": lat, "lng": lng}
                 }]
             }
+            
+            # 🧠 시맨틱 캐시 저장 (식당 검색 결과)
+            if settings.semantic_cache_enabled:
+                try:
+                    user_id = profile.get("user_id", "") if profile else ""
+                    model_ver = f"place_search_{settings.llm_model}"
+                    opts_hash = f"{lat:.2f}_{lng:.2f}_{radius_km}_{user_id}"
+                    
+                    meta = {
+                        "route": "place_search",
+                        "location": {"lat": lat, "lng": lng},
+                        "radius_km": radius_km,
+                        "result_count": len(formatted_results)
+                    }
+                    
+                    await semantic_cache_service.save_semantic_cache(
+                        message, user_id, model_ver, opts_hash, 
+                        response, meta
+                    )
+                except Exception as e:
+                    print(f"    ⚠️ 시맨틱 캐시 저장 오류: {e}")
+            
+            return result_data
             
         except Exception as e:
             print(f"  ❌ 하이브리드 검색 실패: {e}")
