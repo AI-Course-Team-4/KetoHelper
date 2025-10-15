@@ -10,7 +10,14 @@ const forceHttps = (u: string) =>
 
 export const API_BASE_URL: string = (() => {
   if (RAW) return `${trim(forceHttps(RAW))}/api/v1`;
-  if (typeof window !== 'undefined' && location.protocol === 'https:') return '/api/v1';
+  if (typeof window !== 'undefined' && location.protocol === 'https:') {
+    // vercel 배포에서 환경변수가 비어있다면 Railway HTTPS로 강제 우회
+    const host = location.hostname || ''
+    if (/vercel\.app$/.test(host)) {
+      return 'https://ketohelper-production.up.railway.app/api/v1'
+    }
+    return '/api/v1'
+  }
   const local = ((import.meta as any).env?.VITE_LOCAL_BACKEND || 'http://localhost:8000').trim();
   return `${trim(local)}/api/v1`;
 })();
