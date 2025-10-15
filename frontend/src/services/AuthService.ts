@@ -1,6 +1,7 @@
 import { useAuthStore } from '@/store/authStore'
 import { commonToasts } from '@/lib/toast'
 import axiosClient from '@/lib/axiosClient'
+import API_BASE_URL from '@/lib/apiBase'
 
 // User 타입 정의
 interface User {
@@ -259,7 +260,7 @@ class AuthService {
       console.log('🔍 AuthService performRefresh: 로그인 사용자 - refresh API 호출 진행')
       
       console.log('🔄 쿠키 기반 토큰 갱신 시도...')
-      const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+      const baseURL = API_BASE_URL
       const fullURL = `${baseURL}/api/v1/auth/refresh`
       console.log('🔍 API 호출 URL:', fullURL)
       console.log('🔍 withCredentials: true')
