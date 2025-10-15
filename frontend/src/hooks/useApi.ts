@@ -419,7 +419,7 @@ export interface PlaceSearchRequest {
 export function useSearchPlaces() {
   return useMutation({
     mutationFn: async (params: PlaceSearchRequest) => {
-      const response = await api.get('/places/', { params })
+      const response = await api.get('/places', { params })
       return response.data
     }
   })
