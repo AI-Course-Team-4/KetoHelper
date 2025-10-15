@@ -78,6 +78,11 @@ def detect_injection(utterance: str) -> bool:
     return False
 
 
+def detect_input_too_long(utterance: str) -> bool:
+    """입력 길이 제한 검사"""
+    return len(utterance) > GuardConfig.MAX_INPUT_LENGTH
+
+
 def fill_defaults(slots: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """기본값 채우기 및 범위 보정"""
     normalized = {}
@@ -209,25 +214,29 @@ def validate_and_normalize(payload: Dict[str, Any]) -> Tuple[bool, Dict[str, Any
     expected_intent = payload.get("expected_intent")
     slots = payload.get("slots", {})
     
-    # 1. 안전성 검사
+    # 1. 입력 길이 검사
+    if detect_input_too_long(utterance):
+        return False, {}, {}, ErrorCode.INPUT_TOO_LONG, []
+    
+    # 2. 안전성 검사
     if detect_safety(utterance):
         return False, {}, {}, ErrorCode.SAFETY, []
     
-    # 2. 인젝션 검사
+    # 3. 인젝션 검사
     if detect_injection(utterance):
         return False, {}, {}, ErrorCode.INJECTION, []
     
-    # 3. 오프토픽 검사
+    # 4. 오프토픽 검사
     if detect_off_topic(utterance):
         return False, {}, {}, ErrorCode.OFF_TOPIC, []
     
-    # 4. 기본값 채우기 및 보정
+    # 5. 기본값 채우기 및 보정
     normalized_slots, auto_corrections = fill_defaults(slots)
     
-    # 5. 필수 슬롯 확인
+    # 6. 필수 슬롯 확인
     missing_slots = check_required(expected_intent, normalized_slots)
     if missing_slots:
         return False, normalized_slots, auto_corrections, ErrorCode.MISSING_SLOT, missing_slots
     
-    # 6. 성공
+    # 7. 성공
     return True, normalized_slots, auto_corrections, "", []
