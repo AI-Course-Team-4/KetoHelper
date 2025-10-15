@@ -20,6 +20,8 @@ from app.tools.shared.temporary_dislikes_extractor import temp_dislikes_extracto
 from app.agents.meal_planner import MealPlannerAgent
 from app.agents.chat_agent import SimpleKetoCoachAgent
 from app.agents.place_search_agent import PlaceSearchAgent
+from app.core.semantic_cache import semantic_cache_service
+from app.core.config import settings
 from app.shared.utils.calendar_utils import CalendarUtils
 from app.tools.calendar.calendar_saver import CalendarSaver
 from app.core.llm_factory import create_chat_llm
@@ -403,10 +405,33 @@ class KetoCoachAgent:
         
         try:
             message = state["messages"][-1].content if state["messages"] else ""
-            
-            # 🚀 비로그인 사용자용 레시피 템플릿 우선 확인 (0.1초)
             profile = state.get("profile", {})
-            is_logged_in = bool(profile.get("user_id"))
+            user_id = profile.get("user_id", "") if profile else ""
+            
+            # 1. 시맨틱 캐시 확인 (레시피 검색용)
+            if settings.semantic_cache_enabled:
+                try:
+                    model_ver = f"recipe_search_{settings.llm_model}"
+                    allergies = profile.get("allergies", []) if profile else []
+                    dislikes = profile.get("dislikes", []) if profile else []
+                    opts_hash = f"{hash(tuple(sorted(allergies)))}_{hash(tuple(sorted(dislikes)))}"
+                    
+                    semantic_result = await semantic_cache_service.semantic_lookup(
+                        message, user_id, model_ver, opts_hash
+                    )
+                    
+                    if semantic_result:
+                        print(f"    🧠 시맨틱 캐시 히트: 레시피 검색")
+                        state["response"] = semantic_result
+                        state["intent"] = "recipe_search"
+                        state["results"] = []
+                        state["tool_calls"] = [{"tool": "recipe_search", "source": "semantic_cache"}]
+                        return state
+                except Exception as e:
+                    print(f"    ⚠️ 시맨틱 캐시 조회 오류: {e}")
+            
+            # 2. 비로그인 사용자용 레시피 템플릿 우선 확인 (0.1초)
+            is_logged_in = bool(user_id)
             
             if not is_logged_in:
                 # 비로그인 사용자용 인기 재료 템플릿 확인
@@ -1456,6 +1481,31 @@ class KetoCoachAgent:
                             "method": "fast_template",
                             "results_count": len(state["results"])
                         })
+                        
+                        # 🧠 시맨틱 캐시 저장 (레시피 검색 결과)
+                        if settings.semantic_cache_enabled:
+                            try:
+                                profile = state.get("profile", {})
+                                user_id = profile.get("user_id", "") if profile else ""
+                                model_ver = f"recipe_search_{settings.llm_model}"
+                                allergies = profile.get("allergies", []) if profile else []
+                                dislikes = profile.get("dislikes", []) if profile else []
+                                opts_hash = f"{hash(tuple(sorted(allergies)))}_{hash(tuple(sorted(dislikes)))}"
+                                
+                                meta = {
+                                    "route": "recipe_search",
+                                    "allergies": allergies,
+                                    "dislikes": dislikes,
+                                    "result_count": len(state["results"])
+                                }
+                                
+                                await semantic_cache_service.save_semantic_cache(
+                                    message, user_id, model_ver, opts_hash, 
+                                    response_text, meta
+                                )
+                            except Exception as e:
+                                print(f"    ⚠️ 시맨틱 캐시 저장 오류: {e}")
+                        
                         return state
                 elif state["intent"] == "place":
                     context = "추천 식당:\n"
