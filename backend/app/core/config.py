@@ -90,7 +90,7 @@ class Settings(BaseSettings):
     intent_classifier_provider: str = os.getenv("INTENT_CLASSIFIER_PROVIDER", llm_provider).lower()
     intent_classifier_model: str = os.getenv("INTENT_CLASSIFIER_MODEL", llm_model)
     intent_classifier_temperature: float = float(os.getenv("INTENT_CLASSIFIER_TEMPERATURE", "0.0"))
-    intent_classifier_max_tokens: int = int(os.getenv("INTENT_CLASSIFIER_MAX_TOKENS", "256"))
+    intent_classifier_max_tokens: int = int(os.getenv("INTENT_CLASSIFIER_MAX_TOKENS", "1024"))
     intent_classifier_timeout: int = int(os.getenv("INTENT_CLASSIFIER_TIMEOUT", "5"))
     
     # 외부 API 설정

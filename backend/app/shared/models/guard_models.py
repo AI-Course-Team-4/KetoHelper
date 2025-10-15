@@ -15,6 +15,7 @@ class ErrorCode(str, Enum):
     OFF_TOPIC = "OFF_TOPIC"
     SAFETY = "SAFETY"
     INJECTION = "INJECTION"
+    INPUT_TOO_LONG = "INPUT_TOO_LONG"
 
 
 class IntentType(str, Enum):
@@ -69,6 +70,9 @@ GuardResponse = Union[GuardSuccessResponse, GuardErrorResponse]
 
 class GuardConfig:
     """가드레일 설정 상수"""
+    
+    # 입력 길이 제한
+    MAX_INPUT_LENGTH = 500
     
     # 기본값
     DEFAULT_LOCATION = "강남역"
@@ -126,7 +130,8 @@ class StockMessages:
         ErrorCode.MISSING_SLOT: "좀 더 구체적으로 알려주시면 바로 추천해드릴게요! 어느 끼니(아침/점심/저녁)와 탄수 한도(예: 20g)를 알려주세요.",
         ErrorCode.OUT_OF_RANGE: "조건을 조금 조정해서 추천해드릴게요! 더 현실적인 범위로 찾아볼게요 😊",
         ErrorCode.SAFETY: "의학적 조언은 드릴 수 없어요. 대신 일반적인 키토 식단 팁을 안내해드릴게요!",
-        ErrorCode.INJECTION: "죄송해요! 키토 식단과 강남역 주변 식당 추천만 도와드릴 수 있어요 😊 다른 질문이 있으시면 말씀해 주세요!"
+        ErrorCode.INJECTION: "죄송해요! 키토 식단과 강남역 주변 식당 추천만 도와드릴 수 있어요 😊 다른 질문이 있으시면 말씀해 주세요!",
+        ErrorCode.INPUT_TOO_LONG: "질문이 너무 길어요! 500자 이내로 간단하게 작성해주세요 😊"
     }
     
     # 힌트 메시지 (원클릭 보정용)
@@ -135,7 +140,8 @@ class StockMessages:
         ErrorCode.OFF_TOPIC: "예) 강남역 근처 키토 식당 추천해줘",
         ErrorCode.OUT_OF_RANGE: "예) 강남역 500m 내 1만원 이하 식당 추천해줘",
         ErrorCode.SAFETY: "예) 키토 식단에서 좋은 지방 음식 추천해줘",
-        ErrorCode.INJECTION: "예) 강남역 근처 키토 식당 추천해줘"
+        ErrorCode.INJECTION: "예) 강남역 근처 키토 식당 추천해줘",
+        ErrorCode.INPUT_TOO_LONG: "예) 강남역 근처 탄수 20g 이하 키토 식당 추천해줘"
     }
     
     # 성공 메시지 (자동 보정 알림)
