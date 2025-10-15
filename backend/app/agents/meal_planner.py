@@ -25,6 +25,8 @@ from app.tools.shared.temporary_dislikes_extractor import temp_dislikes_extracto
 from app.tools.meal.response_formatter import MealResponseFormatter
 from app.core.llm_factory import create_chat_llm
 from app.core.redis_cache import redis_cache
+from app.core.semantic_cache import semantic_cache_service
+from app.core.config import settings
 from config import get_personal_configs, get_agent_config
 
 # 기본값 상수 정의
@@ -2258,11 +2260,11 @@ class MealPlannerAgent:
         
         print(f"📅 최종 일수: {days}일")
         
-        # 🚀 식단 생성 캐싱 로직 (풀 캐시 기반 재조합)
+        # 🚀 식단 생성 캐싱 로직 (정확 캐시 + 시맨틱 캐시)
         constraints = self._extract_all_constraints(message, state)
         cache_key = f"meal_plan_{days}_{constraints.get('kcal_target', '')}_{constraints.get('carbs_max', 30)}_{hash(tuple(sorted(constraints.get('allergies', []))))}_{hash(tuple(sorted(constraints.get('dislikes', []))))}_{state.get('profile', {}).get('user_id', '')}"
         
-        # Redis 캐시 확인
+        # 1) Redis 정확 캐시 확인
         cached_result = redis_cache.get(cache_key)
         if cached_result:
             print(f"    📊 Redis 식단 생성 캐시 히트: {days}일 식단 (풀 재조합)")
@@ -2297,6 +2299,33 @@ class MealPlannerAgent:
                 return result_data
             except Exception as e:
                 print(f"  ⚠️ 풀 재조합 실패, 일반 생성으로 폴백: {e}")
+        
+        # 2) 시맨틱 캐시 확인 (정확 캐시 미스 시)
+        if settings.semantic_cache_enabled:
+            try:
+                user_id = state.get("profile", {}).get("user_id", "")
+                model_ver = f"meal_planner_{settings.llm_model}"
+                # 식단 생성의 경우 일수는 제외하고 다른 제약조건만으로 유사도 판단
+                opts_hash = f"meal_plan_{constraints.get('kcal_target', '')}_{constraints.get('carbs_max', 30)}_{hash(tuple(sorted(constraints.get('allergies', []))))}_{hash(tuple(sorted(constraints.get('dislikes', []))))}"
+                
+                semantic_result = await semantic_cache_service.semantic_lookup(
+                    message, user_id, model_ver, opts_hash
+                )
+                
+                if semantic_result:
+                    print(f"    🧠 시맨틱 캐시 히트: {days}일 식단")
+                    return {
+                        "response": semantic_result,
+                        "intent": "meal_plan",
+                        "results": [{
+                            "type": "meal_plan",
+                            "formatted_response": semantic_result
+                        }],
+                        "source": "semantic_cache"
+                    }
+            except Exception as e:
+                print(f"  ⚠️ 시맨틱 캐시 조회 오류: {e}")
+                # 시맨틱 캐시 오류 시 정상 생성으로 진행
         
         # 3. fast_mode 결정
         fast_mode = state.get("fast_mode", self._determine_fast_mode(message))
@@ -2443,6 +2472,31 @@ class MealPlannerAgent:
             print(f"    💾 풀 캐시 저장: {days}일 식단 (TTL 300s)")
         except Exception as e:
             print(f"  ⚠️ 풀 캐시 저장 실패: {e}")
+        
+        # 🧠 시맨틱 캐시 저장 (LLM 생성 결과만)
+        if settings.semantic_cache_enabled:
+            try:
+                user_id = state.get("profile", {}).get("user_id", "")
+                model_ver = f"meal_planner_{settings.llm_model}"
+                # 식단 생성의 경우 일수는 제외하고 다른 제약조건만으로 유사도 판단
+                opts_hash = f"meal_plan_{constraints.get('kcal_target', '')}_{constraints.get('carbs_max', 30)}_{hash(tuple(sorted(constraints.get('allergies', []))))}_{hash(tuple(sorted(constraints.get('dislikes', []))))}"
+                
+                meta = {
+                    "route": "meal_plan",
+                    "days": days,
+                    "kcal_target": constraints.get('kcal_target'),
+                    "carbs_max": constraints.get('carbs_max', 30),
+                    "allergies": constraints.get('allergies', []),
+                    "dislikes": constraints.get('dislikes', []),
+                    "original_message": message  # 원본 메시지 저장
+                }
+                
+                await semantic_cache_service.save_semantic_cache(
+                    message, user_id, model_ver, opts_hash, 
+                    formatted_response, meta
+                )
+            except Exception as e:
+                print(f"  ⚠️ 시맨틱 캐시 저장 오류: {e}")
         
         print("🔍 DEBUG: 최종 반환 데이터 구조:")
         print(f"  - results length: {len(result_data.get('results', []))}")

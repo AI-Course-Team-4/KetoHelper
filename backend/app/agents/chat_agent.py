@@ -14,6 +14,8 @@ import importlib
 
 from app.core.llm_factory import create_chat_llm
 from app.core.redis_cache import redis_cache
+from app.core.semantic_cache import semantic_cache_service
+from app.core.config import settings
 from config import get_personal_configs, get_agent_config
 
 class SimpleKetoCoachAgent:
@@ -134,7 +136,24 @@ class SimpleKetoCoachAgent:
                 print(f"    ✅ Redis 일반 채팅 캐시 히트: {message[:30]}...")
                 print(f"    ✅ 캐시된 응답 길이: {len(str(cached_result))} 문자")
                 return cached_result
-            else:
+            
+            # 시맨틱 캐시 확인 (정확 캐시 미스 시)
+            if settings.semantic_cache_enabled:
+                try:
+                    model_ver = f"chat_agent_{settings.llm_model}"
+                    opts_hash = f"{user_id}_{hash(tuple(sorted(allergies)))}_{hash(tuple(sorted(dislikes)))}"
+                    
+                    semantic_result = await semantic_cache_service.semantic_lookup(
+                        message, user_id, model_ver, opts_hash
+                    )
+                    
+                    if semantic_result:
+                        print(f"    🧠 시맨틱 캐시 히트: 일반 채팅")
+                        return semantic_result
+                except Exception as e:
+                    print(f"    ⚠️ 시맨틱 캐시 조회 오류: {e}")
+            
+            # 캐시 미스 시
                 print(f"    ❌ Redis 일반 채팅 캐시 미스: {message[:30]}...")
                 print(f"    ❌ 캐시 키: {cache_key}")
             
@@ -153,6 +172,25 @@ class SimpleKetoCoachAgent:
             redis_cache.set(cache_key, result_data, ttl=1800)
             print(f"    ✅ 일반 채팅 결과 캐시 저장 완료: {message[:30]}...")
             print(f"    ✅ 저장된 응답 길이: {len(str(result_data))} 문자")
+            
+            # 🧠 시맨틱 캐시 저장
+            if settings.semantic_cache_enabled:
+                try:
+                    model_ver = f"chat_agent_{settings.llm_model}"
+                    opts_hash = f"{user_id}_{hash(tuple(sorted(allergies)))}_{hash(tuple(sorted(dislikes)))}"
+                    
+                    meta = {
+                        "route": "general_chat",
+                        "allergies": allergies,
+                        "dislikes": dislikes
+                    }
+                    
+                    await semantic_cache_service.save_semantic_cache(
+                        message, user_id, model_ver, opts_hash, 
+                        result_data.get("response", ""), meta
+                    )
+                except Exception as e:
+                    print(f"    ⚠️ 시맨틱 캐시 저장 오류: {e}")
             
             return result_data
             

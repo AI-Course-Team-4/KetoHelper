@@ -112,6 +112,11 @@ class Settings(BaseSettings):
     redis_url: str = os.getenv("REDIS_URL", "")
     redis_enabled: bool = os.getenv("REDIS_ENABLED", "false").lower() == "true"
     
+    # 시맨틱 캐시 설정
+    semantic_cache_enabled: bool = os.getenv("SEMANTIC_CACHE_ENABLED", "true").lower() == "true"
+    semantic_cache_threshold: float = float(os.getenv("SEMANTIC_CACHE_THRESHOLD", "0.90"))
+    semantic_cache_window_seconds: int = int(os.getenv("SEMANTIC_CACHE_WINDOW_SECONDS", "86400"))  # 24시간
+    
     # pydantic v2 설정 (예전 class Config 대체)
     model_config = SettingsConfigDict(
         env_file=".env",
