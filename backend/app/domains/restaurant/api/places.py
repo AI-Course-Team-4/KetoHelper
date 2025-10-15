@@ -16,6 +16,7 @@ from app.tools.restaurant.restaurant_hybrid_search import restaurant_hybrid_sear
 
 router = APIRouter(prefix="/places", tags=["places"])
 
+@router.get("", response_model=List[PlaceResponse])
 @router.get("/", response_model=List[PlaceResponse])
 async def search_places(
     q: str = Query(..., description="검색 키워드"),
