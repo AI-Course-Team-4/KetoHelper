@@ -6,6 +6,7 @@
 # -*- coding: utf-8 -*-
 import sys
 import os
+import time
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'backend'))
 
 # .env 파일 로드
@@ -150,11 +151,48 @@ TEST_CASES = [
 
 
 
-async def evaluate_routing_accuracy():
+async def evaluate_routing_accuracy(clear_cache=True):
     from app.core.intent_classifier import IntentClassifier
     classifier = IntentClassifier()
+    
+    # 캐시 초기화 (토큰 사용량 정확한 측정을 위해)
+    if clear_cache and classifier.cache:
+        try:
+            # Redis 캐시의 intent 관련 키만 삭제
+            print("🔄 캐시 초기화 중...")
+            # Redis 패턴 매칭으로 intent_classify:* 키만 삭제
+            if hasattr(classifier.cache, 'redis'):
+                keys = classifier.cache.redis.keys("intent_classify:*")
+                if keys:
+                    classifier.cache.redis.delete(*keys)
+                    print(f"✅ {len(keys)}개의 캐시 키 삭제 완료")
+                else:
+                    print("✅ 삭제할 캐시 키 없음")
+        except Exception as e:
+            print(f"⚠️  캐시 초기화 실패: {e}")
+    
     correct = 0
     total = len(TEST_CASES)
+    
+    # 시간 측정을 위한 리스트
+    classification_times = []
+    
+    # 의도별 통계를 위한 딕셔너리
+    intent_stats = {}  # {intent: {"correct": 0, "total": 0}}
+    
+    # 실패한 케이스들을 모으는 리스트
+    failed_cases = []  # [(message, expected, predicted, confidence, reasoning)]
+    
+    # 빈 응답 케이스들을 모으는 리스트
+    empty_response_cases = []  # [(message, expected, error_info)]
+    empty_response_count = 0
+    
+    # 토큰 사용량 추적
+    token_stats = {
+        "prompt_tokens": [],
+        "completion_tokens": [],
+        "total_tokens": []
+    }
 
     preview_count = 5  # 한글 출력 확인용 짧은 프리뷰 개수
 
@@ -162,7 +200,71 @@ async def evaluate_routing_accuracy():
         # 실제 orchestrator.py와 동일한 방식으로 context 전달
         # 빈 컨텍스트로 테스트 (실제 프론트엔드와 동일)
         context = ""
-        result = await classifier.classify(message, context)
+        
+        # 시간 측정 시작
+        start_time = time.time()
+        try:
+            result = await classifier.classify(message, context)
+            end_time = time.time()
+            
+            # 빈 응답 체크
+            if result is None or not result or "intent" not in result:
+                empty_response_count += 1
+                elapsed_ms = (end_time - start_time) * 1000
+                classification_times.append(elapsed_ms)
+                empty_response_cases.append({
+                    "message": message,
+                    "expected": expected_intent,
+                    "error_info": "응답이 None이거나 intent 필드가 없음"
+                })
+                print(f"[{idx+1}/{total}] ⚠️  {message[:40]}... | 빈 응답 발생 | 시간: {elapsed_ms:.2f}ms")
+                continue
+            
+            # intent 값이 빈 문자열인지 체크
+            predicted_raw = result.get("intent")
+            if not predicted_raw or str(predicted_raw).strip() == "":
+                empty_response_count += 1
+                elapsed_ms = (end_time - start_time) * 1000
+                classification_times.append(elapsed_ms)
+                empty_response_cases.append({
+                    "message": message,
+                    "expected": expected_intent,
+                    "error_info": f"intent 값이 비어있음: {predicted_raw}"
+                })
+                print(f"[{idx+1}/{total}] ⚠️  {message[:40]}... | 빈 응답 발생 | 시간: {elapsed_ms:.2f}ms")
+                continue
+                
+        except Exception as e:
+            end_time = time.time()
+            empty_response_count += 1
+            elapsed_ms = (end_time - start_time) * 1000
+            classification_times.append(elapsed_ms)
+            empty_response_cases.append({
+                "message": message,
+                "expected": expected_intent,
+                "error_info": f"예외 발생: {str(e)}"
+            })
+            print(f"[{idx+1}/{total}] ⚠️  {message[:40]}... | 예외 발생 | 시간: {elapsed_ms:.2f}ms")
+            continue
+        
+        # 소요 시간 기록 (밀리초 단위)
+        elapsed_ms = (end_time - start_time) * 1000
+        classification_times.append(elapsed_ms)
+        
+        # 토큰 사용량 수집
+        token_usage = result.get("token_usage", {})
+        if token_usage and token_usage.get("total_tokens", 0) > 0:
+            if "prompt_tokens" in token_usage:
+                token_stats["prompt_tokens"].append(token_usage["prompt_tokens"])
+            if "completion_tokens" in token_usage:
+                token_stats["completion_tokens"].append(token_usage["completion_tokens"])
+            if "total_tokens" in token_usage:
+                token_stats["total_tokens"].append(token_usage["total_tokens"])
+        else:
+            # 토큰 정보가 없는 경우 - 캐시 히트 또는 키워드 분류일 가능성
+            method = result.get("method", "unknown")
+            if idx < 3:  # 처음 3개만 출력
+                print(f"    ⚠️  토큰 정보 없음 (method: {method})")
         
         # 디버깅: 실제 프롬프트 확인
         if idx == 0:  # 첫 번째 테스트 케이스만
@@ -171,25 +273,131 @@ async def evaluate_routing_accuracy():
             print(f"🔍 실제 사용되는 프롬프트 (첫 200자): {prompt[:200]}...")
         # Enum.value 또는 문자열 처리
         predicted = getattr(result["intent"], "value", result["intent"])
-        # 프리뷰: 처음 N개만 간단히 결과 표시 (한글 깨짐 체크용)
-        if idx < preview_count:
-            try:
-                reasoning = result.get('reasoning', '')
-                print(f"[PREVIEW] 문장: {message} | 의도: {predicted} | 신뢰도: {result.get('confidence', 0.0):.2f}")
-                if reasoning:
-                    print(f"  💭 추론: {reasoning}")
-            except Exception:
-                # 인코딩 문제 발생 시에도 테스트가 중단되지 않도록 안전 처리
-                pass
+        
+        # 의도별 통계 업데이트
+        if expected_intent not in intent_stats:
+            intent_stats[expected_intent] = {"correct": 0, "total": 0}
+        intent_stats[expected_intent]["total"] += 1
+        
+        # 모든 케이스의 개별 응답 시간 출력
+        match_symbol = "✓" if predicted == expected_intent else "✗"
+        try:
+            print(f"[{idx+1}/{total}] {match_symbol} {message[:40]}... | 의도: {predicted} | 시간: {elapsed_ms:.2f}ms")
+        except Exception:
+            # 인코딩 문제 발생 시에도 테스트가 중단되지 않도록 안전 처리
+            pass
+        
         if predicted == expected_intent:
             correct += 1
+            intent_stats[expected_intent]["correct"] += 1
         else:
-            print(f"[X] '{message}' -> 예상: {expected_intent}, 실제: {predicted}")
+            print(f"    ❌ 예상: {expected_intent}, 실제: {predicted}")
+            # 실패한 케이스 기록
+            failed_cases.append({
+                "message": message,
+                "expected": expected_intent,
+                "predicted": predicted,
+                "confidence": result.get("confidence", 0.0),
+                "reasoning": result.get("reasoning", "")
+            })
 
     acc = correct / total
-    print(f"[OK] 정확도: {acc:.2%} ({correct}/{total}) | 목표: 90%+")
+    print(f"\n{'='*60}")
+    print(f"[OK] 전체 정확도: {acc:.2%} ({correct}/{total}) | 목표: 90%+")
+    
+    # 빈 응답 통계 출력
+    print(f"\n⚠️  빈 응답 통계:")
+    print(f"   빈 응답 발생 횟수: {empty_response_count}회")
+    print(f"   빈 응답 비율: {empty_response_count/total:.2%} ({empty_response_count}/{total})")
+    
+    # 의도별 정확도 출력
+    print(f"\n📊 의도별 정확도:")
+    for intent in sorted(intent_stats.keys()):
+        stats = intent_stats[intent]
+        intent_acc = stats["correct"] / stats["total"] if stats["total"] > 0 else 0
+        print(f"   {intent:20s}: {intent_acc:.2%} ({stats['correct']}/{stats['total']})")
+    
+    # 시간 통계 출력
+    if classification_times:
+        avg_time = sum(classification_times) / len(classification_times)
+        min_time = min(classification_times)
+        max_time = max(classification_times)
+        print(f"\n⏱️  의도분류 소요 시간 통계:")
+        print(f"   평균: {avg_time:.2f}ms")
+        print(f"   최소: {min_time:.2f}ms")
+        print(f"   최대: {max_time:.2f}ms")
+        print(f"   전체 테스트 시간: {sum(classification_times)/1000:.2f}초")
+    
+    # 토큰 사용량 통계 출력
+    if token_stats["total_tokens"]:
+        avg_prompt = sum(token_stats["prompt_tokens"]) / len(token_stats["prompt_tokens"])
+        avg_completion = sum(token_stats["completion_tokens"]) / len(token_stats["completion_tokens"])
+        avg_total = sum(token_stats["total_tokens"]) / len(token_stats["total_tokens"])
+        
+        llm_call_count = len(token_stats["total_tokens"])
+        
+        print(f"\n🪙 토큰 사용량 통계 (LLM 호출 {llm_call_count}/{total}회):")
+        print(f"   프롬프트 토큰:")
+        print(f"      평균: {avg_prompt:.1f} tokens")
+        print(f"      최소: {min(token_stats['prompt_tokens'])} tokens")
+        print(f"      최대: {max(token_stats['prompt_tokens'])} tokens")
+        print(f"      합계: {sum(token_stats['prompt_tokens'])} tokens")
+        print(f"   응답 토큰:")
+        print(f"      평균: {avg_completion:.1f} tokens")
+        print(f"      최소: {min(token_stats['completion_tokens'])} tokens")
+        print(f"      최대: {max(token_stats['completion_tokens'])} tokens")
+        print(f"      합계: {sum(token_stats['completion_tokens'])} tokens")
+        print(f"   전체 토큰:")
+        print(f"      평균: {avg_total:.1f} tokens/request")
+        print(f"      최소: {min(token_stats['total_tokens'])} tokens")
+        print(f"      최대: {max(token_stats['total_tokens'])} tokens")
+        print(f"      총 사용량: {sum(token_stats['total_tokens'])} tokens")
+        
+        if llm_call_count < total:
+            print(f"\n   ℹ️  {total - llm_call_count}개 요청은 캐시/키워드 분류로 처리되어 LLM 호출 없음")
+    else:
+        print(f"\n⚠️  토큰 사용량 정보를 수집하지 못했습니다.")
+        print(f"   💡 가능한 원인:")
+        print(f"      - 모든 요청이 캐시에서 처리됨 (clear_cache=True로 재실행 권장)")
+        print(f"      - 모든 요청이 키워드 분류로 처리됨")
+        print(f"      - LLM 응답에 토큰 정보가 포함되지 않음")
+    
+    # 빈 응답 케이스 상세 출력
+    if empty_response_cases:
+        print(f"\n{'='*60}")
+        print(f"⚠️  빈 응답 케이스 분석 (총 {len(empty_response_cases)}개)")
+        print(f"{'='*60}")
+        for i, case in enumerate(empty_response_cases, 1):
+            try:
+                print(f"\n[{i}] 메시지: {case['message']}")
+                print(f"    예상 의도: {case['expected']}")
+                print(f"    에러 정보: {case['error_info']}")
+            except Exception:
+                # 인코딩 문제 발생 시에도 출력이 중단되지 않도록 안전 처리
+                pass
+    
+    # 실패한 케이스 상세 출력
+    if failed_cases:
+        print(f"\n{'='*60}")
+        print(f"❌ 의도분류 실패 케이스 분석 (총 {len(failed_cases)}개)")
+        print(f"{'='*60}")
+        for i, case in enumerate(failed_cases, 1):
+            try:
+                print(f"\n[{i}] 메시지: {case['message']}")
+                print(f"    예상 의도: {case['expected']}")
+                print(f"    실제 분류: {case['predicted']}")
+                print(f"    신뢰도: {case['confidence']:.2f}")
+            except Exception:
+                # 인코딩 문제 발생 시에도 출력이 중단되지 않도록 안전 처리
+                pass
+    
+    # 모든 테스트 성공 여부
+    if not failed_cases and not empty_response_cases:
+        print(f"\n✅ 모든 테스트 케이스 통과!")
+    
     return acc
 
 if __name__ == "__main__":
     import asyncio
-    asyncio.run(evaluate_routing_accuracy())
+    # clear_cache=True로 설정하여 캐시 초기화 후 테스트 (토큰 사용량 정확히 측정)
+    asyncio.run(evaluate_routing_accuracy(clear_cache=True))

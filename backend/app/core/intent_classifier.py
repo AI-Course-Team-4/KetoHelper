@@ -175,6 +175,75 @@ class IntentClassifier:
             response = await self.llm.ainvoke([HumanMessage(content=prompt)])
             content = response.content.strip()
             
+            # 토큰 사용량 추출
+            token_usage = {}
+            
+            # 디버깅: response 객체의 모든 정보 출력 (첫 번째 LLM 호출만)
+            if not hasattr(self, '_token_debug_printed'):
+                print(f"\n🔍 === Response 객체 디버깅 (Gemini) ===")
+                print(f"response type: {type(response)}")
+                print(f"response 속성 목록: {[attr for attr in dir(response) if not attr.startswith('_')]}")
+                if hasattr(response, 'response_metadata'):
+                    print(f"response_metadata (전체): {response.response_metadata}")
+                    # response_metadata 안의 모든 키 확인
+                    if isinstance(response.response_metadata, dict):
+                        for key, value in response.response_metadata.items():
+                            print(f"  - {key}: {value}")
+                if hasattr(response, 'usage_metadata'):
+                    print(f"usage_metadata: {response.usage_metadata}")
+                    print(f"usage_metadata type: {type(response.usage_metadata)}")
+                    # usage_metadata가 객체라면 속성 출력
+                    if not isinstance(response.usage_metadata, dict):
+                        print(f"usage_metadata 속성: {[attr for attr in dir(response.usage_metadata) if not attr.startswith('_')]}")
+                # 원본 response 확인 (LangChain이 감싸기 전)
+                if hasattr(response, 'raw'):
+                    print(f"raw response: {response.raw}")
+                if hasattr(response, '_raw_response'):
+                    print(f"_raw_response: {response._raw_response}")
+                print(f"=== 디버깅 종료 ===\n")
+                self._token_debug_printed = True
+            
+            # Gemini의 경우 usage_metadata 속성을 우선 확인
+            if hasattr(response, 'usage_metadata') and response.usage_metadata:
+                usage = response.usage_metadata
+                # Gemini는 딕셔너리 형태일 수도 있고 객체 형태일 수도 있음
+                if isinstance(usage, dict):
+                    token_usage = {
+                        'prompt_tokens': usage.get('input_tokens', usage.get('prompt_tokens', 0)),
+                        'completion_tokens': usage.get('output_tokens', usage.get('completion_tokens', 0)),
+                        'total_tokens': usage.get('total_tokens', 0)
+                    }
+                else:
+                    # 객체 형태인 경우
+                    token_usage = {
+                        'prompt_tokens': getattr(usage, 'input_tokens', getattr(usage, 'prompt_tokens', 0)),
+                        'completion_tokens': getattr(usage, 'output_tokens', getattr(usage, 'completion_tokens', 0)),
+                        'total_tokens': getattr(usage, 'total_tokens', 0)
+                    }
+                print(f"🪙 토큰 정보 (usage_metadata): {token_usage}")
+            
+            # response_metadata에서도 확인 (OpenAI 등)
+            elif hasattr(response, 'response_metadata') and response.response_metadata:
+                metadata = response.response_metadata
+                # token_usage가 직접 있는 경우
+                if 'token_usage' in metadata:
+                    token_usage = metadata['token_usage']
+                    print(f"🪙 토큰 정보 (response_metadata.token_usage): {token_usage}")
+                # usage_metadata가 중첩되어 있는 경우
+                elif 'usage_metadata' in metadata:
+                    usage = metadata['usage_metadata']
+                    if isinstance(usage, dict):
+                        token_usage = {
+                            'prompt_tokens': usage.get('input_tokens', usage.get('prompt_tokens', 0)),
+                            'completion_tokens': usage.get('output_tokens', usage.get('completion_tokens', 0)),
+                            'total_tokens': usage.get('total_tokens', 0)
+                        }
+                    print(f"🪙 토큰 정보 (response_metadata.usage_metadata): {token_usage}")
+            
+            # 토큰 정보를 못 찾은 경우
+            if not token_usage or token_usage.get('total_tokens', 0) == 0:
+                print(f"⚠️  토큰 정보를 찾을 수 없습니다.")
+            
             # 디버깅: LLM 응답 출력
             print(f"🔍 LLM 원본 응답 (길이: {len(content)}자): {content[:200] if content else '(빈 응답)'}...")
             
@@ -200,7 +269,8 @@ class IntentClassifier:
                     "intent": intent,
                     "confidence": confidence,
                     "method": "llm",
-                    "reasoning": result.get("reasoning", "")
+                    "reasoning": result.get("reasoning", ""),
+                    "token_usage": token_usage
                 }
                 
                 # 결과를 캐시에 저장
