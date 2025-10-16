@@ -22,6 +22,10 @@ from app.core.config import settings
 from config import get_personal_configs, get_agent_config
 from app.core.llm_factory import create_chat_llm
 from app.core.redis_cache import redis_cache
+import hashlib
+import json
+import random
+import re
 
 class PlaceSearchAgent:
     """키토 친화적 식당 검색 전용 에이전트"""
@@ -146,6 +150,57 @@ class PlaceSearchAgent:
         except ImportError:
             # 정말 마지막 폴백
             return f"키토 친화적 식당 {key} 작업을 수행하세요."
+
+    def _format_quick_response(self, message: str, results: List[Dict[str, Any]]) -> str:
+        """LLM 없이 빠르게 구성하는 간단 응답 텍스트(풀 캐시용).
+        상위 3개 항목만 요약해 가벼운 응답을 만든다.
+        """
+        if not results:
+            return "죄송합니다. 조건에 맞는 식당을 찾지 못했습니다. 다른 키워드로 다시 시도해 주세요."
+        lines = ["🍽️ 키토 친화적 식당을 추천합니다:"]
+        for i, r in enumerate(results[:3], 1):
+            name = r.get("name", "이름 없음")
+            addr = r.get("address", "")
+            menu = r.get("menu_name") or "키토 친화 메뉴"
+            lines.append(f"{i}. {name} - {menu} | {addr}")
+        return "\n".join(lines)
+
+    def _extract_profile_filters(self, profile: Optional[Dict[str, Any]]) -> Dict[str, set]:
+        """프로필에서 알레르기/비선호 단어 집합 추출(소문자 정규화)."""
+        allergies = set()
+        dislikes = set()
+        try:
+            if profile and isinstance(profile, dict):
+                for a in (profile.get("allergies") or []):
+                    if isinstance(a, str) and a.strip():
+                        allergies.add(a.strip().lower())
+                for d in (profile.get("disliked_foods") or []):
+                    if isinstance(d, str) and d.strip():
+                        dislikes.add(d.strip().lower())
+        except Exception:
+            pass
+        return {"allergies": allergies, "dislikes": dislikes}
+
+    def _passes_personal_filters(self, item: Dict[str, Any], filters: Dict[str, set]) -> bool:
+        """메뉴/식당 텍스트에 알레르기/비선호 키워드가 포함되면 제외.
+        현 단계에서는 단순 포함(contains) 기반 필터를 사용한다.
+        """
+        text_parts = [
+            str(item.get("name", "")),
+            str(item.get("menu_name", "")),
+        ]
+        # keto_reasons가 문자열 리스트일 수 있음
+        reasons = item.get("keto_reasons") or []
+        if isinstance(reasons, list):
+            text_parts.extend(str(x) for x in reasons)
+        text = " ".join(text_parts).lower()
+        for w in filters.get("allergies", set()):
+            if w and w in text:
+                return False
+        for w in filters.get("dislikes", set()):
+            if w and w in text:
+                return False
+        return True
     
     async def search_places(
         self,
@@ -202,29 +257,166 @@ class PlaceSearchAgent:
     ) -> Dict[str, Any]:
         """타임아웃이 적용된 검색 실행"""
         
-        # 1. 시맨틱 캐시 확인 (식당 검색용)
+        # 1. 풀 캐시(응답 풀) 먼저 확인 → 라운드로빈 반환
+        try:
+            user_id = profile.get("user_id", "") if profile else ""
+            stable_key_obj = {
+                "q": message.strip(),
+                "lat": round(lat, 3),
+                "lng": round(lng, 3),
+                "radius_km": radius_km,
+                "user_id": user_id,
+            }
+            stable_key = hashlib.sha256(json.dumps(stable_key_obj, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
+            pool_key = f"place_pool:{stable_key}"
+            idx_key = f"place_pool_idx:{stable_key}"
+            pool_data = redis_cache.get(pool_key) if redis_cache else None
+            if pool_data and isinstance(pool_data, dict):
+                pool = pool_data.get("pool", [])
+                if pool:
+                    # 사용 이력 기반 다양성 보장(미사용 우선 → 부족 시 재사용)
+                    used_key = f"{idx_key}:used"
+                    last_top3_key = f"{idx_key}:last_top3"
+                    used_list = redis_cache.get(used_key) or []
+                    last_top3_pairs = set()
+                    try:
+                        last_top3 = redis_cache.get(last_top3_key) or []
+                        # 저장 형태: "placeId|menuKey" 리스트
+                        last_top3_pairs = set(str(x) for x in last_top3)
+                    except Exception:
+                        last_top3_pairs = set()
+                    try:
+                        used_set = set(int(x) for x in used_list if isinstance(x, (int, float, str)))
+                    except Exception:
+                        used_set = set()
+                    all_indices = list(range(len(pool)))
+                    available = [i for i in all_indices if i not in used_set]
+                    if not available:
+                        # 모두 소비되면 이력 초기화 후 다시 전체에서 선택
+                        available = all_indices
+                        used_set = set()
+                        used_list = []
+                    # 1) 우선 미사용에서 최대 3개 선정
+                    candidates = available.copy()
+                    random.shuffle(candidates)
+                    selected = candidates[:3]
+                    # 2) 3개 미만이면 사용된 것 중에서 채움(중복 제외)
+                    if len(selected) < 3:
+                        rest = [i for i in all_indices if i not in set(selected)]
+                        random.shuffle(rest)
+                        selected += rest[: 3 - len(selected)]
+                    # 안전장치
+                    if not selected:
+                        selected = [random.randrange(len(pool))]
+
+                    # 3) 선택된 3개를 사용해 결과 상위 1,2,3을 구성
+                    combined_results: List[Dict[str, Any]] = []
+                    seen_menu_per_place: Dict[str, set] = {}
+                    picked_top3_pairs: List[str] = []
+                    for si in selected:
+                        entry = pool[si]
+                        res_list = entry.get("results", []) or []
+                        # 각 후보에서 가능한 첫 아이템을 고르되, 같은 식당이면 메뉴명이 달라야 함
+                        picked_one = None
+                        for item in res_list:
+                            place_id = str(item.get("place_id", ""))
+                            menu_name = item.get("menu_name") or "__no_menu__"
+                            used_menus = seen_menu_per_place.setdefault(place_id, set())
+                            pair_key = f"{place_id}|{menu_name}"
+                            # 직전 라운드 TOP3 (place,menu) 회피
+                            if (menu_name not in used_menus) and (pair_key not in last_top3_pairs):
+                                picked_one = item
+                                used_menus.add(menu_name)
+                                picked_top3_pairs.append(pair_key)
+                                break
+                        if picked_one:
+                            combined_results.append(picked_one)
+
+                    # 회피 규칙으로 3개를 못 채웠다면, last_top3 회피를 완화하여 보충
+                    if len(combined_results) < 3:
+                        for si in selected:
+                            if len(combined_results) >= 3:
+                                break
+                            res_list = (pool[si].get("results", []) or [])
+                            for item in res_list:
+                                place_id = str(item.get("place_id", ""))
+                                menu_name = item.get("menu_name") or "__no_menu__"
+                                used_menus = seen_menu_per_place.setdefault(place_id, set())
+                                if menu_name in used_menus:
+                                    continue
+                                combined_results.append(item)
+                                used_menus.add(menu_name)
+                                picked_top3_pairs.append(f"{place_id}|{menu_name}")
+                                break
+
+                    # 4) 나머지 슬롯(최대 10)은 선택된 엔트리들의 리스트를 순회하며 중복 메뉴 방지로 채움
+                    for si in selected:
+                        res_list = (pool[si].get("results", []) or [])
+                        for item in res_list:
+                            if len(combined_results) >= 10:
+                                break
+                            place_id = str(item.get("place_id", ""))
+                            menu_name = item.get("menu_name") or ""
+                            used_menus = seen_menu_per_place.setdefault(place_id, set())
+                            if menu_name in used_menus:
+                                continue
+                            combined_results.append(item)
+                            used_menus.add(menu_name)
+                        if len(combined_results) >= 10:
+                            break
+
+                    # 5) 응답 텍스트 재생성(개인화 요약을 위해 LLM 호출 허용)
+                    resp = await self._generate_fast_response(message, combined_results, profile)
+
+                    result = {
+                        "results": combined_results,
+                        "response": resp,
+                        "search_stats": {
+                            "hybrid_results": sum(len((pool[si].get("results", []) or [])) for si in selected),
+                            "final_results": len(combined_results),
+                            "location": {"lat": lat, "lng": lng}
+                        },
+                        "tool_calls": [{
+                            "tool": "place_search_agent(pool-used)",
+                            "selected_indices": selected,
+                            "location": {"lat": lat, "lng": lng}
+                        }]
+                    }
+
+                    # 6) 사용 이력 업데이트(선택된 3개 모두 기록, 길이 제한: 풀 크기-1 유지)
+                    used_list.extend(int(x) for x in selected)
+                    max_used = max(1, len(pool) - 1)
+                    if len(used_list) > max_used:
+                        used_list = used_list[-max_used:]
+                    ttl = pool_data.get("ttl", 1800)
+                    redis_cache.set(used_key, used_list, ttl=ttl)
+                    # 직전 TOP3 메뉴 갱신
+                    try:
+                        redis_cache.set(last_top3_key, picked_top3_pairs[:3], ttl=ttl)
+                    except Exception:
+                        pass
+                    print(f"    📦 장소 풀 캐시 히트: {len(pool)}개 중 선택 {selected} (상위 3 슬롯에 배치)")
+                    return result
+        except Exception as e:
+            print(f"    ⚠️ 장소 풀 캐시 조회 오류: {e}")
+
+        # 2. 시맨틱 캐시 선조회(텍스트만 선확보하고, 실제 검색/풀 저장은 계속 진행)
+        semantic_text: Optional[str] = None
         if settings.semantic_cache_enabled:
             try:
                 user_id = profile.get("user_id", "") if profile else ""
                 model_ver = f"place_search_{settings.llm_model}"
                 opts_hash = f"{lat:.2f}_{lng:.2f}_{radius_km}_{user_id}"
-                
-                semantic_result = await semantic_cache_service.semantic_lookup(
+                tmp_semantic = await semantic_cache_service.semantic_lookup(
                     message, user_id, model_ver, opts_hash
                 )
-                
-                if semantic_result:
-                    print(f"    🧠 시맨틱 캐시 히트: 식당 검색")
-                    return {
-                        "response": semantic_result,
-                        "intent": "place_search",
-                        "results": [],
-                        "source": "semantic_cache"
-                    }
+                if tmp_semantic:
+                    print(f"    🧠 시맨틱 캐시 히트(텍스트 확보): 식당 검색")
+                    semantic_text = tmp_semantic
             except Exception as e:
                 print(f"    ⚠️ 시맨틱 캐시 조회 오류: {e}")
-        
-        # 2. 하이브리드 검색 실행 (벡터 + 키워드 + RAG)
+
+        # 3. 하이브리드 검색 실행 (벡터 + 키워드 + RAG)
         print("  🚀 하이브리드 검색 시작...")
         
         try:
@@ -273,8 +465,9 @@ class PlaceSearchAgent:
             
             print(f"  ✅ 하이브리드 검색 결과: {len(hybrid_results)}개")
             
-            # 결과를 표준 형식으로 변환
+            # 결과를 표준 형식으로 변환 + 유니크화(place_id+menu)
             formatted_results = []
+            seen_pairs = set()
             for result in hybrid_results:
                 formatted_results.append({
                     "place_id": str(result.get("restaurant_id", "")),
@@ -293,27 +486,95 @@ class PlaceSearchAgent:
                     "source": "hybrid_search",
                     "source_url": result.get("source_url")
                 })
+            uniq_results = []
+            for r in formatted_results:
+                key = (r.get("place_id", ""), r.get("menu_name") or "__no_menu__")
+                if key in seen_pairs:
+                    continue
+                seen_pairs.add(key)
+                uniq_results.append(r)
             
             # 응답 생성
-            response = await self._generate_fast_response(message, formatted_results, profile)
+            # 개인화 필터 적용(알레르기/비선호 제외)
+            filters = self._extract_profile_filters(profile)
+            filtered_results = [r for r in uniq_results if self._passes_personal_filters(r, filters)]
+            # 필터로 모두 빠지면 원본 일부라도 사용(안내문 방지)
+            effective_results = filtered_results or uniq_results
+
+            response = await self._generate_fast_response(message, effective_results, profile)
             
             result_data = {
-                "results": formatted_results[:10],  # 상위 10개
+                "results": effective_results[:10],  # 상위 10개
                 "response": response,
                 "search_stats": {
                     "hybrid_results": len(formatted_results),
-                    "final_results": len(formatted_results),
+                    "final_results": len(effective_results),
                     "location": {"lat": lat, "lng": lng}
                 },
                 "tool_calls": [{
                     "tool": "place_search_agent",
                     "hybrid_results": len(formatted_results),
-                    "final_results": len(formatted_results),
+                    "final_results": len(effective_results),
                     "location": {"lat": lat, "lng": lng}
                 }]
             }
+
+            # 하이브리드가 비었고, 시맨틱 텍스트가 있으면 시맨틱 응답으로 폴백
+            if not effective_results and semantic_text:
+                print("    ↩️ 하이브리드 결과 없음 → 시맨틱 텍스트 폴백 반환")
+                return {
+                    "results": [],
+                    "response": semantic_text,
+                    "search_stats": {
+                        "hybrid_results": len(formatted_results),
+                        "final_results": 0,
+                        "location": {"lat": lat, "lng": lng}
+                    },
+                    "tool_calls": [{
+                        "tool": "place_search_agent(semantic-fallback)",
+                        "location": {"lat": lat, "lng": lng}
+                    }],
+                    "source": "semantic_cache"
+                }
             
-            # 🧠 시맨틱 캐시 저장 (식당 검색 결과)
+            # 4. 풀 캐시 저장(응답 다양성 보존)
+            try:
+                # 풀 구성: 최대 10개 응답을 후보로 생성
+                pool_candidates: List[Dict[str, Any]] = []
+                top_k = min(len(effective_results), 24)
+                sample_k = min(6, top_k)
+                indices = list(range(top_k))
+                random.shuffle(indices)
+                indices = indices[:sample_k]
+                for i in indices:
+                    subset = effective_results[i:i+10]
+                    # LLM 호출 없이 빠른 템플릿 응답으로 대체(타임아웃 방지)
+                    resp = self._format_quick_response(message, subset)
+                    pool_candidates.append({
+                        "results": subset[:10],
+                        "response": resp,
+                        "search_stats": {
+                            "hybrid_results": len(effective_results),
+                            "final_results": len(subset[:10]),
+                            "location": {"lat": lat, "lng": lng}
+                        },
+                        "tool_calls": [{
+                            "tool": "place_search_agent(pool)",
+                            "hybrid_results": len(effective_results),
+                            "final_results": len(subset[:10]),
+                            "location": {"lat": lat, "lng": lng}
+                        }]
+                    })
+
+                if pool_candidates:
+                    ttl = 1800  # 30분
+                    redis_cache.set(pool_key, {"pool": pool_candidates, "ttl": ttl}, ttl=ttl)
+                    redis_cache.set(idx_key, 0, ttl=ttl)
+                    print(f"    💾 장소 풀 캐시 저장: {len(pool_candidates)}개")
+            except Exception as e:
+                print(f"    ⚠️ 장소 풀 캐시 저장 오류: {e}")
+
+            # 5. 시맨틱 캐시 저장 (식당 검색 결과)
             if settings.semantic_cache_enabled:
                 try:
                     user_id = profile.get("user_id", "") if profile else ""

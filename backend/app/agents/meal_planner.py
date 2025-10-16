@@ -23,6 +23,7 @@ from app.tools.shared.profile_tool import user_profile_tool
 from app.tools.shared.date_parser import DateParser
 from app.tools.shared.temporary_dislikes_extractor import temp_dislikes_extractor
 from app.tools.meal.response_formatter import MealResponseFormatter
+from app.tools.shared.recipe_rag import recipe_rag_tool
 from app.core.llm_factory import create_chat_llm
 from app.core.redis_cache import redis_cache
 from app.core.semantic_cache import semantic_cache_service
@@ -2552,69 +2553,186 @@ class MealPlannerAgent:
         """
         print(f"🍳 레시피 요청 처리 시작: '{message}'")
         
-        # 🚀 레시피 요청 캐싱 로직 추가
+        # 1) 제약조건 추출 및 안정 키 생성
         constraints = self._extract_all_constraints(message, state)
-        user_id = state.get("profile", {}).get("user_id", "")
-        cache_key = f"recipe_{hash(message)}_{constraints.get('kcal_target', '')}_{constraints.get('carbs_max', 30)}_{hash(tuple(sorted(constraints.get('allergies', []))))}_{hash(tuple(sorted(constraints.get('dislikes', []))))}_{user_id}"
-        
-        # Redis 캐시 확인
-        cached_result = redis_cache.get(cache_key)
-        if cached_result:
-            print(f"    📊 Redis 레시피 요청 캐시 히트: {message[:30]}...")
-            return cached_result
-        
-        # 1. 제약조건 추출
-        constraints = self._extract_all_constraints(message, state)
-        
-        # 2. 사용자 ID 확인
-        user_id = state.get("profile", {}).get("user_id")
-        
-        # 3. 프로필 기반 vs 일반 레시피
-        if user_id and state.get("profile"):
-            print(f"👤 프로필 기반 레시피 생성: user_id={user_id}")
-            # 프로필 컨텍스트 생성 (임시 불호 포함)
-            profile_context = self._build_profile_context(constraints)
-            recipe = await self.generate_single_recipe(
-                message=message,
-                profile_context=profile_context,
-                user_id=user_id
-            )
-        else:
-            # 프로필 컨텍스트 생성
-            profile_context = self._build_profile_context(constraints)
-            recipe = await self.generate_single_recipe(
-                message=message,
-                profile_context=profile_context
-            )
-        
-        # 4. 응답 포맷팅
-        formatted_response = self.response_formatter.format_recipe(
-            recipe, message
-        )
-        
-        # 5. 결과 반환 (response 제거하여 _answer_node에서 템플릿 처리)
-        result_data = {
-            "results": [{
-                "title": f"AI 생성: {message}",
-                "content": recipe,
-                "source": "meal_planner_agent",
-                "type": "recipe"
-            }],
-            # "response": formatted_response,  # 제거하여 _answer_node에서 템플릿 처리
-            "formatted_response": formatted_response,
-            "tool_calls": [{
-                "tool": "meal_planner",
-                "method": "handle_recipe_request",
-                "query": message,
-                "has_profile": bool(user_id and state.get("profile"))
-            }]
+        profile = state.get("profile", {}) or {}
+        user_id = profile.get("user_id") or ""
+
+        def _stable_hash(obj: Any) -> str:
+            import hashlib, json
+            try:
+                return hashlib.sha256(json.dumps(obj, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")).hexdigest()
+            except Exception:
+                return str(hash(str(obj)))
+
+        def _normalize_msg(msg: str) -> str:
+            import re
+            s = (msg or "").lower().strip()
+            s = re.sub(r"\s+", " ", s)
+            s = re.sub(r"[\u2600-\u27BF\U0001F300-\U0001FAFF]", "", s)
+            return s
+
+        stable_key_payload = {
+            "message": _normalize_msg(message),
+            "user_id": user_id,
+            "kcal_target": constraints.get("kcal_target"),
+            "carbs_max": constraints.get("carbs_max"),
+            "allergies": sorted(constraints.get("allergies", [])),
+            "dislikes": sorted(constraints.get("dislikes", [])),
         }
-        
-        # 🚀 레시피 요청 결과 캐싱 (TTL: 30분)
-        redis_cache.set(cache_key, result_data, ttl=1800)
-        print(f"    📊 레시피 요청 결과 캐시 저장: {message[:30]}...")
-        
-        return result_data
+        stable_key = _stable_hash(stable_key_payload)
+        pool_key = f"recipe_pool:{stable_key}"
+        used_key = f"recipe_pool_used:{stable_key}"
+        last_top3_key = f"recipe_pool_last_top3:{stable_key}"
+        TTL_SECONDS = 3600
+
+        def _item_id(it: Dict[str, Any]) -> str:
+            ident = it.get("id") or it.get("url") or it.get("title") or (it.get("content") or "")[:80]
+            return _stable_hash(ident)
+
+        def _filter_personal(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+            allergies = set([a.lower() for a in constraints.get("allergies", [])])
+            dislikes = set([d.lower() for d in constraints.get("dislikes", [])])
+            filtered: List[Dict[str, Any]] = []
+            for it in items:
+                text = (it.get("content") or "") + " " + (it.get("title") or "")
+                low = text.lower()
+                if any(a and a in low for a in allergies):
+                    continue
+                if any(d and d in low for d in dislikes):
+                    continue
+                filtered.append(it)
+            return filtered
+
+        def _join_md(items: List[Dict[str, Any]]) -> str:
+            parts: List[str] = []
+            for it in items:
+                md = (it.get("content") or it.get("markdown") or it.get("text") or "").strip()
+                url = (it.get("url") or "").strip()
+                if not md:
+                    continue
+                if url:
+                    parts.append(f"{md}\n\n[🔗 링크]({url})")
+                else:
+                    parts.append(md)
+            return "\n\n".join(parts).strip()
+
+        async def _render_llm_style(items: List[Dict[str, Any]]) -> str:
+            """과거 LLM 출력 형식을 유지해 3개 레시피를 재구성한다."""
+            try:
+                llm = create_chat_llm(route="recipe", state=state)
+                # 원문에 링크를 포함해 전달
+                joined = _join_md(items)
+                system_prompt = (
+                    "당신은 키토 레시피 추천 비서입니다. 출력은 오직 Markdown. HTML/코드블록 금지.\n"
+                    "예전과 동일한 형식으로 작성하세요: 인트로 2~3문장 → '추천 키토 레시피 TOP 3' 헤더 → 1~3번 항목(각 항목 굵은 제목+한줄 요약과 2~4개의 서브불릿) → '키토 식사 팁' 2~3개 → 짧은 마무리 문장.\n"
+                    "원문 라벨(제목:, 재료: 등) 표기는 제거하고, 링크는 그대로 남깁니다."
+                )
+                user_prompt = (
+                    f"사용자 요청: {message}\n\n"
+                    "아래 3개 레시피 콘텐츠와 링크를 바탕으로 동일한 형식으로 정리해 주세요.\n\n"
+                    f"[레시피 3개]\n{joined}"
+                )
+                content = await llm.ainvoke(system_prompt=system_prompt, user_prompt=user_prompt)
+                text = content.get("content") if isinstance(content, dict) else str(content)
+                return (text or "").strip() or joined
+            except Exception:
+                return _join_md(items)
+
+        def _select3(pool: List[Dict[str, Any]], used: List[str], last3: List[str]) -> List[Dict[str, Any]]:
+            import random
+            sid_used, sid_last = set(used), set(last3)
+            unused = [it for it in pool if _item_id(it) not in sid_used and _item_id(it) not in sid_last]
+            random.shuffle(unused)
+            sel: List[Dict[str, Any]] = unused[:3]
+            if len(sel) < 3:
+                unused2 = [it for it in pool if _item_id(it) not in sid_used]
+                random.shuffle(unused2)
+                for it in unused2:
+                    if len(sel) >= 3: break
+                    if it not in sel: sel.append(it)
+            if len(sel) < 3:
+                cands = list(pool)
+                random.shuffle(cands)
+                for it in cands:
+                    if len(sel) >= 3: break
+                    if it not in sel: sel.append(it)
+            return sel[:3]
+
+        pool: List[Dict[str, Any]] = redis_cache.get(pool_key) or []
+        used_ids: List[str] = redis_cache.get(used_key) or []
+        last_top3_ids: List[str] = redis_cache.get(last_top3_key) or []
+
+        # 풀이 없으면 초기화 (RAG TopN 수집) 후 상위 3개 즉시 반환
+        if not pool:
+            print("📥 레시피 풀 초기화: RAG 후보 수집")
+            profile_text = self._build_profile_context(constraints)
+            results = await recipe_rag_tool.search_recipes(message, profile=profile_text, max_results=50)
+            results = _filter_personal(results)
+            if not results:
+                return {"results": [], "response": "조건에 맞는 레시피를 찾지 못했어요.", "tool_calls": []}
+            pool = results
+            redis_cache.set(pool_key, pool, ttl=TTL_SECONDS)
+            first3 = pool[:3]
+            new_used = used_ids + [_item_id(it) for it in first3]
+            keep_n = max(0, len(pool) - 1)
+            redis_cache.set(used_key, new_used[-keep_n:], ttl=TTL_SECONDS)
+            redis_cache.set(last_top3_key, [_item_id(it) for it in first3], ttl=TTL_SECONDS)
+            return {
+                "results": [
+                    {
+                        "title": it.get("title", ""),
+                        "content": (it.get("content") or it.get("markdown") or it.get("text") or ""),
+                        "url": it.get("url"),
+                        "type": "recipe",
+                        "source": "recipe_pool"
+                    } for it in first3
+                ],
+                "response": "",
+                "tool_calls": []
+            }
+
+        # 풀이 작은 경우 자동 보충 시도
+        if len(pool) < 8:
+            try:
+                profile_text = self._build_profile_context(constraints)
+                more = await recipe_rag_tool.search_recipes(message, profile=profile_text, max_results=50)
+                more = _filter_personal(more)
+                seen = set(_item_id(it) for it in pool)
+                for it in more:
+                    iid = _item_id(it)
+                    if iid not in seen:
+                        pool.append(it)
+                        seen.add(iid)
+                redis_cache.set(pool_key, pool, ttl=TTL_SECONDS)
+                print(f"🔄 레시피 풀 자동 보충: {len(pool)}개")
+            except Exception:
+                pass
+
+        print("✅ 레시피 풀 캐시 히트: 회전 선택")
+        selection = _select3(pool, used_ids, last_top3_ids)
+        if len(selection) < 3:
+            used_ids = []
+            selection = _select3(pool, used_ids, last_top3_ids)
+
+        new_used = used_ids + [_item_id(it) for it in selection]
+        keep_n = max(0, len(pool) - 1)
+        redis_cache.set(used_key, new_used[-keep_n:], ttl=TTL_SECONDS)
+        redis_cache.set(last_top3_key, [_item_id(it) for it in selection], ttl=TTL_SECONDS)
+
+        return {
+            "results": [
+                {
+                    "title": it.get("title", ""),
+                    "content": (it.get("content") or it.get("markdown") or it.get("text") or ""),
+                    "url": it.get("url"),
+                    "type": "recipe",
+                    "source": "recipe_pool"
+                } for it in selection
+            ],
+            "response": "",
+            "tool_calls": []
+        }
     
     # ==========================================
     # 헬퍼 메서드들
