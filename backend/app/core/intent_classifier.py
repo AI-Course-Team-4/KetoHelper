@@ -62,7 +62,7 @@ class IntentClassifier:
         
         # 최소한의 핵심 키워드만 유지 - LLM이 90% 담당
         self.critical_keywords = {
-            "calendar_save": ["캘린더에 저장", "캘린더에 저장해줘", "저장해줘", "일정 등록", "캘린더 추가", "캘린더에", "저장", "넣어줘", "넣어", "추가해줘", "추가해"],
+            "calendar_save": ["캘린더에 저장", "캘린더에 저장해줘", "저장해줘", "일정 등록", "캘린더 추가", "캘린더에", "저장", "넣어줘", "넣어", "추가해줘", "추가해", "캘린더", "일정에", "일정에 저장"],
             "recipe_search": ["레시피", "조리법"],
             "meal_plan": ["식단표", "식단 계획", "일주일", "7일", "만들어줘"],
             "place_search": ["맛집", "식당", "근처"]
@@ -82,8 +82,15 @@ class IntentClassifier:
         
         text = user_input.lower().strip()
         
-        # 1. 키워드 우선 분류 (식단표 관련은 무조건 meal_plan)
+        # 1. 키워드 우선 분류 (캘린더 저장 > 식단표 순서)
         keyword_result = self._minimal_keyword_classify(text)
+        
+        # 캘린더 저장 의도 우선 처리
+        if keyword_result['intent'] == Intent.CALENDAR_SAVE:
+            print(f"    [KEYWORD] 캘린더 저장 키워드 감지: {keyword_result['intent'].value} (신뢰도: {keyword_result['confidence']:.2f})")
+            return keyword_result
+        
+        # 식단표 관련은 무조건 meal_plan
         if keyword_result['intent'] == Intent.MEAL_PLAN:
             print(f"    [KEYWORD] 식단표 키워드 감지: {keyword_result['intent'].value} (신뢰도: {keyword_result['confidence']:.2f})")
             return keyword_result
@@ -117,8 +124,8 @@ class IntentClassifier:
         
         print(f"🔍 키워드 분류 시작: '{text}'")
         
-        # 우선순위 순서로 키워드 검사 (meal_plan 우선)
-        priority_order = ["meal_plan", "calendar_save", "place_search", "recipe_search"]
+        # 우선순위 순서로 키워드 검사 (calendar_save 최우선)
+        priority_order = ["calendar_save", "meal_plan", "place_search", "recipe_search"]
         
         for intent_name in priority_order:
             if intent_name in self.critical_keywords:

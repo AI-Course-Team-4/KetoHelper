@@ -34,12 +34,13 @@ class CalendarSaver:
         print(f"🔍 DEBUG: state keys = {list(state.keys()) if state else 'None'}")
 
         try:
-            # 로그인 체크 - 가장 먼저 확인
+            # 로그인 체크는 이미 오케스트레이터에서 완료됨
             user_id = self.calendar_utils.get_user_id_from_state(state)
             if not user_id:
+                # 이 경우는 발생하지 않아야 하지만 안전장치
                 return {
                     "success": False,
-                    "message": "🔒 캘린더에 저장하려면 로그인이 필요합니다. 로그인 후 다시 시도해주세요!"
+                    "message": "🔒 사용자 정보를 찾을 수 없습니다. 다시 시도해주세요!"
                 }
             
 
