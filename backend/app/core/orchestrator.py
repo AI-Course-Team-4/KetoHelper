@@ -422,25 +422,20 @@ class KetoCoachAgent:
             profile = state.get("profile", {})
             user_id = profile.get("user_id", "") if profile else ""
             
-            # 1. 시맨틱 캐시 확인 (레시피 검색용)
+            # 1. 시맨틱 캐시 확인 (레시피 검색용) - 선확보만 하고, 실제 검색/생성은 계속 진행
+            semantic_text = None
             if settings.semantic_cache_enabled:
                 try:
                     model_ver = f"recipe_search_{settings.llm_model}"
                     allergies = profile.get("allergies", []) if profile else []
                     dislikes = profile.get("dislikes", []) if profile else []
                     opts_hash = f"{hash(tuple(sorted(allergies)))}_{hash(tuple(sorted(dislikes)))}"
-                    
-                    semantic_result = await semantic_cache_service.semantic_lookup(
+                    tmp_sem = await semantic_cache_service.semantic_lookup(
                         message, user_id, model_ver, opts_hash
                     )
-                    
-                    if semantic_result:
-                        print(f"    🧠 시맨틱 캐시 히트: 레시피 검색")
-                        state["response"] = semantic_result
-                        state["intent"] = "recipe_search"
-                        state["results"] = []
-                        state["tool_calls"] = [{"tool": "recipe_search", "source": "semantic_cache"}]
-                        return state
+                    if tmp_sem:
+                        print(f"    🧠 시맨틱 캐시 히트(텍스트 확보): 레시피 검색")
+                        semantic_text = tmp_sem
                 except Exception as e:
                     print(f"    ⚠️ 시맨틱 캐시 조회 오류: {e}")
             
@@ -474,23 +469,41 @@ class KetoCoachAgent:
                                 return state
                             break
             
-            # 기존 하이브리드 검색 로직 (로그인 사용자 또는 템플릿에 없는 경우)
+            # 2.5 MealPlannerAgent로 직접 처리(풀 캐시/회전 포함)
+            if hasattr(self.meal_planner, 'handle_recipe_request'):
+                print("🍳 MealPlannerAgent.handle_recipe_request() 실행")
+                try:
+                    result = await self.meal_planner.handle_recipe_request(
+                        message=message,
+                        state=state
+                    )
+                    # 결과 병합
+                    state["results"] = result.get("results", [])
+                    # 포맷된 응답이 있으면 우선 사용
+                    if result.get("formatted_response"):
+                        state["response"] = result["formatted_response"]
+                    # tool_calls 병합
+                    state["tool_calls"] = result.get("tool_calls", []) + state.get("tool_calls", [])
+                    state["intent"] = "recipe_search"
+                    return state
+                except Exception as e:
+                    import traceback
+                    print(f"❌ MealPlannerAgent 처리 오류: {e}")
+                    print(traceback.format_exc())
+                    # 폴백: 시맨틱 텍스트가 있으면 사용, 없으면 안내 텍스트 반환
+                    fallback_text = semantic_text or "레시피 생성 중 문제가 발생했습니다. 다른 표현으로 다시 요청해 보세요."
+                    state["response"] = fallback_text
+                    state["results"] = []
+                    state["intent"] = "recipe_search"
+                    state["tool_calls"].append({
+                        "tool": "meal_planner",
+                        "status": "failed",
+                        "error": str(e)
+                    })
+                    return state
+
+            # 기존 하이브리드 검색 로직 (백업 경로)
             print(f"  🔍 하이브리드 검색 실행...")
-            # 🚀 MealPlannerAgent 사용 비활성화 - 템플릿 기반 빠른 응답을 위해
-            # if state.get("use_meal_planner_recipe", False):
-            #     # handle_recipe_request 메서드가 있는지 확인
-            #     if hasattr(self.meal_planner, 'handle_recipe_request'):
-            #         print("🍳 MealPlannerAgent.handle_recipe_request() 사용")
-            #         
-            #         # MealPlannerAgent에 위임
-            #         result = await self.meal_planner.handle_recipe_request(
-            #             message=message,
-            #             state=state
-            #         )
-            #         
-            #         # 결과 상태에 병합
-            #         state.update(result)
-            #         return state
             #     else:
             #         print("⚠️ handle_recipe_request 메서드 없음, 기존 방식 사용")
             
