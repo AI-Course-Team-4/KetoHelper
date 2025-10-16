@@ -409,6 +409,9 @@ class HybridSearchTool:
                     'search_message': search_message
                 })
             
+            # 과거 Top3 강제 컷 제거: 다양성 확보를 위해 max_results 수준까지 반환
+            # (여기서는 DB 단계에서 이미 max_results를 적용함)
+
             # 검색 결과가 없는 경우 메시지 추가
             if not formatted_results:
                 formatted_results.append({
