@@ -253,18 +253,29 @@ async def evaluate_routing_accuracy(clear_cache=True):
         
         # 토큰 사용량 수집
         token_usage = result.get("token_usage", {})
+        
+        # llm_fallback이거나 completion_tokens가 0이면 빈 응답으로 간주
+        method = result.get("method", "unknown")
+        if method == "llm_fallback" or (token_usage and token_usage.get("completion_tokens", 0) == 0):
+            empty_response_count += 1
+            empty_response_cases.append({
+                "message": message,
+                "expected": expected_intent,
+                "error_info": f"LLM 출력 실패 (method: {method}, completion_tokens: {token_usage.get('completion_tokens', 'N/A')})"
+            })
+            print(f"    ⚠️  빈 응답 감지: method={method}, completion_tokens={token_usage.get('completion_tokens', 'N/A')}")
+        
         if token_usage and token_usage.get("total_tokens", 0) > 0:
             if "prompt_tokens" in token_usage:
                 token_stats["prompt_tokens"].append(token_usage["prompt_tokens"])
-            if "completion_tokens" in token_usage:
+            if "completion_tokens" in token_usage and token_usage["completion_tokens"] > 0:
                 token_stats["completion_tokens"].append(token_usage["completion_tokens"])
             if "total_tokens" in token_usage:
                 token_stats["total_tokens"].append(token_usage["total_tokens"])
         else:
             # 토큰 정보가 없는 경우 - 캐시 히트 또는 키워드 분류일 가능성
-            method = result.get("method", "unknown")
             if idx < 3:  # 처음 3개만 출력
-                print(f"    ⚠️  토큰 정보 없음 (method: {method})")
+                print(f"    ℹ️  토큰 정보 없음 (method: {method})")
         
         # 디버깅: 실제 프롬프트 확인
         if idx == 0:  # 첫 번째 테스트 케이스만
