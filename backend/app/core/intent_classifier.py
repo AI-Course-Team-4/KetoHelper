@@ -283,14 +283,19 @@ class IntentClassifier:
                 
                 return classification_result
         except Exception as e:
-            print(f"LLM 분류 오류: {e}")
+            import traceback
+            print(f"❌ LLM 분류 오류: {e}")
+            print(f"   오류 타입: {type(e).__name__}")
+            print(f"   상세 트레이스백:")
+            traceback.print_exc()
         
         # 실패시 일반 대화로 분류
         fallback_result = {
             "intent": Intent.GENERAL,
             "confidence": 0.5,
             "method": "llm_fallback",
-            "reasoning": "LLM 분류 실패"
+            "reasoning": "LLM 분류 실패",
+            "token_usage": {}
         }
         
         # 실패 결과도 캐시에 저장 (짧은 시간)
