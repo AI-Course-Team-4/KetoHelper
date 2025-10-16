@@ -248,17 +248,26 @@ class KetoCoachAgent:
                 if result.get('reasoning'):
                     print(f"💭 LLM 추론: {result['reasoning']}")
                 
-                # 캘린더 저장 요청 처리 (사전 차단 로직 제거 - 부분 저장으로 대체)
+                # 캘린더 저장 요청 처리 (로그인 체크 우선)
                 if intent_value == "calendar_save":
                     print("📅 캘린더 저장 요청 감지")
+                    
+                    # 🚨 로그인 체크 - 가장 먼저 확인 (조기 종료)
+                    profile = state.get("profile", {})
+                    user_id = profile.get("user_id") if profile else None
+                    
+                    if not user_id:
+                        print("❌ Guest 사용자 - 캘린더 저장 불가")
+                        state["intent"] = "general"
+                        state["response"] = "🔒 캘린더에 저장하려면 로그인이 필요합니다. 로그인 후 시도해주세요!"
+                        return state
+                    
+                    print("✅ 로그인 사용자 확인 - 캘린더 저장 진행")
                     
                     # 대화 히스토리에서 최근 식단 데이터 찾기
                     meal_plan_data = self.calendar_utils.find_recent_meal_plan(chat_history)
                     if meal_plan_data:
                         state["meal_plan_data"] = meal_plan_data
-                    
-                    # 사전 차단 로직 완전 제거 - 부분 저장 로직으로 대체
-                    print("✅ 사전 차단 로직 제거됨 - 부분 저장 로직 사용")
                     
                     # 캘린더 저장 플로우로 라우팅
                     state["intent"] = "calendar_save"
